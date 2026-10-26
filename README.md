@@ -1,0 +1,89 @@
+# Bela Mesa — cardápio digital interativo
+
+Aplicação local de demonstração para um restaurante: cardápio responsivo, composição de pizzas e hambúrgueres por camadas, sacola, checkout, pedidos persistidos, acompanhamento do cliente e painel de cozinha com atualização por Server-Sent Events.
+
+## Executar localmente
+
+Requisitos: Node.js 22.5 ou superior. A persistência usa o módulo SQLite incluído no Node. Não são necessárias dependências npm.
+
+    cd outputs/mesa-studio
+    npm start
+
+Acesse http://localhost:4173. O arquivo data/mesa.sqlite é criado na primeira execução. Para desenvolvimento com reinício automático, use npm run dev.
+
+O painel fica em Área do restaurante. A senha inicial da demonstração é mesa-demo.
+
+## Menuza — identidade e arte dos alimentos
+
+- A marca da plataforma é Menuza; Bela Mesa é o restaurante de demonstração.
+- Tokens de design (cores, tipografia, espaçamento, raios, sombras, movimento) ficam no início de public/styles.css, com prefixo --mz-.
+- public/food-art.js gera as ilustrações de pizza, hambúrguer e batatas a partir da composição escolhida. Elas são procedurais, não fotografias.
+- O construtor alterna entre Ilustração e 3D. O botão Ver na minha mesa verifica WebXR e, sem suporte, mostra a prévia 3D.
+- As fontes Inter e Bricolage Grotesque estão declaradas, mas não incluídas: sem os arquivos, o navegador usa a fonte do sistema.
+
+## Configuração
+
+- PORT: porta HTTP (padrão 4173).
+- DATA_FILE: caminho do banco SQLite (padrão data/mesa.sqlite).
+- ADMIN_PASSWORD: senha do painel. Em desenvolvimento, o padrão é mesa-demo.
+- APP_SECRET: chave para assinar sessões. Em produção, ADMIN_PASSWORD e APP_SECRET são obrigatórias.
+- NODE_ENV=production: ativa o cookie Secure e impede inicialização sem as duas credenciais.
+
+Exemplo PowerShell para desenvolvimento:
+
+    $env:ADMIN_PASSWORD = "uma-senha-local"
+    $env:APP_SECRET = "uma-chave-aleatoria-longa"
+    npm start
+
+## O que funciona
+
+- Busca, categorias, filtro vegetariano e ordenação.
+- Pizza: quatro tamanhos, três massas/bordas, ingredientes independentes e preço atualizado por escolha.
+- Hambúrguer: tamanhos clássico e duplo, camadas de pão, carne, queijo, vegetais e adicionais.
+- Composição estruturada no navegador e no pedido. Editar um item recupera as escolhas salvas.
+- Prévia WebGL com giro e zoom; as opções selecionadas alimentam a geometria 3D e o pedido.
+- Sacola salva localmente no navegador, edição de quantidades e checkout para retirada, mesa ou entrega.
+- API recalcula preços, valida produtos e ingredientes ativos e mantém snapshots dos valores e nomes no momento da compra.
+- SQLite com chaves estrangeiras, migração inicial e histórico de estados.
+- Chave de idempotência no checkout, autenticação do painel por cookie assinado, validação de origem e isolamento das consultas pelo identificador do restaurante de demonstração.
+- Painel para acompanhar pedidos, atualizar estados, criar produtos, editar preço-base e disponibilidade, e editar preços/disponibilidade de adicionais.
+- Pedidos aparecem no painel por Server-Sent Events. A página do cliente atualiza o acompanhamento a cada cinco segundos.
+- Estados Pronto e Concluído só aparecem após mudança do restaurante no painel. Não existe aprovação de pagamento simulada.
+
+## API principal
+
+- GET /api/catalog — catálogo público ativo e opções de montagem.
+- POST /api/orders — cria o pedido; recebe cliente, modalidade, composição e chave de idempotência.
+- GET /api/tracking/:token — consulta o pedido com token aleatório de acompanhamento.
+- POST /api/admin/login, POST /api/admin/logout, GET /api/admin/me — sessão do painel.
+- GET /api/admin/dashboard, GET /api/admin/orders, GET /api/admin/events — operação e eventos.
+- PATCH /api/admin/orders/:id — atualiza status seguindo transições permitidas.
+- GET /api/admin/catalog, POST /api/admin/products, PATCH /api/admin/products/:id, PATCH /api/admin/ingredients/:id — gestão simplificada do cardápio.
+
+## Testes
+
+    npm test
+
+A suíte usa node:test e inicia uma instância temporária com outro SQLite. Cobre preços e remoção independente de ingredientes, validação de composição, geometria 3D em função de tamanho e composição, autorização, prevenção de pedido duplicado, fluxo de status e recuperação após reiniciar o servidor.
+
+## Visualizador 3D e realidade aumentada
+
+- A janela de personalização usa WebGL para montar geometrias 3D procedurais de pizza, hambúrguer e batatas. Coberturas, porções, tamanho da pizza e versão dupla do hambúrguer alteram o modelo.
+- As dimensões cadastradas em width_cm, depth_cm e height_cm alimentam o tamanho do modelo. Os diâmetros de pizza seguem a opção escolhida. Confira e ajuste as medidas para cada produto antes de usar em um restaurante real.
+- O botão “Ver em AR” solicita uma sessão WebXR immersive-ar com detecção de superfície por hit-test. O acesso à câmera só começa após o toque do cliente. O prato é ancorado na superfície detectada em escala proporcional às dimensões cadastradas.
+- Navegadores sem WebXR/hit-test continuam com o modelo 3D interativo. Não há simulação de câmera ou sobreposição de vídeo como substituto de AR.
+- Para abrir modelos exportados pelos visualizadores nativos, Scene Viewer requer um GLB e Quick Look requer USDZ em HTTPS. Esta demo não vem com esses arquivos nem tem upload/editor para eles; produtos sem esses assets usam o caminho WebXR quando disponível e a prévia 3D nos demais navegadores.
+
+A geometria procedural é uma visualização 3D própria para composição e escala; não é uma digitalização fotográfica de cada receita. O catálogo e as dimensões seed são dados de demonstração.
+
+Não há integração de pagamentos, cálculo de frete, impressão de cozinha, autenticação individual por funcionário, criação de categorias, upload de imagens/modelos ou infraestrutura multi-restaurante pronta para produção. O schema relaciona os registros ao restaurante, mas esta instalação é uma demonstração de um restaurante e usa uma senha compartilhada no painel. Configure políticas, backups, HTTPS, monitoramento, regras de entrega e credenciais reais antes de expor o serviço publicamente.
+
+Os preços de tamanhos são incrementos relativos ao preço-base cadastrado; adicionais são calculados pelo backend. A entrega não cobra taxa porque não há área ou tabela de frete configurada.
+## Deploy
+
+A aplicação serve a interface e a API na mesma origem. Para deploy, use um serviço Node 22.5+, configure NODE_ENV=production, ADMIN_PASSWORD, APP_SECRET e um volume persistente para DATA_FILE, e coloque o serviço atrás de HTTPS. Planeje backup do arquivo SQLite e migração para Postgres/isolamento por tenant antes de atender vários restaurantes simultaneamente.
+
+## Reiniciar os dados da demonstração
+
+O banco local guarda pedidos entre execuções. Para voltar ao catálogo inicial, pare o servidor e apague os arquivos mesa.sqlite, mesa.sqlite-shm e mesa.sqlite-wal dentro de data. Na próxima inicialização, o catálogo de demonstração é criado novamente.
+

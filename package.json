@@ -1,0 +1,9 @@
+{
+  "name": "mesa-studio-digital-menu",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cardápio digital interativo com composição visual, pedidos persistidos e painel de restaurante.",
+  "scripts": { "start": "node server.mjs", "dev": "node --watch server.mjs", "test": "node --test" },
+  "engines": { "node": ">=22.5" }
+}
