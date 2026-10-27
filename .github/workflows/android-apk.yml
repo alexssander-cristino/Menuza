@@ -31,10 +31,24 @@ jobs:
           mkdir -p "$RUNNER_TEMP/menuza_build/lib"
           cp mobile_flutter/lib/main.dart "$RUNNER_TEMP/menuza_build/lib/main.dart"
           cp mobile_flutter/android/app/src/main/AndroidManifest.xml "$RUNNER_TEMP/menuza_build/android/app/src/main/AndroidManifest.xml"
+          if [ -f mobile_flutter/assets/app_icon.png ]; then
+            mkdir -p "$RUNNER_TEMP/menuza_build/assets"
+            cp mobile_flutter/assets/app_icon.png "$RUNNER_TEMP/menuza_build/assets/app_icon.png"
+          fi
 
       - name: Install Flutter dependencies
         working-directory: ${{ runner.temp }}/menuza_build
         run: flutter pub get
+
+      - name: Apply custom app icon when provided
+        working-directory: ${{ runner.temp }}/menuza_build
+        shell: bash
+        run: |
+          if [ -f assets/app_icon.png ]; then
+            dart run flutter_launcher_icons
+          else
+            echo "Nenhum ícone personalizado encontrado; usando o ícone padrão do Flutter."
+          fi
 
       - name: Build debug APK
         working-directory: ${{ runner.temp }}/menuza_build
