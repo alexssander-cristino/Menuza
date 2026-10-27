@@ -99,3 +99,32 @@ O 3D dos alimentos é renderizado em WebGL puro (`public/food-scene.js`) a parti
 - **Estabilidade**: carregamento incremental com indicador, mensagem de erro com fallback para a ilustração, recuperação de perda de contexto e liberação de buffers/texturas ao fechar.
 
 Limitações conhecidas: sombras em tempo real exigem WebGL2 (em WebGL1 o modelo aparece sem sombra projetada); a oclusão de ambiente é calculada por vértice e pela sombra de contato, não por SSAO; a translucidez da alface é sombreamento, sem transparência real; a parte inferior do alimento não é visível porque ele está sobre uma tábua.
+
+
+## Aplicativo Android em Flutter
+
+O projeto móvel está em `mobile_flutter/`. Ele usa Flutter para o aplicativo Android e abre a interface web original do Menuza em uma WebView, preservando HTML, CSS, animações, carrinho, painel e visualizador 3D sem recriar o visual em widgets diferentes.
+
+### Testar no celular
+
+1. No computador, execute `npm start` na raiz do projeto.
+2. Deixe o computador e o celular na mesma rede Wi-Fi.
+3. Confirme o IP IPv4 do PC com `ipconfig`. O endereço padrão configurado no app é `http://192.168.0.105:4173`.
+4. Abra o APK no Android. Se o IP mudar, a tela de conexão permite informar outro endereço.
+
+O servidor Node.js e o SQLite continuam no computador; o APK não inclui o backend nem o banco.
+
+### Gerar APK
+
+O workflow [Build Menuza Flutter APK](https://github.com/alexssander-cristino/Menuza/actions/workflows/android-apk.yml) compila automaticamente quando arquivos de `mobile_flutter/` mudam. Acesse **Actions**, abra a execução mais recente e baixe o artefato `menuza-flutter-debug`.
+
+Para compilar localmente, com Flutter e Android SDK instalados:
+
+```powershell
+cd mobile_flutter
+flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza .
+flutter pub get
+flutter build apk --debug
+```
+
+O APK será gerado em `mobile_flutter/build/app/outputs/flutter-apk/app-debug.apk`. O suporte a WebXR/realidade aumentada continua dependendo do dispositivo e da WebView e não é garantido.
