@@ -30,7 +30,7 @@ jobs:
           cp mobile_flutter/pubspec.yaml "$RUNNER_TEMP/menuza_build/pubspec.yaml"
           mkdir -p "$RUNNER_TEMP/menuza_build/lib"
           cp mobile_flutter/lib/main.dart "$RUNNER_TEMP/menuza_build/lib/main.dart"
-          cp mobile_flutter/android/AndroidManifest.xml "$RUNNER_TEMP/menuza_build/android/app/src/main/AndroidManifest.xml"
+          cp mobile_flutter/android/app/src/main/AndroidManifest.xml "$RUNNER_TEMP/menuza_build/android/app/src/main/AndroidManifest.xml"
 
       - name: Install Flutter dependencies
         working-directory: ${{ runner.temp }}/menuza_build
