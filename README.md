@@ -87,3 +87,15 @@ A aplicação serve a interface e a API na mesma origem. Para deploy, use um ser
 
 O banco local guarda pedidos entre execuções. Para voltar ao catálogo inicial, pare o servidor e apague os arquivos mesa.sqlite, mesa.sqlite-shm e mesa.sqlite-wal dentro de data. Na próxima inicialização, o catálogo de demonstração é criado novamente.
 
+
+## Visualizador 3D (WebGL, sem dependências)
+
+O 3D dos alimentos é renderizado em WebGL puro (`public/food-scene.js`) a partir de modelos procedurais (`public/food-models.js`, `public/food-geo.js`). Nenhuma imagem estática é usada para simular a rotação.
+
+- **Modelos**: hambúrguer (pão com gergelim, carne com marcas de chapa, queijo que escorre, alface em camadas, tomate, cebola, picles, bacon, ovo, molho), pizza (crosta tradicional, fina ou recheada, molho, queijo com cortes, 10 coberturas com forma própria, distribuição sem sobreposição) e batatas rústicas com aioli.
+- **Peças em cache**: cada ingrediente é uma peça independente. Ao adicionar ou remover, só a peça afetada é construída; as demais apenas mudam de altura com animação. A câmera permanece onde o usuário a deixou.
+- **Iluminação**: GGX + Fresnel, estúdio procedural, relevo procedural, translucidez, sombras suaves (WebGL2), tone mapping ACES, MSAA e resolução adaptativa.
+- **Controles**: arrastar (mouse/toque) gira 360° e inclina; pinça ou roda dá zoom; duplo clique ou VISTA volta à posição inicial; AUTO liga/pausa a rotação; teclado: setas, `+`/`-`, `0`/Home, espaço.
+- **Estabilidade**: carregamento incremental com indicador, mensagem de erro com fallback para a ilustração, recuperação de perda de contexto e liberação de buffers/texturas ao fechar.
+
+Limitações conhecidas: sombras em tempo real exigem WebGL2 (em WebGL1 o modelo aparece sem sombra projetada); a oclusão de ambiente é calculada por vértice e pela sombra de contato, não por SSAO; a translucidez da alface é sombreamento, sem transparência real; a parte inferior do alimento não é visível porque ele está sobre uma tábua.

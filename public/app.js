@@ -1,4 +1,4 @@
-import { FoodScene } from './food-scene.js?v=3';
+import { FoodScene } from './food-scene.js?v=4';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, sort: 'featured',
@@ -115,7 +115,9 @@ function renderBuilder() {
   const diameter = selectedSize?.diameterCm || 0;
   const sizeScale = isPizza && diameter ? (0.72 + 0.28 * (diameter / 40)).toFixed(3) : (builder.sizeKey === 'duplo' ? '1' : '0.94');
   const artMode = app.viewMode !== '3d';
-  const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Ilustração</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + productSvg(product, layered, { double: builder.sizeKey === 'duplo' }) + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '"></canvas><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
+  const autoOn = app.scene ? app.scene.autoRotate : !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined };
+  const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Ilustração</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + productSvg(product, layered, { double: builder.sizeKey === 'duplo' }) + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '"></canvas><div class="drag-hint" aria-hidden="true"><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
   const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(product.baseCents + size.deltaCents))) + '</small></button>').join('');
   const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
   let ingredientHtml = '';
@@ -125,20 +127,16 @@ function renderBuilder() {
       return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + '" type="button" aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + (active && !item.included ? '<div class="ingredient-stepper" aria-label="Quantidade de ' + esc(item.name) + '"><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="-1" aria-label="Diminuir ' + esc(item.name) + '">−</button><span>' + entry.quantity + '×</span><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="1" aria-label="Aumentar ' + esc(item.name) + '">+</button></div>' : '') + '</div>';
     }).join('') + '</div>';
   }
-  builderRoot.innerHTML = '<div class="modal-backdrop" data-action="builder-backdrop"><section class="builder-modal" role="dialog" aria-modal="true" aria-label="Personalizar ' + esc(product.name) + '"><div class="builder-visual"><span class="visual-kicker">SUA MONTAGEM EM TEMPO REAL</span>' + visual + '<div class="visual-caption">' + (artMode ? 'Ilustração gerada pelas suas escolhas · alterne para 3D para girar' : 'Modelo 3D com dimensões proporcionais ao tamanho escolhido') + '</div><div class="visual-controls"><button type="button" data-action="rotate-left" aria-label="Girar para a esquerda">↶</button><button type="button" class="control-label" data-action="reset-view">VISTA</button><button type="button" data-action="rotate-right" aria-label="Girar para a direita">↷</button><button type="button" data-action="zoom-out" aria-label="Diminuir zoom">−</button><button type="button" data-action="zoom-in" aria-label="Aumentar zoom">＋</button></div></div><div class="builder-content"><div class="modal-topline"><span>MONTE AO SEU GOSTO</span><button class="icon-button" data-action="close-builder" aria-label="Fechar">×</button></div><h2 class="builder-title">' + esc(product.name) + '</h2><p class="builder-description">' + esc(product.description) + ' Marque ou remova ingredientes e veja o prato e o preço mudarem na hora.</p><div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">' + sizeHtml + '</div>' + crustHtml + ingredientHtml + '<p class="price-note">O valor final é confirmado pelo servidor a partir das opções disponíveis.</p><div class="ar-row"><button type="button" class="button button-outline ar-button" data-action="view-ar" data-product="' + esc(product.id) + '"><span class="ar-icon" aria-hidden="true">◈</span> Ver na minha mesa</button><small class="ar-status" id="arStatus" aria-live="polite">' + arStatusText() + '</small></div><div class="builder-footer"><div class="builder-total"><small>Seu prato</small><b>' + money(builderPrice()) + '</b></div><button class="button button-dark" data-action="add-to-cart">' + (builder.editId ? 'Salvar alterações' : 'Adicionar à sacola') + ' <span>↗</span></button></div></div></section></div>';
+  builderRoot.innerHTML = '<div class="modal-backdrop" data-action="builder-backdrop"><section class="builder-modal" role="dialog" aria-modal="true" aria-label="Personalizar ' + esc(product.name) + '"><div class="builder-visual"><span class="visual-kicker">SUA MONTAGEM EM TEMPO REAL</span>' + visual + '<div class="visual-caption">' + (artMode ? 'Ilustração gerada pelas suas escolhas · alterne para 3D para girar' : 'Gire 360° arrastando · role ou use + e − para o zoom · duplo clique volta à vista inicial') + '</div><div class="visual-controls"><button type="button" data-action="rotate-left" aria-label="Girar para a esquerda">↶</button><button type="button" class="control-label" data-action="reset-view">VISTA</button><button type="button" class="control-label" data-action="toggle-auto" aria-pressed="' + autoOn + '" title="Ligar ou pausar a rotação automática">AUTO</button><button type="button" data-action="rotate-right" aria-label="Girar para a direita">↷</button><button type="button" data-action="zoom-out" aria-label="Diminuir zoom">−</button><button type="button" data-action="zoom-in" aria-label="Aumentar zoom">＋</button></div></div><div class="builder-content"><div class="modal-topline"><span>MONTE AO SEU GOSTO</span><button class="icon-button" data-action="close-builder" aria-label="Fechar">×</button></div><h2 class="builder-title">' + esc(product.name) + '</h2><p class="builder-description">' + esc(product.description) + ' Marque ou remova ingredientes e veja o prato e o preço mudarem na hora.</p><div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">' + sizeHtml + '</div>' + crustHtml + ingredientHtml + '<p class="price-note">O valor final é confirmado pelo servidor a partir das opções disponíveis.</p><div class="ar-row"><button type="button" class="button button-outline ar-button" data-action="view-ar" data-product="' + esc(product.id) + '"><span class="ar-icon" aria-hidden="true">◈</span> Ver na minha mesa</button><small class="ar-status" id="arStatus" aria-live="polite">' + arStatusText() + '</small></div><div class="builder-footer"><div class="builder-total"><small>Seu prato</small><b>' + money(builderPrice()) + '</b></div><button class="button button-dark" data-action="add-to-cart">' + (builder.editId ? 'Salvar alterações' : 'Adicionar à sacola') + ' <span>↗</span></button></div></div></section></div>';
   const freshCanvas = root.getElementById('foodCanvas');
   if (app.scene && sceneCanvas) {
     freshCanvas.replaceWith(sceneCanvas);
     app.scene.canvas = sceneCanvas;
     app.scene.hud = root.getElementById('arHud');
-    app.scene.update(product, layered, selectedSize);
-    app.scene.setAngle(app.rotate * Math.PI / 180);
-    app.scene.setZoom(app.zoom);
+    app.scene.update(product, layered, selectedSize, sceneOptions);
   } else {
     try {
-      app.scene = new FoodScene(freshCanvas, product, layered, selectedSize, root.getElementById('arHud'));
-      app.scene.setAngle(app.rotate * Math.PI / 180);
-      app.scene.setZoom(app.zoom);
+      app.scene = new FoodScene(freshCanvas, product, layered, selectedSize, root.getElementById('arHud'), sceneOptions);
     } catch (error) {
       app.scene = null;
       freshCanvas.remove();
@@ -147,7 +145,30 @@ function renderBuilder() {
       toast(error.message || 'O modelo 3D não pôde ser iniciado neste navegador.');
     }
   }
+  syncSceneUi(artMode);
   detectAR();
+}
+function setStageState(state, message) {
+  const stage = root.querySelector('.food-stage');
+  if (!stage) return;
+  stage.dataset.state = state;
+  const box = stage.querySelector('#foodStatus');
+  if (!box) return;
+  if (state === 'loading') { box.hidden = false; box.innerHTML = '<span class="spinner" aria-hidden="true"></span> Preparando o modelo 3D…'; }
+  else if (state === 'lost') { box.hidden = false; box.textContent = 'O navegador pausou o 3D. Use a aba Ilustração ou recarregue a página.'; }
+  else if (state === 'error') { box.hidden = false; box.textContent = (message || 'Não foi possível montar o modelo 3D.') + ' A ilustração continua disponível.'; }
+  else { box.hidden = true; box.textContent = ''; }
+}
+function syncSceneUi(artMode) {
+  const scene = app.scene;
+  if (!scene) return;
+  if (!scene.uiBound) {
+    scene.uiBound = true;
+    scene.canvas.addEventListener('foodscene', event => setStageState(event.detail.state, event.detail.message));
+    scene.canvas.addEventListener('foodscene-auto', event => { const button = root.querySelector('[data-action="toggle-auto"]'); if (button) button.setAttribute('aria-pressed', String(event.detail.on)); });
+  }
+  scene.setActive(!artMode);
+  setStageState(scene.state);
 }
 function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
@@ -346,11 +367,12 @@ function handleClick(event){
   if(app.builder&&['rotate-left','rotate-right','zoom-in','zoom-out'].includes(action)&&app.viewMode!=='3d'){app.viewMode='3d';renderBuilder();}
   if(action==='view-art'&&app.builder){app.viewMode='art';renderBuilder();return}
   if(action==='view-3d'&&app.builder){app.viewMode='3d';renderBuilder();return}
-  if(action==='rotate-left'&&app.builder){app.rotate-=18;app.scene?.setAngle(app.rotate*Math.PI/180);return}
-  if(action==='rotate-right'&&app.builder){app.rotate+=18;app.scene?.setAngle(app.rotate*Math.PI/180);return}
-  if(action==='reset-view'&&app.builder){app.rotate=0;app.zoom=1;app.scene?.setAngle(0);app.scene?.setZoom(1);return}
-  if(action==='zoom-in'&&app.builder){app.zoom=Math.min(1.45,app.zoom+.08);app.scene?.setZoom(app.zoom);return}
-  if(action==='zoom-out'&&app.builder){app.zoom=Math.max(.72,app.zoom-.08);app.scene?.setZoom(app.zoom);return}
+  if(action==='rotate-left'&&app.builder){app.scene?.rotateBy(-18);return}
+  if(action==='rotate-right'&&app.builder){app.scene?.rotateBy(18);return}
+  if(action==='reset-view'&&app.builder){app.scene?.resetView();return}
+  if(action==='toggle-auto'&&app.builder){app.scene?.toggleAuto();return}
+  if(action==='zoom-in'&&app.builder){app.scene?.zoomBy(1.15);return}
+  if(action==='zoom-out'&&app.builder){app.scene?.zoomBy(1/1.15);return}
   if(action==='view-ar'){launchAR(target.dataset.product);return}if(action==='exit-ar'){app.scene?.exitAR();return}
   if(action==='close-cart'||(action==='cart-backdrop'&&event.target===target)){app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';return}
   if(action==='qty'){const item=app.cart.find(i=>i.cartId===target.dataset.id);if(item){item.quantity=Math.max(1,Math.min(10,item.quantity+Number(target.dataset.delta)));setCart();renderCart()}return}

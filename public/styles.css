@@ -49,7 +49,7 @@
 
 /* Procedural 3D food model and real WebXR controls */
 .food-stage{position:relative;transform:none!important;perspective:none;background:radial-gradient(ellipse at 50% 82%,#d0ced466 0,transparent 60%);touch-action:pan-y}
-.food-canvas{display:block;width:100%;height:100%;filter:drop-shadow(0 22px 15px #2a214128);outline:none}
+.food-canvas{display:block;width:100%;height:100%;outline:none;touch-action:none;-webkit-tap-highlight-color:transparent}
 .food-fallback{position:absolute;inset:0;display:grid;place-items:center}
 .food-fallback svg{width:100%;height:100%;max-width:100%;max-height:100%;filter:drop-shadow(0 22px 14px #33284f24)}
 .ar-hud{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:flex-end;flex-direction:column;gap:6px;padding:0 14px 75px;color:white;text-align:center;pointer-events:none}
@@ -156,3 +156,22 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
 .tracking-shell h1,.tracking-shell h2{font-family:var(--mz-display);letter-spacing:-.04em;font-weight:650}
 .tracking-shell>div:first-of-type>span:first-child,.tracking-shell [class*="check"]{background:linear-gradient(145deg,var(--mz-violet-500),var(--mz-violet-700))!important;color:#fff!important;animation:mz-pop .6s var(--mz-ease) both}
 @keyframes mz-pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+
+/* Visualizador 3D: estados, dica de arraste e foco por teclado */
+.food-canvas:focus-visible{outline:3px solid var(--mz-violet-600);outline-offset:4px;border-radius:18px}
+.drag-hint{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;background:rgba(25,20,39,.74);color:#fff;font-size:11px;font-weight:600;letter-spacing:.02em;pointer-events:none;opacity:0;transition:opacity .4s ease}
+.food-stage.view-3d[data-state="ready"] .food-canvas:not([data-interacted]) ~ .drag-hint{opacity:1;animation:hint-nudge 2.4s ease-in-out infinite}
+.food-stage .drag-hint span{font-size:14px}
+@keyframes hint-nudge{0%,100%{transform:translateX(-50%)}50%{transform:translateX(calc(-50% + 6px))}}
+.food-stage.view-art .drag-hint,.food-stage.view-art .food-status{display:none}
+.food-status{position:absolute;inset:auto 0 46% 0;margin:auto;width:max-content;max-width:88%;z-index:3;display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--mz-line);box-shadow:var(--mz-shadow-sm);font-size:12px;font-weight:600;color:var(--mz-muted);text-align:center}
+.food-status[hidden]{display:none}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--mz-violet-200,#cfc9ea);border-top-color:var(--mz-violet-600);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.visual-controls .control-label[aria-pressed="true"]{background:var(--mz-violet-600);color:#fff}
+@media (prefers-reduced-motion:reduce){.drag-hint{animation:none!important}.spinner{animation-duration:2s}}
+/* evita que a regra genérica .food-stage>div estique os elementos do visualizador 3D */
+.food-stage>.drag-hint{width:auto;height:auto;display:flex;place-items:unset}
+.food-stage>.food-status{width:max-content;height:auto;display:flex;place-items:unset}
+.food-stage>.food-status[hidden]{display:none}
+.food-stage>.drag-hint{bottom:46px}
