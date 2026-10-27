@@ -1,10 +1,10 @@
-name: Build Menuza Android APK
+name: Build Menuza Flutter APK
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "mobile/**"
+      - "mobile_flutter/**"
       - ".github/workflows/android-apk.yml"
 
 permissions:
@@ -16,22 +16,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Java
-        uses: actions/setup-java@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          distribution: temurin
-          java-version: "17"
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+          channel: stable
+          cache: true
+
+      - name: Create Android project scaffold
+        shell: bash
+        run: |
+          flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza "$RUNNER_TEMP/menuza_build"
+          cp mobile_flutter/pubspec.yaml "$RUNNER_TEMP/menuza_build/pubspec.yaml"
+          mkdir -p "$RUNNER_TEMP/menuza_build/lib"
+          cp mobile_flutter/lib/main.dart "$RUNNER_TEMP/menuza_build/lib/main.dart"
+          cp mobile_flutter/android/AndroidManifest.xml "$RUNNER_TEMP/menuza_build/android/app/src/main/AndroidManifest.xml"
+
+      - name: Install Flutter dependencies
+        working-directory: ${{ runner.temp }}/menuza_build
+        run: flutter pub get
+
       - name: Build debug APK
-        working-directory: mobile
-        run: gradle assembleDebug
+        working-directory: ${{ runner.temp }}/menuza_build
+        run: flutter build apk --debug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: menuza-android-debug
-          path: mobile/app/build/outputs/apk/debug/app-debug.apk
+          name: menuza-flutter-debug
+          path: ${{ runner.temp }}/menuza_build/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
