@@ -128,3 +128,19 @@ flutter build apk --debug
 ```
 
 O APK será gerado em `mobile_flutter/build/app/outputs/flutter-apk/app-debug.apk`. O suporte a WebXR/realidade aumentada continua dependendo do dispositivo e da WebView e não é garantido.
+
+
+### Acesso pelo celular na rede Wi-Fi (Windows)
+
+O servidor já escuta em todas as interfaces de rede. Para permitir que o Android acesse a porta 4173, use o script incluído no repositório:
+
+1. Abra o PowerShell **como administrador**.
+2. Entre na pasta do projeto e atualize os arquivos: `git pull origin main` (resolva conflitos locais antes, se houver).
+3. Execute:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\\scripts\\iniciar-menuza-mobile.ps1
+```
+
+O script cria uma regra de entrada no Firewall do Windows para TCP 4173 e inicia o servidor. Mantenha essa janela aberta. No celular conectado ao mesmo Wi-Fi, abra o endereço IP exibido pelo script, por exemplo `http://192.168.0.105:4173`. Se nem o navegador do celular abrir esse endereço, confira se a rede Wi-Fi permite comunicação entre dispositivos e se o PC está usando perfil de rede Privado. O APK não hospeda o servidor: o computador precisa continuar ligado e com o servidor executando.
