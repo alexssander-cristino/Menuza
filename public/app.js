@@ -4,7 +4,7 @@ const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '',
   rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null },
-  trackingTimer: null, toastTimer: null
+  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false
 };
 const root = document;
 const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-cart') || '[]'); } catch { return []; } })();
@@ -12,6 +12,9 @@ app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
 function setCart() { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); updateCartCount(); }
+const ORDER_TOKENS_KEY = 'menuza-customer-order-tokens';
+function savedOrderTokens() { try { const value = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '[]'); return Array.isArray(value) ? [...new Set(value.filter(token => typeof token === 'string' && /^[a-f0-9]{32,80}$/i.test(token)))].slice(0, 30) : []; } catch { return []; } }
+function rememberOrderToken(token) { if (!token || typeof token !== 'string') return; localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify([token, ...savedOrderTokens().filter(item => item !== token)].slice(0, 30))); }
 function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
@@ -218,7 +221,7 @@ async function submitCheckout(event){
   event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),error=root.getElementById('checkoutError');
   button.disabled=true;button.textContent='Enviando para a cozinha…';error.textContent='';
   const data=new FormData(form),payload={customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel'),deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),idempotencyKey:app.checkoutKey,items:app.cart.map(item=>({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
-  try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();app.checkoutOpen=false;app.cartOpen=false;app.checkoutKey='';root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
+  try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();rememberOrderToken(result.order.trackingToken);app.checkoutOpen=false;app.cartOpen=false;app.checkoutKey='';root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
   catch(e){error.textContent=e.message;button.disabled=false;button.innerHTML='Confirmar pedido <span>↗</span>'}
 }
 function openCheckout(){
@@ -283,7 +286,12 @@ async function loadTracking(token){
   }catch(e){target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><h1>Não encontramos esse pedido.</h1><p>'+esc(e.message)+'</p></div></section>'}
 }
 function showHome(){clearInterval(app.trackingTimer);root.getElementById('trackingView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('homeView').classList.remove('hidden')}
-function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));if(hash==='admin')return showAdmin();showHome()}
+function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));if(hash==='admin')return showAdmin();if(hash==='meus-pedidos')return showCustomerOrders();showHome()}
+async function showCustomerOrders(){clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');const target=root.getElementById('trackingView');target.classList.remove('hidden');target.innerHTML='<section class="customer-orders-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="customer-orders-heading"><div class="eyebrow">SUA EXPERIÊNCIA MENUZA</div><h1>Seus <em>pedidos.</em></h1><p>Acompanhe o preparo e consulte os pedidos registrados neste dispositivo.</p></div><div class="customer-orders-list"><div class="loading-line">Buscando seus pedidos…</div></div><div class="customer-orders-footnote">Por privacidade, a lista usa os códigos de acompanhamento guardados neste navegador. Se limpar os dados do navegador ou trocar de aparelho, os pedidos antigos podem não aparecer aqui.</div></section>';app.customerOrdersLoading=true;
+ const tokens=savedOrderTokens();if(!tokens.length){app.customerOrdersLoading=false;renderCustomerOrders([]);return}
+ const results=await Promise.all(tokens.map(async token=>{try{return (await api('/api/tracking/'+encodeURIComponent(token))).order}catch{return null}}));app.customerOrdersLoading=false;const orders=results.filter(Boolean).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));renderCustomerOrders(orders)}
+function renderCustomerOrders(orders){const list=root.querySelector('.customer-orders-list');if(!list)return;const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};if(!orders.length){list.innerHTML='<div class="customer-orders-empty"><span class="customer-empty-mark">▱</span><h2>Ainda não há pedidos por aqui</h2><p>Quando você confirmar um pedido neste dispositivo, ele aparecerá nesta área para acompanhamento.</p><a class="button button-dark" href="#menu" data-action="back-home">Explorar cardápio <span>↗</span></a></div>';return}list.innerHTML=orders.map(order=>{const status=order.history?.length?order.history[order.history.length-1].status:order.status;const fulfillment=order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel||''): 'Retirada';const date=order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'medium',timeStyle:'short'}):'Data não disponível';const items=(order.items||[]).map(item=>`${item.quantity}× ${esc(item.name)}`).join(' · ');return '<article class="customer-order-card"><div class="customer-order-card-top"><div><span class="customer-order-number">PEDIDO '+esc(order.id)+'</span><span class="customer-order-date">'+esc(date)+'</span></div><span class="customer-status status-'+esc(status)+'">'+esc(labels[status]||status)+'</span></div><div class="customer-order-items">'+items+'</div><div class="customer-order-card-bottom"><span>'+fulfillment+'</span><strong>'+money(order.totalCents)+'</strong></div><a class="customer-order-link" href="#pedido/'+encodeURIComponent(order.trackingToken)+'">Acompanhar pedido <span>↗</span></a></article>'}).join('')}
+
 async function showAdmin(){
   clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
   try{await api('/api/admin/me');app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch{app.admin.authenticated=false;renderAdminLogin()}
@@ -428,6 +436,7 @@ function handleClick(event){
   if(action==='close-checkout'||(action==='checkout-backdrop'&&event.target===target)){app.checkoutOpen=false;root.getElementById('checkoutRoot').innerHTML='';return}
   if(action==='back-home'){location.hash='';showHome();return}
   if(action==='admin'){location.hash='admin';return}
+   if(action==='my-orders'){location.hash='meus-pedidos';return}
   if(action==='admin-logout'){logoutAdmin();return}
   if(action==='save-product'){saveProduct(target.dataset.id);return}
   if(action==='save-ingredient'){saveIngredient(target.dataset.id);return}
