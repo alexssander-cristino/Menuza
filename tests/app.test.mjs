@@ -93,6 +93,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(orderResponse.status, 201);
   const created = (await orderResponse.json()).order;
   assert.equal(created.totalCents, 7070);
+  assert.equal(created.prepMinutes, catalog.restaurant.prepMinutes, 'tracking response includes the restaurant preparation estimate');
   assert.equal(created.items[0].ingredients.length, 4);
   assert.equal(created.items[0].snapshot.size.diameterCm, 35);
 
@@ -170,6 +171,11 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.match(new TextDecoder().decode(eventChunk.value), /order-updated/);
   await liveReader.cancel();
   assert.equal((await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json()).order.history.length, 2);
+
+  const settingsUpdate = await fetch(base + '/api/admin/settings', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ prepMinutes: 45 }) });
+  assert.equal(settingsUpdate.status, 200);
+  const refreshedTracking = await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json();
+  assert.equal(refreshedTracking.order.prepMinutes, 45, 'tracking estimate follows the restaurant preparation setting');
 
   await stopServer(child);
   child = startServer();

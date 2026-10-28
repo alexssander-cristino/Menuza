@@ -259,7 +259,7 @@ function assertSameOrigin(request) {
   if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
 }
 function orderById(id, restaurantId = RESTAURANT_ID) {
-  const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
+  const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt,(SELECT prep_minutes FROM restaurants WHERE id=orders.restaurant_id) AS prepMinutes FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
   if (!order) return null;
   const items = statement('SELECT product_id AS productId,product_name_snapshot AS name,quantity,size_key AS sizeKey,crust_key AS crustKey,ingredients_json AS ingredientsJson,notes,unit_price_cents AS unitPriceCents,snapshot_json AS snapshotJson FROM order_items WHERE order_id=?').all(id).map(item => ({
     productId: item.productId, name: item.name, quantity: item.quantity, sizeKey: item.sizeKey, crustKey: item.crustKey,
