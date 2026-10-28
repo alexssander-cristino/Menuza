@@ -45,6 +45,7 @@ test('backup SQLite cria snapshot íntegro e aplica retenção sem tocar em arqu
   assert.equal(result.ok, true);
   assert.equal(result.integrity, 'ok');
   assert.ok(result.bytes > 0);
+  assert.match(result.backup.split(/[\\/]/).pop(), /^menuza-\\d{8}-\\d{6}-\\d{3}\\.sqlite$/);
   const snapshot = new DatabaseSync(result.backup);
   try {
     assert.equal(snapshot.prepare('SELECT value FROM sample WHERE id=1').get().value, 'preservado');
