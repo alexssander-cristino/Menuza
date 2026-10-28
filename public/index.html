@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#1b1530">
   <meta name="description" content="Menuza: cardápio digital interativo. Veja o prato em 3D, personalize os ingredientes e experimente na sua mesa com realidade aumentada compatível.">
   <title>Menuza — veja, monte e experimente seu prato</title>
-  <link rel="stylesheet" href="/styles.css?v=39">
-  <script type="module" src="/app.js?v=32"></script>
+  <link rel="stylesheet" href="/styles.css?v=40">
+  <script type="module" src="/app.js?v=33"></script>
   <script type="module" src="/scroll.js?v=1"></script>
 </head>
 <body>
@@ -46,6 +46,11 @@
     <section class="section wrap" id="favoritos">
       <div class="section-heading"><div><div class="eyebrow">EM DESTAQUE</div><h2>Os mais <em>pedidos.</em></h2></div><a class="text-link" href="#menu">Ver cardápio completo <span>↗</span></a></div>
       <div class="featured-grid" id="featuredGrid" aria-live="polite"></div>
+    </section>
+
+    <section class="section wrap recent-products-section" id="recentProductsSection" hidden>
+      <div class="section-heading"><div><div class="eyebrow">CONTINUE DE ONDE PAROU</div><h2>Você viu estes <em>pratos.</em></h2></div><button class="text-link recent-clear-button" id="clearRecentProducts" type="button" data-action="clear-recent-products">Limpar histórico <span>×</span></button></div>
+      <div class="featured-grid recent-products-grid" id="recentProductsGrid" aria-live="polite"></div>
     </section>
 
     <section class="menu-section" id="menu">
