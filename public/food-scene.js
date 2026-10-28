@@ -160,12 +160,14 @@ export class FoodScene {
     this.session = null; this.hitSource = null; this.referenceSpace = null; this.reticle = null; this.modelMatrix = mat4Identity(); this.arPlaced = false; this.xrEnding = false;
     this.reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const small = Math.min(screen.width || 1024, screen.height || 768) < 700, lowCores = (navigator.hardwareConcurrency || 8) <= 4;
+    this.smallDevice = small;
     this.detail = options.detail || (small || lowCores ? .72 : 1);
-    this.maxDpr = small ? 1.3 : 2; this.renderScale = 1; this.quality = small ? 0 : 1;
+    // Mobile keeps the interactive model but caps GPU fill-rate and avoids idle animation/battery drain.
+    this.maxDpr = small ? 1 : 1.75; this.renderScale = 1; this.quality = small ? 0 : 1;
     // câmera / controles
     this.yaw = this.yawT = -.5; this.pitch = this.pitchT = .3; this.zoom = this.zoomT = 1; this.vYaw = 0; this.vPitch = 0;
     this.defYaw = -.5; this.defPitch = .3; this.dragging = false; this.pointers = new Map(); this.lastInteract = -1e9;
-    this.autoRotate = !this.reduced; this.autoSpeed = .27; this.autoBlend = 0;
+    this.autoRotate = !this.reduced && !this.smallDevice; this.autoSpeed = .27; this.autoBlend = 0;
     this.active = true; this.last = 0; this.raf = 0; this.frames = 0; this.slow = 0; this.fast = 0;
     this.cache = new Map(); this.parts = []; this.leaving = []; this.desired = []; this.queue = []; this.pumping = false;
     this.state = 'loading'; this.productKey = null; this.hint = { radius: .1, minY: 0, maxY: .05 }; this.fitR = .1; this.camY = .03;
@@ -180,7 +182,7 @@ export class FoodScene {
 
   // ---------- GL ----------
   initGL() {
-    const attrs = { alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: false };
+    const attrs = { alpha: true, antialias: !this.smallDevice, premultipliedAlpha: true, powerPreference: this.smallDevice ? 'low-power' : 'high-performance', preserveDrawingBuffer: false };
     this.gl = this.canvas.getContext('webgl2', attrs) || this.canvas.getContext('webgl', attrs);
     if (!this.gl) throw new Error('Este navegador não oferece WebGL para a prévia 3D.');
     const gl = this.gl;
@@ -190,7 +192,7 @@ export class FoodScene {
     const src = shaderSources(this.webgl2);
     this.program = this.makeProgram(src.vs, src.fs);
     this.u = this.locations(this.program, ['uProj', 'uView', 'uModel', 'uCam', 'uKey', 'uFill', 'uRim', 'uLightVP', 'uShadowOn', 'uTexel', 'uQuality', 'uExposure', 'uMode', 'uBlob', 'uShadow']);
-    this.shadowSize = this.webgl2 ? (Math.min(screen.width || 1024, screen.height || 768) < 700 ? 768 : 2048) : 0;
+    this.shadowSize = this.webgl2 ? (this.smallDevice ? 512 : 1536) : 0;
     this.shadows = false;
     if (this.webgl2) {
       this.depthProgram = this.makeProgram(src.vsDepth, src.fsDepth);
