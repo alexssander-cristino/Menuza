@@ -214,8 +214,7 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
   }
 
   .builder-content {
-    display: flex;
-    flex-direction: column;
+    display: block;
     min-width: 0;
     min-height: 0;
     height: 100%;
@@ -226,7 +225,8 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
     overscroll-behavior-y: contain;
     touch-action: pan-y;
     background: var(--cream);
-    padding: 18px 16px 12px;
+    /* Reserve a dedicated lane for the fixed price/action panel. */
+    padding: 18px 16px calc(132px + env(safe-area-inset-bottom, 0px));
     scrollbar-gutter: stable;
   }
 
@@ -236,16 +236,25 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
   }
 
   .builder-footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 8;
-    flex: 0 0 auto;
-    margin: auto -16px 0;
+    /* Fixed to the phone viewport, not sticky inside the scrolling ingredient list. */
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 84px;
+    margin: 0;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     background: var(--cream);
     border-top: 1px solid var(--mz-line, #e6e2ef);
-    box-shadow: 0 -8px 20px rgba(35, 27, 54, .06);
+    box-shadow: 0 -8px 20px rgba(35, 27, 54, .10);
     isolation: isolate;
+    transform: translateZ(0);
   }
 
   .ingredient-option {
@@ -260,11 +269,14 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
     padding-right: 12px;
   }
 
+  .builder-content {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
   .builder-footer {
-    margin-left: -12px;
-    margin-right: -12px;
     padding-left: 12px;
     padding-right: 12px;
+    gap: 8px;
   }
 
   .builder-footer .button {
@@ -309,7 +321,6 @@ body.builder-open { overflow: hidden; overscroll-behavior: none; }
 @media (max-width: 700px) {
   .builder-modal { flex: 1 1 auto; }
   .builder-content { scroll-behavior: auto; }
-  .builder-content > * { flex-shrink: 0; }
-  .builder-footer { margin-top: auto; }
+  .builder-footer { flex-shrink: 0; }
   .food-stage, .food-canvas { -webkit-transform: translateZ(0); }
 }
