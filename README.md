@@ -85,6 +85,16 @@ Os preços de tamanhos são incrementos relativos ao preço-base cadastrado; adi
 
 A aplicação serve a interface e a API na mesma origem. Para deploy, use um serviço Node 22.5+, configure NODE_ENV=production, ADMIN_PASSWORD, APP_SECRET e um volume persistente para DATA_FILE, e coloque o serviço atrás de HTTPS. Planeje backup do arquivo SQLite e migração para Postgres/isolamento por tenant antes de atender vários restaurantes simultaneamente.
 
+## Backup e recuperação do SQLite
+
+Crie um snapshot consistente do banco (inclusive quando o SQLite usa WAL) e verifique a integridade do arquivo gerado:
+
+    npm run backup
+
+O backup fica em `backups/` por padrão. Configure `DATA_FILE` para indicar outro banco, `BACKUP_DIR` para escolher o destino e `BACKUP_KEEP` para controlar quantos snapshots gerenciados são mantidos (padrão 14, máximo 365). O script não cria um banco vazio quando a origem não existe, valida a origem antes de copiar e valida novamente o snapshot antes de aplicar a retenção. Arquivos que não seguem o padrão `menuza-*.sqlite` não são removidos pela política de retenção.
+
+**Importante:** o backup fica na mesma máquina por padrão; copie-o também para um destino separado e protegido para se recuperar de falha ou perda do disco. Para restaurar, pare o servidor, preserve uma cópia do banco atual, verifique o backup com `node -e`/SQLite ou rode o script em uma cópia de teste, então substitua o arquivo indicado por `DATA_FILE` e reinicie o serviço. Nunca sobrescreva o banco enquanto o servidor estiver ativo.
+
 ## Reiniciar os dados da demonstração
 
 O banco local guarda pedidos entre execuções. Para voltar ao catálogo inicial, pare o servidor e apague os arquivos mesa.sqlite, mesa.sqlite-shm e mesa.sqlite-wal dentro de data. Na próxima inicialização, o catálogo de demonstração é criado novamente.
