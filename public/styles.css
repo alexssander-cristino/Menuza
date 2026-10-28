@@ -1025,3 +1025,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
  .favorite-toggle{top:7px;right:7px;width:32px;height:32px;font-size:22px}
 }
 @media(prefers-reduced-motion:reduce){.favorite-toggle{transition:none}}
+
+
+/* Customer order history: clear repeat-order actions on desktop and mobile. */
+.customer-order-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--mz-line,rgba(100,78,160,.12))}
+.customer-order-actions .customer-order-link{margin:0}
+.customer-order-actions .button{flex:0 0 auto;min-height:36px}
+@media(max-width:440px){
+ .customer-order-actions{align-items:stretch;flex-direction:column;gap:9px}
+ .customer-order-actions .button{width:100%;justify-content:center}
+}
