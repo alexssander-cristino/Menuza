@@ -357,7 +357,18 @@ async function applyCheckoutCoupon(){
   const input=root.getElementById('checkoutCouponCode'),message=root.getElementById('checkoutCouponMessage');
   if(!input||!message)return;
   const code=input.value.trim().toUpperCase().replace(/\s+/g,'');
-  if(!code){app.couponValidationVersion=(app.couponValidationVersion||0)+1;app.checkoutCoupon=null;message.textContent='Digite um código de cupom.';message.className='coupon-message is-error';updateCheckoutTotals();return}
+  if(!code){
+    app.couponValidationVersion=(app.couponValidationVersion||0)+1;
+    app.checkoutCoupon=null;
+    message.textContent='Digite um código de cupom.';
+    message.className='coupon-message is-error';
+    const button=root.querySelector('[data-action="apply-coupon"]');
+    const submitButton=root.querySelector('#checkoutForm [type="submit"]');
+    if(button){button.disabled=false;button.textContent='Aplicar'}
+    if(submitButton)submitButton.disabled=false;
+    updateCheckoutTotals();
+    return;
+  }
   const version=app.couponValidationVersion=(app.couponValidationVersion||0)+1;
   const button=root.querySelector('[data-action="apply-coupon"]');
   const submitButton=root.querySelector('#checkoutForm [type="submit"]');
