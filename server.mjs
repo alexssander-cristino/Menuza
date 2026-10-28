@@ -331,8 +331,11 @@ function saveCoupon(payload, id = null) {
   const discountValue = Number(payload.discountValue);
   const minimum = Number(payload.minimumSubtotalCents ?? 0);
   const maxUses = payload.maxUses === '' || payload.maxUses === null || payload.maxUses === undefined ? null : Number(payload.maxUses);
-  const startsAt = payload.startsAt ? new Date(payload.startsAt).toISOString() : null;
-  const expiresAt = payload.expiresAt ? new Date(payload.expiresAt).toISOString() : null;
+  const startsDate = payload.startsAt ? new Date(payload.startsAt) : null;
+  const expiresDate = payload.expiresAt ? new Date(payload.expiresAt) : null;
+  if (startsDate && !Number.isFinite(startsDate.getTime()) || expiresDate && !Number.isFinite(expiresDate.getTime())) throw Object.assign(new Error('Confira as datas do cupom.'), { status: 422 });
+  const startsAt = startsDate ? startsDate.toISOString() : null;
+  const expiresAt = expiresDate ? expiresDate.toISOString() : null;
   const active = payload.active === undefined ? 1 : (payload.active ? 1 : 0);
   if (!/^[A-Z0-9_-]{3,32}$/.test(code)) throw Object.assign(new Error('Use um código de 3 a 32 caracteres: letras, números, hífen ou sublinhado.'), { status: 422 });
   if (!['percent','fixed'].includes(discountType) || !Number.isInteger(discountValue) || discountValue < 1 || (discountType === 'percent' && discountValue > 100) || (discountType === 'fixed' && discountValue > 1000000)) throw Object.assign(new Error('Confira o tipo e o valor do desconto.'), { status: 422 });
