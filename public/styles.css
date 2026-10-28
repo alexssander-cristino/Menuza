@@ -1035,3 +1035,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
  .customer-order-actions{align-items:stretch;flex-direction:column;gap:9px}
  .customer-order-actions .button{width:100%;justify-content:center}
 }
+
+
+/* Quick contact actions on restaurant order cards. */
+.order-card-footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.order-whatsapp-link{min-height:32px;padding:7px 10px;font-size:11px;text-decoration:none;white-space:nowrap}
+@media(max-width:440px){.order-card-footer-actions{gap:8px}.order-whatsapp-link{font-size:10px;padding:7px 8px}}
