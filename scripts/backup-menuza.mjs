@@ -29,7 +29,7 @@ try {
     throw new Error('O banco de origem falhou no integrity_check; backup cancelado.');
   }
 
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace(/Z$/, '');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace(/\.(\d{3})Z$/, '-$1');
   backupPath = resolve(backupDir, 'menuza-' + stamp + '.sqlite');
   // VACUUM INTO cria um snapshot consistente, incluindo alterações ainda no WAL.
   const escapedPath = backupPath.replace(/'/g, "''");
