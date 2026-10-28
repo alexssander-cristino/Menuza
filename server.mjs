@@ -150,16 +150,24 @@ function consumeRateLimits(rules) {
     lastRateCleanup = now;
   }
   const prepared = rules.map(rule => ({ key: rateBucketKey(rule.key), limit: rule.limit, windowMs: rule.windowMs }));
-  for (const rule of prepared) {
-    const row = statement('SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM security_rate_events WHERE bucket_key=? AND created_at>?')
-      .get(rule.key, now - rule.windowMs);
-    if (row.count >= rule.limit) {
-      return { allowed: false, retryAfter: Math.max(1, Math.ceil((row.oldest + rule.windowMs - now) / 1000)) };
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    for (const rule of prepared) {
+      const row = statement('SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM security_rate_events WHERE bucket_key=? AND created_at>?')
+        .get(rule.key, now - rule.windowMs);
+      if (row.count >= rule.limit) {
+        db.exec('ROLLBACK');
+        return { allowed: false, retryAfter: Math.max(1, Math.ceil((row.oldest + rule.windowMs - now) / 1000)) };
+      }
     }
+    const insert = statement('INSERT INTO security_rate_events (bucket_key, created_at) VALUES (?,?)');
+    for (const rule of prepared) insert.run(rule.key, now);
+    db.exec('COMMIT');
+    return { allowed: true };
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw error;
   }
-  const insert = statement('INSERT INTO security_rate_events (bucket_key, created_at) VALUES (?,?)');
-  for (const rule of prepared) insert.run(rule.key, now);
-  return { allowed: true };
 }
 function authRateLimit(request, scope, identity = '') {
   const ip = clientIp(request);
