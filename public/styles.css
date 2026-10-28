@@ -1156,3 +1156,9 @@ body{overscroll-behavior-y:contain}
 @media(max-width:780px){.header-actions{gap:10px}.share-menu-button{width:36px;height:36px;padding:0}.share-menu-button span{display:none}.share-menu-button svg{width:17px;height:17px}}
 @media(max-width:700px){.share-product-button{top:7px;right:45px;width:32px;height:32px}.share-product-button svg{width:15px;height:15px}}
 @media(prefers-reduced-motion:reduce){.share-menu-button,.share-product-button{transition:none}}
+
+
+/* Disponibilidade de produtos */
+.product-sold-out .product-image > svg { opacity: .42; filter: grayscale(.65); }
+.sold-out-label { position: absolute; left: 12px; bottom: 12px; z-index: 2; padding: 6px 10px; border-radius: 999px; color: #fff; background: #4b5563; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.product-sold-out .add-button:disabled { cursor: not-allowed; opacity: .62; }

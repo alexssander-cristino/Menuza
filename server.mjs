@@ -31,6 +31,8 @@ db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
+try { db.exec('ALTER TABLE products ADD COLUMN available INTEGER NOT NULL DEFAULT 1'); }
+catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
 db.exec(`CREATE TABLE IF NOT EXISTS coupons (
@@ -65,7 +67,7 @@ function seedDatabase() {
 const statement = sql => db.prepare(sql);
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId);
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId);
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
   const ingredients = ingredientRows.map(row => ({ ...row, included: row.included === 1, visual: INGREDIENTS.find(i => i.id === row.id)?.visual || 'herb' }));
@@ -311,7 +313,7 @@ function priceOrderItems(itemsInput) {
   let subtotalCents = 0;
   const pricedItems = itemsInput.map(entry => {
     const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
-    if (!product) throw Object.assign(new Error('Um dos produtos não está disponível.'), { status: 409 });
+    if (!product || product.available !== 1) throw Object.assign(new Error('Um dos produtos está indisponível ou esgotado no momento.'), { status: 409 });
     const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
     subtotalCents += priced.linePriceCents;
     return { product, quantity: entry.quantity, notes: cleanText(entry.notes, 300), priced };
@@ -431,8 +433,9 @@ function patchProduct(productId, patch) {
   const description = patch.description === undefined ? product.description : cleanText(patch.description, 300);
   const price = patch.baseCents === undefined ? product.base_price_cents : Number(patch.baseCents);
   const active = patch.active === undefined ? product.active : (patch.active ? 1 : 0);
+  const available = patch.available === undefined ? product.available : (patch.available ? 1 : 0);
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, new Date().toISOString(), productId, RESTAURANT_ID);
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
