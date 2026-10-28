@@ -1072,3 +1072,34 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
 .coupon-row[hidden]{display:none!important}
 .coupon-row-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:12px}
 @media(max-width:440px){.coupon-row-actions{display:grid;grid-template-columns:1fr 1fr}.coupon-row-actions button:first-child{grid-column:1/-1}}
+
+
+/* Scroll polish: consistent anchor offsets, responsive return-to-top, and safer motion. */
+html{scroll-padding-top:calc(var(--mz-header-height, 88px) + 12px);scrollbar-gutter:stable}
+body{overscroll-behavior-y:contain}
+.site-header{scroll-margin-top:12px}
+[id]{scroll-margin-top:calc(var(--mz-header-height, 88px) + 12px)}
+.mz-back-to-top{
+  position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));
+  z-index:999;display:grid;place-items:center;width:46px;height:46px;
+  border:1px solid rgba(255,255,255,.6);border-radius:16px;
+  color:#fff;background:linear-gradient(145deg,#8b72e8,#6d54c4);
+  box-shadow:0 10px 30px rgba(65,43,130,.25);
+  font:600 24px/1 system-ui,sans-serif;cursor:pointer;
+  opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(0,12px,0) scale(.94);
+  transition:opacity .22s ease,transform .22s ease,visibility .22s ease,box-shadow .22s ease;
+  -webkit-tap-highlight-color:transparent
+}
+.mz-back-to-top.is-visible{opacity:1;visibility:visible;pointer-events:auto;transform:translate3d(0,0,0) scale(1)}
+.mz-back-to-top:hover{box-shadow:0 14px 34px rgba(65,43,130,.34);transform:translate3d(0,-2px,0) scale(1.02)}
+.mz-back-to-top:focus-visible{outline:3px solid #c9b9ff;outline-offset:4px}
+.mz-back-to-top:active{transform:scale(.96)}
+.mz-scroll-reveal{content-visibility:visible}
+@media(max-width:700px){
+  html{scroll-padding-top:calc(var(--mz-header-height, 70px) + 10px)}
+  .mz-back-to-top{right:max(13px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));width:42px;height:42px;border-radius:14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .mz-back-to-top{transition:none!important;transform:none!important}
+  html{scroll-behavior:auto!important}
+}
