@@ -408,14 +408,24 @@ function updateStatus(orderId, nextStatus) {
   return updated;
 }
 async function serveStatic(pathname, response) {
-  const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1));
+  let relative;
+  try { relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1)); }
+  catch { return send(response, 400, { error: 'Endereço inválido.' }); }
   const target = resolve(PUBLIC, relative);
   if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
   try {
     const data = await readFile(target);
     response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
     response.end(data);
-  } catch { send(response, 404, { error: 'Arquivo não encontrado.' }); }
+  } catch {
+    // URLs de arquivos ausentes continuam sendo 404 simples; páginas desconhecidas recebem a tela amigável.
+    if (extname(target)) return send(response, 404, { error: 'Arquivo não encontrado.' });
+    try {
+      const page = await readFile(resolve(PUBLIC, '404.html'));
+      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+      response.end(page);
+    } catch { send(response, 404, { error: 'Página não encontrada.' }); }
+  }
 }
 const server = createServer(async (request, response) => {
   try {
