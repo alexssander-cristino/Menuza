@@ -175,3 +175,93 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
 .food-stage>.food-status{width:max-content;height:auto;display:flex;place-items:unset}
 .food-stage>.food-status[hidden]{display:none}
 .food-stage>.drag-hint{bottom:46px}
+
+/* Mobile builder: keep ingredient options inside a real, touch-scrollable viewport. */
+@media (max-width: 700px) {
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .builder-modal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(190px, 29dvh) minmax(0, 1fr);
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow: hidden;
+    border-radius: 0;
+    touch-action: pan-y;
+  }
+
+  .builder-visual {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    touch-action: pan-y;
+  }
+
+  .builder-content {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    padding: 18px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .builder-content .ingredient-list,
+  .builder-content .option-pills {
+    touch-action: pan-y;
+  }
+
+  .builder-footer {
+    position: sticky;
+    bottom: calc(-1 * env(safe-area-inset-bottom));
+    z-index: 5;
+    margin: 16px -16px calc(-24px - env(safe-area-inset-bottom));
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(250,249,252,.94), var(--cream) 18%);
+    border-top: 1px solid var(--mz-line, #e6e2ef);
+  }
+
+  .ingredient-option {
+    min-height: 48px;
+    padding: 9px 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .builder-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .builder-footer {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ingredient-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
