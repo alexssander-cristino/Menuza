@@ -485,7 +485,7 @@ async function renderCouponsAdmin(){
       event.preventDefault();const data=new FormData(form),error=root.getElementById('newCouponError');
       const starts=data.get('startsAt'),expires=data.get('expiresAt');
       const payload={code:data.get('code'),discountType:data.get('discountType'),discountValue:data.get('discountType')==='fixed'?Math.round(Number(data.get('discountValue'))*100):Number(data.get('discountValue')),minimumSubtotalCents:Math.round(Number(data.get('minimum')||0)*100),startsAt:starts?new Date(starts).toISOString():null,expiresAt:expires?new Date(expires).toISOString():null,maxUses:data.get('maxUses')?Number(data.get('maxUses')):null,active:true};
-      try{const couponId=data.get('couponId');await api(couponId?'/api/admin/coupons/'+encodeURIComponent(couponId):'/api/admin/coupons',{method:couponId?'PATCH':'POST',body:JSON.stringify({...payload,active:true})});toast(couponId?'Cupom atualizado.':'Cupom criado.');renderCouponsAdmin()}catch(e){error.textContent=e.message}
+      try{const couponId=data.get('couponId');await api(couponId?'/api/admin/coupons/'+encodeURIComponent(couponId):'/api/admin/coupons',{method:couponId?'PATCH':'POST',body:JSON.stringify({...payload,active:couponId?root.querySelector('[data-coupon-row="'+CSS.escape(couponId)+'"] .coupon-active-input').checked:true})});toast(couponId?'Cupom atualizado.':'Cupom criado.');renderCouponsAdmin()}catch(e){error.textContent=e.message}
     });
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
