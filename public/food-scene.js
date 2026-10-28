@@ -159,11 +159,19 @@ export class FoodScene {
     this.canvas = canvas; this.hud = hud;
     this.session = null; this.hitSource = null; this.referenceSpace = null; this.reticle = null; this.modelMatrix = mat4Identity(); this.arPlaced = false; this.xrEnding = false;
     this.reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const small = Math.min(screen.width || 1024, screen.height || 768) < 700, lowCores = (navigator.hardwareConcurrency || 8) <= 4;
-    this.smallDevice = small;
-    this.detail = options.detail || (small || lowCores ? .72 : 1);
-    // Mobile keeps the interactive model but caps GPU fill-rate and avoids idle animation/battery drain.
-    this.maxDpr = small ? 1 : 1.75; this.renderScale = 1; this.quality = small ? 0 : 1;
+    const small = Math.min(screen.width || 1024, screen.height || 768) < 700;
+    const lowCores = (navigator.hardwareConcurrency || 8) <= 4;
+    const memory = Number(navigator.deviceMemory || 0);
+    const lowMemory = memory > 0 && memory <= 4;
+    const dataSaver = Boolean(navigator.connection?.saveData);
+    const constrained = lowCores || lowMemory || dataSaver;
+    this.smallDevice = small || constrained;
+    // Choose a conservative starting tier on modest phones/tablets. The adaptive
+    // frame loop can still lower the render scale further when the GPU is busy.
+    this.detail = options.detail || (constrained ? .62 : small ? .72 : 1);
+    this.maxDpr = constrained ? .9 : small ? 1 : 1.5;
+    this.renderScale = 1;
+    this.quality = this.smallDevice ? 0 : 1;
     // câmera / controles
     this.yaw = this.yawT = -.5; this.pitch = this.pitchT = .3; this.zoom = this.zoomT = 1; this.vYaw = 0; this.vPitch = 0;
     this.defYaw = -.5; this.defPitch = .3; this.dragging = false; this.pointers = new Map(); this.lastInteract = -1e9;
