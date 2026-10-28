@@ -28,7 +28,17 @@ app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
 function setCart() {
-  try { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); }
+  const serializedCart = JSON.stringify(app.cart);
+  // Uma chave idempotente só pode ser reutilizada para o mesmo carrinho.
+  // Isso evita que um carrinho alterado receba por engano o pedido anterior.
+  try {
+    const savedCheckout = JSON.parse(sessionStorage.getItem('menuza-checkout-key') || 'null');
+    if (savedCheckout && savedCheckout.fingerprint !== serializedCart) {
+      sessionStorage.removeItem('menuza-checkout-key');
+      app.checkoutKey = '';
+    }
+  } catch { app.checkoutKey = ''; }
+  try { localStorage.setItem('bela-cart', serializedCart); }
   catch { toast('A sacola não pôde ser salva neste aparelho. Confira o espaço disponível no navegador.'); }
   updateCartCount();
 }
@@ -352,7 +362,7 @@ async function submitCheckout(event){
   const data=new FormData(form),payload={website:data.get('website'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel'),deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
   if(payload.fulfillment==='table'&&!payload.tableLabel){error.textContent='Selecione uma mesa livre antes de confirmar.';form.querySelector('[name=tableLabel]')?.focus();return}
   button.disabled=true;button.textContent='Enviando para a cozinha…';error.textContent='';
-  try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();app.checkoutCoupon=null;rememberOrderToken(result.order.trackingToken);app.checkoutOpen=false;app.cartOpen=false;app.checkoutKey='';root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
+  try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();app.checkoutCoupon=null;rememberOrderToken(result.order.trackingToken);app.checkoutOpen=false;app.cartOpen=false;clearCheckoutKey();root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
   catch(e){error.textContent=e.message;if(payload.fulfillment==='table'){const select=form.querySelector('[name=tableLabel]');if(select)loadAvailableTables(select)}button.disabled=false;button.innerHTML='Confirmar pedido <span>↗</span>'}
 }
 async function applyCheckoutCoupon(){
@@ -401,9 +411,25 @@ function updateCheckoutTotals(){
   const sub=root.getElementById('checkoutSubtotal'),disc=root.getElementById('checkoutDiscount'),row=root.getElementById('checkoutDiscountRow'),total=root.getElementById('checkoutTotal');
   if(sub)sub.textContent=money(subtotal);if(disc)disc.textContent='−'+money(discount);if(row)row.hidden=!discount;if(total)total.textContent=money(subtotal-discount);
 }
+function ensureCheckoutKey(){
+  const fingerprint=JSON.stringify(app.cart);
+  try{
+    const saved=JSON.parse(sessionStorage.getItem('menuza-checkout-key')||'null');
+    if(saved&&saved.fingerprint===fingerprint&&typeof saved.key==='string'&&saved.key.length>=12){
+      app.checkoutKey=saved.key;
+      return;
+    }
+    app.checkoutKey=randomId();
+    sessionStorage.setItem('menuza-checkout-key',JSON.stringify({key:app.checkoutKey,fingerprint}));
+  }catch{app.checkoutKey=app.checkoutKey||randomId()}
+}
+function clearCheckoutKey(){
+  app.checkoutKey='';
+  try{sessionStorage.removeItem('menuza-checkout-key')}catch{}
+}
 function openCheckout(){
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
-  app.checkoutKey=app.checkoutKey||randomId();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
+  ensureCheckoutKey();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
 }
 async function launchAR(productId) {
   const product = app.catalog.products.find(p => p.id === productId);

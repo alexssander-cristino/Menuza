@@ -34,6 +34,14 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
 });
 
+test('checkout mantém a chave idempotente após recarregar e invalida quando o carrinho muda', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("sessionStorage.getItem('menuza-checkout-key')"), 'checkout key is restored from the current browser session');
+  assert.ok(client.includes("sessionStorage.setItem('menuza-checkout-key',JSON.stringify({key:app.checkoutKey,fingerprint}))"), 'checkout key is stored with the cart fingerprint');
+  assert.ok(client.includes("savedCheckout.fingerprint !== serializedCart"), 'a changed cart invalidates the previous checkout key');
+  assert.ok(client.includes("sessionStorage.removeItem('menuza-checkout-key')"), 'successful or invalidated checkout clears persisted idempotency data');
+});
+
 test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
@@ -168,6 +176,9 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(tablesAfterCheckout.tables.find(table => table.number === 2).status, 'occupied', 'successful table checkout reserves the selected table');
   assert.equal(tablesAfterCheckout.counts.occupied, 2);
   assert.equal(tablesAfterCheckout.counts.free, 10);
+  const prematureTableRelease = await fetch(base + '/api/admin/tables/table-2', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'free' }) });
+  assert.equal(prematureTableRelease.status, 409, 'a table with an active dine-in order cannot be released for another customer');
+  assert.match((await prematureTableRelease.json()).error, /pedido em andamento/);
   const duplicateTableBooking = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '2', idempotencyKey: 'integration-table-order-003' }) });
   assert.equal(duplicateTableBooking.status, 409, 'checkout cannot reserve a table already occupied');
 

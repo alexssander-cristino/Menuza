@@ -661,7 +661,14 @@ const server = createServer(async (request, response) => {
         const id = decodeURIComponent(path.slice('/api/admin/tables/'.length));
         const body = await bodyOf(request);
         if (!['free','occupied','cleaning'].includes(body.status)) return send(response, 422, { error: 'Selecione um status válido para a mesa.' });
-        if (!statement('SELECT id FROM restaurant_tables WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID)) return send(response, 404, { error: 'Mesa não encontrada.' });
+        const table = statement('SELECT id,table_number AS number FROM restaurant_tables WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+        if (!table) return send(response, 404, { error: 'Mesa não encontrada.' });
+        // Não libere uma mesa enquanto ainda existir um pedido de salão em andamento.
+        // Isso impede que um segundo cliente reserve a mesma mesa por engano.
+        if (body.status === 'free') {
+          const activeOrder = statement("SELECT id FROM orders WHERE restaurant_id=? AND fulfillment='table' AND table_label=? AND status IN ('received','confirmed','preparing','ready') LIMIT 1").get(RESTAURANT_ID, String(table.number));
+          if (activeOrder) return send(response, 409, { error: 'Esta mesa possui um pedido em andamento. Finalize ou cancele o pedido antes de liberá-la.' });
+        }
         const note = typeof body.note === 'string' ? cleanText(body.note, 160) : undefined;
         if (note === undefined) statement('UPDATE restaurant_tables SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,new Date().toISOString(),id,RESTAURANT_ID);
         else statement('UPDATE restaurant_tables SET status=?,note=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,note,new Date().toISOString(),id,RESTAURANT_ID);

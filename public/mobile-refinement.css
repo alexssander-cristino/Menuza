@@ -563,3 +563,30 @@ button, [role="button"], select, input[type="checkbox"], input[type="radio"] {
   .product-card { content-visibility: auto; }
   .button:hover, .cart-button:hover, .product-card:hover { transform: none; box-shadow: none; }
 }
+
+
+/* Ajustes finais para aparelhos estreitos e checkout com rolagem própria. */
+@media (max-width: 380px) {
+  .wrap { width: calc(100% - 28px); }
+  .hero h1 { font-size: clamp(2.2rem, 10.2vw, 2.75rem); }
+  .featured-grid, .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-card, .menu-grid .product-card { min-width: 0; }
+  .product-card h3, .menu-grid .product-card h3 { overflow-wrap: anywhere; }
+  .checkout-modal {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px;
+  }
+  .checkout-modal input, .checkout-modal select, .checkout-modal textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .coupon-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .coupon-input-row input { width: 100%; }
+  .fulfillment-options { gap: 6px; }
+  .fulfillment-option { min-width: 0; padding-inline: 8px; }
+}
