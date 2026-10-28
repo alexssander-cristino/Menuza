@@ -8,16 +8,20 @@
     ? Math.max(1, Math.min(3600, parsedWait))
     : 900;
 
-  let until = Date.now() + requestedWait * 1000;
+  const now = Date.now();
+  let until = now + requestedWait * 1000;
 
   try {
     const savedUntil = Number.parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
-    if (Number.isFinite(savedUntil) && savedUntil > Date.now()) {
-      until = Math.max(until, savedUntil);
+
+    // Ao recarregar, reutiliza o prazo salvo. Não soma um novo período a cada visita.
+    if (Number.isFinite(savedUntil) && savedUntil > now) {
+      until = savedUntil;
     }
+
     localStorage.setItem(STORAGE_KEY, String(until));
   } catch {
-    // O cronômetro continua funcionando mesmo sem acesso ao armazenamento local.
+    // Sem armazenamento local, o cronômetro funciona apenas durante esta visita.
   }
 
   const getRemaining = () => Math.max(0, Math.ceil((until - Date.now()) / 1000));
