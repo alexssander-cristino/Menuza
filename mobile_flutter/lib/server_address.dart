@@ -3,9 +3,7 @@ String normalizeServerUrl(String value) {
   if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
     normalized = 'http://' + normalized;
   }
-  final uri = Uri.tryParse(normalized);
-  if (uri == null) return normalized;
-  return uri.replace(path: uri.path == '/' ? '' : uri.path, fragment: '').toString();
+  return normalized;
 }
 
 bool isValidServerUrl(String value) {
