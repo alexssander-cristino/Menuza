@@ -651,13 +651,17 @@ async function renderTablesAdmin(){
     const cards=tables.map(table=>{
       const seats=Math.max(1,Math.min(8,Number(table.seats)||4));
       const shape=seats<=2?'round':seats>=6?'rectangle':'square';
-      const chairs=seats===2
-        ? '<span class="table-chair chair-n"></span><span class="table-chair chair-s"></span>'
-        : seats===6
-          ? '<span class="table-chair chair-n"></span><span class="table-chair chair-n2"></span><span class="table-chair chair-s"></span><span class="table-chair chair-s2"></span><span class="table-chair chair-e"></span><span class="table-chair chair-w"></span>'
-          : seats>=8
-            ? '<span class="table-chair chair-n"></span><span class="table-chair chair-n2"></span><span class="table-chair chair-s"></span><span class="table-chair chair-s2"></span><span class="table-chair chair-e"></span><span class="table-chair chair-e2"></span><span class="table-chair chair-w"></span><span class="table-chair chair-w2"></span>'
-            : '<span class="table-chair chair-n"></span><span class="table-chair chair-e"></span><span class="table-chair chair-s"></span><span class="table-chair chair-w"></span>';
+      const chairPositions = {
+        2: ['n','s'],
+        3: ['n','e','s'],
+        4: ['n','e','s','w'],
+        5: ['n','n2','e','s','w'],
+        6: ['n','n2','s','s2','e','w'],
+        7: ['n','n2','s','s2','e','w','w2'],
+        8: ['n','n2','s','s2','e','e2','w','w2']
+      };
+      const chairs = (chairPositions[seats] || chairPositions[4])
+        .map(position => '<span class="table-chair chair-'+position+'" aria-hidden="true"></span>').join('');
       return '<article class="table-unit status-'+esc(table.status)+' table-shape-'+shape+'">'+
       '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+', '+seats+' lugares">'+
       chairs+
@@ -849,7 +853,25 @@ function handleClick(event){
   }
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
-  if(target.dataset.tableStatus){if(target.dataset.tableStatus==='select')return;const tableId=target.dataset.tableId,status=target.dataset.tableStatus;target.disabled=true;api('/api/admin/tables/'+encodeURIComponent(tableId),{method:'PATCH',body:JSON.stringify({status})}).then(()=>{toast('Status da mesa atualizado.');renderTablesAdmin()}).catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');target.disabled=false});return;}
+  if(target.dataset.tableStatus){
+    if(target.dataset.tableStatus==='select'){
+      const unit=target.closest('.table-unit');
+      if(!unit)return;
+      root.querySelectorAll('.table-unit.table-selected').forEach(node=>node.classList.remove('table-selected'));
+      unit.classList.add('table-selected');
+      unit.querySelector('.table-status-actions button')?.focus({preventScroll:true});
+      toast('Mesa '+(unit.querySelector('.table-unit-meta strong')?.textContent.replace('Mesa ','')||'')+' selecionada. Escolha o status abaixo.');
+      return;
+    }
+    const tableId=target.dataset.tableId,status=target.dataset.tableStatus;
+    const unit=target.closest('.table-unit');
+    if(unit)unit.querySelectorAll('.table-status-actions button').forEach(button=>button.disabled=true);
+    target.disabled=true;
+    api('/api/admin/tables/'+encodeURIComponent(tableId),{method:'PATCH',body:JSON.stringify({status})})
+      .then(()=>{toast('Status da mesa atualizado.');renderTablesAdmin()})
+      .catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');if(unit)unit.querySelectorAll('.table-status-actions button').forEach(button=>button.disabled=false);else target.disabled=false});
+    return;
+  }
   const action=target.dataset.action;
   if(action==='refresh-tables'){renderTablesAdmin();return}
   if(action==='share-menu'){shareMenu();return}
