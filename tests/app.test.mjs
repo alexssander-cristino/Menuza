@@ -153,6 +153,23 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const tableCountsAfterUpdate = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
   assert.equal(tableCountsAfterUpdate.counts.occupied, 1);
   assert.equal(tableCountsAfterUpdate.counts.free, 11);
+  assert.equal((await fetch(base + '/api/tables/available')).status, 401, 'free table list requires a customer session');
+  const availableTablesResponse = await fetch(base + '/api/tables/available', { headers: { cookie: customerCookie } });
+  assert.equal(availableTablesResponse.status, 200);
+  const availableTables = (await availableTablesResponse.json()).tables;
+  assert.ok(availableTables.some(table => table.number === 2), 'checkout only receives free tables');
+  assert.ok(!availableTables.some(table => table.number === 1), 'occupied tables are not offered at checkout');
+  const dineInResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '2', idempotencyKey: 'integration-table-order-002' }) });
+  assert.equal(dineInResponse.status, 201, 'checkout can submit a table order for a free table');
+  const dineInOrder = (await dineInResponse.json()).order;
+  assert.equal(dineInOrder.fulfillment, 'table');
+  assert.equal(dineInOrder.tableLabel, '2');
+  const tablesAfterCheckout = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
+  assert.equal(tablesAfterCheckout.tables.find(table => table.number === 2).status, 'occupied', 'successful table checkout reserves the selected table');
+  assert.equal(tablesAfterCheckout.counts.occupied, 2);
+  assert.equal(tablesAfterCheckout.counts.free, 10);
+  const duplicateTableBooking = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '2', idempotencyKey: 'integration-table-order-003' }) });
+  assert.equal(duplicateTableBooking.status, 409, 'checkout cannot reserve a table already occupied');
 
   const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 2, active: true }) });
   assert.equal(couponResponse.status, 201);
