@@ -1,5 +1,21 @@
 import { FoodScene } from './food-scene.js?v=4';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
+
+// Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
+(() => {
+  const key = 'menuza-rate-limit-until';
+  const checkLock = () => {
+    if (location.pathname === '/429.html') return;
+    try {
+      const until = Number(localStorage.getItem(key)) || 0;
+      if (until > Date.now()) location.replace('/429.html?wait=' + Math.ceil((until - Date.now()) / 1000));
+      else if (until) localStorage.removeItem(key);
+    } catch {}
+  };
+  checkLock();
+  window.addEventListener('pageshow', checkLock);
+})();
+
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '',
@@ -23,7 +39,15 @@ async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
   let data = {}; try { data = await response.json(); } catch {}
   if (response.status === 429) {
-    location.replace('/429.html');
+    const retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || 900);
+    try {
+      const key = 'menuza-rate-limit-until';
+      const until = Math.max(Number(localStorage.getItem(key)) || 0, Date.now() + retryAfter * 1000);
+      localStorage.setItem(key, String(until));
+      location.replace('/429.html?wait=' + retryAfter);
+    } catch {
+      location.replace('/429.html?wait=' + retryAfter);
+    }
     throw new Error('Muitas solicitações. Aguarde antes de tentar novamente.');
   }
   if (!response.ok) throw new Error(data.error || 'Não foi possível concluir a solicitação.');
