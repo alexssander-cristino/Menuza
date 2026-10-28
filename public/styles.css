@@ -1138,3 +1138,21 @@ body{overscroll-behavior-y:contain}
 .ingredient-admin-row input[aria-invalid="true"]{border-color:#c74646!important;box-shadow:0 0 0 3px rgba(199,70,70,.1)}
 .ingredient-admin-row button:disabled{opacity:.6;cursor:wait}
 @media(max-width:480px){.ingredient-admin-search{max-width:none}.ingredient-admin-panel .admin-panel-head{align-items:flex-start;gap:8px;flex-wrap:wrap}}
+
+
+/* Marca oficial compartilhada com o aplicativo móvel. */
+.brand-mark{overflow:hidden;flex:0 0 39px;border:0!important;border-radius:12px!important;background:#fff;box-shadow:0 4px 14px rgba(38,27,65,.1)}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:cover}
+.brand-footer .brand-mark{background:#fff;border:0!important}
+.brand-footer .brand-mark img{width:100%;height:100%;object-fit:cover}
+
+/* Compartilhamento nativo do cardápio e de pratos individuais. */
+.share-menu-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:7px 10px;border:1px solid var(--mz-line,rgba(100,78,160,.18));border-radius:999px;background:rgba(255,255,255,.78);color:var(--mz-ink,#302747);font:inherit;font-size:11px;cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
+.share-menu-button:hover{background:#f1edff;border-color:rgba(121,101,216,.38);transform:translateY(-1px)}
+.share-menu-button svg,.share-product-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.share-product-button{position:absolute;top:11px;right:53px;z-index:3;display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(255,255,255,.82);border-radius:50%;background:rgba(255,255,255,.92);color:#706782;box-shadow:0 5px 18px rgba(38,27,65,.1);cursor:pointer;backdrop-filter:blur(10px);transition:transform .22s ease,background .22s ease,color .22s ease}
+.share-product-button:hover{transform:translateY(-2px) scale(1.05);background:#f1edff;color:var(--mz-violet-700,#5b4397)}
+.share-product-button:focus-visible,.share-menu-button:focus-visible{outline:2px solid var(--mz-violet-600,#7965d8);outline-offset:3px}
+@media(max-width:780px){.header-actions{gap:10px}.share-menu-button{width:36px;height:36px;padding:0}.share-menu-button span{display:none}.share-menu-button svg{width:17px;height:17px}}
+@media(max-width:700px){.share-product-button{top:7px;right:45px;width:32px;height:32px}.share-product-button svg{width:15px;height:15px}}
+@media(prefers-reduced-motion:reduce){.share-menu-button,.share-product-button{transition:none}}
