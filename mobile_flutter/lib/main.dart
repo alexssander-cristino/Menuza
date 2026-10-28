@@ -2,9 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'server_address.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
+import 'server_address.dart';
 
 const _defaultUrl = 'http://192.168.0.105:4173';
 const _purple = Color(0xFF6D4CF5);
@@ -105,7 +106,7 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
           });
         },
         onHttpError: (error) {
-          if (!mounted || error.request?.uri.toString() != _serverUrl) return;
+          if (!mounted || error.request?.isForMainFrame != true) return;
           setState(() {
             _loading = false;
             _loadError = 'O servidor respondeu com erro HTTP ' +
