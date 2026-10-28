@@ -29,8 +29,8 @@ const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
-db.exec(`CREATE TABLE IF NOT EXISTS security_rate_events (bucket_key TEXT NOT NULL, created_at INTEGER NOT NULL);`);
-db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_events_bucket_time ON security_rate_events(bucket_key, created_at)');
+db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
@@ -146,22 +146,32 @@ function rateBucketKey(value) {
 function consumeRateLimits(rules) {
   const now = Date.now();
   if (now - lastRateCleanup > RATE_CLEANUP_INTERVAL_MS) {
-    statement('DELETE FROM security_rate_events WHERE created_at < ?').run(now - 24 * 60 * 60 * 1000);
+    statement('DELETE FROM security_rate_buckets WHERE updated_at < ?').run(now - 24 * 60 * 60 * 1000);
     lastRateCleanup = now;
   }
   const prepared = rules.map(rule => ({ key: rateBucketKey(rule.key), limit: rule.limit, windowMs: rule.windowMs }));
   db.exec('BEGIN IMMEDIATE');
   try {
+    const active = [];
     for (const rule of prepared) {
-      const row = statement('SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM security_rate_events WHERE bucket_key=? AND created_at>?')
-        .get(rule.key, now - rule.windowMs);
-      if (row.count >= rule.limit) {
-        db.exec('ROLLBACK');
-        return { allowed: false, retryAfter: Math.max(1, Math.ceil((row.oldest + rule.windowMs - now) / 1000)) };
+      const row = statement('SELECT timestamps_json FROM security_rate_buckets WHERE bucket_key=?').get(rule.key);
+      let timestamps = [];
+      if (row) {
+        try {
+          const parsed = JSON.parse(row.timestamps_json);
+          if (Array.isArray(parsed)) timestamps = parsed.filter(value => Number.isSafeInteger(value) && value > now - rule.windowMs && value <= now);
+        } catch {}
       }
+      if (timestamps.length >= rule.limit) {
+        statement('INSERT INTO security_rate_buckets (bucket_key,timestamps_json,updated_at) VALUES (?,?,?) ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=excluded.timestamps_json,updated_at=excluded.updated_at')
+          .run(rule.key, JSON.stringify(timestamps), now);
+        db.exec('COMMIT');
+        return { allowed: false, retryAfter: Math.max(1, Math.ceil((timestamps[0] + rule.windowMs - now) / 1000)) };
+      }
+      active.push({ ...rule, timestamps });
     }
-    const insert = statement('INSERT INTO security_rate_events (bucket_key, created_at) VALUES (?,?)');
-    for (const rule of prepared) insert.run(rule.key, now);
+    const upsert = statement('INSERT INTO security_rate_buckets (bucket_key,timestamps_json,updated_at) VALUES (?,?,?) ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=excluded.timestamps_json,updated_at=excluded.updated_at');
+    for (const rule of active) upsert.run(rule.key, JSON.stringify([...rule.timestamps, now]), now);
     db.exec('COMMIT');
     return { allowed: true };
   } catch (error) {
@@ -177,13 +187,25 @@ function authRateLimit(request, scope, identity = '') {
 }
 function endpointRateLimit(request, path) {
   const ip = clientIp(request);
+  const rules = [{ key: 'api-global:' + ip, limit: 240, windowMs: 60 * 1000 }];
   if (path === '/api/orders' && request.method === 'POST') {
-    return consumeRateLimits([{ key: 'orders:' + ip, limit: 8, windowMs: 10 * 60 * 1000 }]);
+    rules.push({ key: 'orders:' + ip, limit: 8, windowMs: 10 * 60 * 1000 });
+  } else if (path.startsWith('/api/tracking/')) {
+    rules.push({ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 });
+  } else {
+    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients)\/[^/]+$/);
+    const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
+    const known = new Set([
+      '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
+      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/admin/me','/api/admin/events',
+      '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings',
+      '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
+      '/api/orders'
+    ]);
+    const stablePath = known.has(normalized) ? normalized : 'unknown';
+    rules.push({ key: 'api-endpoint:' + request.method + ':' + stablePath + ':' + ip, limit: 120, windowMs: 60 * 1000 });
   }
-  if (path.startsWith('/api/tracking/')) {
-    return consumeRateLimits([{ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 }]);
-  }
-  return consumeRateLimits([{ key: 'api:' + request.method + ':' + path + ':' + ip, limit: 120, windowMs: 60 * 1000 }]);
+  return consumeRateLimits(rules);
 }
 function rateLimitResponse(response, retryAfter = 900) {
   return send(response, 429, { error: 'Muitas solicitações. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(Math.max(1, Math.min(3600, retryAfter))), 'Cache-Control': 'no-store' });
