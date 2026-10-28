@@ -57,9 +57,9 @@ for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],[
 }
 db.exec('CREATE TABLE IF NOT EXISTS restaurant_tables (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE, table_number INTEGER NOT NULL, seats INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT \'free\' CHECK(status IN (\'free\',\'occupied\',\'cleaning\')), note TEXT NOT NULL DEFAULT \'\', updated_at TEXT NOT NULL, UNIQUE(restaurant_id, table_number));');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
-if (statement('SELECT COUNT(*) AS count FROM restaurant_tables WHERE restaurant_id=?').get(RESTAURANT_ID).count === 0) {
+if (db.prepare('SELECT COUNT(*) AS count FROM restaurant_tables WHERE restaurant_id=?').get(RESTAURANT_ID).count === 0) {
   const now = new Date().toISOString();
-  const addTable = statement('INSERT INTO restaurant_tables (id,restaurant_id,table_number,seats,status,note,updated_at) VALUES (?,?,?,?,?,?,?)');
+  const addTable = db.prepare('INSERT INTO restaurant_tables (id,restaurant_id,table_number,seats,status,note,updated_at) VALUES (?,?,?,?,?,?,?)');
   for (let number = 1; number <= 12; number++) addTable.run('table-' + number, RESTAURANT_ID, number, number <= 4 ? 2 : 4, 'free', '', now);
 }
 
