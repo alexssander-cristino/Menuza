@@ -34,6 +34,14 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
 });
 
+test('checkout mantém a chave idempotente após recarregar e invalida quando o carrinho muda', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("sessionStorage.getItem('menuza-checkout-key')"), 'checkout key is restored from the current browser session');
+  assert.ok(client.includes("sessionStorage.setItem('menuza-checkout-key',JSON.stringify({key:app.checkoutKey,fingerprint}))"), 'checkout key is stored with the cart fingerprint');
+  assert.ok(client.includes("savedCheckout.fingerprint !== serializedCart"), 'a changed cart invalidates the previous checkout key');
+  assert.ok(client.includes("sessionStorage.removeItem('menuza-checkout-key')"), 'successful or invalidated checkout clears persisted idempotency data');
+});
+
 test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
