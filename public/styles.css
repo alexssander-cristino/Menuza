@@ -1,632 +1,1049 @@
-import { createServer } from 'node:http';
-import { readFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { dirname, extname, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
-import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
+:root{
+/* Menuza design tokens */
+--mz-violet-700:#4a2fc4;--mz-violet-600:#5b3be0;--mz-violet-500:#6d4cf5;--mz-violet-200:#d9d0fb;--mz-violet-100:#ece8fd;--mz-violet-50:#f5f2ff;
+--mz-ink:#1b1530;--mz-ink-2:#3b2f5c;--mz-muted:#736f82;--mz-line:#e3e0ea;--mz-bg:#f6f5f9;--mz-surface:#fcfcfd;--mz-warm:#c9893f;
+--mz-font:'Inter','Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+--mz-display:'Bricolage Grotesque','Segoe UI Variable Display','SF Pro Display','Segoe UI',system-ui,sans-serif;
+--mz-fs-xs:.75rem;--mz-fs-sm:.875rem;--mz-fs-md:1rem;--mz-fs-lg:1.25rem;--mz-fs-xl:clamp(1.75rem,3vw,2.5rem);--mz-fs-hero:clamp(2.6rem,5.4vw,4.6rem);
+--mz-space-1:4px;--mz-space-2:8px;--mz-space-3:12px;--mz-space-4:16px;--mz-space-5:24px;--mz-space-6:40px;--mz-space-7:64px;
+--mz-radius-sm:8px;--mz-radius-md:14px;--mz-radius-lg:22px;--mz-radius-pill:999px;
+--mz-shadow-sm:0 1px 2px rgba(27,21,48,.06),0 4px 14px rgba(27,21,48,.05);--mz-shadow-md:0 10px 34px rgba(27,21,48,.10);--mz-shadow-lg:0 28px 80px rgba(27,21,48,.18);
+--mz-ease:cubic-bezier(.2,.8,.2,1);--mz-fast:.18s;--mz-med:.32s;--mz-slow:.6s;
+/* aliases used by the existing stylesheet */
+--ink:var(--mz-ink);--ink-2:var(--mz-ink-2);--sage:#d4d1dc;--sage-2:#ebeaf0;--cream:var(--mz-bg);--paper:var(--mz-surface);--orange:var(--mz-violet-600);--orange-soft:var(--mz-violet-100);--muted:var(--mz-muted);--line:var(--mz-line);--gold:var(--mz-warm);--shadow:var(--mz-shadow-lg);--font:var(--mz-font);--display:var(--mz-display)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:92px}body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--font);font-size:15px;-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit}button,a{ -webkit-tap-highlight-color:transparent}button{color:inherit}a{color:inherit;text-decoration:none}.hidden{display:none!important}.wrap{width:min(1190px,calc(100% - 64px));margin:0 auto}
+.announcement{height:34px;background:var(--ink);color:#dbd9e1;display:flex;align-items:center;justify-content:center;gap:9px;font-size:10px;letter-spacing:.04em}.live-dot{width:6px;height:6px;border-radius:100%;background:#9d8ec5;box-shadow:0 0 0 3px #736c8844}.announcement-divider{opacity:.45}.announcement-right{position:absolute;right:max(32px,calc((100vw - 1190px)/2));opacity:.7}
+.site-header{height:78px;background:var(--cream);display:flex;align-items:center;justify-content:space-between;padding:0 max(32px,calc((100vw - 1190px)/2));border-bottom:1px solid #e2e1e6;position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:39px;height:39px;border:1px solid var(--ink);border-radius:50%;display:grid;place-items:center}.brand-mark svg{width:26px;stroke:var(--ink);fill:none;stroke-width:1.4;stroke-linecap:round}.brand b{display:block;font-size:12px;letter-spacing:.17em;font-weight:700}.brand small{display:block;font-size:9px;letter-spacing:.08em;color:var(--muted);margin-top:3px}.desktop-nav{display:flex;gap:36px;margin-left:65px}.desktop-nav a,.quiet-link{font-size:12px;color:#6b6777;transition:color .2s}.desktop-nav a:hover,.quiet-link:hover{color:var(--orange)}.header-actions{display:flex;align-items:center;gap:22px}.quiet-link{background:none;border:0;cursor:pointer}.cart-button{display:flex;align-items:center;gap:8px;background:var(--ink);color:white;border:0;border-radius:999px;padding:9px 12px 9px 14px;font-size:11px;cursor:pointer;transition:transform .2s,background .2s}.cart-button:hover{transform:translateY(-2px);background:#362c54}.cart-icon{font-size:15px;transform:rotate(90deg);display:inline-block}.cart-count{display:inline-grid;place-items:center;background:#dfd9f2;color:var(--ink);border-radius:20px;min-width:18px;height:18px;padding:0 5px;font-size:10px;font-weight:700}.mobile-menu-button{display:none;border:0;background:none;font-size:20px}
+.hero{min-height:540px;display:grid;grid-template-columns:1fr .92fr;align-items:center;gap:40px;padding-top:38px;padding-bottom:48px}.hero-copy{padding:32px 0 38px}.eyebrow{font-size:9px;font-weight:700;letter-spacing:.18em;color:#7e7a8a;display:flex;align-items:center;gap:10px}.eyebrow-line{width:24px;height:1px;background:var(--orange)}h1,h2,h3,p{margin-top:0}.hero h1{font:500 clamp(42px,5.1vw,70px)/1.08 var(--display);letter-spacing:-.035em;margin:22px 0 18px;color:#201a32}.hero h1 em,.section-heading h2 em,.craft-text h2 em{font-weight:500;color:var(--orange)}.hero-copy>p{max-width:420px;line-height:1.8;color:#6e6a79;font-size:13px;margin-bottom:27px}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:18px;padding:0 18px;border-radius:4px;border:1px solid transparent;font-size:11px;font-weight:600;cursor:pointer;transition:transform .2s,background .2s,border .2s}.button:hover{transform:translateY(-2px)}.button-dark{background:var(--ink);color:white}.button-dark:hover{background:#362c54}.button-outline{border-color:#d0ced4;background:transparent;color:var(--ink)}.button-outline:hover{border-color:var(--ink);background:white}.button span{font-size:16px;font-weight:400}.hero-trust{display:flex;align-items:center;gap:12px;margin-top:38px}.avatar-stack{display:flex;padding-left:3px}.avatar-stack span{width:28px;height:28px;margin-left:-4px;border-radius:50%;border:2px solid var(--cream);display:grid;place-items:center;font-size:7px;font-weight:700;background:#7f63ee;color:#493b2c}.avatar-stack span:nth-child(2){background:#7f63ee;color:#492d25}.avatar-stack span:nth-child(3){background:#928ca3;color:#261e3b}.hero-trust b,.hero-trust small{display:block}.hero-trust b{font-size:10px}.hero-trust small{font-size:9px;color:var(--muted);margin-top:3px}
+.hero-art-wrap{height:455px;position:relative;display:flex;align-items:center;justify-content:center}.hero-art{width:min(100%,480px);height:100%;display:grid;place-items:center;position:relative;isolation:isolate}.hero-art:before{content:"";position:absolute;width:76%;height:75%;top:11%;left:14%;background:#d6d0e9;border-radius:50%;filter:blur(1px);transform:rotate(-13deg);z-index:-1}.hero-art svg{width:108%;max-width:555px;filter:drop-shadow(12px 25px 14px #3c305e20);transform:rotate(-8deg);animation:float 6s ease-in-out infinite}.hero-art-note{position:absolute;left:0;top:47px;z-index:2;display:flex;align-items:center;gap:8px;color:#656073;font-size:9px;line-height:1.5;transform:rotate(-7deg)}.hero-art-note b{font-family:var(--display);font-size:12px;color:var(--ink)}.note-spark{font-size:24px;color:var(--orange)}.hero-stamp{position:absolute;right:14px;top:54px;width:83px;height:83px;border:1px solid #603eea66;border-radius:50%;display:grid;place-content:center;text-align:center;transform:rotate(10deg);color:var(--orange);font-size:9px;line-height:1.1;background:#f1eff7bf}.hero-stamp b{font:italic 18px var(--display)}.hero-stamp i{font-size:14px;font-style:normal}.hero-caption{position:absolute;bottom:20px;left:10%;right:2%;display:flex;justify-content:space-between;color:#8d8b93;font-size:9px;letter-spacing:.03em}.hero-caption span:first-child{color:var(--orange);font-weight:700}
+@keyframes float{0%,100%{transform:rotate(-8deg) translateY(0)}50%{transform:rotate(-6deg) translateY(-9px)}}
+.ticker{height:47px;background:#e7e6ea;border-top:1px solid #dddbe1;border-bottom:1px solid #dddbe1;overflow:hidden;display:flex;align-items:center;color:#656074}.ticker div{white-space:nowrap;font-size:9px;font-weight:700;letter-spacing:.18em;word-spacing:20px;animation:ticker 34s linear infinite}.ticker span{color:var(--orange);font-size:15px;vertical-align:-2px}@keyframes ticker{to{transform:translateX(-30%)}}
+.section{padding-top:89px;padding-bottom:78px}.section-heading{display:flex;justify-content:space-between;align-items:end;margin-bottom:31px}.section-heading h2,.craft-text h2{font:500 clamp(32px,3.7vw,46px)/1.16 var(--display);letter-spacing:-.025em;margin:10px 0 0}.text-link{font-size:11px;font-weight:600;border-bottom:1px solid #afabba;padding-bottom:8px;display:inline-flex;gap:18px;align-items:center}.text-link span{color:var(--orange);font-size:15px}.featured-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:17px}.product-card{background:var(--paper);border:1px solid #e2e1e7;padding:11px 11px 16px;position:relative;transition:transform .25s,box-shadow .25s}.product-card:hover{transform:translateY(-5px);box-shadow:0 15px 38px #231c3612}.product-image{height:180px;background:#ebeaef;position:relative;overflow:hidden;display:grid;place-items:center}.product-image svg{width:110%;height:100%;filter:drop-shadow(0 12px 10px #362d2018);transition:transform .35s}.product-card:hover .product-image svg{transform:scale(1.05) rotate(-2deg)}.product-label{position:absolute;left:10px;top:10px;background:#fcfcfdee;border-radius:2px;padding:6px 8px;font-size:8px;font-weight:700;letter-spacing:.08em;color:#8a6740;text-transform:uppercase}.product-card-body{padding:14px 3px 0}.product-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}.product-card h3{font:500 20px var(--display);margin:0 0 6px}.product-price{font-size:12px;font-weight:700;white-space:nowrap}.product-card p{font-size:10px;line-height:1.55;color:#797780;min-height:32px;margin-bottom:13px}.card-bottom{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #eee;padding-top:10px}.prep-time{font-size:9px;color:#898790}.prep-time span{color:var(--orange);margin-right:4px}.add-button{border:0;background:none;padding:5px;color:var(--ink);font-size:10px;font-weight:700;cursor:pointer}.add-button:hover{color:var(--orange)}
+.menu-section{padding:82px 0 98px;background:#eae9ed}.menu-heading{align-items:center}.menu-heading p{color:#7d7987;font-size:11px;line-height:1.7;margin:0 0 3px}.menu-tools{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 0;border-top:1px solid #d8d6dc;border-bottom:1px solid #d8d6dc}.category-list{display:flex;gap:7px;flex-wrap:wrap}.category-chip{border:1px solid transparent;background:transparent;padding:9px 13px;border-radius:30px;color:#797582;font-size:10px;cursor:pointer;transition:all .2s}.category-chip:hover,.category-chip.active{background:var(--ink);color:white}.search-box{height:36px;min-width:235px;display:flex;align-items:center;gap:8px;background:#f5f4f7;border:1px solid #dedde1;padding:0 10px;color:#7b7786}.search-box>span{font-size:20px;line-height:1}.search-box input{min-width:0;width:100%;border:0;outline:none;background:transparent;font-size:10px;color:var(--ink)}.search-box kbd{font-size:8px;border:1px solid #dddce0;border-radius:3px;padding:2px 4px;white-space:nowrap}.filter-line{height:51px;display:flex;align-items:center;gap:23px;color:#85828e;font-size:9px}.filter-toggle{background:none;border:0;color:#686374;font-size:9px;cursor:pointer;padding:5px}.filter-toggle[aria-pressed=true]{color:#3f2c74;font-weight:700}.sort-label{margin-left:auto}.sort-label select{background:none;border:0;color:var(--ink);font-size:9px;cursor:pointer}.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:17px}.menu-grid .product-image{height:205px}.menu-grid .product-card{padding:12px 12px 17px}.no-results{grid-column:1/-1;text-align:center;padding:65px 15px;color:#817d8a}
+.craft-section{background:#dddbe2;padding:78px 0}.craft-grid{display:grid;grid-template-columns:.9fr 1fr;gap:95px;align-items:center}.craft-art{height:310px;position:relative;display:grid;place-items:center;background:radial-gradient(ellipse,#e1dcf0 0 36%,transparent 36.5%)}.craft-circle{width:220px;height:220px;border-radius:50%;border:1px solid #c0bccc;box-shadow:0 12px 45px #31274d20;background:repeating-radial-gradient(circle at 50% 50%,#d2cae9 0 54px,#c8bfe4 56px 58px,#d8d1ee 61px 94px,#dccdb5 96px 98px)}.craft-circle:before{content:"";display:block;position:absolute;width:150px;height:150px;border-radius:50%;top:81px;left:calc(50% - 75px);background:radial-gradient(circle at 42% 40%,#603eea 0 5px,transparent 6px),radial-gradient(circle at 62% 36%,#603eea 0 7px,transparent 8px),radial-gradient(circle at 52% 62%,#61528b 0 4px,transparent 5px),radial-gradient(circle at 38% 67%,#603eea 0 6px,transparent 7px),radial-gradient(circle at 65% 67%,#7f63ee 0 5px,transparent 6px),radial-gradient(circle,#603eea 0 65%,#7f63ee 66%)}.craft-copy-card{position:absolute;left:8%;top:20px;background:var(--paper);padding:14px 17px;box-shadow:0 8px 22px #33284f12;transform:rotate(-5deg)}.craft-copy-card span{font:500 30px var(--display);display:block;color:var(--orange)}.craft-copy-card small{font-size:8px;color:#6f6b79;line-height:1.4}.craft-tag{position:absolute;right:3%;bottom:27px;font-size:8px;letter-spacing:.12em;color:#757081}.craft-tag span{color:var(--orange)}.craft-text{max-width:430px}.craft-text h2{font-size:46px;margin:14px 0 17px}.craft-text p{font-size:12px;line-height:1.8;color:#6a6576;margin-bottom:23px}
+.site-footer{background:var(--ink);color:#e2e0e7;padding:30px 0 17px}.footer-main{display:flex;align-items:center;justify-content:space-between;padding-bottom:26px;border-bottom:1px solid #ffffff20}.brand-footer .brand-mark{border-color:#c3bed0}.brand-footer .brand-mark svg{stroke:#c3bed0}.brand-footer b{color:white}.brand-footer small{color:#aeaab9}.footer-main>span,.footer-main>a:last-child{font-size:9px;color:#b6b1c2}.footer-bottom{padding-top:15px;display:flex;justify-content:space-between;color:#868193;font-size:8px}
+.toast{position:fixed;left:50%;bottom:22px;z-index:80;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--ink);color:white;padding:12px 18px;border-radius:4px;box-shadow:var(--shadow);font-size:11px;transition:all .25s}.toast.show{opacity:1;transform:translate(-50%,0)}
+/* Builder and checkout overlays */
+.modal-backdrop,.drawer-backdrop{position:fixed;inset:0;z-index:50;background:#191427db;display:flex;align-items:center;justify-content:center;padding:18px;animation:fade-in .2s ease}.modal-backdrop{overflow:auto}.builder-modal{width:min(1080px,100%);max-height:min(850px,calc(100vh - 36px));min-height:min(650px,calc(100vh - 36px));background:var(--cream);display:grid;grid-template-columns:1.04fr .96fr;overflow:hidden;box-shadow:var(--shadow);position:relative}.builder-visual{background:#e7e6ea;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;min-height:480px}.builder-visual:before{content:"";position:absolute;width:78%;height:78%;border-radius:50%;background:radial-gradient(circle,#f5f4f8 0 55%,#d6d4da 56% 58%,transparent 59%);box-shadow:0 25px 45px #2a214117}.visual-kicker{position:absolute;top:27px;left:28px;color:#7f7b8a;font-size:8px;letter-spacing:.16em}.food-stage{z-index:1;width:min(77%,440px);height:340px;display:grid;place-items:center;perspective:900px;transition:transform .3s}.food-stage svg{width:100%;height:100%;filter:drop-shadow(0 22px 14px #33284f24);transition:transform .3s}.visual-controls{position:absolute;bottom:23px;display:flex;gap:7px;background:#f4f3f7d9;border:1px solid #d8d7dc;border-radius:30px;padding:5px;z-index:2}.visual-controls button{width:29px;height:29px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:#585268}.visual-controls button:hover{background:white}.visual-controls .control-label{width:auto;font-size:8px;padding:0 8px}.visual-caption{position:absolute;bottom:66px;color:#7f7b8a;font-size:8px;letter-spacing:.05em}.builder-content{padding:26px 30px 24px;overflow-y:auto;position:relative}.modal-topline{display:flex;justify-content:space-between;align-items:center;color:#858191;font-size:8px;letter-spacing:.16em}.icon-button{width:31px;height:31px;border:1px solid #dddce1;border-radius:50%;background:transparent;cursor:pointer;font-size:17px;color:#676373}.icon-button:hover{background:white}.builder-title{font:500 31px var(--display);margin:16px 0 5px}.builder-description{font-size:10px;line-height:1.6;color:#7c7885;margin-bottom:16px}.step-row{display:flex;align-items:center;gap:8px;color:#888691;font-size:8px;margin:18px 0 9px;letter-spacing:.1em;text-transform:uppercase}.step-row:after{content:"";height:1px;background:#dfdee1;flex:1}.step-row b{color:var(--orange);font-size:10px}.option-pills{display:flex;gap:6px;flex-wrap:wrap}.option-pill{background:transparent;border:1px solid #d8d7dc;padding:9px 11px;min-width:74px;text-align:center;font-size:9px;color:#6c6778;cursor:pointer;transition:all .2s}.option-pill:hover{border-color:var(--ink)}.option-pill.active{background:var(--ink);color:white;border-color:var(--ink)}.option-pill small{display:block;font-size:8px;opacity:.7;margin-top:3px}.ingredient-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ingredient-option{border:1px solid #e0dfe3;background:#f7f7f9;display:flex;align-items:center;gap:8px;padding:8px 9px;min-height:44px;cursor:pointer;text-align:left;transition:border .2s,background .2s}.ingredient-option:hover{border-color:#aeaaba}.ingredient-option.selected{background:#e6e4eb;border-color:#9c97ab}.ingredient-check{width:15px;height:15px;flex:none;border:1px solid #c3c0cb;border-radius:50%;display:grid;place-items:center;color:transparent;font-size:9px}.ingredient-option.selected .ingredient-check{background:var(--ink);border-color:var(--ink);color:white}.ingredient-name{font-size:9px;line-height:1.3;flex:1}.ingredient-cost{font-size:8px;color:#787483;white-space:nowrap}.ingredient-name small{display:block;font-size:7px;color:#8a8693;margin-top:2px}.builder-footer{position:sticky;bottom:-24px;margin:18px -30px -24px;padding:15px 30px 20px;background:linear-gradient(transparent,var(--cream) 14%);display:flex;align-items:center;justify-content:space-between;gap:12px}.builder-total small{display:block;color:#7e7a89;font-size:8px;margin-bottom:3px}.builder-total b{font-size:17px}.builder-footer .button{flex:1;max-width:240px}.price-note{font-size:8px;color:#8d8b94;margin:8px 0 0}
+.drawer-backdrop{justify-content:flex-end;padding:0}.cart-drawer{height:100%;width:min(460px,100%);background:var(--cream);padding:23px 25px;display:flex;flex-direction:column;box-shadow:var(--shadow);animation:slide-in .25s ease}.drawer-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:16px}.drawer-head h2{font:500 25px var(--display);margin:0}.cart-empty{margin:auto;text-align:center;color:#787482}.cart-empty .empty-icon{font:60px var(--display);color:#c8c4d3}.cart-empty h3{font:500 22px var(--display);margin:10px}.cart-empty p{font-size:11px;line-height:1.6;max-width:240px}.cart-items{overflow:auto;flex:1}.cart-item{padding:16px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:start}.cart-thumb{width:72px;height:70px;background:#e7e6ea;display:grid;place-items:center}.cart-thumb svg{width:92%;height:95%}.cart-item h3{font:500 16px var(--display);margin:2px 0 4px}.cart-item p{font-size:8px;color:#7e7a87;line-height:1.5;margin:0}.cart-item-price{font-size:10px;font-weight:700;white-space:nowrap}.cart-item-actions{display:flex;align-items:center;gap:8px;margin-top:8px}.qty-control{display:inline-flex;align-items:center;border:1px solid #dbdade}.qty-control button{width:24px;height:23px;border:0;background:transparent;cursor:pointer;font-size:12px}.qty-control span{min-width:18px;text-align:center;font-size:9px}.tiny-link{background:none;border:0;color:#8b8794;font-size:8px;text-decoration:underline;cursor:pointer}.cart-summary{border-top:1px solid var(--line);padding-top:17px}.summary-line{display:flex;justify-content:space-between;font-size:10px;color:#6a6576;margin-bottom:11px}.summary-total{font-size:13px;font-weight:700;color:var(--ink);margin:15px 0 17px}.cart-summary .button{width:100%}.cart-disclaimer{font-size:8px;color:#898792;text-align:center;line-height:1.5;margin:12px 0 0}
+.checkout-modal{width:min(520px,100%);background:var(--cream);padding:25px 30px;box-shadow:var(--shadow);max-height:calc(100vh - 36px);overflow-y:auto;position:relative}.checkout-modal h2{font:500 28px var(--display);margin:13px 0 5px}.checkout-modal>p{font-size:10px;color:#7b7785}.form-field{display:block;margin:13px 0}.form-field>span{display:block;font-size:9px;font-weight:600;margin-bottom:6px;color:#575264}.form-field input,.form-field textarea,.form-field select{width:100%;border:1px solid #d8d7dc;background:#fcfcfd;border-radius:2px;padding:10px 11px;font-size:11px;outline:none;color:var(--ink)}.form-field input:focus,.form-field textarea:focus,.form-field select:focus{border-color:#837e92;box-shadow:0 0 0 2px #837e9222}.form-field textarea{min-height:68px;resize:vertical}.fulfillment-options{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.fulfillment-option{border:1px solid #d8d7dc;padding:10px;background:#fcfcfd;cursor:pointer;text-align:center;font-size:9px}.fulfillment-option.active{border-color:var(--ink);background:#e8e7ec}.checkout-total{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:13px 0;font-size:11px;font-weight:700}.payment-note{background:#e9e8ec;padding:10px 12px;color:#676273;font-size:9px;line-height:1.5;margin-bottom:13px}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}@keyframes slide-in{from{transform:translateX(22px);opacity:.7}to{transform:translateX(0);opacity:1}}
+/* Order tracking */
+.tracking-shell{min-height:65vh;padding:50px 0 80px}.tracking-back{font-size:10px;color:#757181;display:inline-block;margin:8px 0 26px}.tracking-head{text-align:center;margin:20px auto 32px;max-width:540px}.tracking-head .checkmark{width:50px;height:50px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:#e2dfe8;color:#46396b;font-size:22px}.tracking-head h1{font:500 39px var(--display);margin:0 0 9px}.tracking-head p{font-size:11px;color:#7e7a88;line-height:1.6}.tracking-card{max-width:710px;margin:auto;background:var(--paper);border:1px solid var(--line);padding:25px 29px}.tracking-meta{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}.tracking-meta small{display:block;font-size:8px;color:#888491;margin-bottom:5px}.tracking-meta b{font-size:13px}.status-pill{background:#e9e8ec;color:#514969;padding:7px 9px;border-radius:20px;font-size:9px;font-weight:700;height:fit-content}.status-timeline{display:grid;grid-template-columns:repeat(5,1fr);padding:20px 0 25px;position:relative}.timeline-item{text-align:center;position:relative;color:#9d9ba3}.timeline-item:not(:last-child):after{content:"";height:1px;position:absolute;background:#dfdee2;top:8px;left:56%;width:88%;z-index:0}.timeline-item.done:not(:last-child):after{background:#83799c}.timeline-dot{width:16px;height:16px;margin:0 auto 8px;border:2px solid #d7d5db;border-radius:50%;background:var(--paper);position:relative;z-index:1}.timeline-item.done .timeline-dot{background:#796f93;border-color:#796f93;box-shadow:0 0 0 4px #e7e5ec}.timeline-item.current .timeline-dot{background:var(--orange);border-color:var(--orange);box-shadow:0 0 0 4px #e4def5}.timeline-item span{font-size:8px}.tracking-items{border-top:1px solid var(--line);padding-top:15px}.tracking-items h3{font:500 18px var(--display)}.tracking-order-item{display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:10px}.tracking-order-item small{display:block;color:#827e8c;font-size:8px;margin-top:4px}.tracking-note{font-size:9px;color:#858091;margin-top:15px}.ready-banner{background:#e6e4eb;color:#4f436f;text-align:center;padding:12px;font-size:11px;font-weight:700;margin-top:16px;animation:ready-in .5s ease}@keyframes ready-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* Restaurant dashboard */
+.admin-shell{min-height:75vh;background:#eeedf1;padding:35px max(25px,calc((100vw - 1240px)/2)) 70px}.admin-login{max-width:410px;margin:50px auto;background:var(--paper);padding:34px;border:1px solid var(--line);box-shadow:0 10px 40px #2f254913}.admin-login h1{font:500 30px var(--display);margin:14px 0 7px}.admin-login>p{font-size:10px;color:#7a7685;line-height:1.6}.demo-credential{background:#eeedf0;padding:9px 11px;font-size:9px;color:#666272}.admin-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}.admin-top h1{font:500 32px var(--display);margin:3px 0}.admin-top p{font-size:10px;color:#827e8b;margin:0}.admin-top-actions{display:flex;gap:8px}.admin-tabs{display:flex;gap:6px;border-bottom:1px solid #d9d8dc;margin-bottom:18px}.admin-tab{padding:10px 15px;background:transparent;border:0;border-bottom:2px solid transparent;font-size:10px;color:#787482;cursor:pointer}.admin-tab.active{border-bottom-color:var(--orange);color:var(--ink);font-weight:700}.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}.metric-card{background:var(--paper);border:1px solid var(--line);padding:17px}.metric-card span{font-size:9px;color:#858191}.metric-card b{display:block;font:500 27px var(--display);margin-top:8px}.metric-card small{font-size:8px;color:#9590a1}.admin-content-grid{display:grid;grid-template-columns:1fr 300px;gap:16px}.admin-panel{background:var(--paper);border:1px solid var(--line);padding:17px;margin-bottom:14px}.admin-panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.admin-panel-head h2{font:500 20px var(--display);margin:0}.admin-panel-head small{font-size:8px;color:#8d8997}.orders-list{display:grid;gap:9px}.order-card{border:1px solid #e3e2e6;background:#fcfcfd;padding:13px}.order-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.order-number{font-size:10px;font-weight:700}.order-time{font-size:8px;color:#878391;margin-top:4px}.order-customer{font-size:9px;color:#6a6576;margin-top:9px}.order-status-select{font-size:8px;border:1px solid #dbdadf;background:#f5f4f7;padding:6px 7px;max-width:150px}.order-lines{font-size:9px;line-height:1.5;color:#706c7c;margin:9px 0}.order-lines strong{color:var(--ink)}.order-card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eae9ed;padding-top:9px;font-size:9px}.order-fulfillment{font-size:8px;color:#7b7787}.admin-empty{text-align:center;color:#8a8693;font-size:10px;padding:25px}.popular-list{list-style:none;margin:0;padding:0}.popular-list li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #edecef;font-size:9px}.popular-list li:last-child{border:0}.popular-list small{color:#8c8895}.catalog-list{display:grid;gap:0}.catalog-row{display:grid;grid-template-columns:1fr 105px 75px 76px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #edecef;font-size:9px}.catalog-row:last-child{border:0}.catalog-row b{font-size:10px}.catalog-row small{display:block;color:#8c8895;font-size:8px;margin-top:3px}.catalog-row input[type=number]{width:90px;border:1px solid #d8d7dc;padding:7px;font-size:9px}.catalog-row input[type=checkbox]{accent-color:var(--ink)}.admin-section-heading{font:500 19px var(--display);margin:22px 0 12px}.ingredient-admin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.ingredient-admin-row{display:grid;grid-template-columns:1fr 80px 40px;gap:7px;align-items:center;background:#f5f4f7;padding:7px;font-size:8px}.ingredient-admin-row input[type=number]{width:70px;padding:5px;border:1px solid #d8d7dc;font-size:8px}.admin-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 13px}.admin-form-grid .form-field{margin:8px 0}.admin-form-grid .wide{grid-column:1/-1}
+.error-text{font-size:9px;color:#603eea;min-height:14px;margin:8px 0}.button-small{min-height:34px;padding:0 12px;font-size:9px}.loading-line{color:#8a8693;font-size:10px;padding:24px;text-align:center}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:950px){.desktop-nav{gap:18px;margin-left:20px}.hero{gap:15px;min-height:470px}.hero-art-wrap{height:400px}.featured-grid{grid-template-columns:repeat(2,1fr)}.menu-grid{grid-template-columns:repeat(2,1fr)}.craft-grid{gap:40px}.builder-modal{grid-template-columns:.85fr 1.15fr}.builder-visual{min-height:430px}.food-stage{width:90%}.admin-content-grid{grid-template-columns:1fr}.admin-content-grid aside{display:grid;grid-template-columns:1fr 1fr;gap:12px}.admin-panel{margin-bottom:0}}
+@media(max-width:700px){.wrap{width:min(100% - 36px,540px)}.announcement{font-size:9px}.announcement-right{display:none}.site-header{height:65px;padding:0 18px}.brand-mark{width:35px;height:35px}.desktop-nav,.quiet-link,.cart-word{display:none}.header-actions{gap:11px}.mobile-menu-button{display:block}.cart-button{padding:8px 9px}.hero{display:flex;flex-direction:column;align-items:stretch;gap:0;padding-top:23px;padding-bottom:28px}.hero-copy{padding:22px 0 0}.hero h1{font-size:48px;margin:17px 0 13px}.hero-copy>p{font-size:12px;max-width:360px}.hero-trust{margin-top:23px}.hero-art-wrap{height:330px;margin-top:-4px}.hero-art{width:100%}.hero-art svg{width:105%}.hero-art-note{left:2%;top:22px}.hero-stamp{right:6%;top:24px}.hero-caption{bottom:7px;left:7%;right:2%}.ticker{height:40px}.section{padding-top:62px;padding-bottom:58px}.section-heading{align-items:flex-start;gap:12px}.section-heading h2,.craft-text h2{font-size:34px}.section-heading>.text-link{font-size:9px;gap:8px;white-space:nowrap;margin-top:25px}.featured-grid{gap:9px}.product-card{padding:7px 7px 12px}.product-image{height:132px}.product-card-body{padding-top:10px}.product-card h3{font-size:17px}.product-card p{font-size:9px;min-height:42px}.product-price{font-size:10px}.card-bottom{padding-top:8px}.prep-time{font-size:8px}.add-button{font-size:9px;padding-right:1px}.menu-section{padding:59px 0 68px}.menu-heading{align-items:flex-start}.menu-heading p{font-size:9px}.menu-tools{display:block;padding:15px 0}.category-list{flex-wrap:nowrap;overflow-x:auto;padding-bottom:11px}.category-chip{white-space:nowrap;padding:8px 11px}.search-box{margin-top:7px;width:100%}.filter-line{gap:7px;font-size:8px}.filter-toggle{font-size:8px}.sort-label{font-size:8px;white-space:nowrap}.sort-label select{font-size:8px}.menu-grid{gap:9px}.menu-grid .product-image{height:145px}.menu-grid .product-card{padding:8px}.menu-grid .product-card p{min-height:40px}.craft-section{padding:52px 0}.craft-grid{display:flex;flex-direction:column;gap:15px;align-items:stretch}.craft-art{height:240px;order:2}.craft-circle{width:170px;height:170px}.craft-circle:before{top:calc(50% - 60px);left:calc(50% - 60px);width:120px;height:120px}.craft-text{order:1}.craft-copy-card{top:4px;left:8%}.craft-tag{bottom:11px}.craft-text h2{font-size:38px}.footer-main{gap:10px;flex-wrap:wrap}.footer-main>span{display:none}.footer-main>a:last-child{font-size:8px}.footer-bottom{font-size:7px}
+.modal-backdrop{padding:0;align-items:stretch}.builder-modal{width:100%;max-height:none;min-height:100%;grid-template-columns:1fr;grid-template-rows:290px 1fr;overflow:auto}.builder-visual{min-height:290px}.builder-visual:before{width:57%;height:82%;top:2%}.visual-kicker{top:14px;left:18px}.food-stage{height:240px;width:67%}.visual-controls{bottom:11px}.visual-caption{bottom:51px}.builder-content{padding:20px 20px 22px;overflow:visible}.builder-title{font-size:27px;margin-top:10px}.builder-description{margin-bottom:12px}.step-row{margin:14px 0 8px}.ingredient-list{gap:5px}.ingredient-option{min-height:42px;padding:7px}.builder-footer{bottom:0;margin:14px -20px -22px;padding:12px 20px calc(14px + env(safe-area-inset-bottom));position:sticky}.builder-footer .button{font-size:9px;padding:0 9px}.builder-total b{font-size:15px}.drawer-backdrop{padding:0}.cart-drawer{width:100%;padding:19px 18px calc(17px + env(safe-area-inset-bottom))}.checkout-modal{margin:auto;padding:22px 19px;width:calc(100% - 24px);max-height:calc(100% - 24px)}
+.tracking-shell{padding:25px 0 58px}.tracking-head h1{font-size:32px}.tracking-card{padding:18px 15px}.status-timeline{padding:16px 0 21px}.timeline-item span{font-size:7px}.tracking-meta b{font-size:11px}.admin-shell{padding:24px 14px 50px}.admin-top{align-items:flex-start}.admin-top h1{font-size:26px}.admin-top-actions{flex-direction:column}.admin-tabs{overflow:auto}.admin-tab{white-space:nowrap;padding:10px}.metrics-grid{grid-template-columns:repeat(2,1fr);gap:7px}.metric-card{padding:12px}.metric-card b{font-size:22px}.admin-content-grid aside{grid-template-columns:1fr}.catalog-row{grid-template-columns:1fr 80px 57px 55px;gap:5px}.catalog-row input[type=number]{width:73px}.ingredient-admin-grid{grid-template-columns:1fr}.admin-panel{padding:13px}.admin-login{margin:20px auto;padding:24px}.admin-form-grid{grid-template-columns:1fr}.admin-form-grid .wide{grid-column:auto}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
-const PUBLIC = resolve(ROOT, 'public');
-const DATA_FILE = resolve(process.env.DATA_FILE || resolve(ROOT, 'data', 'mesa.sqlite'));
-const PORT = Number(process.env.PORT || 4173);
-const IS_PROD = process.env.NODE_ENV === 'production';
-if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
-  throw new Error('Em produção, configure APP_SECRET e ADMIN_PASSWORD antes de iniciar.');
-}
-const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
-const RESTAURANT_ID = 'rest-bela-mesa';
-const MAX_BODY = 64 * 1024;
-const RATE_WINDOW_MS = 15 * 60 * 1000;
-const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-let lastRateCleanup = 0;
-const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
+.food-stage>div{width:100%;height:100%;display:grid;place-items:center}.food-stage svg{max-width:100%;max-height:100%;transform-origin:50% 55%}.food-ingredient{transform-box:fill-box;transform-origin:center}.ingredient-pop{animation:ingredient-drop .45s cubic-bezier(.2,.8,.3,1.3) both}@keyframes ingredient-drop{from{opacity:0;transform:translateY(-16px) scale(.7)}to{opacity:1;transform:translateY(0) scale(1)}}
+.builder-modal{grid-template-rows:minmax(0,1fr)}.builder-visual,.builder-content{min-height:0}.builder-visual{height:100%}.builder-content{max-height:100%}
+@media(max-width:700px){.builder-modal{grid-template-rows:290px minmax(0,1fr)}.builder-visual{min-height:290px;height:290px}.builder-content{max-height:none}}
+.tracking-order-item{align-items:center}.tracking-art{width:54px;height:50px;flex:none;display:grid;place-items:center;background:#ecebef;overflow:hidden}.tracking-art svg{width:110%;height:110%}.tracking-order-item>span{flex:1}
+.ingredient-item{min-width:0;display:flex;align-items:stretch;gap:4px}.ingredient-item .ingredient-option{flex:1;min-width:0}.ingredient-stepper{display:flex;align-items:center;gap:1px;border:1px solid #dcdae0;background:#fcfcfd;padding:2px}.ingredient-stepper button{width:21px;height:27px;border:0;background:transparent;color:#666173;cursor:pointer;font-size:12px}.ingredient-stepper button:hover{background:#e7e5eb}.ingredient-stepper span{min-width:16px;text-align:center;font-size:8px;color:#666272}
+@media(max-width:700px){.ingredient-item{gap:2px}.ingredient-stepper{padding:1px}.ingredient-stepper button{width:17px;height:24px}}
 
-await mkdir(dirname(DATA_FILE), { recursive: true });
-const db = new DatabaseSync(DATA_FILE);
-db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
-db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
-db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
-db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
-db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
-try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
-db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
-db.exec(`CREATE TABLE IF NOT EXISTS coupons (
-  id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-  code TEXT NOT NULL, discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
-  discount_value INTEGER NOT NULL, minimum_subtotal_cents INTEGER NOT NULL DEFAULT 0,
-  starts_at TEXT, expires_at TEXT, max_uses INTEGER, used_count INTEGER NOT NULL DEFAULT 0,
-  active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
-  UNIQUE(restaurant_id, code)
-);`);
-for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],['discount_cents','INTEGER NOT NULL DEFAULT 0']]) {
-  try { db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+definition); }
-  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
-}
-if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
-
-function seedDatabase() {
-  const seed = makeSeed();
-  db.exec('BEGIN');
-  try {
-    db.prepare('INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at) VALUES (?,?,?,?,?,?)').run(seed.restaurant.id, seed.restaurant.name, seed.restaurant.slug, seed.restaurant.currency, seed.restaurant.prepMinutes, seed.restaurant.createdAt);
-    const categoryInsert = db.prepare('INSERT INTO categories (id,restaurant_id,name,slug,sort_order) VALUES (?,?,?,?,?)');
-    for (const c of seed.categories) categoryInsert.run(c.id, c.restaurantId, c.name, c.slug, c.sort);
-    const productInsert = db.prepare('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,model_url,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-    for (const p of seed.products) productInsert.run(p.id, p.restaurantId, p.categoryId, p.name, p.description, p.type, p.baseCents, p.active, p.featured, p.prep, p.modelUrl, p.width, p.depth, p.height, p.createdAt, p.updatedAt);
-    const ingredientInsert = db.prepare('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES (?,?,?,?,?,?,?,?,?)');
-    for (const i of seed.ingredients) ingredientInsert.run(i.id, i.restaurantId, i.name, i.type, i.groupName, i.addonCents, i.includedByDefault, i.active, i.sortOrder);
-    db.exec('COMMIT');
-  } catch (error) { db.exec('ROLLBACK'); throw error; }
-}
-
-const statement = sql => db.prepare(sql);
-function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
-  const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId);
-  const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
-  const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
-  const ingredients = ingredientRows.map(row => ({ ...row, included: row.included === 1, visual: INGREDIENTS.find(i => i.id === row.id)?.visual || 'herb' }));
-  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
-}
-function sign(payload) {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = createHmac('sha256', SECRET).update(body).digest('base64url');
-  return body + '.' + signature;
-}
-function readSession(request, cookieName = 'mesa_session') {
-  const cookie = request.headers.cookie || '';
-  const match = cookie.match(new RegExp('(?:^|; )' + cookieName + '=([^;]+)'));
-  if (!match) return null;
-  const [body, signature] = decodeURIComponent(match[1]).split('.');
-  if (!body || !signature) return null;
-  const expected = createHmac('sha256', SECRET).update(body).digest();
-  let given;
-  try { given = Buffer.from(signature, 'base64url'); } catch { return null; }
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  try {
-    const session = JSON.parse(Buffer.from(body, 'base64url').toString());
-    return session.exp > Date.now() ? session : null;
-  } catch { return null; }
-}
-function requireAdmin(request) {
-  const session = readSession(request);
-  if (!session || session.role !== 'admin' || session.restaurantId !== RESTAURANT_ID) throw Object.assign(new Error('Entre no painel para continuar.'), { status: 401 });
-  return session;
-}
-function optionalCustomer(request) {
-  const session = readSession(request, 'menuza_customer_session');
-  if (!session || session.role !== 'customer' || !session.customerId) return null;
-  const customer = statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(session.customerId);
-  return customer ? { ...session, customer } : null;
-}
-function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
-function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
-function hashCustomerPassword(password, salt) { return scryptSync(password, salt, 64); }
-function verifyCustomerPassword(password, customer) { const expected = Buffer.from(customer.password_hash, 'hex'); const actual = hashCustomerPassword(password, customer.password_salt); return expected.length === actual.length && timingSafeEqual(expected, actual); }
-function createCustomer(payload) {
-  const name = cleanText(payload.name, 100), email = normalizeEmail(payload.email), phone = cleanText(payload.phone, 30), password = typeof payload.password === 'string' ? payload.password : '';
-  if (name.length < 2) throw Object.assign(new Error('Informe seu nome completo.'), { status: 422 });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 422 });
-  if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
-  if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
-  const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
-  statement('INSERT INTO customers (id,name,email,phone,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?)').run(id,name,email,phone,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
-  return statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(id);
-}
-function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
-function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
-function listCustomerOrders(customerId) { return statement('SELECT id FROM orders WHERE customer_id=? AND restaurant_id=? ORDER BY created_at DESC LIMIT 100').all(customerId, RESTAURANT_ID).map(row => orderById(row.id));
-}
-function verifyPassword(candidate) {
-  const a = createHmac('sha256', SECRET).update(String(candidate)).digest();
-  const b = createHmac('sha256', SECRET).update(ADMIN_PASSWORD).digest();
-  return timingSafeEqual(a, b);
-}
-function securityHeaders() {
-  return {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-    'Cross-Origin-Resource-Policy': 'same-origin',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Origin-Agent-Cluster': '?1',
-    ...(IS_PROD ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {})
-  };
-}
-function send(response, status, data, headers = {}) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), ...headers });
-  response.end(JSON.stringify(data));
-}
-function clientIp(request) {
-  // Só confia no cabeçalho de proxy quando isso foi configurado explicitamente.
-  if (process.env.TRUST_PROXY === 'true') {
-    const forwarded = request.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.length <= 512) {
-      const first = forwarded.split(',')[0].trim();
-      if (first && /^[0-9a-fA-F:.]+$/.test(first)) return first;
-    }
-  }
-  return request.socket.remoteAddress || 'unknown';
-}
-function rateBucketKey(value) {
-  return createHmac('sha256', SECRET).update(String(value)).digest('hex');
-}
-function consumeRateLimits(rules) {
-  const now = Date.now();
-  if (now - lastRateCleanup > RATE_CLEANUP_INTERVAL_MS) {
-    statement('DELETE FROM security_rate_buckets WHERE updated_at < ?').run(now - 24 * 60 * 60 * 1000);
-    lastRateCleanup = now;
-  }
-  const prepared = rules.map(rule => ({ key: rateBucketKey(rule.key), limit: rule.limit, windowMs: rule.windowMs }));
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const active = [];
-    for (const rule of prepared) {
-      const row = statement('SELECT timestamps_json FROM security_rate_buckets WHERE bucket_key=?').get(rule.key);
-      let timestamps = [];
-      if (row) {
-        try {
-          const parsed = JSON.parse(row.timestamps_json);
-          if (Array.isArray(parsed)) timestamps = parsed.filter(value => Number.isSafeInteger(value) && value > now - rule.windowMs && value <= now);
-        } catch {}
-      }
-      if (timestamps.length >= rule.limit) {
-        statement('INSERT INTO security_rate_buckets (bucket_key,timestamps_json,updated_at) VALUES (?,?,?) ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=excluded.timestamps_json,updated_at=excluded.updated_at')
-          .run(rule.key, JSON.stringify(timestamps), now);
-        db.exec('COMMIT');
-        return { allowed: false, retryAfter: Math.max(1, Math.ceil((timestamps[0] + rule.windowMs - now) / 1000)) };
-      }
-      active.push({ ...rule, timestamps });
-    }
-    const upsert = statement('INSERT INTO security_rate_buckets (bucket_key,timestamps_json,updated_at) VALUES (?,?,?) ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=excluded.timestamps_json,updated_at=excluded.updated_at');
-    for (const rule of active) upsert.run(rule.key, JSON.stringify([...rule.timestamps, now]), now);
-    db.exec('COMMIT');
-    return { allowed: true };
-  } catch (error) {
-    try { db.exec('ROLLBACK'); } catch {}
-    throw error;
-  }
-}
-function authRateLimit(request, scope, identity = '') {
-  const ip = clientIp(request);
-  const rules = [{ key: scope + ':ip:' + ip, limit: 15, windowMs: RATE_WINDOW_MS }];
-  if (identity) rules.push({ key: scope + ':identity:' + identity, limit: 8, windowMs: RATE_WINDOW_MS });
-  return consumeRateLimits(rules);
-}
-function endpointRateLimit(request, path) {
-  const ip = clientIp(request);
-  const rules = [{ key: 'api-global:' + ip, limit: 240, windowMs: 60 * 1000 }];
-  if (path === '/api/orders' && request.method === 'POST') {
-    // Clientes no mesmo Wi-Fi compartilham IP público. O limite permite picos reais de restaurante.
-    rules.push(
-      { key: 'orders:10m:' + ip, limit: 60, windowMs: 10 * 60 * 1000 },
-      { key: 'orders:hour:' + ip, limit: 240, windowMs: 60 * 60 * 1000 }
-    );
-  } else if (path.startsWith('/api/tracking/')) {
-    rules.push({ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 });
-  } else {
-    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients)\/[^/]+$/);
-    const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
-    const known = new Set([
-      '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
-      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/admin/me','/api/admin/events',
-      '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
-      '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
-      '/api/orders'
-    ]);
-    const stablePath = known.has(normalized) ? normalized : 'unknown';
-    rules.push({ key: 'api-endpoint:' + request.method + ':' + stablePath + ':' + ip, limit: 120, windowMs: 60 * 1000 });
-  }
-  return consumeRateLimits(rules);
-}
-function rateLimitResponse(response, retryAfter = 900) {
-  return send(response, 429, { error: 'Muitas solicitações. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(Math.max(1, Math.min(3600, retryAfter))), 'Cache-Control': 'no-store' });
-}
-function hasHoneypot(body) {
-  return typeof body?.website === 'string' && body.website.trim().length > 0;
-}
-
-function fail(response, error) {
-  const status = error.status || (error instanceof SyntaxError ? 400 : 500);
-  if (status >= 500) console.error(error);
-  send(response, status, { error: status >= 500 ? 'O servidor não conseguiu concluir a solicitação.' : error.message });
-}
-async function bodyOf(request) {
-  let raw = '';
-  let bytes = 0;
-  for await (const chunk of request) {
-    bytes += chunk.length;
-    if (bytes > MAX_BODY) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
-    raw += chunk.toString('utf8');
-  }
-  if (!raw) return {};
-  return JSON.parse(raw);
-}
-function assertSameOrigin(request) {
-  if (!['POST','PATCH','PUT','DELETE'].includes(request.method)) return;
-  const origin = request.headers.origin;
-  const fetchSite = request.headers['sec-fetch-site'];
-  if (!origin) {
-    if (fetchSite === 'same-origin') return;
-    throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
-  }
-  const expected = 'http://' + request.headers.host;
-  const expectedSecure = 'https://' + request.headers.host;
-  if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
-}
-function orderById(id, restaurantId = RESTAURANT_ID) {
-  const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
-  if (!order) return null;
-  const items = statement('SELECT product_id AS productId,product_name_snapshot AS name,quantity,size_key AS sizeKey,crust_key AS crustKey,ingredients_json AS ingredientsJson,notes,unit_price_cents AS unitPriceCents,snapshot_json AS snapshotJson FROM order_items WHERE order_id=?').all(id).map(item => ({
-    productId: item.productId, name: item.name, quantity: item.quantity, sizeKey: item.sizeKey, crustKey: item.crustKey,
-    ingredients: JSON.parse(item.ingredientsJson), notes: item.notes, unitPriceCents: item.unitPriceCents, snapshot: JSON.parse(item.snapshotJson)
-  }));
-  const history = statement('SELECT status,changed_at AS changedAt,changed_by AS changedBy FROM order_status_history WHERE order_id=? ORDER BY id').all(id);
-  return { ...order, items, history };
-}
-function emit(restaurantId, event) {
-  const clients = streams.get(restaurantId);
-  if (!clients) return;
-  const frame = 'event: update\ndata: ' + JSON.stringify(event) + '\n\n';
-  for (const client of [...clients]) {
-    try { client.write(frame); } catch { clients.delete(client); }
-  }
-}
-const streams = new Map();
-function addStream(restaurantId, response) {
-  if (!streams.has(restaurantId)) streams.set(restaurantId, new Set());
-  const set = streams.get(restaurantId);
-  set.add(response);
-  response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-  response.write('retry: 4000\n\n');
-  const heartbeat = setInterval(() => { try { response.write(': ping\n\n'); } catch { clearInterval(heartbeat); set.delete(response); } }, 25000);
-  response.on('close', () => { clearInterval(heartbeat); set.delete(response); });
-}
-function cleanText(value, max = 240) { return String(value ?? '').trim().slice(0, max); }
-function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/\\s+/g, ''); }
-function couponPublic(row) {
-  return { id: row.id, code: row.code, discountType: row.discount_type, discountValue: row.discount_value,
-    minimumSubtotalCents: row.minimum_subtotal_cents, startsAt: row.starts_at, expiresAt: row.expires_at,
-    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, createdAt: row.created_at };
-}
-function getCoupon(code) {
-  return statement('SELECT * FROM coupons WHERE restaurant_id=? AND code=?').get(RESTAURANT_ID, couponCode(code));
-}
-function couponEligibility(coupon, subtotalCents, now = new Date()) {
-  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });
-  const time = now.getTime();
-  if (coupon.starts_at && time < Date.parse(coupon.starts_at)) throw Object.assign(new Error('Esse cupom ainda não está válido.'), { status: 422 });
-  if (coupon.expires_at && time > Date.parse(coupon.expires_at)) throw Object.assign(new Error('Esse cupom expirou.'), { status: 422 });
-  if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) throw Object.assign(new Error('Esse cupom atingiu o limite de utilizações.'), { status: 422 });
-  if (subtotalCents < coupon.minimum_subtotal_cents) throw Object.assign(new Error('O pedido mínimo para esse cupom é '+(coupon.minimum_subtotal_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'.'), { status: 422 });
-  return Math.min(subtotalCents, coupon.discount_type === 'percent' ? Math.round(subtotalCents * coupon.discount_value / 100) : coupon.discount_value);
-}
-function priceOrderItems(itemsInput) {
-  if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
-  const catalog = catalogFor(RESTAURANT_ID);
-  let subtotalCents = 0;
-  const pricedItems = itemsInput.map(entry => {
-    const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
-    if (!product) throw Object.assign(new Error('Um dos produtos não está disponível.'), { status: 409 });
-    const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
-    subtotalCents += priced.linePriceCents;
-    return { product, quantity: entry.quantity, notes: cleanText(entry.notes, 300), priced };
-  });
-  return { subtotalCents, pricedItems };
-}
-function validateCouponForOrder(code, itemsInput) {
-  const { subtotalCents } = priceOrderItems(itemsInput);
-  const normalized = couponCode(code);
-  if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
-  const coupon = getCoupon(normalized);
-  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
-}
-function saveCoupon(payload, id = null) {
-  const code = couponCode(payload.code);
-  const discountType = payload.discountType;
-  const discountValue = Number(payload.discountValue);
-  const minimum = Number(payload.minimumSubtotalCents ?? 0);
-  const maxUses = payload.maxUses === '' || payload.maxUses === null || payload.maxUses === undefined ? null : Number(payload.maxUses);
-  const startsAt = payload.startsAt ? new Date(payload.startsAt).toISOString() : null;
-  const expiresAt = payload.expiresAt ? new Date(payload.expiresAt).toISOString() : null;
-  const active = payload.active === undefined ? 1 : (payload.active ? 1 : 0);
-  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) throw Object.assign(new Error('Use um código de 3 a 32 caracteres: letras, números, hífen ou sublinhado.'), { status: 422 });
-  if (!['percent','fixed'].includes(discountType) || !Number.isInteger(discountValue) || discountValue < 1 || (discountType === 'percent' && discountValue > 100) || (discountType === 'fixed' && discountValue > 1000000)) throw Object.assign(new Error('Confira o tipo e o valor do desconto.'), { status: 422 });
-  if (!Number.isInteger(minimum) || minimum < 0 || minimum > 10000000) throw Object.assign(new Error('O pedido mínimo precisa ser válido.'), { status: 422 });
-  if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 10000000)) throw Object.assign(new Error('O limite de usos precisa ser um inteiro positivo.'), { status: 422 });
-  if (startsAt && !Number.isFinite(Date.parse(startsAt)) || expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw Object.assign(new Error('Confira as datas do cupom.'), { status: 422 });
-  if (startsAt && expiresAt && Date.parse(expiresAt) < Date.parse(startsAt)) throw Object.assign(new Error('A validade final deve ser posterior à inicial.'), { status: 422 });
-  if (id) {
-    const existing = statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
-    if (!existing) throw Object.assign(new Error('Cupom não encontrado.'), { status: 404 });
-    if (code !== existing.code && getCoupon(code)) throw Object.assign(new Error('Já existe um cupom com esse código.'), { status: 409 });
-    statement('UPDATE coupons SET code=?,discount_type=?,discount_value=?,minimum_subtotal_cents=?,starts_at=?,expires_at=?,max_uses=?,active=? WHERE id=? AND restaurant_id=?')
-      .run(code,discountType,discountValue,minimum,startsAt,expiresAt,maxUses,active,id,RESTAURANT_ID);
-    return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(id,RESTAURANT_ID));
-  }
-  if (getCoupon(code)) throw Object.assign(new Error('Já existe um cupom com esse código.'), { status: 409 });
-  const newId = 'cpn_'+randomBytes(12).toString('hex');
-  statement('INSERT INTO coupons (id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-    .run(newId,RESTAURANT_ID,code,discountType,discountValue,minimum,startsAt,expiresAt,maxUses,active,new Date().toISOString());
-  return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(newId,RESTAURANT_ID));
-}
-
-function createOrder(payload, customerId = null) {
-  const customerName = cleanText(payload.customerName, 100);
-  const phone = cleanText(payload.phone, 30);
-  const fulfillment = payload.fulfillment;
-  const itemsInput = payload.items;
-  if (customerName.length < 2) throw Object.assign(new Error('Informe seu nome.'), { status: 422 });
-  if (phone.replace(/\D/g, '').length < 8) throw Object.assign(new Error('Informe um telefone válido.'), { status: 422 });
-  if (!['table','pickup','delivery'].includes(fulfillment)) throw Object.assign(new Error('Escolha como deseja receber o pedido.'), { status: 422 });
-  const tableLabel = fulfillment === 'table' ? cleanText(payload.tableLabel, 30) : '';
-  const deliveryAddress = fulfillment === 'delivery' ? cleanText(payload.deliveryAddress, 300) : '';
-  if (fulfillment === 'table' && !tableLabel) throw Object.assign(new Error('Informe a mesa.'), { status: 422 });
-  if (fulfillment === 'delivery' && deliveryAddress.length < 8) throw Object.assign(new Error('Informe o endereço de entrega.'), { status: 422 });
-  if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
-  const idempotencyKey = cleanText(payload.idempotencyKey, 80);
-  if (idempotencyKey.length < 12) throw Object.assign(new Error('A chave do pedido expirou. Atualize o carrinho e tente novamente.'), { status: 422 });
-  const existing = statement('SELECT id,customer_id AS customerId FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
-  if (existing) {
-    if ((existing.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
-    return orderById(existing.id);
-  }
-  const { subtotalCents, pricedItems } = priceOrderItems(itemsInput);
-  const normalizedCouponCode = couponCode(payload.couponCode);
-  let discountCents = 0;
-  if (normalizedCouponCode) discountCents = couponEligibility(getCoupon(normalizedCouponCode), subtotalCents);
-  const totalCents = Math.max(0, subtotalCents - discountCents);
-  const orderId = 'BM-' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + randomBytes(3).toString('hex').toUpperCase();
-  const trackingToken = randomBytes(24).toString('base64url');
-  const now = new Date().toISOString();
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const race = statement('SELECT id,customer_id AS customerId FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
-    if (race) {
-      db.exec('ROLLBACK');
-      if ((race.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
-      return orderById(race.id);
-    }
-    statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
-    if (normalizedCouponCode) {
-      const coupon = getCoupon(normalizedCouponCode);
-      couponEligibility(coupon, subtotalCents);
-      statement('UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=?').run(coupon.id,RESTAURANT_ID);
-    }
-    const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-    for (const item of pricedItems) {
-      const snapshot = { productId: item.product.id, type: item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
-      insertItem.run(randomBytes(12).toString('hex'), orderId, item.product.id, item.product.name, item.quantity, item.priced.size.key, item.priced.crust?.key || '', JSON.stringify(item.priced.ingredients), item.notes, item.priced.unitPriceCents, JSON.stringify(snapshot));
-    }
-    statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, 'received', now, 'cliente');
-    db.exec('COMMIT');
-  } catch (error) { db.exec('ROLLBACK'); throw error; }
-  const created = orderById(orderId);
-  emit(RESTAURANT_ID, { type: 'order-created', orderId });
-  return created;
-}
-function dashboard() {
-  const counts = statement('SELECT status,COUNT(*) AS count FROM orders WHERE restaurant_id=? GROUP BY status').all(RESTAURANT_ID);
-  const today = new Date().toISOString().slice(0,10) + '%';
-  const revenue = statement("SELECT COALESCE(SUM(total_cents),0) AS total FROM orders WHERE restaurant_id=? AND status NOT IN ('cancelled') AND created_at LIKE ?").get(RESTAURANT_ID,today).total;
-  const popular = statement('SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.status<>\'cancelled\' GROUP BY oi.product_id ORDER BY quantity DESC LIMIT 4').all(RESTAURANT_ID);
-  return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, popular };
-}
-function listOrders() {
-  return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
-}
-function patchProduct(productId, patch) {
-  const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
-  if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
-  const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
-  const description = patch.description === undefined ? product.description : cleanText(patch.description, 300);
-  const price = patch.baseCents === undefined ? product.base_price_cents : Number(patch.baseCents);
-  const active = patch.active === undefined ? product.active : (patch.active ? 1 : 0);
-  if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, new Date().toISOString(), productId, RESTAURANT_ID);
-  emit(RESTAURANT_ID, { type: 'catalog-updated' });
-  return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
-}
-function patchRestaurantSettings(patch) {
-  const current = statement('SELECT name,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
-  if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
-  const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
-  const prepMinutes = patch.prepMinutes === undefined ? current.prepMinutes : Number(patch.prepMinutes);
-  if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
-  if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
-  statement('UPDATE restaurants SET name=?,prep_minutes=? WHERE id=?').run(name, prepMinutes, RESTAURANT_ID);
-  emit(RESTAURANT_ID, { type: 'settings-updated' });
-  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
-}
-function patchIngredient(ingredientId, patch) {
-  const current = statement('SELECT * FROM ingredients WHERE id=? AND restaurant_id=?').get(ingredientId, RESTAURANT_ID);
-  if (!current) throw Object.assign(new Error('Ingrediente não encontrado.'), { status: 404 });
-  const cents = patch.cents === undefined ? current.addon_cents : Number(patch.cents);
-  const active = patch.active === undefined ? current.active : (patch.active ? 1 : 0);
-  if (!Number.isInteger(cents) || cents < 0 || cents > 100000) throw Object.assign(new Error('O preço do adicional deve ser válido.'), { status: 422 });
-  statement('UPDATE ingredients SET addon_cents=?,active=? WHERE id=? AND restaurant_id=?').run(cents, active, ingredientId, RESTAURANT_ID);
-  emit(RESTAURANT_ID, { type: 'catalog-updated' });
-  return catalogFor(RESTAURANT_ID, true).ingredients.find(i => i.id === ingredientId);
-}
-function createProduct(payload) {
-  const name = cleanText(payload.name, 80);
-  const description = cleanText(payload.description, 300);
-  const type = payload.type;
-  const categoryId = cleanText(payload.categoryId, 50);
-  const baseCents = Number(payload.baseCents);
-  if (name.length < 2 || !['pizza','burger','plate'].includes(type) || !Number.isInteger(baseCents) || baseCents < 500 || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
-  const category = statement('SELECT id FROM categories WHERE id=? AND restaurant_id=?').get(categoryId, RESTAURANT_ID);
-  if (!category) throw Object.assign(new Error('Escolha uma categoria válida.'), { status: 422 });
-  const now = new Date().toISOString();
-  const id = slugify(name) + '-' + randomBytes(3).toString('hex');
-  statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?, ?,?)')
-    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, now, now);
-  emit(RESTAURANT_ID, { type: 'catalog-updated' });
-  return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
-}
-function updateStatus(orderId, nextStatus) {
-  if (!STATUS_FLOW.includes(nextStatus)) throw Object.assign(new Error('Estado de pedido inválido.'), { status: 422 });
-  const order = statement('SELECT * FROM orders WHERE id=? AND restaurant_id=?').get(orderId, RESTAURANT_ID);
-  if (!order) throw Object.assign(new Error('Pedido não encontrado.'), { status: 404 });
-  if (order.status === nextStatus) return orderById(orderId);
-  const transitions = { received: ['confirmed','cancelled'], confirmed: ['preparing','cancelled'], preparing: ['ready','cancelled'], ready: order.fulfillment === 'delivery' ? ['delivering'] : ['completed'], delivering: ['completed'], completed: [], cancelled: [] };
-  if (!transitions[order.status]?.includes(nextStatus)) throw Object.assign(new Error('Essa mudança de status não está disponível.'), { status: 409 });
-  const now = new Date().toISOString();
-  db.exec('BEGIN');
-  try {
-    statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
-    statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
-    db.exec('COMMIT');
-  } catch (error) { db.exec('ROLLBACK'); throw error; }
-  const updated = orderById(orderId);
-  emit(RESTAURANT_ID, { type: 'order-updated', orderId });
-  return updated;
-}
-async function serveStatic(pathname, response) {
-  let relative;
-  try { relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1)); }
-  catch { return send(response, 400, { error: 'Endereço inválido.' }); }
-  const target = resolve(PUBLIC, relative);
-  if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
-  try {
-    const data = await readFile(target);
-    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
-    response.end(data);
-  } catch {
-    // HTML inexistente recebe a página visual; assets ausentes mantêm resposta simples para não quebrar o tipo do recurso.
-    const isHtmlPath = extname(target).toLowerCase() === '.html' || !extname(target);
-    if (!isHtmlPath) return send(response, 404, { error: 'Arquivo não encontrado.' });
-    try {
-      const page = await readFile(resolve(PUBLIC, '404.html'));
-      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
-      response.end(page);
-    } catch { send(response, 404, { error: 'Página não encontrada.' }); }
-  }
-}
-const server = createServer(async (request, response) => {
-  try {
-    const url = new URL(request.url, 'http://' + (request.headers.host || 'localhost'));
-    const path = url.pathname;
-    assertSameOrigin(request);
-    if (path.startsWith('/api/')) {
-      if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
-      const endpointLimit = endpointRateLimit(request, path);
-      if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
-      if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
-      if (request.method === 'POST' && path === '/api/admin/login') {
-        const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
-        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        const body = await bodyOf(request);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
-          return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
-        }
-        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
-      }
-      if (request.method === 'POST' && path === '/api/admin/logout') {
-        requireAdmin(request);
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
-      }
-      if (request.method === 'POST' && path === '/api/customer/register') {
-        const body = await bodyOf(request);
-        const email = normalizeEmail(body.email);
-        const limit = consumeRateLimits([
-          { key: 'customer-register:ip:' + clientIp(request), limit: 5, windowMs: 60 * 60 * 1000 },
-          { key: 'customer-register:email:' + email, limit: 3, windowMs: 60 * 60 * 1000 }
-        ]);
-        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const customer = createCustomer(body);
-        return send(response,201,{customer},{'Set-Cookie':customerSessionCookie(issueCustomerSession(customer))});
-      }
-      if (request.method === 'POST' && path === '/api/customer/login') {
-        const body = await bodyOf(request), email = normalizeEmail(body.email);
-        const limit = authRateLimit(request, 'customer-login', email);
-        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
-        if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
-        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
-        return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
-      }
-      if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
-      if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
-      if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
-      if (request.method === 'GET' && path === '/api/admin/me') { const admin = requireAdmin(request); return send(response, 200, { authenticated: true, restaurantId: admin.restaurantId }); }
-      if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
-      if (path.startsWith('/api/admin/')) requireAdmin(request);
-      if (request.method === 'GET' && path === '/api/admin/coupons') return send(response, 200, { coupons: statement('SELECT * FROM coupons WHERE restaurant_id=? ORDER BY created_at DESC').all(RESTAURANT_ID).map(couponPublic) });
-      if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
-      if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
-      if (request.method === 'POST' && path === '/api/coupons/validate') {
-        const customer = requireCustomer(request);
-        const body = await bodyOf(request);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const result = validateCouponForOrder(body.code, body.items);
-        return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
-      }
-      if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
-      if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
-      if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
-      if (request.method === 'GET' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
-      }
-      if (request.method === 'PATCH' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request)) });
-      }
-      if (request.method === 'PATCH' && path.startsWith('/api/admin/orders/')) {
-        const id = path.slice('/api/admin/orders/'.length);
-        const body = await bodyOf(request);
-        return send(response, 200, { order: updateStatus(id, body.status) });
-      }
-      if (request.method === 'PATCH' && path.startsWith('/api/admin/products/')) {
-        const id = path.slice('/api/admin/products/'.length);
-        return send(response, 200, { product: patchProduct(id, await bodyOf(request)) });
-      }
-      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: createProduct(await bodyOf(request)) });
-      if (request.method === 'PATCH' && path.startsWith('/api/admin/ingredients/')) {
-        const id = path.slice('/api/admin/ingredients/'.length);
-        return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
-      }
-      if (request.method === 'POST' && path === '/api/orders') {
-        const body = await bodyOf(request);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const customerSession = requireCustomer(request);
-        const order = createOrder(body, customerSession.customerId);
-        return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
-      }
-      if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
-        const token = path.slice('/api/tracking/'.length);
-        const row = statement('SELECT id,customer_id AS customerId FROM orders WHERE tracking_token=? AND restaurant_id=?').get(token, RESTAURANT_ID);
-        if (!row) return send(response, 404, { error: 'Pedido não encontrado.' });
-        const customerSession = optionalCustomer(request);
-        if (row.customerId && (!customerSession || customerSession.customerId !== row.customerId)) return send(response, 404, { error: 'Pedido não encontrado.' });
-        return send(response, 200, { order: orderById(row.id) });
-      }
-      return send(response, 404, { error: 'Rota da API não encontrada.' });
-    }
-    if (request.method !== 'GET' && request.method !== 'HEAD') return send(response, 405, { error: 'Método não permitido.' });
-    return await serveStatic(path, response);
-  } catch (error) { return fail(response, error); }
-});
-server.requestTimeout = 15_000;
-server.headersTimeout = 10_000;
-server.keepAliveTimeout = 5_000;
-server.maxRequestsPerSocket = 1_000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('Mesa Studio disponível em http://localhost:' + PORT);
-  if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha mesa-demo (configure ADMIN_PASSWORD para alterar).');
-});
-for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => { server.close(() => { db.close(); process.exit(0); }); server.closeAllConnections(); });
+/* Procedural 3D food model and real WebXR controls */
+.food-stage{position:relative;transform:none!important;perspective:none;background:radial-gradient(ellipse at 50% 82%,#d0ced466 0,transparent 60%);touch-action:pan-y}
+.food-canvas{display:block;width:100%;height:100%;outline:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+.food-fallback{position:absolute;inset:0;display:grid;place-items:center}
+.food-fallback svg{width:100%;height:100%;max-width:100%;max-height:100%;filter:drop-shadow(0 22px 14px #33284f24)}
+.ar-hud{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:flex-end;flex-direction:column;gap:6px;padding:0 14px 75px;color:white;text-align:center;pointer-events:none}
+.ar-hud.ar-active{display:flex}
+.ar-hud strong,.ar-hud span{max-width:310px;padding:6px 10px;border-radius:18px;background:#191427c9;font-size:12px;line-height:1.4}
+.ar-hud span{font-size:10px}
+.ar-hud button{pointer-events:auto;margin-top:5px;padding:9px 16px;border:1px solid #ffffff88;border-radius:22px;background:#191427e8;color:white;font:inherit;font-size:10px}
+.ar-hud[data-surface="found"]:before{content:"";width:82px;height:30px;border:2px solid #ffffff;border-radius:50%;position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);opacity:.9}
+.ar-hidden-canvas{visibility:hidden}
+@media(max-width:700px){.food-stage{width:73%;height:240px}.ar-hud{padding-bottom:61px}.ar-hud strong{font-size:11px}}
+.food-stage>.ar-hud{display:none}.food-stage>.ar-hud.ar-active{display:flex}
+.builder-visual:before{width:min(70vw,430px,68vh);height:min(70vw,430px,68vh);top:50%;left:50%;transform:translate(-50%,-50%)}@media(max-width:700px){.builder-visual:before{width:min(62vw,250px,25vh);height:min(62vw,250px,25vh);top:50%}}
 
 
-/* Coupon creation and checkout summary. */
+/* Menuza motion preferences */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+:focus-visible{outline:2px solid var(--mz-violet-500);outline-offset:3px;border-radius:4px}
+
+/* ═════════ Menuza — camada de identidade (tokens → componentes) ═════════ */
+body{font-feature-settings:"ss01","cv11";letter-spacing:-.005em}
+.brand b{font:700 21px/1 var(--mz-display);letter-spacing:-.045em;text-transform:none;color:var(--mz-ink)}
+.brand small{font-size:10px;letter-spacing:.04em;margin-top:4px}
+.brand-mark{width:40px;height:40px;border:0;border-radius:var(--mz-radius-md);background:linear-gradient(145deg,var(--mz-violet-500),var(--mz-violet-700));color:#fff;box-shadow:0 6px 18px rgba(91,59,224,.35)}
+.brand-mark svg{width:24px;stroke:#fff;stroke-width:2.6;fill:none}
+.announcement{background:var(--mz-ink);color:#e6e1f6}.live-dot{background:#b9a6ff;box-shadow:0 0 0 3px #7a5cf044}
+.eyebrow{color:var(--mz-violet-600);font-weight:700}.eyebrow-line{background:var(--mz-violet-500)}
+.hero{min-height:560px}
+.hero h1,.section-heading h2,.craft-text h2{font-family:var(--mz-display);font-weight:650;letter-spacing:-.045em;line-height:1.03}
+.hero h1{font-size:var(--mz-fs-hero)}
+.hero h1 em,.section-heading h2 em,.craft-text h2 em{font-style:normal;font-weight:650;background:linear-gradient(100deg,var(--mz-violet-600),#9a6bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-copy>p{font-size:15px;max-width:470px;color:var(--mz-muted)}
+.button{border-radius:var(--mz-radius-md);min-height:50px;font-size:13px;transition:transform var(--mz-fast) var(--mz-ease),box-shadow var(--mz-fast),background var(--mz-fast),border-color var(--mz-fast)}
+.button-dark{background:var(--mz-violet-600);box-shadow:0 10px 26px rgba(91,59,224,.32)}.button-dark:hover{background:var(--mz-violet-700);box-shadow:0 14px 34px rgba(91,59,224,.42)}
+.button:active{transform:scale(.97)}
+.button-outline{border-color:var(--mz-violet-200);background:#fff}.button-outline:hover{border-color:var(--mz-violet-500)}
+.cart-button{background:var(--mz-ink);border-radius:var(--mz-radius-pill)}.cart-button:hover{background:var(--mz-violet-600)}
+.hero-steps{list-style:none;margin:40px 0 0;padding:0;display:flex;gap:22px;flex-wrap:wrap}
+.hero-steps li{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--mz-ink-2);font-weight:600}
+.hero-steps b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--mz-violet-100);color:var(--mz-violet-600);font-size:10.5px}
+.hero-art:before{background:radial-gradient(circle at 35% 30%,#ffffff,var(--mz-violet-100) 70%);filter:none;width:84%;height:84%;left:8%;top:8%}
+.hero-stamp{border-color:var(--mz-violet-200);color:var(--mz-violet-600);background:rgba(255,255,255,.85);backdrop-filter:blur(6px)}
+.hero-stamp b{font:700 17px var(--mz-display);font-style:normal}
+.hero-art-note b{font-family:var(--mz-display)}.note-spark{color:var(--mz-violet-500)}
+.ticker{background:var(--mz-violet-50);color:var(--mz-violet-700);border-block:1px solid var(--mz-violet-100)}.ticker span{color:var(--mz-violet-500)}
+.product-card{border-radius:var(--mz-radius-lg);border:1px solid var(--mz-line);background:var(--mz-surface);overflow:hidden;box-shadow:var(--mz-shadow-sm);transition:transform var(--mz-med) var(--mz-ease),box-shadow var(--mz-med) var(--mz-ease),border-color var(--mz-fast);animation:mz-rise var(--mz-slow) var(--mz-ease) both}
+.product-card:hover{transform:translateY(-6px);box-shadow:var(--mz-shadow-md);border-color:var(--mz-violet-200)}
+.product-card:nth-child(2){animation-delay:.06s}.product-card:nth-child(3){animation-delay:.12s}.product-card:nth-child(4){animation-delay:.18s}.product-card:nth-child(5){animation-delay:.24s}.product-card:nth-child(6){animation-delay:.3s}
+.product-image{background:radial-gradient(circle at 50% 42%,#fff 0,var(--mz-violet-50) 62%,#ece9f5 100%)}
+.product-image svg{transition:transform var(--mz-slow) var(--mz-ease)}.product-card:hover .product-image svg{transform:scale(1.06) rotate(-2deg)}
+.product-label{background:#fff;color:var(--mz-violet-600);border-radius:var(--mz-radius-pill);box-shadow:var(--mz-shadow-sm)}
+.product-card-body h3{font-family:var(--mz-display);font-weight:650;letter-spacing:-.03em}
+.product-price{color:var(--mz-ink);font-weight:700}
+.add-button{color:var(--mz-violet-600);font-weight:700}
+.category-list button,.filter-toggle{border-radius:var(--mz-radius-pill)}
+.menu-section{background:var(--mz-surface)}
+.craft-section{background:var(--mz-violet-50)}
+.craft-circle{background:radial-gradient(circle,#fff,var(--mz-violet-100))}
+.craft-copy-card{background:#fff;color:var(--mz-violet-600);border-radius:var(--mz-radius-lg);box-shadow:var(--mz-shadow-md)}
+.craft-copy-card span{font-family:var(--mz-display)}.craft-tag{color:var(--mz-violet-700)}
+@keyframes mz-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.hero-caption{bottom:-14px}@media(max-width:900px){.hero-caption{bottom:0}}
+
+/* ═════════ Menuza — construtor ═════════ */
+.builder-modal{border-radius:var(--mz-radius-lg);overflow:hidden;box-shadow:var(--mz-shadow-lg)}
+.builder-visual{background:radial-gradient(circle at 50% 38%,#fff 0,var(--mz-violet-50) 58%,#e9e6f4 100%)}
+.food-stage{width:min(92%,520px);height:min(460px,56vh);background:none}
+.food-art-view{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;transition:opacity var(--mz-med) var(--mz-ease),transform var(--mz-med) var(--mz-ease)}
+.food-art-view svg{width:100%;height:100%;max-height:100%;transform:scale(var(--size-scale,1));transition:transform var(--mz-med) var(--mz-ease);filter:drop-shadow(0 24px 18px rgba(27,21,48,.16))}
+.food-stage.view-art .food-canvas{visibility:hidden;position:absolute;inset:0}
+.food-stage.view-3d .food-art-view{opacity:0;transform:scale(.96)}
+.food-stage.view-3d .food-canvas{visibility:visible}
+.view-toggle{position:absolute;top:-6px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:2px;padding:3px;background:rgba(255,255,255,.9);border:1px solid var(--mz-line);border-radius:var(--mz-radius-pill);box-shadow:var(--mz-shadow-sm)}
+.view-toggle button{border:0;background:none;padding:7px 16px;border-radius:var(--mz-radius-pill);font-size:12px;font-weight:600;color:var(--mz-muted);cursor:pointer;min-height:34px;transition:background var(--mz-fast),color var(--mz-fast)}
+.view-toggle button[aria-pressed="true"]{background:var(--mz-violet-600);color:#fff}
+.visual-kicker{color:var(--mz-violet-600);font-weight:700}
+.visual-caption{max-width:340px;text-align:center;line-height:1.5;text-transform:none;letter-spacing:0;font-size:12px;color:var(--mz-muted)}
+.option-pill{border-radius:var(--mz-radius-md);min-height:44px;transition:transform var(--mz-fast) var(--mz-ease),background var(--mz-fast),border-color var(--mz-fast)}
+.option-pill:active,.ingredient-option:active{transform:scale(.97)}
+.option-pill.active{background:var(--mz-violet-600);border-color:var(--mz-violet-600);color:#fff;box-shadow:0 8px 20px rgba(91,59,224,.28)}
+.ingredient-option{border-radius:var(--mz-radius-md);min-height:48px;transition:background var(--mz-fast),border-color var(--mz-fast),transform var(--mz-fast) var(--mz-ease)}
+.ingredient-option.selected{background:var(--mz-violet-50);border-color:var(--mz-violet-500)}
+.ingredient-option.selected .ingredient-check{background:var(--mz-violet-600);color:#fff;border-color:var(--mz-violet-600)}
+.step-row b{color:var(--mz-violet-600)}
+.builder-footer{align-items:flex-end;flex-wrap:wrap}
+.builder-total b{font:700 26px var(--mz-display);letter-spacing:-.03em}
+.ar-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
+.ar-button{min-height:46px;gap:10px;padding:0 18px;border-color:var(--mz-violet-500);color:var(--mz-violet-700);font-weight:700}
+.ar-button .ar-icon{font-size:17px;color:var(--mz-violet-600)}
+.ar-status{flex:1;min-width:180px;font-size:11.5px;line-height:1.45;color:var(--mz-muted)}
+.ingredient-stepper button,.visual-controls button{min-width:36px;min-height:36px}
+@media(max-width:760px){.food-stage{height:min(300px,40vh)}.view-toggle{top:-4px}}
+.food-stage>.view-toggle{width:auto;height:auto;display:flex;place-items:unset}.food-stage>.food-art-view{width:100%;height:100%}
+html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.hero{grid-template-columns:1fr;min-height:0}.hero-art-wrap{height:340px}.hero-steps{gap:14px}}
+.ar-row{margin:18px 0 6px}
+.builder-visual:has(.view-art) .visual-controls{display:none}
+@media(max-width:760px){.visual-kicker,.visual-caption{display:none}.food-stage{height:240px;width:88%}.ar-row{flex-direction:column;align-items:stretch}.ar-button{width:100%}}
+
+/* ═════════ Menuza — pedido e acompanhamento ═════════ */
+.tracking-card{border-radius:var(--mz-radius-lg);box-shadow:var(--mz-shadow-md);border:1px solid var(--mz-line)}
+.tracking-art,.tracking-items img+*{border-radius:var(--mz-radius-md)}
+.tracking-art{width:84px!important;height:84px!important;background:radial-gradient(circle,#fff,var(--mz-violet-50))}
+.timeline-dot{transition:background var(--mz-med) var(--mz-ease),box-shadow var(--mz-med),transform var(--mz-med) var(--mz-ease)}
+.status-pill{background:var(--mz-violet-100);color:var(--mz-violet-700)}
+.tracking-shell h1,.tracking-shell h2{font-family:var(--mz-display);letter-spacing:-.04em;font-weight:650}
+.tracking-shell>div:first-of-type>span:first-child,.tracking-shell [class*="check"]{background:linear-gradient(145deg,var(--mz-violet-500),var(--mz-violet-700))!important;color:#fff!important;animation:mz-pop .6s var(--mz-ease) both}
+@keyframes mz-pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+
+/* Visualizador 3D: estados, dica de arraste e foco por teclado */
+.food-canvas:focus-visible{outline:3px solid var(--mz-violet-600);outline-offset:4px;border-radius:18px}
+.drag-hint{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;background:rgba(25,20,39,.74);color:#fff;font-size:11px;font-weight:600;letter-spacing:.02em;pointer-events:none;opacity:0;transition:opacity .4s ease}
+.food-stage.view-3d[data-state="ready"] .food-canvas:not([data-interacted]) ~ .drag-hint{opacity:1;animation:hint-nudge 2.4s ease-in-out infinite}
+.food-stage .drag-hint span{font-size:14px}
+@keyframes hint-nudge{0%,100%{transform:translateX(-50%)}50%{transform:translateX(calc(-50% + 6px))}}
+.food-stage.view-art .drag-hint,.food-stage.view-art .food-status{display:none}
+.food-status{position:absolute;inset:auto 0 46% 0;margin:auto;width:max-content;max-width:88%;z-index:3;display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--mz-line);box-shadow:var(--mz-shadow-sm);font-size:12px;font-weight:600;color:var(--mz-muted);text-align:center}
+.food-status[hidden]{display:none}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--mz-violet-200,#cfc9ea);border-top-color:var(--mz-violet-600);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.visual-controls .control-label[aria-pressed="true"]{background:var(--mz-violet-600);color:#fff}
+@media (prefers-reduced-motion:reduce){.drag-hint{animation:none!important}.spinner{animation-duration:2s}}
+/* evita que a regra genérica .food-stage>div estique os elementos do visualizador 3D */
+.food-stage>.drag-hint{width:auto;height:auto;display:flex;place-items:unset}
+.food-stage>.food-status{width:max-content;height:auto;display:flex;place-items:unset}
+.food-stage>.food-status[hidden]{display:none}
+.food-stage>.drag-hint{bottom:46px}
+
+/* Mobile builder: keep ingredient options inside a real, touch-scrollable viewport. */
+@media (max-width: 700px) {
+  .modal-backdrop {
+    position: fixed;
+    inset: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    /* Safe-area is handled by inset, not by padding, to avoid double offsets. */
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .builder-modal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(170px, 29dvh) minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    border-radius: 0;
+    touch-action: pan-y;
+  }
+
+  .builder-visual {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    touch-action: pan-y;
+  }
+
+  .builder-content {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    background: var(--cream);
+    /* Reserve a dedicated lane for the fixed price/action panel. */
+    padding: 18px 16px calc(132px + env(safe-area-inset-bottom, 0px));
+    scrollbar-gutter: stable;
+  }
+
+  .builder-content .ingredient-list,
+  .builder-content .option-pills {
+    touch-action: pan-y;
+  }
+
+  .builder-footer {
+    /* Fixed to the phone viewport, not sticky inside the scrolling ingredient list. */
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 84px;
+    margin: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--cream);
+    border-top: 1px solid var(--mz-line, #e6e2ef);
+    box-shadow: 0 -8px 20px rgba(35, 27, 54, .10);
+    isolation: isolate;
+    transform: translateZ(0);
+  }
+
+  .ingredient-option {
+    min-height: 48px;
+    padding: 9px 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .builder-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .builder-content {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .builder-footer {
+    padding-left: 12px;
+    padding-right: 12px;
+    gap: 8px;
+  }
+
+  .builder-footer .button {
+    min-height: 44px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .builder-total {
+    flex: 0 0 auto;
+  }
+
+  .ingredient-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* Admin settings */
+.settings-panel{max-width:850px}
+.settings-note{font-size:11px;line-height:1.7;color:#777181;background:#f5f3f8;border-left:3px solid var(--orange);padding:12px 14px;margin:8px 0}
+.settings-actions{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.settings-actions .error-text{margin:0}
+.settings-info{max-width:850px}
+.settings-info p{font-size:11px;line-height:1.8;color:#716c7b}
+.settings-info code{font-size:10px;background:#f1eff4;padding:2px 4px;border-radius:3px}
+.admin-tab{cursor:pointer}
+.admin-tab:focus-visible,.button:focus-visible,.tiny-link:focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+@media(max-width:600px){
+  .settings-actions{align-items:stretch;flex-direction:column}
+  .settings-actions .button{width:100%}
+  .admin-top{gap:14px;flex-direction:column}
+  .admin-top-actions{flex-direction:row;flex-wrap:wrap}
+  .admin-top-actions .button{flex:1;justify-content:center}
+  .admin-tabs{scrollbar-width:thin}
+}
+
+
+/* Mobile stability: do not replay the overlay entrance animation after every choice. */
+.modal-backdrop { animation: none; }
+body.builder-open { overflow: hidden; overscroll-behavior: none; }
+@media (max-width: 700px) {
+  .builder-modal { flex: 1 1 auto; }
+  .builder-content { scroll-behavior: auto; }
+  .builder-footer { flex-shrink: 0; }
+  .food-stage, .food-canvas { -webkit-transform: translateZ(0); }
+}
+
+
+/* Admin refresh: clearer hierarchy, calmer surfaces and usable touch targets. */
+.admin-shell {
+  background: #f5f4f8;
+  color: var(--ink);
+}
+.admin-top {
+  padding: 24px 26px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 8px 30px rgba(36, 27, 57, .045);
+}
+.admin-top .eyebrow { color: var(--mz-violet-600, var(--orange)); }
+.admin-top h1 { letter-spacing: -.035em; }
+.admin-top-actions .button { min-height: 42px; }
+.admin-tabs {
+  gap: 8px;
+  border: 0;
+  padding: 5px;
+  background: #e9e7ef;
+  border-radius: 13px;
+  width: fit-content;
+  max-width: 100%;
+}
+.admin-tab {
+  min-height: 42px;
+  padding: 11px 17px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.admin-tab.active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(35, 27, 54, .08);
+}
+.metrics-grid { gap: 14px; }
+.metric-card {
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 18px rgba(35, 27, 54, .035);
+}
+.metric-card span { font-size: 10px; font-weight: 600; }
+.metric-card b { font-size: 30px; letter-spacing: -.03em; }
+.metric-card small { font-size: 9px; }
+.admin-panel {
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 18px rgba(35, 27, 54, .035);
+}
+.admin-panel-head { gap: 12px; }
+.admin-panel-head h2 { letter-spacing: -.02em; }
+.order-card {
+  border-radius: 12px;
+  padding: 15px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.order-card:hover {
+  border-color: #c8c1dc;
+  box-shadow: 0 4px 14px rgba(35, 27, 54, .045);
+}
+.order-status-select, .catalog-row input, .admin-form-grid input, .admin-form-grid select {
+  min-height: 40px;
+  border-radius: 8px;
+}
+.admin-form-grid .form-field input,
+.admin-form-grid .form-field select { width: 100%; }
+.admin-form-grid .form-field span { font-size: 10px; font-weight: 600; }
+.catalog-row { gap: 12px; padding: 14px 0; }
+.catalog-row b { font-size: 11px; }
+.catalog-row small { font-size: 9px; line-height: 1.5; }
+.admin-login {
+  border-radius: 18px;
+  padding: 36px;
+  box-shadow: 0 20px 60px rgba(35, 27, 54, .09);
+}
+.admin-login input {
+  min-height: 46px;
+  border-radius: 9px;
+}
+.admin-login .button { min-height: 46px; }
+.admin-empty { padding: 38px 20px; }
+@media (max-width: 700px) {
+  .admin-shell { padding: 18px 12px 38px; }
+  .admin-top {
+    padding: 18px;
+    border-radius: 14px;
+    gap: 16px;
+  }
+  .admin-top h1 { font-size: 25px; }
+  .admin-top-actions { flex-direction: row; width: 100%; }
+  .admin-top-actions .button { flex: 1; min-width: 0; padding-inline: 9px; }
+  .admin-tabs {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    padding: 4px;
+    box-shadow: 0 5px 14px rgba(35, 27, 54, .06);
+  }
+  .admin-tab { flex: 0 0 auto; min-height: 42px; padding: 10px 12px; }
+  .metrics-grid { gap: 8px; }
+  .metric-card { border-radius: 12px; padding: 13px; }
+  .metric-card b { font-size: 23px; }
+  .admin-panel { padding: 14px; border-radius: 12px; }
+  .admin-panel-head { align-items: flex-start; }
+  .admin-panel-head h2 { font-size: 18px; }
+  .order-card { padding: 12px; }
+  .order-card-head { flex-direction: column; }
+  .order-status-select { max-width: 100%; width: 100%; min-height: 42px; }
+  .catalog-row { grid-template-columns: minmax(0, 1fr) 78px; gap: 8px; }
+  .catalog-row > label:nth-of-type(2) { grid-column: 1; }
+  .catalog-row > button { grid-column: 2; grid-row: 2; justify-self: end; min-height: 36px; }
+  .catalog-row input[type=number] { width: 78px; }
+  .admin-login { margin: 22px auto; padding: 24px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-tab, .order-card { transition: none; }
+}
+
+
+/* Área do cliente: histórico local e acompanhamento dos pedidos */
+.customer-orders-shell{max-width:920px;margin:0 auto;padding:42px 24px 88px;min-height:60vh}
+.customer-orders-heading{padding:46px 0 28px;max-width:650px}
+.customer-orders-heading h1{font-size:clamp(38px,6vw,64px);letter-spacing:-.055em;line-height:1.02;margin:14px 0}
+.customer-orders-heading h1 em{font-family:Georgia,serif;font-weight:400;color:var(--mz-violet-600)}
+.customer-orders-heading p{color:var(--mz-muted);line-height:1.7;max-width:520px;margin:0}
+.customer-orders-list{display:grid;gap:14px}
+.customer-order-card{background:#fff;border:1px solid var(--mz-line);border-radius:20px;padding:22px 24px;box-shadow:0 8px 28px rgba(36,25,65,.045)}
+.customer-order-card-top,.customer-order-card-bottom{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.customer-order-card-top>div{display:grid;gap:5px}
+.customer-order-number{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--mz-ink-2)}
+.customer-order-date{font-size:12px;color:var(--mz-muted)}
+.customer-status{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border-radius:999px;background:var(--mz-violet-50);color:var(--mz-violet-700);font-size:12px;font-weight:750;white-space:nowrap}
+.customer-status.status-completed{background:#e8f6ec;color:#277246}
+.customer-status.status-cancelled{background:#f9e9e7;color:#a64237}
+.customer-status.status-ready{background:#fff2dc;color:#875718}
+.customer-order-items{padding:18px 0;color:var(--mz-ink-2);font-size:14px;line-height:1.7;border-bottom:1px solid #efedf3}
+.customer-order-card-bottom{padding:14px 0 16px;font-size:13px;color:var(--mz-muted)}
+.customer-order-card-bottom strong{font-size:19px;color:var(--mz-ink);letter-spacing:-.03em}
+.customer-order-link{display:flex;align-items:center;justify-content:space-between;padding-top:13px;border-top:1px solid #efedf3;color:var(--mz-violet-700);font-size:13px;font-weight:750;text-decoration:none}
+.customer-order-link span{font-size:17px}
+.customer-orders-empty{padding:46px 24px;text-align:center;border:1px dashed #d9d3e7;border-radius:22px;background:rgba(255,255,255,.65)}
+.customer-empty-mark{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 18px;border-radius:18px;background:var(--mz-violet-100);color:var(--mz-violet-700);font-size:30px}
+.customer-orders-empty h2{margin:0 0 9px;font-size:24px;letter-spacing:-.035em}
+.customer-orders-empty p{max-width:430px;margin:0 auto 22px;color:var(--mz-muted);line-height:1.7;font-size:14px}
+.customer-orders-empty .button{display:inline-flex;text-decoration:none}
+.customer-orders-footnote{margin-top:22px;color:var(--mz-muted);font-size:11px;line-height:1.7}
+@media(max-width:640px){.customer-orders-shell{padding:24px 16px 64px}.customer-orders-heading{padding:36px 0 24px}.customer-order-card{padding:18px 16px;border-radius:17px}.customer-order-card-top{align-items:flex-start}.customer-status{font-size:11px;padding:6px 8px}.customer-order-items{font-size:13px}.customer-order-card-bottom strong{font-size:18px}}
+
+
+/* Login, cadastro e conta privada do cliente */
+.customer-account-content{display:grid;gap:20px}
+.customer-auth-card{max-width:520px;background:#fff;border:1px solid var(--mz-line);border-radius:22px;padding:24px;box-shadow:0 12px 40px rgba(36,25,65,.06)}
+.customer-auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px;border-radius:13px;background:#f2f0f7;margin-bottom:24px}
+.customer-auth-switch button{border:0;border-radius:10px;padding:11px;background:transparent;color:var(--mz-muted);font:inherit;font-size:13px;font-weight:750;cursor:pointer}
+.customer-auth-switch button.active{background:#fff;color:var(--mz-violet-700);box-shadow:0 2px 8px rgba(35,20,70,.08)}
+.customer-auth-form h2{font-size:26px;letter-spacing:-.04em;margin:0 0 7px}
+.customer-auth-form>p:not(.error-text){color:var(--mz-muted);font-size:13px;line-height:1.6;margin:0 0 22px}
+.customer-auth-form .form-field{margin-bottom:14px}
+.customer-auth-form .form-field input{width:100%;box-sizing:border-box}
+.customer-auth-privacy{margin:18px 0 0;color:var(--mz-muted);font-size:11px;line-height:1.65}
+.customer-profile-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;background:#fff;border:1px solid var(--mz-line);border-radius:20px}
+.customer-profile-card h2{font-size:23px;letter-spacing:-.04em;margin:8px 0 3px}
+.customer-profile-card p{font-size:13px;color:var(--mz-muted);margin:0;overflow-wrap:anywhere}
+.customer-orders-section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-top:16px}
+.customer-orders-section-head h2{font-size:28px;letter-spacing:-.045em;margin:5px 0 0}
+.customer-orders-section-head .text-link{white-space:nowrap}
+@media(max-width:560px){.customer-auth-card{padding:18px}.customer-profile-card{align-items:flex-start;padding:18px}.customer-orders-section-head{align-items:flex-start;flex-direction:column}.customer-orders-section-head h2{font-size:25px}}
+
+
+/* Honeypot anti-bot: fora da área visível e fora da navegação por teclado. */
+.hp-field{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
+
+
+/* Motion + spotlight details inspired by modern component galleries like 21st.dev */
+.hero{position:relative;isolation:isolate}
+.hero:before{content:"";position:absolute;z-index:-1;pointer-events:none;width:58%;height:72%;right:-7%;top:7%;border-radius:50%;background:radial-gradient(ellipse at 35% 35%,rgba(173,151,255,.28),rgba(219,209,255,.13) 38%,transparent 72%);filter:blur(24px);animation:mz-aurora-drift 12s ease-in-out infinite alternate}
+.hero-copy .eyebrow{animation:mz-fade-up .65s .04s both}
+.hero h1{animation:mz-fade-up .75s .1s both}
+.hero-copy>p{animation:mz-fade-up .75s .18s both}
+.hero-actions{animation:mz-fade-up .75s .25s both}
+.hero-steps{animation:mz-fade-up .75s .32s both}
+.hero-art-wrap:after{content:"";position:absolute;z-index:-1;inset:12% 8%;border-radius:50%;background:radial-gradient(ellipse,rgba(123,91,232,.13),rgba(255,255,255,0) 68%);filter:blur(18px);pointer-events:none}
+.button{position:relative;isolation:isolate;overflow:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s,background .28s}
+.button-dark:after{content:"";position:absolute;top:-60%;left:-45%;width:32%;height:220%;transform:rotate(24deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.27),transparent);transition:left .65s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.button-dark:hover:after{left:125%}
+.button-dark:hover{transform:translateY(-3px) scale(1.015)}
+.button-outline:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(35,25,70,.08)}
+.desktop-nav a{position:relative}
+.desktop-nav a:after{content:"";position:absolute;left:0;right:100%;bottom:-7px;height:2px;border-radius:2px;background:var(--mz-violet-500);transition:right .25s ease}
+.desktop-nav a:hover:after,.desktop-nav a:focus-visible:after{right:0}
+.product-card{isolation:isolate}
+.product-card:before{content:"";position:absolute;inset:0;z-index:-1;opacity:0;background:radial-gradient(320px circle at 85% 0%,rgba(157,132,255,.16),transparent 56%);transition:opacity .3s;pointer-events:none}
+.product-card:hover:before,.product-card:focus-within:before{opacity:1}
+.product-card:hover{transform:translateY(-7px) scale(1.008);box-shadow:0 20px 46px rgba(42,29,83,.12);border-color:rgba(109,76,245,.34)}
+.product-image{border-radius:calc(var(--mz-radius-lg, 16px) - 5px)}
+.product-label{backdrop-filter:blur(12px);box-shadow:0 3px 12px rgba(30,20,55,.06)}
+.category-chip,.filter-toggle,.add-button,.cart-button{transition:transform .22s ease,background .22s ease,color .22s ease,border-color .22s ease,box-shadow .22s ease}
+.category-chip:hover{transform:translateY(-2px)}
+.category-chip.active{box-shadow:0 5px 14px rgba(36,25,65,.15)}
+.add-button:hover{transform:translateX(2px)}
+.search-box:focus-within{border-color:var(--mz-violet-500);box-shadow:0 0 0 4px rgba(109,76,245,.1);background:#fff}
+.craft-copy-card{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.craft-art:hover .craft-copy-card{transform:translateY(-5px) rotate(-2deg);box-shadow:0 18px 42px rgba(35,25,70,.13)}
+.site-header{backdrop-filter:blur(18px)}
+@keyframes mz-fade-up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mz-aurora-drift{0%{transform:translate3d(0,0,0) scale(1);opacity:.7}100%{transform:translate3d(-12px,15px,0) scale(1.12);opacity:1}}
+@media(max-width:700px){
+ .hero:before{width:100%;height:42%;right:-12%;top:31%;filter:blur(18px)}
+ .hero-art-wrap:after{inset:15% 2%}
+ .product-card:hover{transform:translateY(-3px)}
+}
+@media(prefers-reduced-motion:reduce){
+ .hero:before,.hero-copy .eyebrow,.hero h1,.hero-copy>p,.hero-actions,.hero-steps{animation:none!important}
+ .button,.button:after,.desktop-nav a:after,.product-card,.product-card:before,.category-chip,.filter-toggle,.add-button,.cart-button,.craft-copy-card{transition:none!important}
+ .button-dark:after{display:none}
+}
+
+
+/* Spell UI x Inspora x Refero: expressive type, layered surfaces and deliberate interaction states */
+:root{
+  --mz-glow:rgba(109,76,245,.18);
+  --mz-ease-out:cubic-bezier(.16,1,.3,1);
+}
+.hero h1 em,.section-heading h2 em,.craft-text h2 em{
+  background:linear-gradient(105deg,var(--mz-violet-700) 0%,#8b6df7 42%,#b18cff 68%,var(--mz-violet-600) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  animation:mz-gradient-flow 8s ease-in-out infinite;
+}
+.eyebrow{color:var(--mz-muted);letter-spacing:.16em}
+.hero-art svg{transform-origin:50% 52%;transition:transform .8s var(--mz-ease-out),filter .8s var(--mz-ease-out)}
+.hero-art-wrap:hover .hero-art svg{transform:rotate(-4deg) scale(1.035);filter:drop-shadow(16px 30px 18px rgba(60,48,94,.19))}
+.hero-stamp{backdrop-filter:blur(14px);box-shadow:0 12px 34px rgba(54,39,100,.08)}
+.hero-art-note{padding:10px 12px;border:1px solid rgba(255,255,255,.78);border-radius:14px;background:rgba(255,255,255,.58);backdrop-filter:blur(12px);box-shadow:0 8px 28px rgba(35,25,70,.04)}
+.ticker{position:relative;overflow:hidden}
+.ticker:before,.ticker:after{content:"";position:absolute;top:0;bottom:0;width:52px;z-index:2;pointer-events:none}
+.ticker:before{left:0;background:linear-gradient(90deg,var(--mz-ink),transparent)}
+.ticker:after{right:0;background:linear-gradient(270deg,var(--mz-ink),transparent)}
+.product-card{transform-style:preserve-3d;will-change:transform}
+.product-card:focus-within{outline:2px solid rgba(109,76,245,.48);outline-offset:3px}
+.product-image{background:radial-gradient(ellipse at 50% 36%,#fff 0%,#f3f0fc 52%,#e9e5f4 100%)}
+.product-image:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.36),transparent 44%,rgba(91,59,224,.035));opacity:.8}
+.product-image svg{position:relative;z-index:1}
+.product-card-body{position:relative}
+.product-card h3{transition:color .25s}
+.product-card:hover h3{color:var(--mz-violet-700)}
+.product-price{padding:5px 8px;border-radius:9px;background:var(--mz-violet-50);color:var(--mz-violet-700)}
+.add-button{min-height:34px;padding:7px 10px;border:1px solid var(--mz-line);border-radius:10px;background:rgba(255,255,255,.7)}
+.add-button:hover{background:var(--mz-violet-600);border-color:var(--mz-violet-600);color:white;transform:translateY(-1px)}
+.search-box{border-radius:13px;transition:border-color .22s,box-shadow .22s,background .22s}
+.search-box kbd{border-radius:6px;background:#fff;padding:3px 6px}
+.category-chip{border-radius:999px}
+.filter-toggle{border:1px solid var(--mz-line);border-radius:999px;padding:8px 12px}
+.filter-toggle[aria-pressed=true]{background:var(--mz-violet-50);border-color:var(--mz-violet-200)}
+.craft-copy-card,.customer-auth-card,.customer-order-card,.customer-profile-card,.admin-panel,.admin-top,.builder-modal,.cart-panel,.checkout-panel{
+  box-shadow:0 12px 36px rgba(35,25,70,.055);
+}
+.customer-auth-card{border-radius:24px}
+.customer-auth-form .form-field input,.admin-login input,.admin-form-grid input,.admin-form-grid select{
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+.customer-auth-form .form-field input:focus,.admin-login input:focus,.admin-form-grid input:focus,.admin-form-grid select:focus{
+  outline:none;border-color:var(--mz-violet-500);box-shadow:0 0 0 4px rgba(109,76,245,.11);background:#fff;
+}
+.customer-auth-form .button,.admin-login .button{border-radius:12px;transition:transform .2s var(--mz-ease-out),box-shadow .2s,background .2s}
+.customer-auth-form .button:hover,.admin-login .button:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(91,59,224,.2)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--mz-violet-500);outline-offset:3px;
+}
+@keyframes mz-gradient-flow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@media(max-width:700px){
+  .hero-art-note{padding:8px 10px}
+  .hero-art-wrap:hover .hero-art svg{transform:rotate(-6deg) scale(1.01)}
+  .ticker:before,.ticker:after{width:20px}
+  .product-card{will-change:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero h1 em,.section-heading h2 em,.craft-text h2 em{animation:none;background-position:0 50%}
+  .hero-art svg,.product-card h3,.search-box,.customer-auth-form .button,.admin-login .button{transition:none}
+  .hero-art-wrap:hover .hero-art svg,.customer-auth-form .button:hover,.admin-login .button:hover{transform:none}
+}
+
+
+/* Spell UI adaptations for Menuza's vanilla JS interface: tilt spotlight, shimmer text and flow button */
+.product-card{
+  --mz-card-tilt-x:0deg;
+  --mz-card-tilt-y:0deg;
+  --mz-spot-x:50%;
+  --mz-spot-y:50%;
+  transform:perspective(1000px) rotateX(var(--mz-card-tilt-y)) rotateY(var(--mz-card-tilt-x));
+  transition:transform .22s var(--mz-ease-out),box-shadow .28s,border-color .28s;
+}
+.product-card:before{
+  background:radial-gradient(300px circle at var(--mz-spot-x) var(--mz-spot-y),rgba(157,132,255,.22),transparent 62%);
+}
+.product-card[data-tilt-active="true"]{
+  box-shadow:0 24px 52px rgba(42,29,83,.15);
+}
+.hero h1 em{
+  text-shadow:0 7px 30px rgba(109,76,245,.08);
+}
+.button-outline{
+  position:relative;
+  background:linear-gradient(var(--mz-bg),var(--mz-bg)) padding-box,
+    conic-gradient(from var(--mz-flow-angle,0deg),rgba(109,76,245,.18),rgba(177,140,255,.9),rgba(109,76,245,.18),rgba(109,76,245,.18)) border-box;
+  border:1px solid transparent;
+}
+.button-outline:hover{
+  box-shadow:0 10px 28px rgba(91,59,224,.12);
+}
+.add-button{position:relative;overflow:hidden;isolation:isolate}
+.add-button:after{
+  content:"";
+  position:absolute;inset:-40% auto -40% -60%;width:34%;
+  transform:rotate(22deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);
+  transition:left .5s var(--mz-ease-out);
+  pointer-events:none;z-index:-1;
+}
+.add-button:hover:after{left:130%}
+@media (hover:hover) and (pointer:fine){
+  .product-card[data-tilt-active="true"] .product-image{transform:translateZ(12px)}
+  .product-card[data-tilt-active="true"] .product-card-body{transform:translateZ(8px)}
+}
+.product-image,.product-card-body{transition:transform .24s var(--mz-ease-out)}
+@media(max-width:700px){
+  .product-card{transform:none!important}
+  .product-image,.product-card-body{transform:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .product-card,.product-image,.product-card-body,.add-button:after{transition:none!important}
+  .button-outline{background:var(--mz-bg);border:1px solid var(--mz-line)}
+}
+
+
+/* GetLayers-inspired cinematic depth: layered light, soft atmosphere and restrained motion. */
+.hero{
+  position:relative;
+  isolation:isolate;
+}
+.hero:before{
+  content:"";
+  position:absolute;
+  z-index:-2;
+  pointer-events:none;
+  width:68%;
+  height:108%;
+  right:-5%;
+  top:-3%;
+  border-radius:48% 52% 60% 40% / 43% 42% 58% 57%;
+  background:
+    radial-gradient(ellipse at 28% 30%,rgba(187,166,255,.38),transparent 48%),
+    radial-gradient(ellipse at 72% 65%,rgba(225,213,255,.72),transparent 54%),
+    radial-gradient(ellipse at 55% 42%,rgba(255,255,255,.96),rgba(245,241,255,.12) 65%,transparent 74%);
+  filter:blur(14px);
+  opacity:.9;
+  animation:mz-layer-drift 14s ease-in-out infinite alternate;
+}
+.hero:after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  pointer-events:none;
+  width:48%;
+  height:72%;
+  right:4%;
+  top:14%;
+  border-radius:50%;
+  border:1px solid rgba(124,98,208,.12);
+  box-shadow:0 0 0 22px rgba(255,255,255,.16),0 0 0 48px rgba(124,98,208,.035);
+  transform:rotate(-18deg);
+  opacity:.8;
+}
+.hero-art-wrap{
+  perspective:1100px;
+  --mz-scene-x:0px;
+  --mz-scene-y:0px;
+}
+.hero-art{
+  transform:translate3d(var(--mz-scene-x),var(--mz-scene-y),0);
+  transition:transform .45s cubic-bezier(.16,1,.3,1);
+}
+.hero-art:before{
+  background:
+    radial-gradient(ellipse at 36% 34%,rgba(255,255,255,.94),transparent 42%),
+    radial-gradient(ellipse at 62% 62%,rgba(176,155,238,.56),rgba(214,207,237,.35) 52%,transparent 72%);
+  box-shadow:inset 0 0 48px rgba(255,255,255,.45),0 26px 80px rgba(67,48,120,.08);
+}
+.hero-art-wrap:after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  inset:8% 3%;
+  border-radius:50%;
+  background:radial-gradient(ellipse,rgba(128,98,225,.13),rgba(255,255,255,0) 68%);
+  filter:blur(26px);
+  pointer-events:none;
+}
+.craft-section{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+}
+.craft-section:before{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:420px;height:420px;
+  left:-160px;top:-190px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(151,124,239,.16),transparent 68%);
+  pointer-events:none;
+}
+.craft-section:after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:360px;height:360px;
+  right:-150px;bottom:-210px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.7),transparent 68%);
+  pointer-events:none;
+}
+@keyframes mz-layer-drift{
+  0%{transform:translate3d(0,0,0) rotate(-4deg) scale(1)}
+  100%{transform:translate3d(-14px,12px,0) rotate(3deg) scale(1.045)}
+}
+@media(max-width:700px){
+  .hero:before{width:115%;height:55%;right:-24%;top:27%;filter:blur(20px)}
+  .hero:after{width:80%;height:40%;right:-5%;top:34%;opacity:.45}
+  .hero-art{transform:none!important}
+  .hero-art-wrap:after{inset:15% 2%}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero:before{animation:none}
+  .hero-art{transition:none}
+}
+
+
+/* Restaurant settings: focused workspace, live customer preview and clear save state. */
+.settings-intro{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:18px;
+  margin:4px 0 22px;padding:0 2px;
+}
+.settings-intro h2{margin:7px 0 6px;font-size:clamp(22px,3vw,30px);letter-spacing:-.045em;color:var(--mz-ink)}
+.settings-intro p{margin:0;color:var(--mz-muted);font-size:12px;line-height:1.65}
+.settings-status{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;padding:8px 11px;border:1px solid #dcefe4;border-radius:999px;background:#f3fbf6;color:#28734a;font-size:10px;font-weight:700}
+.settings-status>span{width:7px;height:7px;border-radius:50%;background:#3eaa70;box-shadow:0 0 0 3px rgba(62,170,112,.12)}
+.settings-status.is-dirty{background:#fff8e9;border-color:#f1dfb9;color:#91671d}
+.settings-status.is-dirty>span{background:#d99a2b;box-shadow:0 0 0 3px rgba(217,154,43,.12)}
+.settings-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(250px,.85fr);align-items:start;gap:18px}
+.settings-panel{max-width:none;width:100%;padding:clamp(18px,2.5vw,26px);border:1px solid rgba(100,78,160,.12);border-radius:20px}
+.settings-panel .admin-panel-head{align-items:center;margin-bottom:24px}
+.settings-panel .admin-panel-head h2{font-size:17px}
+.settings-section-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:var(--mz-violet-50);color:var(--mz-violet-700);font-size:19px}
+.settings-form{display:grid;gap:23px}
+.settings-form .form-field{display:grid;gap:9px}
+.settings-form .form-field>span{font-size:11px;color:var(--mz-ink);font-weight:700;letter-spacing:0}
+.settings-form input{min-height:48px;width:100%;border:1px solid var(--mz-line);border-radius:12px;background:#fff;padding:0 14px;color:var(--mz-ink);font:inherit;font-size:13px;transition:border-color .2s,box-shadow .2s}
+.settings-form input:focus{outline:none;border-color:var(--mz-violet-500);box-shadow:0 0 0 4px rgba(109,76,245,.1)}
+.settings-form .field-hint{font-size:10px;line-height:1.55;color:var(--mz-muted)}
+.settings-number-wrap{position:relative}
+.settings-number-wrap input{padding-right:80px}
+.settings-number-wrap>span{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--mz-muted);pointer-events:none}
+.settings-note{display:flex;align-items:flex-start;gap:10px;margin:0;padding:12px 13px;border:1px solid rgba(109,76,245,.12);border-radius:12px;background:linear-gradient(125deg,rgba(245,241,255,.9),rgba(255,255,255,.8));color:var(--mz-muted)}
+.settings-note>span{display:grid;place-items:center;flex:0 0 18px;width:18px;height:18px;border-radius:50%;background:#e8e0ff;color:var(--mz-violet-700);font-size:11px;font-weight:800}
+.settings-note p{margin:0;font-size:10px;line-height:1.65}
+.settings-actions{display:grid;gap:10px;padding-top:2px}
+.settings-actions .error-text{min-height:0;margin:0;font-size:11px}
+.settings-actions .error-text:empty{display:none}
+.settings-actions .button{width:100%;min-height:46px;display:flex;justify-content:center;align-items:center;gap:10px;border-radius:12px}
+.settings-actions .button:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}
+.settings-side{display:grid;gap:14px;min-width:0}
+.settings-preview-card{overflow:hidden;border:1px solid rgba(100,78,160,.14);border-radius:20px;background:#fff;box-shadow:0 12px 36px rgba(35,25,70,.055)}
+.settings-preview-top{display:flex;justify-content:space-between;align-items:center;padding:15px 17px;border-bottom:1px solid rgba(100,78,160,.09);font-size:9px;letter-spacing:.13em;font-weight:800;color:var(--mz-muted)}
+.preview-live-dot{display:inline-flex;align-items:center;gap:6px;color:#35865a;font-size:8px;letter-spacing:.08em}
+.preview-live-dot:before{content:"";width:5px;height:5px;border-radius:50%;background:#42b878}
+.settings-preview-art{position:relative;display:grid;place-items:center;min-height:166px;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,#fff 0%,#f2edff 48%,#e9e2fa 100%)}
+.settings-preview-art:before,.settings-preview-art:after{content:"";position:absolute;border:1px solid rgba(126,99,211,.14);border-radius:50%;width:190px;height:190px}
+.settings-preview-art:after{width:235px;height:235px;border-color:rgba(126,99,211,.08)}
+.preview-plate{position:relative;z-index:1;display:grid;place-items:center;width:104px;height:104px;border:1px solid rgba(128,104,199,.2);border-radius:50%;background:radial-gradient(circle,#fff 0 49%,#f4f0ff 50% 59%,#fff 60%);box-shadow:0 18px 34px rgba(66,48,119,.14),inset 0 0 0 7px rgba(255,255,255,.9);color:#8b6df7;font-size:32px}
+.preview-plate:before{content:"";position:absolute;inset:14px;border:1px dashed rgba(139,109,247,.32);border-radius:50%}
+.preview-plate span{transform:translateY(-1px)}
+.preview-spark{position:absolute;width:5px;height:5px;border-radius:50%;background:#a58af5;box-shadow:0 0 0 5px rgba(165,138,245,.13)}
+.spark-one{top:28%;left:25%}.spark-two{right:24%;bottom:25%;width:4px;height:4px}
+.settings-preview-copy{padding:18px 18px 16px}
+.settings-preview-copy .eyebrow{font-size:8px;letter-spacing:.15em}
+.settings-preview-copy h3{margin:5px 0 7px;overflow-wrap:anywhere;font-size:clamp(19px,2.3vw,25px);letter-spacing:-.045em;line-height:1.15;color:var(--mz-ink)}
+.settings-preview-copy>p{margin:0;color:var(--mz-muted);font-size:10px;line-height:1.6}
+.settings-preview-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:17px;padding-top:13px;border-top:1px solid rgba(100,78,160,.1);font-size:9px;color:var(--mz-muted)}
+.settings-preview-meta>span:first-child{display:flex;align-items:center;gap:4px}
+.settings-preview-meta b{color:var(--mz-ink);font-weight:700}
+.preview-open-pill{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:999px;background:#f1fbf5;color:#368458;font-weight:700}
+.preview-open-pill i{width:5px;height:5px;border-radius:50%;background:#42b878}
+.settings-security-card{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid rgba(100,78,160,.1);border-radius:16px}
+.settings-security-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:11px;background:#f1effa;color:var(--mz-violet-700);font-size:20px}
+.settings-security-card h3{margin:2px 0 5px;font-size:12px;color:var(--mz-ink)}
+.settings-security-card p{margin:0;font-size:10px;line-height:1.7;color:var(--mz-muted)}
+@media(max-width:780px){
+ .settings-layout{grid-template-columns:1fr}
+ .settings-side{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+ .settings-preview-art{min-height:135px}
+ .settings-security-card{align-self:stretch}
+}
+@media(max-width:540px){
+ .settings-intro{align-items:flex-start;flex-direction:column;gap:12px}
+ .settings-layout{gap:13px}
+ .settings-side{grid-template-columns:1fr}
+ .settings-panel{padding:17px;border-radius:16px}
+ .settings-form{gap:19px}
+ .settings-preview-art{min-height:150px}
+}
+@media(prefers-reduced-motion:reduce){
+ .settings-form input{transition:none}
+}
+
+
+/* Order dashboard search and filters. */
+.orders-filter-bar{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(130px,.7fr) minmax(120px,.6fr) auto;gap:10px;align-items:end;padding:0 0 16px}
+.orders-search{display:flex;align-items:center;gap:10px;min-width:0;min-height:44px;padding:0 13px;border:1px solid var(--mz-line);border-radius:12px;background:var(--mz-surface)}
+.orders-search>span{font-size:22px;color:var(--mz-muted)}
+.orders-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--mz-ink);font:inherit;font-size:13px}
+.orders-search input::placeholder{color:var(--mz-muted)}
+.orders-filter-field{display:grid;gap:5px;min-width:0}
+.orders-filter-field>span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mz-muted)}
+.orders-filter-field select{width:100%;min-height:44px;padding:0 10px;border:1px solid var(--mz-line);border-radius:12px;background:var(--mz-surface);color:var(--mz-ink);font:inherit;font-size:12px}
+.orders-filter-bar .button{white-space:nowrap;min-height:44px}
+.order-card[hidden],.orders-filter-empty[hidden]{display:none!important}
+@media(max-width:760px){.orders-filter-bar{grid-template-columns:1fr 1fr}.orders-search{grid-column:1/-1}.orders-filter-bar .button{grid-column:1/-1;width:100%}}
+@media(max-width:380px){.orders-filter-bar{grid-template-columns:1fr}.orders-search{grid-column:auto}.orders-filter-bar .button{grid-column:auto}}
+
+
+/* Consistent empty and filtered states across narrow screens. */
+.no-results{grid-column:1/-1;max-width:520px;margin:22px auto;padding:clamp(24px,5vw,42px);text-align:center;border:1px dashed var(--mz-line);border-radius:20px;background:linear-gradient(145deg,rgba(255,255,255,.88),rgba(247,244,255,.76))}
+.no-results h3{margin:0 0 8px;color:var(--mz-ink);font-size:clamp(17px,2.5vw,21px);letter-spacing:-.03em}
+.no-results p{margin:0;color:var(--mz-muted);font-size:12px;line-height:1.7}
+.cart-thumb svg{display:block;width:100%;height:100%;max-height:100%;object-fit:contain}
+@media(prefers-reduced-motion:reduce){.no-results{scroll-behavior:auto}}
+
+
+/* Menuza scroll system: discreet violet rails, polished thumbs, and safe touch scrolling. */
+:root{
+  scrollbar-color:rgba(125,103,184,.48) transparent;
+  scrollbar-width:thin;
+}
+*{
+  scrollbar-color:rgba(125,103,184,.42) transparent;
+  scrollbar-width:thin;
+}
+*::-webkit-scrollbar{
+  width:10px;
+  height:10px;
+}
+*::-webkit-scrollbar-track{
+  background:transparent;
+  border-radius:999px;
+}
+*::-webkit-scrollbar-thumb{
+  background-color:rgba(125,103,184,.34);
+  background-clip:padding-box;
+  border:3px solid transparent;
+  border-radius:999px;
+  min-height:34px;
+}
+*::-webkit-scrollbar-thumb:hover{
+  background-color:rgba(105,81,169,.68);
+}
+*::-webkit-scrollbar-thumb:active{
+  background-color:rgba(91,67,151,.82);
+}
+*::-webkit-scrollbar-corner{
+  background:transparent;
+}
+/* Horizontal scrollers stay compact and don't show a chunky rail. */
+.category-list,
+.admin-tabs,
+.option-pills,
+.orders-filter-bar{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(125,103,184,.35) transparent;
+}
+.category-list::-webkit-scrollbar,
+.admin-tabs::-webkit-scrollbar{
+  height:6px;
+}
+.category-list::-webkit-scrollbar-thumb,
+.admin-tabs::-webkit-scrollbar-thumb{
+  border-width:2px;
+}
+/* Keep nested panels from stealing the page scroll on touch devices. */
+.cart-items,
+.builder-content,
+.checkout-modal,
+.modal-backdrop,
+.admin-tabs,
+.category-list{
+  overscroll-behavior:contain;
+}
+.cart-items,
+.builder-content,
+.checkout-modal,
+.admin-tabs,
+.category-list{
+  -webkit-overflow-scrolling:touch;
+}
+@media(hover:none){
+  *::-webkit-scrollbar{width:4px;height:4px}
+  *::-webkit-scrollbar-thumb{border-width:1px;background-color:rgba(125,103,184,.3)}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto!important}
+}
+
+
+/* SweetTape-inspired editorial scroll transitions. */
+.mz-scroll-progress{
+  position:fixed;
+  z-index:1000;
+  top:0;
+  left:0;
+  width:100%;
+  height:3px;
+  pointer-events:none;
+  transform:scaleX(0);
+  transform-origin:left center;
+  background:linear-gradient(90deg,var(--mz-violet-600,#7965d8),#d2b6ff 58%,var(--orange,#e99b65));
+  box-shadow:0 1px 10px rgba(121,101,216,.2);
+  will-change:transform;
+}
+.mz-scroll-reveal{
+  opacity:0;
+  transform:translate3d(0,34px,0);
+  transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1);
+  transition-delay:var(--mz-reveal-delay,0ms);
+}
+.mz-scroll-visible{
+  opacity:1;
+  transform:translate3d(0,0,0);
+}
+.featured-grid .product-card.mz-scroll-reveal,
+.menu-grid .product-card.mz-scroll-reveal{
+  transition-duration:.72s;
+}
+.featured-grid .product-card:nth-child(2),
+.menu-grid .product-card:nth-child(2){--mz-reveal-delay:70ms}
+.featured-grid .product-card:nth-child(3),
+.menu-grid .product-card:nth-child(3){--mz-reveal-delay:140ms}
+.featured-grid .product-card:nth-child(4),
+.menu-grid .product-card:nth-child(4){--mz-reveal-delay:210ms}
+.hero-art-wrap.mz-scroll-reveal{transform:translate3d(0,22px,0) scale(.985)}
+.hero-art-wrap.mz-scroll-visible{transform:translate3d(0,0,0) scale(1)}
+.ticker.mz-scroll-reveal{transform:translate3d(0,12px,0)}
+.section-heading.mz-scroll-reveal,.menu-heading.mz-scroll-reveal{transform:translate3d(0,24px,0)}
+@media(max-width:700px){
+  .mz-scroll-progress{height:2px}
+  .mz-scroll-reveal{transform:translate3d(0,20px,0);transition-duration:.58s}
+  .hero-art-wrap.mz-scroll-reveal{transform:translate3d(0,14px,0) scale(.99)}
+  .hero-art-wrap.mz-scroll-visible{transform:translate3d(0,0,0) scale(1)}
+}
+@media(prefers-reduced-motion:reduce){
+  .mz-scroll-progress{display:none}
+  .mz-scroll-reveal,.mz-scroll-visible,.hero-art-wrap.mz-scroll-reveal,.hero-art-wrap.mz-scroll-visible{
+    opacity:1!important;transform:none!important;transition:none!important
+  }
+}
+
+
+/* Customer favorites and expanded catalog controls. */
+.catalog-filter-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.favorite-toggle{
+  position:absolute;top:11px;right:11px;z-index:3;
+  display:grid;place-items:center;width:36px;height:36px;
+  border:1px solid rgba(255,255,255,.82);border-radius:50%;
+  background:rgba(255,255,255,.9);color:#706782;
+  box-shadow:0 5px 18px rgba(38,27,65,.1);
+  font:24px/1 system-ui,sans-serif;cursor:pointer;
+  transition:transform .22s ease,background .22s ease,color .22s ease,box-shadow .22s ease;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)
+}
+.favorite-toggle:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 8px 22px rgba(38,27,65,.15)}
+.favorite-toggle.is-favorite{color:#c94d76;background:#fff5f8;border-color:#f2c9d7}
+.favorite-toggle:focus-visible{outline:2px solid var(--mz-violet-600,#7965d8);outline-offset:3px}
+.favorites-filter[aria-pressed="true"]{border-color:var(--mz-violet-600,#7965d8);background:rgba(121,101,216,.1);color:var(--mz-violet-700,#5b4397)}
+.filter-line .favorites-filter{white-space:nowrap}
+@media(max-width:700px){
+ .catalog-filter-actions{grid-column:1/-1;gap:7px}
+ .catalog-filter-actions .filter-toggle{flex:1;min-height:35px}
+ .favorite-toggle{top:7px;right:7px;width:32px;height:32px;font-size:22px}
+}
+@media(prefers-reduced-motion:reduce){.favorite-toggle{transition:none}}
+
+
+/* Customer order history: clear repeat-order actions on desktop and mobile. */
+.customer-order-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--mz-line,rgba(100,78,160,.12))}
+.customer-order-actions .customer-order-link{margin:0}
+.customer-order-actions .button{flex:0 0 auto;min-height:36px}
+@media(max-width:440px){
+ .customer-order-actions{align-items:stretch;flex-direction:column;gap:9px}
+ .customer-order-actions .button{width:100%;justify-content:center}
+}
+
+
+/* Quick contact actions on restaurant order cards. */
+.order-card-footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.order-whatsapp-link{min-height:32px;padding:7px 10px;font-size:11px;text-decoration:none;white-space:nowrap}
+@media(max-width:440px){.order-card-footer-actions{gap:8px}.order-whatsapp-link{font-size:10px;padding:7px 8px}}
+
+
+/* Cupons e resumo do desconto no checkout e histórico. */
 .coupon-form{margin-top:16px}
 .coupon-list{display:grid;gap:10px}
 .coupon-row{padding:14px;border:1px solid var(--mz-line);border-radius:14px;background:var(--mz-surface)}
@@ -644,4 +1061,5 @@ for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => { server.clo
 .coupon-message.is-error{color:#b74343}
 .coupon-discount-row{color:#278456}
 .checkout-grand-total{padding-top:10px;border-top:1px solid var(--mz-line);font-size:16px}
+.order-discount-note,.customer-order-discount{font-size:11px;color:#278456;margin-top:5px}
 @media(max-width:380px){.coupon-input-row{gap:6px}.coupon-input-row .button{padding-inline:10px}}

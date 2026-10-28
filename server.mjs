@@ -421,7 +421,7 @@ function dashboard() {
   return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, popular };
 }
 function listOrders() {
-  return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
+  return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
 }
 function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
@@ -568,7 +568,7 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
       if (request.method === 'POST' && path === '/api/coupons/validate') {
-        const customer = requireCustomer(request);
+        requireCustomer(request);
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const result = validateCouponForOrder(body.code, body.items);
