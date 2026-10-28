@@ -703,6 +703,7 @@ function handleClick(event){
   if(action==='edit-coupon'){editCoupon(target.dataset.id);return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
    if(action==='clear-recent-products'){app.recentProducts=[];try{localStorage.removeItem('menuza-recent-products')}catch{}renderRecentProducts();toast('Histórico de pratos limpo.');return}
+   if(action==='clear-catalog-filters'){app.category='all';app.search='';app.vegetarianOnly=false;app.favoritesOnly=false;app.sort='featured';const search=root.getElementById('searchInput'),sort=root.getElementById('sortSelect'),veg=root.getElementById('vegetarianFilter');if(search)search.value='';if(sort)sort.value='featured';if(veg)veg.setAttribute('aria-pressed','false');renderCatalog();toast('Filtros do cardápio limpos.');return}
   if(action==='toggle-favorite'){
     const id=target.dataset.product;
     if(!id||!app.catalog?.products.some(product=>product.id===id))return;
