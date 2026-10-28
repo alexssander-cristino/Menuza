@@ -99,12 +99,17 @@ async function detectAR() {
 }
 function renderBuilder() {
   const builderRoot = root.getElementById('builderRoot');
+  const previousContent = builderRoot.querySelector('.builder-content');
+  const previousScrollTop = previousContent ? previousContent.scrollTop : 0;
+  const previousPageScroll = window.scrollY || 0;
   if (!app.builder) {
+    root.body.classList.remove('builder-open');
     app.scene?.dispose();
     app.scene = null;
     builderRoot.innerHTML = '';
     return;
   }
+  root.body.classList.add('builder-open');
   const builder = app.builder;
   const product = app.catalog.products.find(p => p.id === builder.productId);
   const isPizza = product.type === 'pizza';
@@ -128,6 +133,15 @@ function renderBuilder() {
     }).join('') + '</div>';
   }
   builderRoot.innerHTML = '<div class="modal-backdrop" data-action="builder-backdrop"><section class="builder-modal" role="dialog" aria-modal="true" aria-label="Personalizar ' + esc(product.name) + '"><div class="builder-visual"><span class="visual-kicker">SUA MONTAGEM EM TEMPO REAL</span>' + visual + '<div class="visual-caption">' + (artMode ? 'Ilustração gerada pelas suas escolhas · alterne para 3D para girar' : 'Gire 360° arrastando · role ou use + e − para o zoom · duplo clique volta à vista inicial') + '</div><div class="visual-controls"><button type="button" data-action="rotate-left" aria-label="Girar para a esquerda">↶</button><button type="button" class="control-label" data-action="reset-view">VISTA</button><button type="button" class="control-label" data-action="toggle-auto" aria-pressed="' + autoOn + '" title="Ligar ou pausar a rotação automática">AUTO</button><button type="button" data-action="rotate-right" aria-label="Girar para a direita">↷</button><button type="button" data-action="zoom-out" aria-label="Diminuir zoom">−</button><button type="button" data-action="zoom-in" aria-label="Aumentar zoom">＋</button></div></div><div class="builder-content"><div class="modal-topline"><span>MONTE AO SEU GOSTO</span><button class="icon-button" data-action="close-builder" aria-label="Fechar">×</button></div><h2 class="builder-title">' + esc(product.name) + '</h2><p class="builder-description">' + esc(product.description) + ' Marque ou remova ingredientes e veja o prato e o preço mudarem na hora.</p><div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">' + sizeHtml + '</div>' + crustHtml + ingredientHtml + '<p class="price-note">O valor final é confirmado pelo servidor a partir das opções disponíveis.</p><div class="ar-row"><button type="button" class="button button-outline ar-button" data-action="view-ar" data-product="' + esc(product.id) + '"><span class="ar-icon" aria-hidden="true">◈</span> Ver na minha mesa</button><small class="ar-status" id="arStatus" aria-live="polite">' + arStatusText() + '</small></div><div class="builder-footer"><div class="builder-total"><small>Seu prato</small><b>' + money(builderPrice()) + '</b></div><button class="button button-dark" data-action="add-to-cart">' + (builder.editId ? 'Salvar alterações' : 'Adicionar à sacola') + ' <span>↗</span></button></div></div></section></div>';
+  const nextContent = builderRoot.querySelector('.builder-content');
+  if (nextContent) {
+    nextContent.scrollTop = previousScrollTop;
+    requestAnimationFrame(() => {
+      const currentContent = builderRoot.querySelector('.builder-content');
+      if (currentContent && app.builder) currentContent.scrollTop = previousScrollTop;
+      if (app.builder && Math.abs((window.scrollY || 0) - previousPageScroll) > 1) window.scrollTo(0, previousPageScroll);
+    });
+  }
   const freshCanvas = root.getElementById('foodCanvas');
   if (app.scene && sceneCanvas) {
     freshCanvas.replaceWith(sceneCanvas);
