@@ -33,6 +33,18 @@ db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMA
 db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
+db.exec(`CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  code TEXT NOT NULL, discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
+  discount_value INTEGER NOT NULL, minimum_subtotal_cents INTEGER NOT NULL DEFAULT 0,
+  starts_at TEXT, expires_at TEXT, max_uses INTEGER, used_count INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
+  UNIQUE(restaurant_id, code)
+);`);
+for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],['discount_cents','INTEGER NOT NULL DEFAULT 0']]) {
+  try { db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+definition); }
+  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+}
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
 
 function seedDatabase() {
@@ -202,7 +214,7 @@ function endpointRateLimit(request, path) {
     const known = new Set([
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
       '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/admin/me','/api/admin/events',
-      '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings',
+      '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
       '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
       '/api/orders'
     ]);
@@ -247,7 +259,7 @@ function assertSameOrigin(request) {
   if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
 }
 function orderById(id, restaurantId = RESTAURANT_ID) {
-  const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
+  const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
   if (!order) return null;
   const items = statement('SELECT product_id AS productId,product_name_snapshot AS name,quantity,size_key AS sizeKey,crust_key AS crustKey,ingredients_json AS ingredientsJson,notes,unit_price_cents AS unitPriceCents,snapshot_json AS snapshotJson FROM order_items WHERE order_id=?').all(id).map(item => ({
     productId: item.productId, name: item.name, quantity: item.quantity, sizeKey: item.sizeKey, crustKey: item.crustKey,
@@ -275,6 +287,74 @@ function addStream(restaurantId, response) {
   response.on('close', () => { clearInterval(heartbeat); set.delete(response); });
 }
 function cleanText(value, max = 240) { return String(value ?? '').trim().slice(0, max); }
+function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/\\s+/g, ''); }
+function couponPublic(row) {
+  return { id: row.id, code: row.code, discountType: row.discount_type, discountValue: row.discount_value,
+    minimumSubtotalCents: row.minimum_subtotal_cents, startsAt: row.starts_at, expiresAt: row.expires_at,
+    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, createdAt: row.created_at };
+}
+function getCoupon(code) {
+  return statement('SELECT * FROM coupons WHERE restaurant_id=? AND code=?').get(RESTAURANT_ID, couponCode(code));
+}
+function couponEligibility(coupon, subtotalCents, now = new Date()) {
+  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });
+  const time = now.getTime();
+  if (coupon.starts_at && time < Date.parse(coupon.starts_at)) throw Object.assign(new Error('Esse cupom ainda não está válido.'), { status: 422 });
+  if (coupon.expires_at && time > Date.parse(coupon.expires_at)) throw Object.assign(new Error('Esse cupom expirou.'), { status: 422 });
+  if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) throw Object.assign(new Error('Esse cupom atingiu o limite de utilizações.'), { status: 422 });
+  if (subtotalCents < coupon.minimum_subtotal_cents) throw Object.assign(new Error('O pedido mínimo para esse cupom é '+(coupon.minimum_subtotal_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'.'), { status: 422 });
+  return Math.min(subtotalCents, coupon.discount_type === 'percent' ? Math.round(subtotalCents * coupon.discount_value / 100) : coupon.discount_value);
+}
+function priceOrderItems(itemsInput) {
+  if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
+  const catalog = catalogFor(RESTAURANT_ID);
+  let subtotalCents = 0;
+  const pricedItems = itemsInput.map(entry => {
+    const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
+    if (!product) throw Object.assign(new Error('Um dos produtos não está disponível.'), { status: 409 });
+    const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
+    subtotalCents += priced.linePriceCents;
+    return { product, quantity: entry.quantity, notes: cleanText(entry.notes, 300), priced };
+  });
+  return { subtotalCents, pricedItems };
+}
+function validateCouponForOrder(code, itemsInput) {
+  const { subtotalCents } = priceOrderItems(itemsInput);
+  const normalized = couponCode(code);
+  if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
+  const coupon = getCoupon(normalized);
+  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
+}
+function saveCoupon(payload, id = null) {
+  const code = couponCode(payload.code);
+  const discountType = payload.discountType;
+  const discountValue = Number(payload.discountValue);
+  const minimum = Number(payload.minimumSubtotalCents ?? 0);
+  const maxUses = payload.maxUses === '' || payload.maxUses === null || payload.maxUses === undefined ? null : Number(payload.maxUses);
+  const startsAt = payload.startsAt ? new Date(payload.startsAt).toISOString() : null;
+  const expiresAt = payload.expiresAt ? new Date(payload.expiresAt).toISOString() : null;
+  const active = payload.active === undefined ? 1 : (payload.active ? 1 : 0);
+  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) throw Object.assign(new Error('Use um código de 3 a 32 caracteres: letras, números, hífen ou sublinhado.'), { status: 422 });
+  if (!['percent','fixed'].includes(discountType) || !Number.isInteger(discountValue) || discountValue < 1 || (discountType === 'percent' && discountValue > 100) || (discountType === 'fixed' && discountValue > 1000000)) throw Object.assign(new Error('Confira o tipo e o valor do desconto.'), { status: 422 });
+  if (!Number.isInteger(minimum) || minimum < 0 || minimum > 10000000) throw Object.assign(new Error('O pedido mínimo precisa ser válido.'), { status: 422 });
+  if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 10000000)) throw Object.assign(new Error('O limite de usos precisa ser um inteiro positivo.'), { status: 422 });
+  if (startsAt && !Number.isFinite(Date.parse(startsAt)) || expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw Object.assign(new Error('Confira as datas do cupom.'), { status: 422 });
+  if (startsAt && expiresAt && Date.parse(expiresAt) < Date.parse(startsAt)) throw Object.assign(new Error('A validade final deve ser posterior à inicial.'), { status: 422 });
+  if (id) {
+    const existing = statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+    if (!existing) throw Object.assign(new Error('Cupom não encontrado.'), { status: 404 });
+    if (code !== existing.code && getCoupon(code)) throw Object.assign(new Error('Já existe um cupom com esse código.'), { status: 409 });
+    statement('UPDATE coupons SET code=?,discount_type=?,discount_value=?,minimum_subtotal_cents=?,starts_at=?,expires_at=?,max_uses=?,active=? WHERE id=? AND restaurant_id=?')
+      .run(code,discountType,discountValue,minimum,startsAt,expiresAt,maxUses,active,id,RESTAURANT_ID);
+    return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(id,RESTAURANT_ID));
+  }
+  if (getCoupon(code)) throw Object.assign(new Error('Já existe um cupom com esse código.'), { status: 409 });
+  const newId = 'cpn_'+randomBytes(12).toString('hex');
+  statement('INSERT INTO coupons (id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(newId,RESTAURANT_ID,code,discountType,discountValue,minimum,startsAt,expiresAt,maxUses,active,new Date().toISOString());
+  return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(newId,RESTAURANT_ID));
+}
+
 function createOrder(payload, customerId = null) {
   const customerName = cleanText(payload.customerName, 100);
   const phone = cleanText(payload.phone, 30);
@@ -295,16 +375,11 @@ function createOrder(payload, customerId = null) {
     if ((existing.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
     return orderById(existing.id);
   }
-  const catalog = catalogFor(RESTAURANT_ID);
-  let totalCents = 0;
-  const pricedItems = itemsInput.map(entry => {
-    const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
-    if (!product) throw Object.assign(new Error('Um dos produtos não está disponível.'), { status: 409 });
-    const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
-    const notes = cleanText(entry.notes, 300);
-    totalCents += priced.linePriceCents;
-    return { product, quantity: entry.quantity, notes, priced };
-  });
+  const { subtotalCents, pricedItems } = priceOrderItems(itemsInput);
+  const normalizedCouponCode = couponCode(payload.couponCode);
+  let discountCents = 0;
+  if (normalizedCouponCode) discountCents = couponEligibility(getCoupon(normalizedCouponCode), subtotalCents);
+  const totalCents = Math.max(0, subtotalCents - discountCents);
   const orderId = 'BM-' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + randomBytes(3).toString('hex').toUpperCase();
   const trackingToken = randomBytes(24).toString('base64url');
   const now = new Date().toISOString();
@@ -316,8 +391,13 @@ function createOrder(payload, customerId = null) {
       if ((race.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
       return orderById(race.id);
     }
-    statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId);
+    statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
+    if (normalizedCouponCode) {
+      const coupon = getCoupon(normalizedCouponCode);
+      couponEligibility(coupon, subtotalCents);
+      statement('UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=?').run(coupon.id,RESTAURANT_ID);
+    }
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
     for (const item of pricedItems) {
       const snapshot = { productId: item.product.id, type: item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
@@ -481,6 +561,16 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/admin/me') { const admin = requireAdmin(request); return send(response, 200, { authenticated: true, restaurantId: admin.restaurantId }); }
       if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
       if (path.startsWith('/api/admin/')) requireAdmin(request);
+      if (request.method === 'GET' && path === '/api/admin/coupons') return send(response, 200, { coupons: statement('SELECT * FROM coupons WHERE restaurant_id=? ORDER BY created_at DESC').all(RESTAURANT_ID).map(couponPublic) });
+      if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
+      if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
+      if (request.method === 'POST' && path === '/api/coupons/validate') {
+        const customer = requireCustomer(request);
+        const body = await bodyOf(request);
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
+        const result = validateCouponForOrder(body.code, body.items);
+        return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
+      }
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
