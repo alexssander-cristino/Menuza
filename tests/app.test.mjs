@@ -139,6 +139,15 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(newProductResponse.status, 201);
   const newProduct = (await newProductResponse.json()).product;
   assert.equal(newProduct.name, 'Pão de alho da casa');
+  const soldOutUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ available: false }) });
+  assert.equal((await soldOutUpdate.json()).product.available, 0);
+  const catalogWithSoldOut = await (await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } })).json();
+  assert.equal(catalogWithSoldOut.products.find(product => product.id === 'pizza-calabresa').available, 0, 'sold-out product remains visible in the customer catalog');
+  const soldOutOrder = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-sold-out-rejected' }) });
+  assert.equal(soldOutOrder.status, 409, 'server rejects checkout for a sold-out product');
+  const restockUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ available: true }) });
+  assert.equal((await restockUpdate.json()).product.available, 1);
+
   const priceUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ baseCents: 5400 }) });
   assert.equal((await priceUpdate.json()).product.baseCents, 5400);
   const toppingUpdate = await fetch(base + '/api/admin/ingredients/bacon', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ cents: 620 }) });
