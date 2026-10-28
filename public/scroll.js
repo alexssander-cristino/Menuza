@@ -55,7 +55,7 @@
 
   const revealSelector = [
     '.hero-copy', '.hero-art-wrap', '.ticker', '.section-heading', '.featured-grid .product-card',
-    '.menu-heading', '.menu-grid .product-card', '.craft-art', '.craft-text', '.site-footer',
+    '.menu-heading', '.menu-grid .product-card', '.recent-products-section', '.recent-products-grid .product-card', '.craft-art', '.craft-text', '.site-footer',
     '#trackingView > *', '#adminView > *', '#builderRoot > *', '#cartRoot > *', '#checkoutRoot > *'
   ].join(',');
   const pending = new Set();
