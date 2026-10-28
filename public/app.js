@@ -438,7 +438,7 @@ function exportVisibleOrders(){
     statusLabels[order.status]||order.status,
     (order.items||[]).map(item=>item.quantity+'x '+item.name+(item.ingredients?.length?' ('+item.ingredients.map(i=>i.name).join(', ')+')':'')).join(' | '),
     order.note||'',(Number(order.totalCents||0)/100).toFixed(2).replace('.',',')
-  ])].map(row=>row.map(csvCell).join(';')).join('\\r\\n');
+  ])].map(row=>row.map(csvCell).join(';')).join('\r\n');
   const blob=new Blob(['\\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob),link=document.createElement('a');
   link.href=url;link.download='menuza-pedidos-'+new Date().toISOString().slice(0,10)+'.csv';
@@ -499,8 +499,8 @@ async function copyCouponCode(code){
 function exportCouponsCsv(){
   const rows=[...root.querySelectorAll('[data-coupon-row]')].filter(row=>!row.hidden).map(row=>{const text=row.querySelectorAll('small');const code=row.querySelector('b')?.textContent||'';const active=row.querySelector('.coupon-active-input')?.checked?'Ativo':'Inativo';return [code,row.dataset.type==='percent'?'Percentual':'Valor fixo',row.dataset.type==='percent'?row.dataset.value:(Number(row.dataset.value)/100).toFixed(2).replace('.',','),(Number(row.dataset.minimum||0)/100).toFixed(2).replace('.',','),row.dataset.starts||'',row.dataset.expires||'',row.dataset.maxUses||'Ilimitado',text[1]?.textContent.match(/Usos: ([^·]+)/)?.[1]?.trim()||'0',active]});
   const quote=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
-  const csv='Código;Tipo;Desconto;Pedido mínimo (R$);Início;Validade;Limite de usos;Utilizações;Status\\r\\n'+rows.map(row=>row.map(quote).join(';')).join('\\r\\n');
-  const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));const link=root.createElement('a');link.href=url;link.download='menuza-cupons.csv';root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);toast('Lista de cupons exportada.');
+  const csv='Código;Tipo;Desconto;Pedido mínimo (R$);Início;Validade;Limite de usos;Utilizações;Status\r\n'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));const link=root.createElement('a');link.href=url;link.download='menuza-cupons.csv';root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);toast('Lista de cupons exportada.');
 }
 function editCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]'),form=root.getElementById('newCouponForm');
