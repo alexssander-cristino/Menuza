@@ -225,7 +225,7 @@ function endpointRateLimit(request, path) {
   } else if (path.startsWith('/api/tracking/')) {
     rules.push({ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 });
   } else {
-    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients|privacy-requests)\/[^/]+$/);
+    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients|privacy-requests|tables)\/[^/]+$/);
     const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
     const known = new Set([
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
