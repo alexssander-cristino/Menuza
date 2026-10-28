@@ -101,7 +101,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
 
-  const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 1, active: true }) });
+  const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 2, active: true }) });
   assert.equal(couponResponse.status, 201);
   const couponItems = orderPayload.items;
   const couponValidation = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: ' SAVE 10 ', items: couponItems }) });
@@ -119,6 +119,11 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const repeatedDiscountedOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-coupon-key-002', couponCode: 'SAVE10' }) });
   assert.equal(repeatedDiscountedOrderResponse.status, 201);
   assert.equal((await repeatedDiscountedOrderResponse.json()).order.id, discountedOrder.id);
+  const stillAvailable = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
+  assert.equal(stillAvailable.status, 200, 'repeating an idempotent order must not consume another coupon use');
+  const secondDiscountedOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-coupon-key-003', couponCode: 'SAVE10' }) });
+  assert.equal(secondDiscountedOrderResponse.status, 201);
+  assert.equal((await secondDiscountedOrderResponse.json()).order.totalCents, 6363);
   const exhaustedCoupon = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
   assert.equal(exhaustedCoupon.status, 422);
   assert.match((await exhaustedCoupon.json()).error, /limite de utilizações/);
