@@ -71,6 +71,16 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(ready, true, 'server became ready: ' + lastError + ' exit=' + child.exitCode + ' url=' + base);
+  const legalPages = [
+    ['/politica-de-privacidade.html', 'Política de privacidade'],
+    ['/termos-de-uso.html', 'Termos de uso'],
+    ['/politica-de-cookies.html', 'Política de cookies']
+  ];
+  for (const [path, title] of legalPages) {
+    const legalResponse = await fetch(base + path);
+    assert.equal(legalResponse.status, 200, path + ' is served publicly');
+    assert.match(await legalResponse.text(), new RegExp(title, 'i'));
+  }
   const sameOrigin = { Origin: base };
   const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
