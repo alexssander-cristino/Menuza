@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#1b1530">
   <meta name="description" content="Menuza: cardápio digital interativo. Veja o prato em 3D, personalize os ingredientes e experimente na sua mesa com realidade aumentada compatível.">
   <title>Menuza — veja, monte e experimente seu prato</title>
-  <link rel="stylesheet" href="/styles.css?v=40">
-  <script type="module" src="/app.js?v=33"></script>
+  <link rel="stylesheet" href="/styles.css?v=41">
+  <script type="module" src="/app.js?v=34"></script>
   <script type="module" src="/scroll.js?v=1"></script>
 </head>
 <body>
@@ -60,7 +60,7 @@
           <div class="category-list" id="categoryList" role="tablist" aria-label="Categorias do cardápio"></div>
           <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar no cardápio" aria-label="Buscar produtos"><kbd>⌘ K</kbd></label>
         </div>
-        <div class="filter-line"><span id="resultCount">Carregando cardápio…</span><div class="catalog-filter-actions"><button class="filter-toggle" id="vegetarianFilter" aria-pressed="false">◉ Opções vegetarianas</button><button class="filter-toggle favorites-filter" id="favoritesFilter" aria-pressed="false">♡ Meus favoritos</button></div><label class="sort-label">Ordenar por <select id="sortSelect"><option value="featured">Recomendados</option><option value="price">Menor preço</option><option value="name">Nome</option></select></label></div>
+        <div class="filter-line"><span id="resultCount">Carregando cardápio…</span><div class="catalog-filter-actions"><button class="filter-toggle" id="vegetarianFilter" aria-pressed="false">◉ Opções vegetarianas</button><button class="filter-toggle favorites-filter" id="favoritesFilter" aria-pressed="false">♡ Meus favoritos</button></div><button class="filter-toggle clear-catalog-filters" type="button" data-action="clear-catalog-filters">Limpar filtros</button><label class="sort-label">Ordenar por <select id="sortSelect"><option value="featured">Recomendados</option><option value="price">Menor preço</option><option value="name">Nome</option></select></label></div>
         <div class="menu-grid" id="menuGrid" aria-live="polite"></div>
       </div>
     </section>
