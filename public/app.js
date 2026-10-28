@@ -1,4 +1,4 @@
-import { FoodScene } from './food-scene.js?v=6';
+import { FoodScene } from './food-scene.js?v=7';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
 // Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
