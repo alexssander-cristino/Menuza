@@ -133,11 +133,26 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const privacyStatusResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'in_progress' }) });
   assert.equal(privacyStatusResponse.status, 200);
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
+  const tablesUnauthenticated = await fetch(base + '/api/admin/tables');
+  assert.equal(tablesUnauthenticated.status, 401, 'table API requires an admin session');
   const dashboardResponse = await fetch(base + '/api/admin/dashboard', { headers: { cookie } });
   assert.equal(dashboardResponse.status, 200);
   const dashboardMetrics = await dashboardResponse.json();
   assert.ok(dashboardMetrics.ordersToday >= 1, 'dashboard counts orders created today');
   assert.ok(dashboardMetrics.averageTicketCents > 0, 'dashboard calculates the average ticket excluding cancelled orders');
+  const tableListResponse = await fetch(base + '/api/admin/tables', { headers: { cookie } });
+  assert.equal(tableListResponse.status, 200);
+  const tableList = await tableListResponse.json();
+  assert.equal(tableList.tables.length, 12, 'restaurant initializes twelve persistent tables');
+  assert.equal(tableList.counts.free, 12);
+  const tableStatusResponse = await fetch(base + '/api/admin/tables/table-1', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'occupied' }) });
+  assert.equal(tableStatusResponse.status, 200);
+  assert.equal((await tableStatusResponse.json()).table.status, 'occupied');
+  const invalidTableStatus = await fetch(base + '/api/admin/tables/table-1', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'broken' }) });
+  assert.equal(invalidTableStatus.status, 422);
+  const tableCountsAfterUpdate = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
+  assert.equal(tableCountsAfterUpdate.counts.occupied, 1);
+  assert.equal(tableCountsAfterUpdate.counts.free, 11);
 
   const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 2, active: true }) });
   assert.equal(couponResponse.status, 201);
