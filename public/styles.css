@@ -180,12 +180,12 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
 @media (max-width: 700px) {
   .modal-backdrop {
     position: fixed;
-    inset: 0;
+    inset: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
     display: flex;
     align-items: stretch;
     justify-content: center;
-    /* Keep the customizer below Android/iOS system bars in standalone browsers. */
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    /* Safe-area is handled by inset, not by padding, to avoid double offsets. */
+    padding: 0;
     overflow: hidden;
     overscroll-behavior: contain;
     touch-action: pan-y;
@@ -196,11 +196,10 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(170px, 29dvh) minmax(0, 1fr);
     width: 100%;
-    height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    height: 100%;
+    height: 100%;
     min-height: 0;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: 100%;
     overflow: hidden;
     border-radius: 0;
     touch-action: pan-y;
@@ -284,4 +283,14 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
   .admin-top-actions{flex-direction:row;flex-wrap:wrap}
   .admin-top-actions .button{flex:1;justify-content:center}
   .admin-tabs{scrollbar-width:thin}
+}
+
+
+/* Mobile stability: do not replay the overlay entrance animation after every choice. */
+.modal-backdrop { animation: none; }
+body.builder-open { overflow: hidden; overscroll-behavior: none; }
+@media (max-width: 700px) {
+  .builder-modal { flex: 1 1 auto; }
+  .builder-content { scroll-behavior: auto; }
+  .food-stage, .food-canvas { -webkit-transform: translateZ(0); }
 }
