@@ -753,7 +753,8 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Preferências de acessibilidade configuráveis pelo painel do restaurante */
 :root { --mz-access-font-scale: 1; }
-body { font-size: calc(15px * var(--mz-access-font-scale, 1)); }
+html { font-size: calc(16px * var(--mz-access-font-scale, 1)); }
+body { font-size: .9375rem; }
 html[data-mz-font="readable"] body,
 html[data-mz-font="readable"] button,
 html[data-mz-font="readable"] input,
