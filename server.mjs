@@ -417,8 +417,9 @@ function dashboard() {
   const counts = statement('SELECT status,COUNT(*) AS count FROM orders WHERE restaurant_id=? GROUP BY status').all(RESTAURANT_ID);
   const today = new Date().toISOString().slice(0,10) + '%';
   const revenue = statement("SELECT COALESCE(SUM(total_cents),0) AS total FROM orders WHERE restaurant_id=? AND status NOT IN ('cancelled') AND created_at LIKE ?").get(RESTAURANT_ID,today).total;
+  const todayStats = statement("SELECT COUNT(*) AS ordersToday,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents FROM orders WHERE restaurant_id=? AND created_at LIKE ?").get(RESTAURANT_ID,today);
   const popular = statement('SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.status<>\'cancelled\' GROUP BY oi.product_id ORDER BY quantity DESC LIMIT 4').all(RESTAURANT_ID);
-  return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, popular };
+  return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, ordersToday: todayStats.ordersToday, averageTicketCents: todayStats.averageTicketCents, popular };
 }
 function listOrders() {
   return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));

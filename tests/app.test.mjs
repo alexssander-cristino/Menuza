@@ -101,6 +101,11 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(loginResponse.status, 200);
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
+  const dashboardResponse = await fetch(base + '/api/admin/dashboard', { headers: { cookie } });
+  assert.equal(dashboardResponse.status, 200);
+  const dashboardMetrics = await dashboardResponse.json();
+  assert.ok(dashboardMetrics.ordersToday >= 1, 'dashboard counts orders created today');
+  assert.ok(dashboardMetrics.averageTicketCents > 0, 'dashboard calculates the average ticket excluding cancelled orders');
 
   const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 2, active: true }) });
   assert.equal(couponResponse.status, 201);
