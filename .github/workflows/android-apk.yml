@@ -28,7 +28,7 @@ jobs:
         run: |
           flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza "$RUNNER_TEMP/menuza_build"
           cp mobile_flutter/pubspec.yaml "$RUNNER_TEMP/menuza_build/pubspec.yaml"
-          rm -rf "$RUNNER_TEMP/menuza_build/lib"
+          rm -rf "$RUNNER_TEMP/menuza_build/lib" "$RUNNER_TEMP/menuza_build/test"
           cp -R mobile_flutter/lib "$RUNNER_TEMP/menuza_build/lib"
           if [ -d mobile_flutter/test ]; then
             cp -R mobile_flutter/test "$RUNNER_TEMP/menuza_build/test"
