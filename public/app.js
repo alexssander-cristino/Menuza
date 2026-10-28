@@ -279,9 +279,9 @@ function renderAdminLogin(errorText=''){
   root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const password=new FormData(event.currentTarget).get('password');try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['catalog','Cardápio'],['ingredients','Adicionais']];
+  const tabs=[['orders','Pedidos'],['catalog','Cardápio'],['ingredients','Adicionais'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else renderIngredientsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin();
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
@@ -310,6 +310,38 @@ async function renderCatalogAdmin(){
     root.getElementById('newProductForm').addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget),price=Math.round(Number(data.get('price'))*100);try{await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,description:data.get('description')})});toast('Produto cadastrado.');renderCatalogAdmin()}catch(e){root.getElementById('newProductError').textContent=e.message}});
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
+async function renderSettingsAdmin(){
+  const target=root.getElementById('adminBody');
+  if(!target)return;
+  target.innerHTML='<div class="loading-line">Carregando configurações…</div>';
+  try{
+    const {restaurant}=await api('/api/admin/settings');
+    target.innerHTML='<section class="admin-panel settings-panel"><div class="admin-panel-head"><div><h2>Identidade do restaurante</h2><small>Essas informações são usadas na experiência do cardápio.</small></div></div><form id="restaurantSettingsForm" class="admin-form-grid"><label class="form-field wide"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="'+esc(restaurant.name)+'" placeholder="Nome que aparece no cardápio"></label><label class="form-field"><span>Tempo médio de preparo (minutos)</span><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="'+Number(restaurant.prepMinutes)+'"></label><div class="wide settings-note">Use um tempo realista para orientar seus clientes. Você pode ajustar esse valor sempre que a operação mudar.</div><div class="wide settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar configurações</button></div></form></section><section class="admin-panel settings-info"><div class="admin-panel-head"><h2>Conta e segurança</h2></div><p>O painel usa sessão protegida por cookie HttpOnly. Para trocar a senha de acesso, altere a variável <code>ADMIN_PASSWORD</code> no ambiente em que o servidor é executado e reinicie a aplicação.</p><p><strong>Importante:</strong> mantenha <code>APP_SECRET</code> e <code>ADMIN_PASSWORD</code> configuradas no ambiente de produção.</p></section>';
+    root.getElementById('restaurantSettingsForm').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget;
+      const data=new FormData(form);
+      const button=form.querySelector('button[type="submit"]');
+      const error=root.getElementById('settingsError');
+      button.disabled=true;error.textContent='';
+      try{
+        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name:data.get('name'),prepMinutes:Number(data.get('prepMinutes'))})});
+        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes}
+        applyRestaurantBranding(result.restaurant.name);
+        toast('Configurações salvas.');
+      }catch(e){error.textContent=e.message}
+      finally{button.disabled=false}
+    });
+  }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
+}
+function applyRestaurantBranding(name){
+  const clean=String(name||'').trim();
+  if(!clean)return;
+  const announcement=root.querySelector('.announcement');
+  if(announcement){const spans=announcement.querySelectorAll('span');if(spans.length>=2)spans[1].textContent='Restaurante: '+clean}
+  const footer=root.querySelector('.footer-bottom');
+  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© Menuza · Cardápio digital de '+clean;
+}
 async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando adicionais…</div>';
   try{
@@ -320,7 +352,7 @@ async function renderIngredientsAdmin(){
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else renderIngredientsAdmin()});
+  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
   clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
 }
 async function logoutAdmin(){
@@ -401,7 +433,7 @@ async function start(){
   });
   root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput').focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
   syncFilters();updateCartCount();
-  try{app.catalog=await api('/api/catalog');renderCatalog()}
+  try{app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name);renderCatalog()}
   catch(e){root.getElementById('menuGrid').innerHTML='<div class="no-results"><h3>Estamos ajustando a mesa.</h3><p>'+esc(e.message)+' Atualize a página em instantes.</p></div>';root.getElementById('resultCount').textContent='Cardápio indisponível'}
   window.addEventListener('hashchange',onRoute);onRoute();
 }
