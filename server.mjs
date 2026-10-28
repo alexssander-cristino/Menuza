@@ -218,8 +218,11 @@ function createOrder(payload, customerId = null) {
   if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
   const idempotencyKey = cleanText(payload.idempotencyKey, 80);
   if (idempotencyKey.length < 12) throw Object.assign(new Error('A chave do pedido expirou. Atualize o carrinho e tente novamente.'), { status: 422 });
-  const existing = statement('SELECT id FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
-  if (existing) return orderById(existing.id);
+  const existing = statement('SELECT id,customer_id AS customerId FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
+  if (existing) {
+    if ((existing.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
+    return orderById(existing.id);
+  }
   const catalog = catalogFor(RESTAURANT_ID);
   let totalCents = 0;
   const pricedItems = itemsInput.map(entry => {
@@ -235,8 +238,12 @@ function createOrder(payload, customerId = null) {
   const now = new Date().toISOString();
   db.exec('BEGIN IMMEDIATE');
   try {
-    const race = statement('SELECT id FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
-    if (race) { db.exec('ROLLBACK'); return orderById(race.id); }
+    const race = statement('SELECT id,customer_id AS customerId FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
+    if (race) {
+      db.exec('ROLLBACK');
+      if ((race.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
+      return orderById(race.id);
+    }
     statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId);
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
