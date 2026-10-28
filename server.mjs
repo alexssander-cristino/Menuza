@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
+import { restaurantLocalDatePrefix } from './src/time.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(ROOT, 'public');
@@ -440,7 +441,7 @@ function createOrder(payload, customerId = null) {
 }
 function dashboard() {
   const counts = statement('SELECT status,COUNT(*) AS count FROM orders WHERE restaurant_id=? GROUP BY status').all(RESTAURANT_ID);
-  const today = new Date().toISOString().slice(0,10) + '%';
+  const today = restaurantLocalDatePrefix(new Date()) + '%';
   const revenue = statement("SELECT COALESCE(SUM(total_cents),0) AS total FROM orders WHERE restaurant_id=? AND status NOT IN ('cancelled') AND created_at LIKE ?").get(RESTAURANT_ID,today).total;
   const todayStats = statement("SELECT COUNT(*) AS ordersToday,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents FROM orders WHERE restaurant_id=? AND created_at LIKE ?").get(RESTAURANT_ID,today);
   const popular = statement('SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.status<>\'cancelled\' GROUP BY oi.product_id ORDER BY quantity DESC LIMIT 4').all(RESTAURANT_ID);
