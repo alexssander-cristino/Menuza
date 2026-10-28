@@ -720,6 +720,38 @@ async function renderTablesAdmin(){
       '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section>';
   }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
+
+const ACCESSIBILITY_STORAGE_KEY='menuza-accessibility-v1';
+const ACCESSIBILITY_DEFAULTS={fontScale:1,theme:'light',palette:'violet',contrast:false,readableFont:false,spacing:'normal',underlineLinks:false,reduceMotion:false};
+function getAccessibilityPreferences(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ACCESSIBILITY_STORAGE_KEY)||'{}');
+    const value={...ACCESSIBILITY_DEFAULTS,...(saved&&typeof saved==='object'?saved:{})};
+    value.fontScale=[0.9,1,1.1,1.2,1.3,1.4].includes(Number(value.fontScale))?Number(value.fontScale):1;
+    value.theme=['light','dark'].includes(value.theme)?value.theme:'light';
+    value.palette=['violet','ocean','green','amber','rose'].includes(value.palette)?value.palette:'violet';
+    value.spacing=['normal','comfortable','wide'].includes(value.spacing)?value.spacing:'normal';
+    for(const key of ['contrast','readableFont','underlineLinks','reduceMotion'])value[key]=value[key]===true;
+    return value;
+  }catch{return {...ACCESSIBILITY_DEFAULTS}}
+}
+function applyAccessibilityPreferences(preferences=getAccessibilityPreferences()){
+  const html=root.documentElement;
+  html.dataset.mzTheme=preferences.theme;
+  html.dataset.mzPalette=preferences.palette;
+  html.dataset.mzContrast=preferences.contrast?'high':'normal';
+  html.dataset.mzFont=preferences.readableFont?'readable':'default';
+  html.dataset.mzSpacing=preferences.spacing;
+  html.dataset.mzLinks=preferences.underlineLinks?'underlined':'default';
+  html.dataset.mzMotion=preferences.reduceMotion?'reduced':'default';
+  html.style.setProperty('--mz-access-font-scale',String(preferences.fontScale));
+}
+function saveAccessibilityPreferences(preferences){
+  try{localStorage.setItem(ACCESSIBILITY_STORAGE_KEY,JSON.stringify(preferences));applyAccessibilityPreferences(preferences);return true}
+  catch{applyAccessibilityPreferences(preferences);return false}
+}
+applyAccessibilityPreferences();
+
 async function renderSettingsAdmin(){
   const target=root.getElementById('adminBody');
   if(!target)return;
@@ -751,7 +783,81 @@ async function renderSettingsAdmin(){
           </section>
           <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">⌑</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
         </aside>
-      </div>`;
+      </div>
+      <section class="admin-panel accessibility-settings-panel" aria-labelledby="accessibilitySettingsTitle">
+        <div class="admin-panel-head"><div><h2 id="accessibilitySettingsTitle">Acessibilidade e aparência</h2><small>Personalize a leitura e a navegação em todo o Menuza. As escolhas ficam salvas neste dispositivo.</small></div><span class="settings-section-icon" aria-hidden="true">Aa</span></div>
+        <div class="accessibility-settings-grid">
+          <div class="accessibility-setting-group">
+            <label for="accessibilityFontScale">Tamanho da fonte</label>
+            <div class="accessibility-range-row"><input id="accessibilityFontScale" type="range" min="0.9" max="1.4" step="0.1" value="1" aria-describedby="accessibilityFontScaleValue"><output id="accessibilityFontScaleValue" for="accessibilityFontScale">100%</output></div>
+            <p>Amplia os textos do sistema sem precisar usar o zoom do navegador.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilityTheme">Tema</label>
+            <select id="accessibilityTheme"><option value="light">Claro</option><option value="dark">Escuro</option></select>
+            <p>Escolha um tema mais confortável para o ambiente.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilityPalette">Cor de destaque</label>
+            <select id="accessibilityPalette"><option value="violet">Roxo Menuza</option><option value="ocean">Azul oceano</option><option value="green">Verde</option><option value="amber">Âmbar</option><option value="rose">Rosa</option></select>
+            <p>Altera a cor de destaque e os controles do sistema.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilitySpacing">Espaçamento</label>
+            <select id="accessibilitySpacing"><option value="normal">Padrão</option><option value="comfortable">Confortável</option><option value="wide">Amplo</option></select>
+            <p>Aumenta o espaço entre linhas e elementos para facilitar a leitura.</p>
+          </div>
+          <label class="accessibility-toggle"><input id="accessibilityContrast" type="checkbox"><span><strong>Alto contraste</strong><small>Reforça o contraste entre texto, fundo, bordas e controles.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityReadableFont" type="checkbox"><span><strong>Fonte de alta legibilidade</strong><small>Usa uma família de fontes simples e bem distinguíveis.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityUnderlineLinks" type="checkbox"><span><strong>Sublinhar links</strong><small>Ajuda a identificar links sem depender apenas da cor.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityReduceMotion" type="checkbox"><span><strong>Reduzir animações</strong><small>Reduz movimentos e transições decorativas.</small></span></label>
+        </div>
+        <div class="accessibility-preview" aria-live="polite"><div><strong>Prévia de leitura</strong><p>Este é um exemplo de texto com as suas preferências de acessibilidade. Botões, links e campos também acompanham as configurações.</p><a href="#accessibilitySettingsTitle">Exemplo de link acessível</a></div><button type="button" class="button button-outline" id="accessibilityReset">Restaurar padrão</button></div>
+        <p class="accessibility-save-status" id="accessibilitySaveStatus" role="status" aria-live="polite">Preferências aplicadas automaticamente neste dispositivo.</p>
+      </section>`;
+    const accessibility=getAccessibilityPreferences();
+    const accessibilityControls={
+      fontScale:root.getElementById('accessibilityFontScale'),
+      theme:root.getElementById('accessibilityTheme'),
+      palette:root.getElementById('accessibilityPalette'),
+      spacing:root.getElementById('accessibilitySpacing'),
+      contrast:root.getElementById('accessibilityContrast'),
+      readableFont:root.getElementById('accessibilityReadableFont'),
+      underlineLinks:root.getElementById('accessibilityUnderlineLinks'),
+      reduceMotion:root.getElementById('accessibilityReduceMotion')
+    };
+    accessibilityControls.fontScale.value=String(accessibility.fontScale);
+    accessibilityControls.theme.value=accessibility.theme;
+    accessibilityControls.palette.value=accessibility.palette;
+    accessibilityControls.spacing.value=accessibility.spacing;
+    for(const key of ['contrast','readableFont','underlineLinks','reduceMotion'])accessibilityControls[key].checked=accessibility[key];
+    const fontScaleValue=root.getElementById('accessibilityFontScaleValue');
+    const accessibilityStatus=root.getElementById('accessibilitySaveStatus');
+    const syncAccessibility=()=>{
+      const next={
+        fontScale:Number(accessibilityControls.fontScale.value),
+        theme:accessibilityControls.theme.value,
+        palette:accessibilityControls.palette.value,
+        spacing:accessibilityControls.spacing.value,
+        contrast:accessibilityControls.contrast.checked,
+        readableFont:accessibilityControls.readableFont.checked,
+        underlineLinks:accessibilityControls.underlineLinks.checked,
+        reduceMotion:accessibilityControls.reduceMotion.checked
+      };
+      fontScaleValue.value=Math.round(next.fontScale*100)+'%';
+      fontScaleValue.textContent=fontScaleValue.value;
+      const saved=saveAccessibilityPreferences(next);
+      accessibilityStatus.textContent=saved?'Preferências aplicadas e salvas neste dispositivo.':'Preferências aplicadas nesta sessão; o navegador não permitiu salvá-las.';
+    };
+    for(const control of Object.values(accessibilityControls))control.addEventListener('input',syncAccessibility);
+    root.getElementById('accessibilityReset').addEventListener('click',()=>{
+      for(const [key,control] of Object.entries(accessibilityControls)){
+        if(key==='fontScale')control.value=String(ACCESSIBILITY_DEFAULTS.fontScale);
+        else if(key==='theme'||key==='palette'||key==='spacing')control.value=ACCESSIBILITY_DEFAULTS[key];
+        else control.checked=ACCESSIBILITY_DEFAULTS[key];
+      }
+      syncAccessibility();
+    });
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;
     const prepInput=form.elements.prepMinutes;
