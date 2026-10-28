@@ -477,16 +477,42 @@ async function renderCouponsAdmin(){
   target.innerHTML='<div class="loading-line">Carregando cupons…</div>';
   try{
     const result=await api('/api/admin/coupons');
-      target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Criar cupom</h2><small>Configure descontos e regras de utilização.</small></div></div><form id="newCouponForm" class="admin-form-grid coupon-form"><label class="form-field"><span>Código</span><input name="code" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="EX: BEMVINDO10"></label><label class="form-field"><span>Tipo de desconto</span><select name="discountType"><option value="percent">Porcentagem (%)</option><option value="fixed">Valor fixo (R$)</option></select></label><label class="form-field"><span>Valor do desconto</span><input name="discountValue" type="number" min="1" max="100" step="1" required value="10"></label><label class="form-field"><span>Pedido mínimo (R$)</span><input name="minimum" type="number" min="0" step="0.01" value="0" required></label><label class="form-field"><span>Início (opcional)</span><input name="startsAt" type="datetime-local"></label><label class="form-field"><span>Validade final (opcional)</span><input name="expiresAt" type="datetime-local"></label><label class="form-field"><span>Limite de usos (opcional)</span><input name="maxUses" type="number" min="1" step="1" placeholder="Ilimitado"></label><div class="wide"><p class="error-text" id="newCouponError" role="alert"></p><button class="button button-dark button-small" type="submit">Criar cupom +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Cupons cadastrados</h2><small>'+result.coupons.length+' cupom(ns)</small></div></div><div class="coupon-list">'+(result.coupons.map(c=>'<article class="coupon-row" data-coupon-row="'+esc(c.id)+'" data-type="'+esc(c.discountType)+'" data-value="'+c.discountValue+'" data-minimum="'+c.minimumSubtotalCents+'" data-starts="'+esc(c.startsAt||'')+'" data-expires="'+esc(c.expiresAt||'')+'" data-max-uses="'+(c.maxUses===null?'':c.maxUses)+'"><div class="coupon-row-top"><div><b>'+esc(c.code)+'</b><small>'+(c.discountType==='percent'?c.discountValue+'% de desconto':money(c.discountValue)+' de desconto')+' · Pedido mínimo '+money(c.minimumSubtotalCents)+'</small><small>Usos: '+c.usedCount+(c.maxUses===null?' / ilimitado':' / '+c.maxUses)+(c.expiresAt?' · Até '+new Date(c.expiresAt).toLocaleDateString('pt-BR'):'')+'</small></div><label class="coupon-active"><input class="coupon-active-input" type="checkbox" '+(c.active?'checked':'')+'> Ativo</label></div><div class="coupon-row-actions"><button class="button button-outline button-small" type="button" data-action="toggle-coupon" data-id="'+esc(c.id)+'">Salvar status</button></div></article>').join('')||'<div class="admin-empty">Nenhum cupom cadastrado ainda.</div>')+'</div></section>';
+      target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2 id="couponFormTitle">Criar cupom</h2><small>Configure descontos e regras de utilização.</small></div></div><form id="newCouponForm" class="admin-form-grid coupon-form"><input type="hidden" name="couponId" value=""><label class="form-field"><span>Código</span><input name="code" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="EX: BEMVINDO10"></label><label class="form-field"><span>Tipo de desconto</span><select name="discountType"><option value="percent">Porcentagem (%)</option><option value="fixed">Valor fixo (R$)</option></select></label><label class="form-field"><span>Valor do desconto</span><input name="discountValue" type="number" min="1" max="100" step="1" required value="10"></label><label class="form-field"><span>Pedido mínimo (R$)</span><input name="minimum" type="number" min="0" step="0.01" value="0" required></label><label class="form-field"><span>Início (opcional)</span><input name="startsAt" type="datetime-local"></label><label class="form-field"><span>Validade final (opcional)</span><input name="expiresAt" type="datetime-local"></label><label class="form-field"><span>Limite de usos (opcional)</span><input name="maxUses" type="number" min="1" step="1" placeholder="Ilimitado"></label><div class="wide"><p class="error-text" id="newCouponError" role="alert"></p><button class="button button-dark button-small" id="couponSubmitButton" type="submit">Criar cupom +</button> <button class="button button-outline button-small" id="couponCancelEdit" type="button" hidden>Cancelar edição</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Cupons cadastrados</h2><small>'+result.coupons.length+' cupom(ns)</small></div></div><div class="coupon-list">'+(result.coupons.map(c=>'<article class="coupon-row" data-coupon-row="'+esc(c.id)+'" data-type="'+esc(c.discountType)+'" data-value="'+c.discountValue+'" data-minimum="'+c.minimumSubtotalCents+'" data-starts="'+esc(c.startsAt||'')+'" data-expires="'+esc(c.expiresAt||'')+'" data-max-uses="'+(c.maxUses===null?'':c.maxUses)+'"><div class="coupon-row-top"><div><b>'+esc(c.code)+'</b><small>'+(c.discountType==='percent'?c.discountValue+'% de desconto':money(c.discountValue)+' de desconto')+' · Pedido mínimo '+money(c.minimumSubtotalCents)+'</small><small>Usos: '+c.usedCount+(c.maxUses===null?' / ilimitado':' / '+c.maxUses)+(c.expiresAt?' · Até '+new Date(c.expiresAt).toLocaleDateString('pt-BR'):'')+'</small></div><label class="coupon-active"><input class="coupon-active-input" type="checkbox" '+(c.active?'checked':'')+'> Ativo</label></div><div class="coupon-row-actions"><button class="button button-outline button-small" type="button" data-action="edit-coupon" data-id="'+esc(c.id)+'">Editar</button><button class="button button-outline button-small" type="button" data-action="toggle-coupon" data-id="'+esc(c.id)+'">Salvar status</button></div></article>').join('')||'<div class="admin-empty">Nenhum cupom cadastrado ainda.</div>')+'</div></section>';
     const form=root.getElementById('newCouponForm');
     form.querySelector('[name=discountType]').addEventListener('change',()=>{const input=form.querySelector('[name=discountValue]');const percent=form.elements.discountType.value==='percent';input.max=percent?'100':'1000000';input.step='1';});
+    root.getElementById('couponCancelEdit').addEventListener('click',cancelCouponEdit);
     form.addEventListener('submit',async event=>{
       event.preventDefault();const data=new FormData(form),error=root.getElementById('newCouponError');
       const starts=data.get('startsAt'),expires=data.get('expiresAt');
       const payload={code:data.get('code'),discountType:data.get('discountType'),discountValue:data.get('discountType')==='fixed'?Math.round(Number(data.get('discountValue'))*100):Number(data.get('discountValue')),minimumSubtotalCents:Math.round(Number(data.get('minimum')||0)*100),startsAt:starts?new Date(starts).toISOString():null,expiresAt:expires?new Date(expires).toISOString():null,maxUses:data.get('maxUses')?Number(data.get('maxUses')):null,active:true};
-      try{await api('/api/admin/coupons',{method:'POST',body:JSON.stringify(payload)});toast('Cupom criado.');renderCouponsAdmin()}catch(e){error.textContent=e.message}
+      try{const couponId=data.get('couponId');await api(couponId?'/api/admin/coupons/'+encodeURIComponent(couponId):'/api/admin/coupons',{method:couponId?'PATCH':'POST',body:JSON.stringify({...payload,active:true})});toast(couponId?'Cupom atualizado.':'Cupom criado.');renderCouponsAdmin()}catch(e){error.textContent=e.message}
     });
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
+}
+function editCoupon(id){
+  const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]'),form=root.getElementById('newCouponForm');
+  if(!row||!form)return;
+  form.elements.couponId.value=id;
+  form.elements.code.value=row.querySelector('b').textContent;
+  form.elements.discountType.value=row.dataset.type;
+  form.elements.discountValue.value=row.dataset.type==='fixed'?(Number(row.dataset.value)/100):Number(row.dataset.value);
+  form.elements.discountValue.max=row.dataset.type==='percent'?'100':'1000000';
+  form.elements.minimum.value=(Number(row.dataset.minimum||0)/100).toFixed(2);
+  form.elements.startsAt.value=row.dataset.starts?new Date(row.dataset.starts).toISOString().slice(0,16):'';
+  form.elements.expiresAt.value=row.dataset.expires?new Date(row.dataset.expires).toISOString().slice(0,16):'';
+  form.elements.maxUses.value=row.dataset.maxUses||'';
+  root.getElementById('couponFormTitle').textContent='Editar cupom '+row.querySelector('b').textContent;
+  root.getElementById('couponSubmitButton').textContent='Salvar alterações';
+  root.getElementById('couponCancelEdit').hidden=false;
+  form.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function cancelCouponEdit(){
+  const form=root.getElementById('newCouponForm');if(!form)return;
+  form.reset();form.elements.couponId.value='';
+  root.getElementById('couponFormTitle').textContent='Criar cupom';
+  root.getElementById('couponSubmitButton').textContent='Criar cupom +';
+  root.getElementById('couponCancelEdit').hidden=true;
+  const error=root.getElementById('newCouponError');if(error)error.textContent='';
 }
 async function toggleCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]');if(!row)return;
@@ -640,6 +666,7 @@ function handleClick(event){
   if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='apply-coupon'){applyCheckoutCoupon();return}
   if(action==='toggle-coupon'){toggleCoupon(target.dataset.id);return}
+  if(action==='edit-coupon'){editCoupon(target.dataset.id);return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
   if(action==='toggle-favorite'){
     const id=target.dataset.product;
