@@ -648,19 +648,30 @@ async function renderTablesAdmin(){
     const result=await api('/api/admin/tables'),tables=result.tables||[],counts=result.counts||{};
     const labels={free:'Livre',occupied:'Ocupada',cleaning:'Precisa de limpeza'};
     const icons={free:'✓',occupied:'●',cleaning:'✦'};
-    const cards=tables.map(table=>'<article class="table-unit status-'+esc(table.status)+'">'+
-      '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+'">'+
-      '<span class="table-chair chair-n"></span><span class="table-chair chair-e"></span><span class="table-chair chair-s"></span><span class="table-chair chair-w"></span>'+
-      '<span class="table-top"><span class="table-top-number">'+String(table.number).padStart(2,'0')+'</span><span class="table-top-status">'+icons[table.status]+'</span></span>'+
-      '<span class="table-leg table-leg-a"></span><span class="table-leg table-leg-b"></span></button>'+
-      '<div class="table-unit-meta"><strong>Mesa '+table.number+'</strong><span>'+table.seats+' lugares</span></div>'+
+    const cards=tables.map(table=>{
+      const seats=Math.max(1,Math.min(8,Number(table.seats)||4));
+      const shape=seats<=2?'round':seats>=6?'rectangle':'square';
+      const chairs=seats===2
+        ? '<span class="table-chair chair-n"></span><span class="table-chair chair-s"></span>'
+        : seats===6
+          ? '<span class="table-chair chair-n"></span><span class="table-chair chair-n2"></span><span class="table-chair chair-s"></span><span class="table-chair chair-s2"></span><span class="table-chair chair-e"></span><span class="table-chair chair-w"></span>'
+          : seats>=8
+            ? '<span class="table-chair chair-n"></span><span class="table-chair chair-n2"></span><span class="table-chair chair-s"></span><span class="table-chair chair-s2"></span><span class="table-chair chair-e"></span><span class="table-chair chair-e2"></span><span class="table-chair chair-w"></span><span class="table-chair chair-w2"></span>'
+            : '<span class="table-chair chair-n"></span><span class="table-chair chair-e"></span><span class="table-chair chair-s"></span><span class="table-chair chair-w"></span>';
+      return '<article class="table-unit status-'+esc(table.status)+' table-shape-'+shape+'">'+
+      '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+', '+seats+' lugares">'+
+      chairs+
+      '<span class="table-top"><span class="table-setting table-setting-a"><i></i><b></b></span><span class="table-setting table-setting-b"><i></i><b></b></span><span class="table-top-number">'+String(table.number).padStart(2,'0')+'</span><span class="table-top-status">'+icons[table.status]+'</span></span>'+
+      '<span class="table-leg table-leg-a"></span><span class="table-leg table-leg-b"></span><span class="table-leg table-leg-c"></span><span class="table-leg table-leg-d"></span></button>'+
+      '<div class="table-unit-meta"><strong>Mesa '+table.number+'</strong><span>'+seats+' '+(seats===1?'lugar':'lugares')+'</span></div>'+
       '<div class="table-status-label">'+labels[table.status]+'</div><div class="table-status-actions">'+
       '<button type="button" data-table-status="free" data-table-id="'+esc(table.id)+'" '+(table.status==='free'?'aria-pressed="true"':'')+'>Livre</button>'+
       '<button type="button" data-table-status="occupied" data-table-id="'+esc(table.id)+'" '+(table.status==='occupied'?'aria-pressed="true"':'')+'>Ocupada</button>'+
-      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div></article>').join('');
+      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div></article>';
+    }).join('');
     target.innerHTML='<section class="table-manager"><div class="table-manager-heading"><div><div class="eyebrow">MAPA DO SALÃO</div><h2>Gerenciamento de mesas</h2><p>Visualize o salão e atualize a situação de cada mesa.</p></div><div class="table-live"><span></span> Dados salvos no sistema</div></div>'+
       '<div class="table-stats"><div class="table-stat table-stat-free"><span>Livres</span><b>'+(counts.free||0)+'</b></div><div class="table-stat table-stat-occupied"><span>Ocupadas</span><b>'+(counts.occupied||0)+'</b></div><div class="table-stat table-stat-cleaning"><span>Precisam de limpeza</span><b>'+(counts.cleaning||0)+'</b></div></div>'+
-      '<div class="table-map-shell"><div class="table-map-top"><span>VISÃO ISOMÉTRICA</span><span>'+tables.length+' mesas · clique nos status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-grid">'+cards+'</div></div></div>'+
+      '<div class="table-map-shell"><div class="table-map-top"><span>PLANTA DO SALÃO</span><span>'+tables.length+' mesas · selecione o status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-counter"><span>ATENDIMENTO</span><i></i><i></i><i></i></div><div class="table-map-entry"><span>ENTRADA</span><i></i></div><div class="table-map-plant table-map-plant-a"><i></i></div><div class="table-map-plant table-map-plant-b"><i></i></div><div class="table-map-grid">'+cards+'</div></div></div>'+
       '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section>';
   }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
