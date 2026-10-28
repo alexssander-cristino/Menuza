@@ -10,7 +10,7 @@ void main() {
     test('preserves HTTPS addresses and removes root slash and fragment', () {
       expect(
         normalizeServerUrl('https://menuza.example/#!/menu'),
-        'https://menuza.example/',
+        'https://menuza.example',
       );
     });
 
