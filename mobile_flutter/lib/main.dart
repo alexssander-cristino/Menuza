@@ -405,7 +405,7 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
       if (await _handleBack()) SystemNavigator.pop();
     },
     child: Scaffold(
-      body: SafeArea(top: false, bottom: false, child: Stack(children: [
+      body: SafeArea(top: true, bottom: true, child: Stack(children: [
         Positioned.fill(
           child: _initializing
               ? _buildIntro()
