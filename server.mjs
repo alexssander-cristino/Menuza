@@ -511,6 +511,11 @@ function updateStatus(orderId, nextStatus) {
   try {
     statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
+    // Ao concluir ou cancelar um pedido consumido na mesa, ela precisa entrar
+    // em limpeza — nunca voltar direto para livre sem a preparação da equipe.
+    if (order.fulfillment === 'table' && ['completed','cancelled'].includes(nextStatus) && order.table_label) {
+      statement("UPDATE restaurant_tables SET status='cleaning',updated_at=? WHERE restaurant_id=? AND table_number=?").run(now, RESTAURANT_ID, Number(order.table_label));
+    }
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   const updated = orderById(orderId);
