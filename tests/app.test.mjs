@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { formatOrderStatusTime } from '../public/order-status-time.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -38,6 +39,18 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.equal(priced.unitPriceCents, 5290);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 4 }] }), /1 a 3/);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
+});
+
+test('timeline do pedido mostra o horário real de cada mudança de status', () => {
+  const history = [
+    { status: 'received', changedAt: '2026-10-28T12:05:00.000Z' },
+    { status: 'preparing', changedAt: '2026-10-28T12:12:00.000Z' },
+    { status: 'ready', changedAt: '2026-10-28T12:25:00.000Z' }
+  ];
+  assert.match(formatOrderStatusTime(history, 'received'), /09:05/);
+  assert.match(formatOrderStatusTime(history, 'preparing'), /09:12/);
+  assert.equal(formatOrderStatusTime(history, 'confirmed'), '');
+  assert.equal(formatOrderStatusTime([{ status: 'ready', changedAt: 'invalid' }], 'ready'), '');
 });
 
 test('checkout mantém a chave idempotente após recarregar e invalida quando o carrinho muda', async () => {
