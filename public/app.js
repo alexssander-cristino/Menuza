@@ -27,10 +27,50 @@ const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-c
 app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
-function setCart() { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); updateCartCount(); }
+function setCart() {
+  try { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); }
+  catch { toast('A sacola não pôde ser salva neste aparelho. Confira o espaço disponível no navegador.'); }
+  updateCartCount();
+}
+function normalizeSearch(value) {
+  return String(value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+}
+function normalizeCartForCatalog(value, catalog) {
+  if (!Array.isArray(value) || !catalog) return [];
+  const products = new Map(catalog.products.map(product => [product.id, product]));
+  const sizes = catalog.sizes || {};
+  const ingredients = new Map(catalog.ingredients.map(item => [item.id, item]));
+  return value.filter(item => {
+    if (!item || typeof item !== 'object' || typeof item.productId !== 'string') return false;
+    const product = products.get(item.productId);
+    if (!product || Number(product.active) === 0) return false;
+    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) return false;
+    if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
+    if (!Array.isArray(item.ingredients) || item.ingredients.length > 12) return false;
+    if (product.type === 'pizza' && !catalog.crusts.some(option => option.key === item.crustKey)) return false;
+    const seen = new Set();
+    return item.ingredients.every(entry => {
+      const ingredient = ingredients.get(entry?.id);
+      if (!ingredient || ingredient.type !== product.type || Number(ingredient.active) === 0 ||
+          !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > 3 || seen.has(entry.id)) return false;
+      seen.add(entry.id);
+      return !(ingredient.included && entry.quantity !== 1);
+    });
+  }).slice(0, 50).map(item => {
+    const product = products.get(item.productId);
+    return {
+      cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(),
+      productId: product.id, name: product.name, type: product.type,
+      quantity: item.quantity, sizeKey: item.sizeKey,
+      crustKey: product.type === 'pizza' ? item.crustKey : '',
+      ingredients: item.ingredients.map(entry => ({ id: entry.id, quantity: entry.quantity })),
+      notes: typeof item.notes === 'string' ? item.notes.slice(0, 500) : ''
+    };
+  });
+}
 const ORDER_TOKENS_KEY = 'menuza-customer-order-tokens';
 function savedOrderTokens() { try { const value = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '[]'); return Array.isArray(value) ? [...new Set(value.filter(token => typeof token === 'string' && /^[A-Za-z0-9_-]{32,80}$/.test(token)))].slice(0, 30) : []; } catch { return []; } }
-function rememberOrderToken(token) { if (!token || typeof token !== 'string') return; localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify([token, ...savedOrderTokens().filter(item => item !== token)].slice(0, 30))); }
+function rememberOrderToken(token) { if (!token || typeof token !== 'string') return; try { localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify([token, ...savedOrderTokens().filter(item => item !== token)].slice(0, 30))); } catch {} }
 function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
@@ -75,10 +115,10 @@ function cardMarkup(product) {
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
     const matchesCategory = app.category === 'all' || product.categoryId === app.category;
-    const query = app.search.toLowerCase();
-    const matchesSearch = !query || (product.name+' '+product.description).toLowerCase().includes(query);
+    const query = normalizeSearch(app.search);
+    const matchesSearch = !query || normalizeSearch(product.name+' '+product.description+' '+(product.categoryName||'')).includes(query);
     const vegetarian = product.type === 'pizza' || product.id === 'batatas';
-    return matchesCategory && matchesSearch && (!app.vegetarianOnly || vegetarian);
+    return Number(product.active) !== 0 && matchesCategory && matchesSearch && (!app.vegetarianOnly || vegetarian);
   });
   if (app.sort==='price') list=list.slice().sort((a,b)=>a.baseCents-b.baseCents);
   if (app.sort==='name') list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
@@ -218,7 +258,7 @@ function syncSceneUi(artMode) {
 function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
   const product=app.catalog.products.find(p=>p.id===builder.productId);
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:'',preview:productSvg(product,builder.ingredients.map(i=>({...app.catalog.ingredients.find(g=>g.id===i.id),quantity:i.quantity})).filter(i=>i.id))};
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   setCart();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na sacola.':'Adicionado à sacola.');openCart();
 }
@@ -235,7 +275,7 @@ function renderCart(){
   const items=app.cart.map(item=>{
     const product=app.catalog.products.find(p=>p.id===item.productId),names=new Map(app.catalog.ingredients.map(i=>[i.id,i.name]));
     const components=item.ingredients.map(i=>names.get(i.id)).filter(Boolean).join(', '),size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey)?.label||'';
-    return '<article class="cart-item"><div class="cart-thumb">'+item.preview+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(size)+(item.crustKey&&item.crustKey!=='tradicional'?' · '+esc(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+'<br>'+esc(components||'Composição da casa')+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';
+    return '<article class="cart-item"><div class="cart-thumb">'+productSvg(product,item.ingredients.map(entry=>({...app.catalog.ingredients.find(ingredient=>ingredient.id===entry.id),quantity:entry.quantity})).filter(entry=>entry.id))+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(size)+(item.crustKey&&item.crustKey!=='tradicional'?' · '+esc(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+'<br>'+esc(components||'Composição da casa')+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';
   }).join('');
   root.getElementById('cartRoot').innerHTML='<div class="drawer-backdrop" data-action="cart-backdrop"><aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Sacola"><div class="drawer-head"><div><div class="eyebrow">SEU PEDIDO</div><h2>Sacola <span style="font:11px var(--font);color:#839086">('+app.cart.reduce((s,i)=>s+i.quantity,0)+')</span></h2></div><button class="icon-button" data-action="close-cart" aria-label="Fechar">×</button></div>'+(app.cart.length?'<div class="cart-items">'+items+'</div><div class="cart-summary"><div class="summary-line"><span>Subtotal</span><span>'+money(total)+'</span></div><div class="summary-line"><span>Taxas</span><span>Calculadas conforme a modalidade</span></div><div class="summary-line summary-total"><span>Total estimado</span><span>'+money(total)+'</span></div><button class="button button-dark" data-action="checkout">Continuar para checkout <span>↗</span></button><p class="cart-disclaimer">O valor definitivo é conferido pelo servidor ao confirmar o pedido.</p></div>':'<div class="cart-empty"><div class="empty-icon">◌</div><h3>Sua mesa está vazia.</h3><p>Escolha algo que dê vontade de sentar e ficar mais um pouco.</p><button class="button button-dark" data-action="close-cart">Ver o cardápio</button></div>')+'</aside></div>';
 }
@@ -537,7 +577,7 @@ function syncFilters(){
 async function openMenu(){
   if(!app.customer){showCustomerAccount();return}
   try{
-    if(!app.catalog){app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name);renderCatalog()}
+    if(!app.catalog){app.catalog=await api('/api/catalog');app.cart=normalizeCartForCatalog(app.cart,app.catalog);setCart();applyRestaurantBranding(app.catalog.restaurant?.name);renderCatalog()}
     showHome();
   }catch(error){
     app.customer=null;
