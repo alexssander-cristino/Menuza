@@ -873,3 +873,77 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
 .no-results p{margin:0;color:var(--mz-muted);font-size:12px;line-height:1.7}
 .cart-thumb svg{display:block;width:100%;height:100%;max-height:100%;object-fit:contain}
 @media(prefers-reduced-motion:reduce){.no-results{scroll-behavior:auto}}
+
+
+/* Menuza scroll system: discreet violet rails, polished thumbs, and safe touch scrolling. */
+:root{
+  scrollbar-color:rgba(125,103,184,.48) transparent;
+  scrollbar-width:thin;
+}
+*{
+  scrollbar-color:rgba(125,103,184,.42) transparent;
+  scrollbar-width:thin;
+}
+*::-webkit-scrollbar{
+  width:10px;
+  height:10px;
+}
+*::-webkit-scrollbar-track{
+  background:transparent;
+  border-radius:999px;
+}
+*::-webkit-scrollbar-thumb{
+  background-color:rgba(125,103,184,.34);
+  background-clip:padding-box;
+  border:3px solid transparent;
+  border-radius:999px;
+  min-height:34px;
+}
+*::-webkit-scrollbar-thumb:hover{
+  background-color:rgba(105,81,169,.68);
+}
+*::-webkit-scrollbar-thumb:active{
+  background-color:rgba(91,67,151,.82);
+}
+*::-webkit-scrollbar-corner{
+  background:transparent;
+}
+/* Horizontal scrollers stay compact and don't show a chunky rail. */
+.category-list,
+.admin-tabs,
+.option-pills,
+.orders-filter-bar{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(125,103,184,.35) transparent;
+}
+.category-list::-webkit-scrollbar,
+.admin-tabs::-webkit-scrollbar{
+  height:6px;
+}
+.category-list::-webkit-scrollbar-thumb,
+.admin-tabs::-webkit-scrollbar-thumb{
+  border-width:2px;
+}
+/* Keep nested panels from stealing the page scroll on touch devices. */
+.cart-items,
+.builder-content,
+.checkout-modal,
+.modal-backdrop,
+.admin-tabs,
+.category-list{
+  overscroll-behavior:contain;
+}
+.cart-items,
+.builder-content,
+.checkout-modal,
+.admin-tabs,
+.category-list{
+  -webkit-overflow-scrolling:touch;
+}
+@media(hover:none){
+  *::-webkit-scrollbar{width:4px;height:4px}
+  *::-webkit-scrollbar-thumb{border-width:1px;background-color:rgba(125,103,184,.3)}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto!important}
+}
