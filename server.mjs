@@ -55,7 +55,13 @@ for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],[
   try { db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 }
+db.exec('CREATE TABLE IF NOT EXISTS restaurant_tables (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE, table_number INTEGER NOT NULL, seats INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT \'free\' CHECK(status IN (\'free\',\'occupied\',\'cleaning\')), note TEXT NOT NULL DEFAULT \'\', updated_at TEXT NOT NULL, UNIQUE(restaurant_id, table_number));');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
+if (statement('SELECT COUNT(*) AS count FROM restaurant_tables WHERE restaurant_id=?').get(RESTAURANT_ID).count === 0) {
+  const now = new Date().toISOString();
+  const addTable = statement('INSERT INTO restaurant_tables (id,restaurant_id,table_number,seats,status,note,updated_at) VALUES (?,?,?,?,?,?,?)');
+  for (let number = 1; number <= 12; number++) addTable.run('table-' + number, RESTAURANT_ID, number, number <= 4 ? 2 : 4, 'free', '', now);
+}
 
 function seedDatabase() {
   const seed = makeSeed();
@@ -225,6 +231,7 @@ function endpointRateLimit(request, path) {
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
       '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
       '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
+      '/api/admin/tables',
       '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
       '/api/orders'
     ]);
@@ -629,6 +636,26 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
+      if (request.method === 'GET' && path === '/api/admin/tables') {
+        requireAdmin(request);
+        const tables = statement('SELECT id,table_number AS number,seats,status,note,updated_at AS updatedAt FROM restaurant_tables WHERE restaurant_id=? ORDER BY table_number').all(RESTAURANT_ID);
+        const counts = { free: 0, occupied: 0, cleaning: 0 };
+        for (const table of tables) counts[table.status] = (counts[table.status] || 0) + 1;
+        return send(response, 200, { tables, counts });
+      }
+      if (request.method === 'PATCH' && path.startsWith('/api/admin/tables/')) {
+        requireAdmin(request);
+        const id = decodeURIComponent(path.slice('/api/admin/tables/'.length));
+        const body = await bodyOf(request);
+        if (!['free','occupied','cleaning'].includes(body.status)) return send(response, 422, { error: 'Selecione um status válido para a mesa.' });
+        if (!statement('SELECT id FROM restaurant_tables WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID)) return send(response, 404, { error: 'Mesa não encontrada.' });
+        const note = typeof body.note === 'string' ? cleanText(body.note, 160) : undefined;
+        if (note === undefined) statement('UPDATE restaurant_tables SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,new Date().toISOString(),id,RESTAURANT_ID);
+        else statement('UPDATE restaurant_tables SET status=?,note=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,note,new Date().toISOString(),id,RESTAURANT_ID);
+        const updated = statement('SELECT id,table_number AS number,seats,status,note,updated_at AS updatedAt FROM restaurant_tables WHERE id=?').get(id);
+        emit(RESTAURANT_ID, { type: 'tables-updated' });
+        return send(response, 200, { table: updated });
+      }
       if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
       if (request.method === 'GET' && path === '/api/admin/settings') {
         return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
