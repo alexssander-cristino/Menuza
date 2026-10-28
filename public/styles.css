@@ -1000,3 +1000,28 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
     opacity:1!important;transform:none!important;transition:none!important
   }
 }
+
+
+/* Customer favorites and expanded catalog controls. */
+.catalog-filter-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.favorite-toggle{
+  position:absolute;top:11px;right:11px;z-index:3;
+  display:grid;place-items:center;width:36px;height:36px;
+  border:1px solid rgba(255,255,255,.82);border-radius:50%;
+  background:rgba(255,255,255,.9);color:#706782;
+  box-shadow:0 5px 18px rgba(38,27,65,.1);
+  font:24px/1 system-ui,sans-serif;cursor:pointer;
+  transition:transform .22s ease,background .22s ease,color .22s ease,box-shadow .22s ease;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)
+}
+.favorite-toggle:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 8px 22px rgba(38,27,65,.15)}
+.favorite-toggle.is-favorite{color:#c94d76;background:#fff5f8;border-color:#f2c9d7}
+.favorite-toggle:focus-visible{outline:2px solid var(--mz-violet-600,#7965d8);outline-offset:3px}
+.favorites-filter[aria-pressed="true"]{border-color:var(--mz-violet-600,#7965d8);background:rgba(121,101,216,.1);color:var(--mz-violet-700,#5b4397)}
+.filter-line .favorites-filter{white-space:nowrap}
+@media(max-width:700px){
+ .catalog-filter-actions{grid-column:1/-1;gap:7px}
+ .catalog-filter-actions .filter-toggle{flex:1;min-height:35px}
+ .favorite-toggle{top:7px;right:7px;width:32px;height:32px;font-size:22px}
+}
+@media(prefers-reduced-motion:reduce){.favorite-toggle{transition:none}}
