@@ -1120,3 +1120,8 @@ body{overscroll-behavior-y:contain}
  .recent-products-grid{margin-top:16px}
 }
 @media(prefers-reduced-motion:reduce){.recent-products-section{animation:none}}
+
+
+/* One-tap catalog reset remains easy to reach on narrow screens. */
+.clear-catalog-filters{white-space:nowrap;min-height:34px;font-size:11px}
+@media(max-width:700px){.clear-catalog-filters{width:100%;grid-column:1/-1;justify-content:center}}
