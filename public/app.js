@@ -373,8 +373,12 @@ async function applyCheckoutCoupon(){
     if(version!==app.couponValidationVersion||input.value.toUpperCase().replace(/\s+/g,'')!==code)return;
     app.checkoutCoupon=null;message.textContent=e.message;message.className='coupon-message is-error';updateCheckoutTotals();
   }finally{
-    if(button){button.disabled=false;button.textContent='Aplicar'}
-    if(submitButton)submitButton.disabled=false;
+    // Uma validação antiga não pode reabilitar os controles enquanto uma nova
+    // validação do cupom ainda está em andamento.
+    if(version===app.couponValidationVersion){
+      if(button){button.disabled=false;button.textContent='Aplicar'}
+      if(submitButton)submitButton.disabled=false;
+    }
   }
 }
 function updateCheckoutTotals(){
