@@ -463,7 +463,7 @@ function handleClick(event){
   if(action==='edit-cart-item'){const item=app.cart.find(i=>i.cartId===target.dataset.id);app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';if(item)openBuilder(item.productId,item);return}
   if(action==='checkout'){openCheckout();return}
   if(action==='close-checkout'||(action==='checkout-backdrop'&&event.target===target)){app.checkoutOpen=false;root.getElementById('checkoutRoot').innerHTML='';return}
-  if(action==='back-home'){location.hash='';showHome();return}
+  if(action==='back-home'){if(!app.customer){location.hash='conta';showCustomerAccount();return}location.hash='menu';openMenu();return}
   if(action==='admin'){location.hash='admin';return}
    if(action==='my-orders'){location.hash='conta';return}
   if(action==='customer-mode'){app.customerMode=target.dataset.mode;renderCustomerAuth();return}
