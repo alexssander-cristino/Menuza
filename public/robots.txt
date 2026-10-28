@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /429.html
+
+# Este arquivo orienta crawlers; não substitui autenticação ou autorização.
