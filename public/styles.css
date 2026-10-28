@@ -324,3 +324,129 @@ body.builder-open { overflow: hidden; overscroll-behavior: none; }
   .builder-footer { flex-shrink: 0; }
   .food-stage, .food-canvas { -webkit-transform: translateZ(0); }
 }
+
+
+/* Admin refresh: clearer hierarchy, calmer surfaces and usable touch targets. */
+.admin-shell {
+  background: #f5f4f8;
+  color: var(--ink);
+}
+.admin-top {
+  padding: 24px 26px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 8px 30px rgba(36, 27, 57, .045);
+}
+.admin-top .eyebrow { color: var(--mz-violet-600, var(--orange)); }
+.admin-top h1 { letter-spacing: -.035em; }
+.admin-top-actions .button { min-height: 42px; }
+.admin-tabs {
+  gap: 8px;
+  border: 0;
+  padding: 5px;
+  background: #e9e7ef;
+  border-radius: 13px;
+  width: fit-content;
+  max-width: 100%;
+}
+.admin-tab {
+  min-height: 42px;
+  padding: 11px 17px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.admin-tab.active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(35, 27, 54, .08);
+}
+.metrics-grid { gap: 14px; }
+.metric-card {
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 18px rgba(35, 27, 54, .035);
+}
+.metric-card span { font-size: 10px; font-weight: 600; }
+.metric-card b { font-size: 30px; letter-spacing: -.03em; }
+.metric-card small { font-size: 9px; }
+.admin-panel {
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 18px rgba(35, 27, 54, .035);
+}
+.admin-panel-head { gap: 12px; }
+.admin-panel-head h2 { letter-spacing: -.02em; }
+.order-card {
+  border-radius: 12px;
+  padding: 15px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.order-card:hover {
+  border-color: #c8c1dc;
+  box-shadow: 0 4px 14px rgba(35, 27, 54, .045);
+}
+.order-status-select, .catalog-row input, .admin-form-grid input, .admin-form-grid select {
+  min-height: 40px;
+  border-radius: 8px;
+}
+.admin-form-grid .form-field input,
+.admin-form-grid .form-field select { width: 100%; }
+.admin-form-grid .form-field span { font-size: 10px; font-weight: 600; }
+.catalog-row { gap: 12px; padding: 14px 0; }
+.catalog-row b { font-size: 11px; }
+.catalog-row small { font-size: 9px; line-height: 1.5; }
+.admin-login {
+  border-radius: 18px;
+  padding: 36px;
+  box-shadow: 0 20px 60px rgba(35, 27, 54, .09);
+}
+.admin-login input {
+  min-height: 46px;
+  border-radius: 9px;
+}
+.admin-login .button { min-height: 46px; }
+.admin-empty { padding: 38px 20px; }
+@media (max-width: 700px) {
+  .admin-shell { padding: 18px 12px 38px; }
+  .admin-top {
+    padding: 18px;
+    border-radius: 14px;
+    gap: 16px;
+  }
+  .admin-top h1 { font-size: 25px; }
+  .admin-top-actions { flex-direction: row; width: 100%; }
+  .admin-top-actions .button { flex: 1; min-width: 0; padding-inline: 9px; }
+  .admin-tabs {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    padding: 4px;
+    box-shadow: 0 5px 14px rgba(35, 27, 54, .06);
+  }
+  .admin-tab { flex: 0 0 auto; min-height: 42px; padding: 10px 12px; }
+  .metrics-grid { gap: 8px; }
+  .metric-card { border-radius: 12px; padding: 13px; }
+  .metric-card b { font-size: 23px; }
+  .admin-panel { padding: 14px; border-radius: 12px; }
+  .admin-panel-head { align-items: flex-start; }
+  .admin-panel-head h2 { font-size: 18px; }
+  .order-card { padding: 12px; }
+  .order-card-head { flex-direction: column; }
+  .order-status-select { max-width: 100%; width: 100%; min-height: 42px; }
+  .catalog-row { grid-template-columns: minmax(0, 1fr) 78px; gap: 8px; }
+  .catalog-row > label:nth-of-type(2) { grid-column: 1; }
+  .catalog-row > button { grid-column: 2; grid-row: 2; justify-self: end; min-height: 36px; }
+  .catalog-row input[type=number] { width: 78px; }
+  .admin-login { margin: 22px auto; padding: 24px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-tab, .order-card { transition: none; }
+}
