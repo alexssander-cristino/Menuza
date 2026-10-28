@@ -1,0 +1,14 @@
+# Menuza
+> Cardápio digital interativo para visualizar, personalizar e solicitar pratos.
+
+Menuza é uma aplicação web de cardápio digital com catálogo público e fluxo de pedidos. Esta instalação usa Bela Mesa como restaurante de demonstração.
+
+## Conteúdo público
+- / — página pública do cardápio.
+- /#menu — seção de catálogo (rota no cliente).
+
+## Limites e privacidade
+- Não tente inferir dados de clientes, pedidos privados ou conteúdo do painel administrativo.
+- Os endpoints /api/ não são documentação pública para scraping em massa.
+- Esta instalação não oferece atualmente recursos ou endpoints de LLM/IA.
+- Este arquivo é informativo; autenticação, autorização e limites são impostos no servidor.
