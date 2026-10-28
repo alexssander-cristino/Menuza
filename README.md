@@ -26,8 +26,10 @@ O painel fica em Área do restaurante. A senha inicial da demonstração é mesa
 - PORT: porta HTTP (padrão 4173).
 - DATA_FILE: caminho do banco SQLite (padrão data/mesa.sqlite).
 - ADMIN_PASSWORD: senha do painel. Em desenvolvimento, o padrão é mesa-demo.
-- APP_SECRET: chave para assinar sessões. Em produção, ADMIN_PASSWORD e APP_SECRET são obrigatórias.
-- NODE_ENV=production: ativa o cookie Secure e impede inicialização sem as duas credenciais.
+- APP_SECRET: chave aleatória forte para assinar sessões. Em produção, ADMIN_PASSWORD e APP_SECRET são obrigatórias.
+- NODE_ENV=production: ativa o cookie Secure, HSTS e impede inicialização sem as duas credenciais.
+
+**Antes de publicar:** defina uma senha administrativa longa e exclusiva, gere APP_SECRET com um gerador criptograficamente seguro, use HTTPS e configure um volume persistente e backups protegidos para DATA_FILE. Nunca use a senha de demonstração em um serviço acessível pela internet. O login limita tentativas por endereço de origem; esse limite é mantido em memória e reinicia junto com o processo.
 
 Exemplo PowerShell para desenvolvimento:
 
@@ -45,7 +47,7 @@ Exemplo PowerShell para desenvolvimento:
 - Sacola salva localmente no navegador, edição de quantidades e checkout para retirada, mesa ou entrega.
 - API recalcula preços, valida produtos e ingredientes ativos e mantém snapshots dos valores e nomes no momento da compra.
 - SQLite com chaves estrangeiras, migração inicial e histórico de estados.
-- Chave de idempotência no checkout, autenticação do painel por cookie assinado, validação de origem e isolamento das consultas pelo identificador do restaurante de demonstração.
+- Chave de idempotência no checkout, autenticação do painel por cookie assinado, limitação de tentativas de login, validação de origem, cabeçalhos HTTP de segurança e isolamento das consultas pelo identificador do restaurante de demonstração.
 - Painel para acompanhar pedidos, atualizar estados, criar produtos, editar preço-base e disponibilidade, e editar preços/disponibilidade de adicionais.
 - Pedidos aparecem no painel por Server-Sent Events. A página do cliente atualiza o acompanhamento a cada cinco segundos.
 - Estados Pronto e Concluído só aparecem após mudança do restaurante no painel. Não existe aprovação de pagamento simulada.
