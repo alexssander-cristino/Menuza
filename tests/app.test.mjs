@@ -151,7 +151,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const eventChunk = await liveReader.read();
   assert.match(new TextDecoder().decode(eventChunk.value), /order-updated/);
   await liveReader.cancel();
-  assert.equal((await (await fetch(base + '/api/tracking/' + created.trackingToken)).json()).order.history.length, 2);
+  assert.equal((await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json()).order.history.length, 2);
 
   await stopServer(child);
   child = startServer();
