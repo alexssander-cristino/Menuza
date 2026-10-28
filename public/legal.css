@@ -63,3 +63,14 @@
 .admin-legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:18px 0 0;font-size:11px}
 .customer-auth-privacy{line-height:1.8}
 @media(max-width:420px){.privacy-notice-links{gap:8px}}
+
+/* Support, data-rights and accessibility refinements */
+.skip-link{position:absolute;z-index:10000;top:8px;left:8px;padding:12px 16px;background:#211a35;color:#fff;border-radius:8px;transform:translateY(-160%);transition:transform .15s}
+.skip-link:focus{transform:translateY(0)}
+.account-data-panel{margin-top:28px;padding:22px;border:1px solid #e7e2ef;border-radius:16px;background:#fff}
+.account-data-panel h3{margin:0 0 8px;font-size:18px}.account-data-panel p{color:#716b7c;font-size:13px;line-height:1.75}.account-data-panel a{color:#5b3be0;text-underline-offset:3px}
+.account-delete-form{display:grid;gap:12px;max-width:520px;margin-top:18px}.delete-account-confirm{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.6}.delete-account-confirm input{margin-top:3px;accent-color:#5b3be0}
+.privacy-request-list{display:grid;gap:14px}.privacy-request-card{padding:18px;border:1px solid #e7e2ef;border-radius:14px;background:#fff}.privacy-request-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.privacy-request-head h3{margin:6px 0;font-size:17px}.privacy-request-head p,.privacy-request-details{font-size:13px;line-height:1.7;overflow-wrap:anywhere}.privacy-request-head a{color:#5b3be0}.privacy-request-status{display:grid;gap:5px;font-size:11px;color:#716b7c}.privacy-request-status select{max-width:190px;min-height:40px;border:1px solid #d9d3e5;border-radius:8px;padding:8px;background:#fff;color:#211a35}.privacy-request-card>small{color:#716b7c}
+.contact-form{display:grid;gap:16px;max-width:760px}.contact-form .form-field textarea{width:100%;min-height:140px;resize:vertical;border:1px solid #d9d3e5;border-radius:10px;padding:12px;font:inherit}.contact-form .form-field select{width:100%;min-height:44px;border:1px solid #d9d3e5;border-radius:10px;padding:10px;background:#fff;font:inherit}.contact-success{padding:18px;border:1px solid #b5e2c4;background:#f0fbf3;border-radius:12px;color:#165d2d;line-height:1.7}.contact-error{color:#a11d36}
+.legal-content input:focus-visible,.legal-content select:focus-visible,.legal-content textarea:focus-visible,.contact-form input:focus-visible,.contact-form select:focus-visible,.contact-form textarea:focus-visible{outline:3px solid #7965d8;outline-offset:3px}
+@media(max-width:600px){.privacy-request-head{flex-direction:column}.privacy-request-status{width:100%}.privacy-request-status select{max-width:none;width:100%}.account-data-panel{padding:16px}}@media(prefers-reduced-motion:reduce){.skip-link{transition:none}}

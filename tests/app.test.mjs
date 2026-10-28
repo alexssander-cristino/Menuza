@@ -74,13 +74,19 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const legalPages = [
     ['/politica-de-privacidade.html', 'Política de privacidade'],
     ['/termos-de-uso.html', 'Termos de uso'],
-    ['/politica-de-cookies.html', 'Política de cookies']
+    ['/politica-de-cookies.html', 'Política de cookies'],
+    ['/contato.html', 'Contato e suporte'],
+    ['/acessibilidade.html', 'Declaração de acessibilidade']
   ];
   for (const [path, title] of legalPages) {
     const legalResponse = await fetch(base + path);
     assert.equal(legalResponse.status, 200, path + ' is served publicly');
     assert.match(await legalResponse.text(), new RegExp(title, 'i'));
   }
+  const privacySubmission = await fetch(base + '/api/privacy-requests', { method: 'POST', headers: { 'content-type': 'application/json', Origin: base }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', requestType: 'access', details: 'Solicito acesso aos dados associados ao meu cadastro.' }) });
+  assert.equal(privacySubmission.status, 201);
+  const privacyTicket = await privacySubmission.json();
+  assert.match(privacyTicket.id, /^pr_/);
   const sameOrigin = { Origin: base };
   const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
@@ -110,6 +116,13 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const loginResponse = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: 'test-pass' }) });
   assert.equal(loginResponse.status, 200);
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
+  const privacyListResponse = await fetch(base + '/api/admin/privacy-requests', { headers: { cookie } });
+  assert.equal(privacyListResponse.status, 200);
+  const privacyList = await privacyListResponse.json();
+  assert.equal(privacyList.requests.length, 1);
+  assert.equal(privacyList.requests[0].id, privacyTicket.id);
+  const privacyStatusResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'in_progress' }) });
+  assert.equal(privacyStatusResponse.status, 200);
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
   const dashboardResponse = await fetch(base + '/api/admin/dashboard', { headers: { cookie } });
   assert.equal(dashboardResponse.status, 200);
@@ -212,6 +225,14 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const recovered = await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } });
   assert.equal(recovered.status, 200);
   assert.equal((await recovered.json()).order.status, 'confirmed');
+  const wrongPasswordDelete = await fetch(base + '/api/customer/account', { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ password: 'wrong-password' }) });
+  assert.equal(wrongPasswordDelete.status, 401, 'account deletion requires password confirmation');
+  const accountDelete = await fetch(base + '/api/customer/account', { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ password: 'senha-teste-123' }) });
+  assert.equal(accountDelete.status, 200);
+  const deletedAccountCheck = await fetch(base + '/api/customer/me', { headers: { cookie: customerCookie } });
+  assert.equal(deletedAccountCheck.status, 401, 'deleted account session is no longer accepted');
+  const orderStillExists = await fetch(base + '/api/admin/orders', { headers: { cookie } });
+  assert.equal(orderStillExists.status, 200, 'order history remains available to the restaurant after account deletion');
 });
 
 

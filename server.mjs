@@ -30,6 +30,14 @@ db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
+db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
+ request_type TEXT NOT NULL CHECK(request_type IN ('access','correction','deletion','question','support')),
+ details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_progress','closed')),
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_privacy_requests_status_created ON privacy_requests(status, created_at)');
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
 try { db.exec('ALTER TABLE products ADD COLUMN available INTEGER NOT NULL DEFAULT 1'); }
 catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
@@ -211,11 +219,11 @@ function endpointRateLimit(request, path) {
   } else if (path.startsWith('/api/tracking/')) {
     rules.push({ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 });
   } else {
-    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients)\/[^/]+$/);
+    const dynamic = path.match(/^\/api\/admin\/(orders|products|ingredients|privacy-requests)\/[^/]+$/);
     const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
     const known = new Set([
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
-      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/admin/me','/api/admin/events',
+      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
       '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
       '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
       '/api/orders'
@@ -565,8 +573,49 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
       if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
+      if (request.method === 'DELETE' && path === '/api/customer/account') {
+        const session = requireCustomer(request), body = await bodyOf(request);
+        const customer = statement('SELECT * FROM customers WHERE id=?').get(session.customer.id);
+        if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password, customer)) return send(response, 401, { error: 'Senha incorreta. A conta não foi excluída.' });
+        db.exec('BEGIN');
+        try {
+          statement('UPDATE orders SET customer_id=NULL WHERE customer_id=?').run(customer.id);
+          statement('DELETE FROM customers WHERE id=?').run(customer.id);
+          db.exec('COMMIT');
+        } catch (error) { db.exec('ROLLBACK'); throw error; }
+        return send(response, 200, { ok: true, message: 'Conta excluída. Registros de pedidos que precisem ser mantidos por obrigações legais ou operacionais foram desvinculados da conta.' }, { 'Set-Cookie': customerSessionCookie('', 0) });
+      }
+      if (request.method === 'POST' && path === '/api/privacy-requests') {
+        const body = await bodyOf(request), email = normalizeEmail(body.email), name = cleanText(body.name, 100), phone = cleanText(body.phone, 30);
+        const details = cleanText(body.details, 2000), requestType = ['access','correction','deletion','question','support'].includes(body.requestType) ? body.requestType : '';
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
+        if (!name || name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !requestType || details.length < 10) return send(response, 422, { error: 'Informe nome, e-mail válido, tipo de solicitação e detalhes com pelo menos 10 caracteres.' });
+        const limit = consumeRateLimits([
+          { key: 'privacy-request:ip:' + clientIp(request), limit: 5, windowMs: 60 * 60 * 1000 },
+          { key: 'privacy-request:email:' + email, limit: 3, windowMs: 60 * 60 * 1000 }
+        ]);
+        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
+        const now = new Date().toISOString(), id = 'pr_' + randomBytes(12).toString('hex');
+        statement('INSERT INTO privacy_requests (id,name,email,phone,request_type,details,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id,name,email,phone,requestType,details,'open',now,now);
+        return send(response, 201, { ok: true, id, message: 'Solicitação registrada. Guarde este código para referência: ' + id });
+      }
+
       if (request.method === 'GET' && path === '/api/admin/me') { const admin = requireAdmin(request); return send(response, 200, { authenticated: true, restaurantId: admin.restaurantId }); }
       if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
+      if (request.method === 'GET' && path === '/api/admin/privacy-requests') {
+        requireAdmin(request);
+        const requests = statement("SELECT id,name,email,phone,request_type AS requestType,details,status,created_at AS createdAt,updated_at AS updatedAt FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200").all();
+        return send(response, 200, { requests });
+      }
+      if (request.method === 'PATCH' && path.startsWith('/api/admin/privacy-requests/')) {
+        requireAdmin(request);
+        const id = cleanText(path.slice('/api/admin/privacy-requests/'.length), 80), body = await bodyOf(request);
+        if (!['open','in_progress','closed'].includes(body.status)) return send(response, 422, { error: 'Status inválido.' });
+        const result = statement('UPDATE privacy_requests SET status=?,updated_at=? WHERE id=?').run(body.status,new Date().toISOString(),id);
+        if (!result.changes) return send(response, 404, { error: 'Solicitação não encontrada.' });
+        return send(response, 200, { ok: true });
+      }
+
       if (path.startsWith('/api/admin/')) requireAdmin(request);
       if (request.method === 'GET' && path === '/api/admin/coupons') return send(response, 200, { coupons: statement('SELECT * FROM coupons WHERE restaurant_id=? ORDER BY created_at DESC').all(RESTAURANT_ID).map(couponPublic) });
       if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
