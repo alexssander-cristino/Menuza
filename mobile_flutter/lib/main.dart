@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'server_address.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -155,8 +156,8 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString('menuza_server_url');
-      if (saved != null && _validUrl(_normalizeUrl(saved))) {
-        _serverUrl = _normalizeUrl(saved);
+      if (saved != null && isValidServerUrl(normalizeServerUrl(saved))) {
+        _serverUrl = normalizeServerUrl(saved);
       }
     } catch (_) {
       // Preferências indisponíveis não devem bloquear a inicialização.
@@ -166,27 +167,9 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
     await _loadServer(_serverUrl);
   }
 
-  bool _validUrl(String value) {
-    final uri = Uri.tryParse(value.trim());
-    return uri != null &&
-        (uri.scheme == 'http' || uri.scheme == 'https') &&
-        uri.host.isNotEmpty &&
-        uri.userInfo.isEmpty;
-  }
-
-  String _normalizeUrl(String value) {
-    var normalized = value.trim();
-    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
-      normalized = 'http://' + normalized;
-    }
-    final uri = Uri.tryParse(normalized);
-    if (uri == null) return normalized;
-    return uri.replace(path: uri.path == '/' ? '' : uri.path, fragment: '').toString();
-  }
-
   Future<void> _loadServer(String value) async {
-    final normalized = _normalizeUrl(value);
-    if (!_validUrl(normalized) || !mounted) return;
+    final normalized = normalizeServerUrl(value);
+    if (!isValidServerUrl(normalized) || !mounted) return;
     setState(() {
       _serverUrl = normalized;
       _loadError = null;
@@ -287,8 +270,8 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
     );
     _openingSettings = false;
     if (result == null || result.trim().isEmpty || !mounted) return;
-    final value = _normalizeUrl(result);
-    if (!_validUrl(value)) {
+    final value = normalizeServerUrl(result);
+    if (!isValidServerUrl(value)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Endereço inválido. Use uma URL HTTP ou HTTPS válida.')),
       );
