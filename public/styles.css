@@ -1304,3 +1304,9 @@ body{overscroll-behavior-y:contain}
 .order-elapsed.is-overdue::before{background:#d85b2b}
 @media(max-width:440px){.order-elapsed{font-size:10px;max-width:100%;white-space:normal}}
 @media(prefers-reduced-motion:reduce){.order-elapsed{transition:none}}
+
+
+/* Customer order timeline: real status-change timestamps, readable on narrow screens. */
+.timeline-time{display:block;margin-top:5px;color:#817b8d;font-size:8px;font-variant-numeric:tabular-nums;line-height:1.3;white-space:nowrap}
+.timeline-item.done .timeline-time,.timeline-item.current .timeline-time{color:#5d5279;font-weight:600}
+@media(max-width:440px){.status-timeline{grid-template-columns:repeat(5,minmax(0,1fr));gap:2px}.timeline-time{font-size:7px;white-space:normal}.timeline-item span{display:block;min-height:18px;line-height:1.25}}
