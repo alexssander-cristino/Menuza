@@ -491,6 +491,32 @@ async function openMenu(){
     if(content)renderCustomerAuth('Entre na sua conta para acessar o cardápio.');
   }
 }
+
+/* Spell UI-inspired tilt card interaction, implemented without React dependencies. */
+function bindSpellCardInteractions(){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  if(!window.matchMedia('(hover: hover) and (pointer: fine)').matches)return;
+  root.addEventListener('pointermove',event=>{
+    const card=event.target.closest('.product-card');
+    if(!card)return;
+    const rect=card.getBoundingClientRect();
+    const px=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));
+    const py=Math.max(0,Math.min(1,(event.clientY-rect.top)/rect.height));
+    card.style.setProperty('--mz-card-tilt-x',((px-.5)*7).toFixed(2)+'deg');
+    card.style.setProperty('--mz-card-tilt-y',((.5-py)*7).toFixed(2)+'deg');
+    card.style.setProperty('--mz-spot-x',(px*100).toFixed(1)+'%');
+    card.style.setProperty('--mz-spot-y',(py*100).toFixed(1)+'%');
+    card.dataset.tiltActive='true';
+  });
+  root.addEventListener('pointerout',event=>{
+    const card=event.target.closest('.product-card');
+    if(!card||card.contains(event.relatedTarget))return;
+    card.style.setProperty('--mz-card-tilt-x','0deg');
+    card.style.setProperty('--mz-card-tilt-y','0deg');
+    card.dataset.tiltActive='false';
+  });
+}
+
 async function start(){
   root.body.addEventListener('click',handleClick);
   root.addEventListener('change',async event=>{
@@ -498,7 +524,7 @@ async function start(){
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
   root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
-  syncFilters();updateCartCount();
+  syncFilters();updateCartCount();bindSpellCardInteractions();
   window.addEventListener('hashchange',onRoute);
   const initialHash=location.hash.replace(/^#/,'');
   if(initialHash==='admin'||initialHash.startsWith('pedido/')){onRoute();return}
