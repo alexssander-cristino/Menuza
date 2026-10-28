@@ -29,7 +29,7 @@ O painel fica em Área do restaurante. A senha inicial da demonstração é mesa
 - APP_SECRET: chave aleatória forte para assinar sessões. Em produção, ADMIN_PASSWORD e APP_SECRET são obrigatórias.
 - NODE_ENV=production: ativa o cookie Secure, HSTS e impede inicialização sem as duas credenciais.
 
-**Antes de publicar:** defina uma senha administrativa longa e exclusiva, gere APP_SECRET com um gerador criptograficamente seguro, use HTTPS e configure um volume persistente e backups protegidos para DATA_FILE. Nunca use a senha de demonstração em um serviço acessível pela internet. O login limita tentativas por endereço de origem; esse limite é mantido em memória e reinicia junto com o processo.
+**Antes de publicar:** defina uma senha administrativa longa e exclusiva, gere APP_SECRET com um gerador criptograficamente seguro, use HTTPS e configure um volume persistente e backups protegidos para DATA_FILE. Nunca use a senha de demonstração em um serviço acessível pela internet. Os limites de segurança são registrados no SQLite, com janelas deslizantes, limites por IP/identidade e limpeza automática de eventos antigos. Para múltiplas instâncias, use armazenamento compartilhado e um WAF/limite na borda; não exponha o servidor sem proteção.
 
 Exemplo PowerShell para desenvolvimento:
 
@@ -146,3 +146,13 @@ Set-ExecutionPolicy -Scope Process Bypass
 ```
 
 O script cria uma regra de entrada no Firewall do Windows para TCP 4173 e inicia o servidor. Mantenha essa janela aberta. No celular conectado ao mesmo Wi-Fi, abra o endereço IP exibido pelo script, por exemplo `http://192.168.0.105:4173`. Se nem o navegador do celular abrir esse endereço, confira se a rede Wi-Fi permite comunicação entre dispositivos e se o PC está usando perfil de rede Privado. O APK não hospeda o servidor: o computador precisa continuar ligado e com o servidor executando.
+
+
+## Segurança adicional
+
+- Respostas HTTP 429 exibem uma página dedicada no navegador e incluem `Retry-After`.
+- Limites deslizantes persistidos no SQLite para API, autenticação, cadastro, criação de pedidos e acompanhamento.
+- Honeypot nos formulários de login, cadastro e checkout para reduzir bots simples.
+- Cabeçalhos de segurança, limite de tamanho do corpo, validação de origem e timeouts HTTP.
+- `TRUST_PROXY=true` só deve ser ativado se o servidor estiver atrás de um proxy reverso confiável que sobrescreva `X-Forwarded-For`; caso contrário, o IP é obtido da conexão TCP.
+- O Menuza não possui atualmente endpoints de LLM/IA. Se forem adicionados, aplique autenticação e cotas próprias, limite de tokens/tamanho, timeout, validação de saída e nunca exponha chaves de provedores no navegador. `robots.txt` e `llms.txt` são diretivas informativas, não mecanismos de controle de acesso.
