@@ -1103,3 +1103,20 @@ body{overscroll-behavior-y:contain}
   .mz-back-to-top{transition:none!important;transform:none!important}
   html{scroll-behavior:auto!important}
 }
+
+
+/* Histórico local de pratos vistos: retorno rápido sem perder o ritmo da navegação. */
+.recent-products-section{padding-top:clamp(30px,5vw,64px);padding-bottom:clamp(34px,5vw,68px);animation:mz-recent-enter .35s ease both}
+.recent-products-section[hidden]{display:none!important}
+.recent-products-section .section-heading{align-items:flex-end}
+.recent-products-grid{margin-top:22px}
+.recent-clear-button{border:0;background:transparent;color:var(--mz-muted,#81798f);font:inherit;font-size:12px;cursor:pointer;padding:9px 0;white-space:nowrap}
+.recent-clear-button:hover{color:var(--mz-violet-700,#5b4397)}
+.recent-clear-button:focus-visible{outline:2px solid var(--mz-violet-600,#7965d8);outline-offset:4px;border-radius:5px}
+@keyframes mz-recent-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:520px){
+ .recent-products-section .section-heading{align-items:flex-start;gap:10px}
+ .recent-clear-button{font-size:11px}
+ .recent-products-grid{margin-top:16px}
+}
+@media(prefers-reduced-motion:reduce){.recent-products-section{animation:none}}
