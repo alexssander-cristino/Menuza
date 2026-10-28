@@ -206,6 +206,17 @@ function patchProduct(productId, patch) {
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
+function patchRestaurantSettings(patch) {
+  const current = statement('SELECT name,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+  if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
+  const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
+  const prepMinutes = patch.prepMinutes === undefined ? current.prepMinutes : Number(patch.prepMinutes);
+  if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
+  if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
+  statement('UPDATE restaurants SET name=?,prep_minutes=? WHERE id=?').run(name, prepMinutes, RESTAURANT_ID);
+  emit(RESTAURANT_ID, { type: 'settings-updated' });
+  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+}
 function patchIngredient(ingredientId, patch) {
   const current = statement('SELECT * FROM ingredients WHERE id=? AND restaurant_id=?').get(ingredientId, RESTAURANT_ID);
   if (!current) throw Object.assign(new Error('Ingrediente não encontrado.'), { status: 404 });
@@ -284,6 +295,12 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
+      if (request.method === 'GET' && path === '/api/admin/settings') {
+        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
+      }
+      if (request.method === 'PATCH' && path === '/api/admin/settings') {
+        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request)) });
+      }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/orders/')) {
         const id = path.slice('/api/admin/orders/'.length);
         const body = await bodyOf(request);
