@@ -19,7 +19,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '',
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null },
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login'
 };
 const root = document;
@@ -344,14 +344,26 @@ function statusSelect(order){
   const options={received:[['confirmed','Confirmar'],['cancelled','Cancelar']],confirmed:[['preparing','Iniciar preparo'],['cancelled','Cancelar']],preparing:[['ready','Marcar como pronto'],['cancelled','Cancelar']],ready:order.fulfillment==='delivery'?[['delivering','Saiu para entrega']]:[['completed','Concluir pedido']],delivering:[['completed','Concluir pedido']],completed:[],cancelled:[]}[order.status]||[];
   return options.length?'<select class="order-status-select" data-order-status="'+esc(order.id)+'"><option value="">'+labels[order.status]+'</option>'+options.map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('')+'</select>':'<span class="status-pill">'+labels[order.status]+'</span>';
 }
+function applyOrderFilters(){
+  const cards=[...root.querySelectorAll('[data-order-card]')];if(!cards.length)return;
+  const query=String(app.admin.orderQuery||'').trim().toLocaleLowerCase('pt-BR');let visible=0;
+  for(const card of cards){const show=(!query||card.dataset.search.includes(query))&&(app.admin.orderStatus==='all'||card.dataset.status===app.admin.orderStatus)&&(app.admin.orderFulfillment==='all'||card.dataset.fulfillment===app.admin.orderFulfillment);card.hidden=!show;if(show)visible++}
+  const count=root.getElementById('ordersVisibleCount');if(count)count.textContent=String(visible);
+  const empty=root.getElementById('ordersFilterEmpty');if(empty)empty.hidden=visible!==0;
+}
 function renderOrdersAdmin(metrics,orders){
   const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML='<div class="loading-line">Atualizando pedidos…</div>';return}
   const cards=orders.map(order=>{
     const lines=order.items.map(item=>'<div><strong>'+item.quantity+'× '+esc(item.name)+'</strong> · '+esc(item.snapshot.size.label)+'<br><span>'+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</span></div>').join('');
     const fulfillment=order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):order.fulfillment==='delivery'?'Entrega · '+esc(order.deliveryAddress):'Retirada';
-    return '<article class="order-card"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div></div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><b>'+money(order.totalCents)+'</b></div></article>';
+    const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...order.items.map(i=>i.name),...order.items.flatMap(i=>i.ingredients.map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+    return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div></div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><b>'+money(order.totalCents)+'</b></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos recentes</h2><small>Atualização ao vivo · '+orders.length+' pedidos</small></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
+  if(statusFilter)statusFilter.value=app.admin.orderStatus;
+  if(fulfillmentFilter)fulfillmentFilter.value=app.admin.orderFulfillment;
+  applyOrderFilters();
 }
 async function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando cardápio…</div>';
@@ -484,6 +496,7 @@ function handleClick(event){
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
   const action=target.dataset.action;
+  if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
   if(action==='start-builder'||action==='build'){openBuilder(target.dataset.product);return}
   if(action==='cart'){openCart();return}
   if(action==='close-builder'){app.builder=null;renderBuilder();return}
@@ -585,7 +598,10 @@ function bindGetLayersHeroMotion(){
 
 async function start(){
   root.body.addEventListener('click',handleClick);
+  root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
+    if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
+    if(event.target.id==='ordersFulfillmentFilter'){app.admin.orderFulfillment=event.target.value;applyOrderFilters();return}
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
