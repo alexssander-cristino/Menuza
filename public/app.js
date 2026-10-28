@@ -1,4 +1,4 @@
-import { FoodScene } from './food-scene.js?v=6';
+import { FoodScene } from './food-scene.js?v=7';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
 // Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
@@ -373,8 +373,12 @@ async function applyCheckoutCoupon(){
     if(version!==app.couponValidationVersion||input.value.toUpperCase().replace(/\s+/g,'')!==code)return;
     app.checkoutCoupon=null;message.textContent=e.message;message.className='coupon-message is-error';updateCheckoutTotals();
   }finally{
-    if(button){button.disabled=false;button.textContent='Aplicar'}
-    if(submitButton)submitButton.disabled=false;
+    // Uma validação antiga não pode reabilitar os controles enquanto uma nova
+    // validação do cupom ainda está em andamento.
+    if(version===app.couponValidationVersion){
+      if(button){button.disabled=false;button.textContent='Aplicar'}
+      if(submitButton)submitButton.disabled=false;
+    }
   }
 }
 function updateCheckoutTotals(){
