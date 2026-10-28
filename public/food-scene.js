@@ -161,7 +161,7 @@ export class FoodScene {
     this.reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const small = Math.min(screen.width || 1024, screen.height || 768) < 700, lowCores = (navigator.hardwareConcurrency || 8) <= 4;
     this.detail = options.detail || (small || lowCores ? .72 : 1);
-    this.maxDpr = small ? 1.75 : 2; this.renderScale = 1; this.quality = small ? 0 : 1;
+    this.maxDpr = small ? 1.3 : 2; this.renderScale = 1; this.quality = small ? 0 : 1;
     // câmera / controles
     this.yaw = this.yawT = -.5; this.pitch = this.pitchT = .3; this.zoom = this.zoomT = 1; this.vYaw = 0; this.vPitch = 0;
     this.defYaw = -.5; this.defPitch = .3; this.dragging = false; this.pointers = new Map(); this.lastInteract = -1e9;
@@ -190,7 +190,7 @@ export class FoodScene {
     const src = shaderSources(this.webgl2);
     this.program = this.makeProgram(src.vs, src.fs);
     this.u = this.locations(this.program, ['uProj', 'uView', 'uModel', 'uCam', 'uKey', 'uFill', 'uRim', 'uLightVP', 'uShadowOn', 'uTexel', 'uQuality', 'uExposure', 'uMode', 'uBlob', 'uShadow']);
-    this.shadowSize = this.webgl2 ? (Math.min(screen.width || 1024, screen.height || 768) < 700 ? 1024 : 2048) : 0;
+    this.shadowSize = this.webgl2 ? (Math.min(screen.width || 1024, screen.height || 768) < 700 ? 768 : 2048) : 0;
     this.shadows = false;
     if (this.webgl2) {
       this.depthProgram = this.makeProgram(src.vsDepth, src.fsDepth);
