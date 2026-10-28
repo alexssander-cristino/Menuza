@@ -504,3 +504,48 @@ body.builder-open { overflow: hidden; overscroll-behavior: none; }
 
 /* Honeypot anti-bot: fora da área visível e fora da navegação por teclado. */
 .hp-field{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
+
+
+/* Motion + spotlight details inspired by modern component galleries like 21st.dev */
+.hero{position:relative;isolation:isolate}
+.hero:before{content:"";position:absolute;z-index:-1;pointer-events:none;width:58%;height:72%;right:-7%;top:7%;border-radius:50%;background:radial-gradient(ellipse at 35% 35%,rgba(173,151,255,.28),rgba(219,209,255,.13) 38%,transparent 72%);filter:blur(24px);animation:mz-aurora-drift 12s ease-in-out infinite alternate}
+.hero-copy .eyebrow{animation:mz-fade-up .65s .04s both}
+.hero h1{animation:mz-fade-up .75s .1s both}
+.hero-copy>p{animation:mz-fade-up .75s .18s both}
+.hero-actions{animation:mz-fade-up .75s .25s both}
+.hero-steps{animation:mz-fade-up .75s .32s both}
+.hero-art-wrap:after{content:"";position:absolute;z-index:-1;inset:12% 8%;border-radius:50%;background:radial-gradient(ellipse,rgba(123,91,232,.13),rgba(255,255,255,0) 68%);filter:blur(18px);pointer-events:none}
+.button{position:relative;isolation:isolate;overflow:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s,border-color .28s,background .28s}
+.button-dark:after{content:"";position:absolute;top:-60%;left:-45%;width:32%;height:220%;transform:rotate(24deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.27),transparent);transition:left .65s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.button-dark:hover:after{left:125%}
+.button-dark:hover{transform:translateY(-3px) scale(1.015)}
+.button-outline:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(35,25,70,.08)}
+.desktop-nav a{position:relative}
+.desktop-nav a:after{content:"";position:absolute;left:0;right:100%;bottom:-7px;height:2px;border-radius:2px;background:var(--mz-violet-500);transition:right .25s ease}
+.desktop-nav a:hover:after,.desktop-nav a:focus-visible:after{right:0}
+.product-card{isolation:isolate}
+.product-card:before{content:"";position:absolute;inset:0;z-index:-1;opacity:0;background:radial-gradient(320px circle at 85% 0%,rgba(157,132,255,.16),transparent 56%);transition:opacity .3s;pointer-events:none}
+.product-card:hover:before,.product-card:focus-within:before{opacity:1}
+.product-card:hover{transform:translateY(-7px) scale(1.008);box-shadow:0 20px 46px rgba(42,29,83,.12);border-color:rgba(109,76,245,.34)}
+.product-image{border-radius:calc(var(--mz-radius-lg, 16px) - 5px)}
+.product-label{backdrop-filter:blur(12px);box-shadow:0 3px 12px rgba(30,20,55,.06)}
+.category-chip,.filter-toggle,.add-button,.cart-button{transition:transform .22s ease,background .22s ease,color .22s ease,border-color .22s ease,box-shadow .22s ease}
+.category-chip:hover{transform:translateY(-2px)}
+.category-chip.active{box-shadow:0 5px 14px rgba(36,25,65,.15)}
+.add-button:hover{transform:translateX(2px)}
+.search-box:focus-within{border-color:var(--mz-violet-500);box-shadow:0 0 0 4px rgba(109,76,245,.1);background:#fff}
+.craft-copy-card{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.craft-art:hover .craft-copy-card{transform:translateY(-5px) rotate(-2deg);box-shadow:0 18px 42px rgba(35,25,70,.13)}
+.site-header{backdrop-filter:blur(18px)}
+@keyframes mz-fade-up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mz-aurora-drift{0%{transform:translate3d(0,0,0) scale(1);opacity:.7}100%{transform:translate3d(-12px,15px,0) scale(1.12);opacity:1}}
+@media(max-width:700px){
+ .hero:before{width:100%;height:42%;right:-12%;top:31%;filter:blur(18px)}
+ .hero-art-wrap:after{inset:15% 2%}
+ .product-card:hover{transform:translateY(-3px)}
+}
+@media(prefers-reduced-motion:reduce){
+ .hero:before,.hero-copy .eyebrow,.hero h1,.hero-copy>p,.hero-actions,.hero-steps{animation:none!important}
+ .button,.button:after,.desktop-nav a:after,.product-card,.product-card:before,.category-chip,.filter-toggle,.add-button,.cart-button,.craft-copy-card{transition:none!important}
+ .button-dark:after{display:none}
+}
