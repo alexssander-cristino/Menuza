@@ -199,8 +199,8 @@ function arStatusText(product = app.catalog?.products.find(item => item.id === a
   const modelUrl = String(product?.modelUrl || '');
   const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const nativeModelAvailable = (appleDevice && /\\.usdz($|[?#])/i.test(modelUrl)) ||
-    (/Android/i.test(navigator.userAgent) && /\\.glb($|[?#])/i.test(modelUrl));
+  const nativeModelAvailable = (appleDevice && /\.usdz($|[?#])/i.test(modelUrl)) ||
+    (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(modelUrl));
   if (nativeModelAvailable) return 'Este prato pode abrir no visualizador de RA do aparelho.';
   return 'RA por câmera não disponível neste navegador para este prato — você ainda pode usar a prévia 3D.';
 }
@@ -415,13 +415,13 @@ async function launchAR(productId) {
     const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-    if (/Android/i.test(navigator.userAgent) && /\\.glb($|[?#])/i.test(url.href)) {
+    if (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(url.href)) {
       const intent = 'intent://arvr.google.com/scene-viewer/1.0?file=' + encodeURIComponent(url.href) + '&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end;';
       location.href = intent;
       return;
     }
 
-    if (appleDevice && /\\.usdz($|[?#])/i.test(url.href)) {
+    if (appleDevice && /\.usdz($|[?#])/i.test(url.href)) {
       const anchor = root.createElement('a');
       anchor.setAttribute('rel', 'ar');
       anchor.href = url.href;
