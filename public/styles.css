@@ -1063,3 +1063,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
 .checkout-grand-total{padding-top:10px;border-top:1px solid var(--mz-line);font-size:16px}
 .order-discount-note,.customer-order-discount{font-size:11px;color:#278456;margin-top:5px}
 @media(max-width:380px){.coupon-input-row{gap:6px}.coupon-input-row .button{padding-inline:10px}}
+
+
+/* Ferramentas rápidas para administrar cupons. */
+.coupon-search{display:flex;align-items:center;gap:9px;max-width:420px;margin:0 0 14px;padding:0 12px;border:1px solid var(--mz-line);border-radius:10px;background:var(--mz-surface)}
+.coupon-search span{font-size:19px;color:var(--mz-muted)}
+.coupon-search input{width:100%;min-width:0;min-height:40px;border:0;outline:0;background:transparent;color:inherit;font:inherit;font-size:12px}
+.coupon-row[hidden]{display:none!important}
+.coupon-row-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:440px){.coupon-row-actions{display:grid;grid-template-columns:1fr 1fr}.coupon-row-actions button:first-child{grid-column:1/-1}}
