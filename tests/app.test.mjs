@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +32,16 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.equal(priced.unitPriceCents, 5290);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 4 }] }), /1 a 3/);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
+});
+
+test('o cardápio público carrega sem exigir login de cliente e mantém as rotas de conta e restaurante', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();return openMenu()"), 'routing must keep restaurant and account pages while allowing public menu');
+  const menuStart = client.indexOf('async function openMenu(){');
+  const menuEnd = client.indexOf('\n}', menuStart);
+  assert.ok(menuStart >= 0 && menuEnd > menuStart, 'openMenu must exist');
+  assert.ok(!client.slice(menuStart, menuEnd).includes('if(!app.customer)'), 'public catalog must not require a customer login');
+  assert.ok(client.includes('await openMenu();\n}\nstart();'), 'initial page must load the public catalog independently of customer authentication');
 });
 
 test('o catálogo de demonstração tem tenants, categorias, produtos e recursos AR vazios', () => {
