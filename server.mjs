@@ -437,7 +437,7 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
-      if (request.method === 'GET' && path === '/api/catalog') return send(response, 200, catalogFor());
+      if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
       if (request.method === 'POST' && path === '/api/admin/login') {
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
