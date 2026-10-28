@@ -140,6 +140,19 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const changedCatalog = await (await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } })).json();
   assert.equal(changedCatalog.products.find(product => product.id === 'pizza-calabresa').baseCents, 5400);
   assert.equal(changedCatalog.ingredients.find(ingredient => ingredient.id === 'bacon').cents, 620);
+
+  // A changed cart must use a fresh idempotency key and create a fresh order,
+  // with the latest server-side product and ingredient prices.
+  const changedCartResponse = await fetch(base + '/api/orders', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie },
+    body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-test-key-after-cart-change' })
+  });
+  assert.equal(changedCartResponse.status, 201);
+  const changedCartOrder = (await changedCartResponse.json()).order;
+  assert.notEqual(changedCartOrder.id, created.id, 'a new idempotency key must create a distinct order');
+  assert.equal(changedCartOrder.totalCents, 7510, 'new order must use current server-side prices');
+
   const stableSnapshot = (await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json()).order;
   assert.equal(stableSnapshot.totalCents, 7070);
   assert.equal(stableSnapshot.items[0].ingredients.find(ingredient => ingredient.id === 'bacon').unitPriceCents, 590);
