@@ -151,7 +151,7 @@ O script cria uma regra de entrada no Firewall do Windows para TCP 4173 e inicia
 ## Segurança adicional
 
 - Respostas HTTP 429 exibem uma página dedicada no navegador e incluem `Retry-After`.
-- Limites deslizantes persistidos no SQLite para API, autenticação, cadastro, criação de pedidos e acompanhamento.
+- Limites deslizantes persistidos no SQLite para API, autenticação, cadastro, criação de pedidos e acompanhamento. Para pedidos, o limite padrão é 60 por IP a cada 10 minutos e 240 por IP por hora, para permitir estabelecimentos com cerca de 100 pedidos/hora e clientes compartilhando o mesmo Wi-Fi; ajuste após observar tráfego real.
 - Honeypot nos formulários de login, cadastro e checkout para reduzir bots simples.
 - Cabeçalhos de segurança, limite de tamanho do corpo, validação de origem e timeouts HTTP.
 - `TRUST_PROXY=true` só deve ser ativado se o servidor estiver atrás de um proxy reverso confiável que sobrescreva `X-Forwarded-For`; caso contrário, o IP é obtido da conexão TCP.
