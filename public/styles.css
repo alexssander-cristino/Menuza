@@ -1295,3 +1295,12 @@ body{overscroll-behavior-y:contain}
  .table-unit{transition:none}
  .table-object:active{transform:none}
 }
+
+
+/* Kitchen queue timer: shows elapsed time and flags orders beyond the restaurant's prep estimate. */
+.order-elapsed{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:4px 8px;border-radius:999px;background:#f0edf7;color:#5c4a83;font-size:10px;font-weight:700;line-height:1.35}
+.order-elapsed::before{content:"";width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:currentColor}
+.order-elapsed.is-overdue{background:#fff0e8;color:#a94418;box-shadow:inset 0 0 0 1px rgba(169,68,24,.12)}
+.order-elapsed.is-overdue::before{background:#d85b2b}
+@media(max-width:440px){.order-elapsed{font-size:10px;max-width:100%;white-space:normal}}
+@media(prefers-reduced-motion:reduce){.order-elapsed{transition:none}}
