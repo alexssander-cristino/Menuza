@@ -33,7 +33,7 @@ function setCart() {
   updateCartCount();
 }
 function normalizeSearch(value) {
-  return String(value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 }
 function normalizeCartForCatalog(value, catalog) {
   if (!Array.isArray(value) || !catalog) return [];
@@ -71,6 +71,18 @@ function normalizeCartForCatalog(value, catalog) {
 const ORDER_TOKENS_KEY = 'menuza-customer-order-tokens';
 function savedOrderTokens() { try { const value = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '[]'); return Array.isArray(value) ? [...new Set(value.filter(token => typeof token === 'string' && /^[A-Za-z0-9_-]{32,80}$/.test(token)))].slice(0, 30) : []; } catch { return []; } }
 function rememberOrderToken(token) { if (!token || typeof token !== 'string') return; try { localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify([token, ...savedOrderTokens().filter(item => item !== token)].slice(0, 30))); } catch {} }
+async function shareMenu(productId=null){
+  const product=productId?app.catalog?.products.find(item=>item.id===productId):null;
+  if(productId&&!product){toast('Não encontrei esse prato no cardápio.');return}
+  const url=location.origin+location.pathname+'#menu';
+  const title=product?'Menuza · '+product.name:'Menuza · Cardápio interativo';
+  const text=product?'Confira '+product.name+' no nosso cardápio interativo.':'Confira nosso cardápio interativo no Menuza.';
+  try{
+    if(navigator.share){await navigator.share({title,text,url});return}
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);toast('Link do '+(product?'prato':'cardápio')+' copiado.');return}
+    const field=document.createElement('textarea');field.value=url;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();const copied=document.execCommand('copy');field.remove();if(!copied)throw new Error('copy-failed');toast('Link do '+(product?'prato':'cardápio')+' copiado.');
+  }catch(error){if(error?.name==='AbortError')return;toast('Não foi possível compartilhar. Copie o endereço do navegador.')}
+}
 function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
@@ -111,7 +123,7 @@ function productSvg(product, ingredients, opts = {}) {
 function cardMarkup(product) {
   const category = app.catalog.categories.find(c => c.id === product.categoryId)?.name || 'Especialidade';
   const favorite = app.favorites.includes(product.id);
-  return '<article class="product-card" data-product-card="'+esc(product.id)+'"><div class="product-image">'+productSvg(product,defaultIngredients(product,app.catalog))+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span><button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+(favorite?'♥':'♡')+'</button></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3><span class="product-price">'+money(product.baseCents)+'</span></div><p>'+esc(product.description)+'</p><div class="card-bottom"><span class="prep-time"><span>◷</span> '+Number(product.prepMinutes||25)+' min</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'">Personalizar <span>↗</span></button></div></div></article>';
+  return '<article class="product-card" data-product-card="'+esc(product.id)+'"><div class="product-image">'+productSvg(product,defaultIngredients(product,app.catalog))+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span><button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+(favorite?'♥':'♡')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar prato"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3><span class="product-price">'+money(product.baseCents)+'</span></div><p>'+esc(product.description)+'</p><div class="card-bottom"><span class="prep-time"><span>◷</span> '+Number(product.prepMinutes||25)+' min</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'">Personalizar <span>↗</span></button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -710,7 +722,7 @@ function handleClick(event){
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
   const action=target.dataset.action;
-  if(action==='export-orders'){exportVisibleOrders();return}
+  if(action==='share-menu'){shareMenu();return}\n  if(action==='share-product'){shareMenu(target.dataset.product);return}\n  if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='export-coupons'){exportCouponsCsv();return}
   if(action==='copy-coupon'){copyCouponCode(target.dataset.code);return}
   if(action==='apply-coupon'){applyCheckoutCoupon();return}
