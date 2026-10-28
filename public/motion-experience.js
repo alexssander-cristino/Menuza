@@ -34,7 +34,7 @@
     const T=await load('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js');if(!T?.WebGLRenderer)return;
     let renderer;
     try {
-      const canvas=document.createElement('canvas');canvas.className='hero-three-canvas';canvas.setAttribute('aria-hidden','true');
+      const canvas=document.createElement('canvas');canvas.className='hero-three-canvas';canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;opacity:.9';canvas.setAttribute('aria-hidden','true');
       renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:false,powerPreference:'low-power'});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.35));renderer.setClearColor(0,0);host.prepend(canvas);
       const scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1,.1,30);camera.position.z=6.4;scene.add(new T.AmbientLight(0xffffff,2));
       const light=new T.DirectionalLight(0xffffff,2.2);light.position.set(-3,4,5);scene.add(light);const group=new T.Group();scene.add(group);
