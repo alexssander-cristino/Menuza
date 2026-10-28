@@ -189,7 +189,11 @@ function endpointRateLimit(request, path) {
   const ip = clientIp(request);
   const rules = [{ key: 'api-global:' + ip, limit: 240, windowMs: 60 * 1000 }];
   if (path === '/api/orders' && request.method === 'POST') {
-    rules.push({ key: 'orders:' + ip, limit: 8, windowMs: 10 * 60 * 1000 });
+    // Clientes no mesmo Wi-Fi compartilham IP público. O limite permite picos reais de restaurante.
+    rules.push(
+      { key: 'orders:10m:' + ip, limit: 60, windowMs: 10 * 60 * 1000 },
+      { key: 'orders:hour:' + ip, limit: 240, windowMs: 60 * 60 * 1000 }
+    );
   } else if (path.startsWith('/api/tracking/')) {
     rules.push({ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 });
   } else {
