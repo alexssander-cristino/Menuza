@@ -500,10 +500,31 @@ export class FoodScene {
   }
 
   // ---------- AR (WebXR) ----------
-  async supportsAR() { try { return Boolean(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { return false; } }
+  async supportsAR() {
+    if (!globalThis.isSecureContext || !navigator.xr || !this.gl) return false;
+    if (typeof this.gl.makeXRCompatible !== 'function') return false;
+    try { return await navigator.xr.isSessionSupported('immersive-ar'); }
+    catch { return false; }
+  }
   async enterAR() {
-    if (!navigator.xr) throw new Error('Este navegador não oferece WebXR. Use a prévia 3D interativa.');
-    const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: this.hud } });
+    if (!globalThis.isSecureContext) throw new Error('A realidade aumentada exige HTTPS. Abra o Menuza pelo endereço seguro do site.');
+    if (!navigator.xr) throw new Error('Este navegador não oferece WebXR. Vou tentar a alternativa de RA do aparelho.');
+    if (!this.gl || typeof this.gl.makeXRCompatible !== 'function') throw new Error('O navegador não oferece os recursos gráficos necessários para RA.');
+    let session;
+    try {
+      session = await navigator.xr.requestSession('immersive-ar', {
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: this.hud }
+      });
+    } catch (error) {
+      const message = error?.name === 'NotSupportedError'
+        ? 'Este aparelho ou navegador não oferece RA com detecção de superfície.'
+        : error?.name === 'SecurityError'
+          ? 'O navegador bloqueou a RA. Confira se o site está aberto por HTTPS e permita o acesso à câmera.'
+          : 'Não foi possível iniciar a RA neste navegador.';
+      throw new Error(message);
+    }
     this.session = session; this.arPlaced = false;
     try {
       this.canvas.classList.add('ar-hidden-canvas'); this.hud?.classList.add('ar-active');
@@ -538,8 +559,17 @@ export class FoodScene {
     for (const v of pose.views) {
       const vp = layer.getViewport(v); gl.viewport(vp.x, vp.y, vp.width, vp.height);
       this.useScene(new Float32Array(v.projectionMatrix), new Float32Array(v.transform.inverse.matrix), [v.transform.position.x, v.transform.position.y, v.transform.position.z], mat4Identity(), false);
-      gl.uniform1i(this.u.uMode, 0);
-      for (const it of list) { const g = this.ensureGpu(it.p.entry); this.bindMesh(g); gl.uniformMatrix4fv(this.u.uModel, false, mat4Multiply(placement, partMatrix(0, it.scale, it.p.tx, it.p.y, it.p.tz))); gl.drawElements(gl.TRIANGLES, g.count, gl.UNSIGNED_INT, 0); }
+      // Não desenha o prato na origem da câmera enquanto ainda procura uma superfície.
+      // Isso evitava uma colocação falsa antes do primeiro resultado do hit-test.
+      if (this.reticle || this.arPlaced) {
+        gl.uniform1i(this.u.uMode, 0);
+        for (const it of list) {
+          const g = this.ensureGpu(it.p.entry);
+          this.bindMesh(g);
+          gl.uniformMatrix4fv(this.u.uModel, false, mat4Multiply(placement, partMatrix(0, it.scale, it.p.tx, it.p.y, it.p.tz)));
+          gl.drawElements(gl.TRIANGLES, g.count, gl.UNSIGNED_INT, 0);
+        }
+      }
     }
   }
   async endAR() {
