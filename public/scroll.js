@@ -94,3 +94,6 @@
     mutationObserver.observe(document.body, { childList: true, subtree: true });
   }
 })();
+
+// Optional animation libraries are isolated from catalog and checkout initialization.
+import('./motion-experience.js?v=1').catch(error => console.warn('[Menuza motion] optional layer unavailable', error));
