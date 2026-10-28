@@ -206,7 +206,11 @@ function arStatusText(product = app.catalog?.products.find(item => item.id === a
 }
 async function detectAR() {
   if (app.arSupported !== null) return;
-  try { app.arSupported = Boolean(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { app.arSupported = false; }
+  try {
+    app.arSupported = app.scene
+      ? await app.scene.supportsAR()
+      : Boolean(globalThis.isSecureContext && navigator.xr && await navigator.xr.isSessionSupported('immersive-ar'));
+  } catch { app.arSupported = false; }
   const node = root.getElementById('arStatus');
   if (node) node.textContent = arStatusText();
 }
