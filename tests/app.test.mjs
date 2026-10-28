@@ -154,6 +154,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const dashboardMetrics = await dashboardResponse.json();
   assert.ok(dashboardMetrics.ordersToday >= 1, 'dashboard counts orders created today');
   assert.ok(dashboardMetrics.averageTicketCents > 0, 'dashboard calculates the average ticket excluding cancelled orders');
+  assert.ok(Number.isInteger(dashboardMetrics.prepMinutes) && dashboardMetrics.prepMinutes > 0, 'dashboard exposes the configured preparation estimate for kitchen queue timers');
   const tableListResponse = await fetch(base + '/api/admin/tables', { headers: { cookie } });
   assert.equal(tableListResponse.status, 200);
   const tableList = await tableListResponse.json();
