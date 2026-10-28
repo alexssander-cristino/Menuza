@@ -16,8 +16,8 @@ if (!Number.isInteger(keep) || keep < 1 || keep > 365) {
 if (!existsSync(sourcePath)) {
   throw new Error('Banco não encontrado em ' + sourcePath + '. Inicie o Menuza ou informe DATA_FILE.');
 }
-if (resolve(sourcePath) === resolve(backupDir) || resolve(backupDir).startsWith(resolve(sourcePath) + '/')) {
-  throw new Error('BACKUP_DIR não pode ser o próprio arquivo do banco nem um caminho dentro dele.');
+if (sourcePath.startsWith(resolve(backupDir) + '/')) {
+  throw new Error('O banco de origem não pode ficar dentro de BACKUP_DIR, pois a retenção poderia removê-lo.');
 }
 
 await mkdir(backupDir, { recursive: true });
