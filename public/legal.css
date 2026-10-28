@@ -53,3 +53,13 @@
 .checkout-legal-consent input{flex:0 0 auto;width:16px;height:16px;margin:2px 0 0;accent-color:#5b3be0}
 .checkout-legal-consent a{color:#5b3be0;text-underline-offset:2px;font-weight:700}
 .checkout-legal-consent:focus-within{outline:2px solid #8d79ff;outline-offset:4px;border-radius:4px}
+
+
+/* Legal links on authentication forms and privacy notice */
+.privacy-notice-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:9px}
+.privacy-notice-links a{color:#5b3be0;font-size:12px;font-weight:700;text-underline-offset:3px}
+.customer-legal-consent{margin:16px 0}
+.customer-auth-privacy a,.admin-legal-links a{color:#5b3be0;text-underline-offset:3px;font-weight:650}
+.admin-legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:18px 0 0;font-size:11px}
+.customer-auth-privacy{line-height:1.8}
+@media(max-width:420px){.privacy-notice-links{gap:8px}}
