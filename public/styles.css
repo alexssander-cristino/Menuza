@@ -850,3 +850,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
 @media(prefers-reduced-motion:reduce){
  .settings-form input{transition:none}
 }
+
+
+/* Order dashboard search and filters. */
+.orders-filter-bar{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(130px,.7fr) minmax(120px,.6fr) auto;gap:10px;align-items:end;padding:0 0 16px}
+.orders-search{display:flex;align-items:center;gap:10px;min-width:0;min-height:44px;padding:0 13px;border:1px solid var(--mz-line);border-radius:12px;background:var(--mz-surface)}
+.orders-search>span{font-size:22px;color:var(--mz-muted)}
+.orders-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--mz-ink);font:inherit;font-size:13px}
+.orders-search input::placeholder{color:var(--mz-muted)}
+.orders-filter-field{display:grid;gap:5px;min-width:0}
+.orders-filter-field>span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mz-muted)}
+.orders-filter-field select{width:100%;min-height:44px;padding:0 10px;border:1px solid var(--mz-line);border-radius:12px;background:var(--mz-surface);color:var(--mz-ink);font:inherit;font-size:12px}
+.orders-filter-bar .button{white-space:nowrap;min-height:44px}
+.order-card[hidden],.orders-filter-empty[hidden]{display:none!important}
+@media(max-width:760px){.orders-filter-bar{grid-template-columns:1fr 1fr}.orders-search{grid-column:1/-1}.orders-filter-bar .button{grid-column:1/-1;width:100%}}
+@media(max-width:380px){.orders-filter-bar{grid-template-columns:1fr}.orders-search{grid-column:auto}.orders-filter-bar .button{grid-column:auto}}
