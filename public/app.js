@@ -395,6 +395,35 @@ function applyOrderFilters(){
   const count=root.getElementById('ordersVisibleCount');if(count)count.textContent=String(visible);
   const empty=root.getElementById('ordersFilterEmpty');if(empty)empty.hidden=visible!==0;
 }
+function csvCell(value){
+  let text=String(value??'');
+  if(/^[=+@\\-\\t\\r]/.test(text))text="'"+text;
+  return '"'+text.replace(/"/g,'""')+'"';
+}
+function exportVisibleOrders(){
+  const orders=app.admin.orders||[];
+  const query=String(app.admin.orderQuery||'').trim().toLocaleLowerCase('pt-BR');
+  const rows=orders.filter(order=>{
+    const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...(order.items||[]).map(i=>i.name),...(order.items||[]).flatMap(i=>(i.ingredients||[]).map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+    return (!query||searchable.includes(query))&&(app.admin.orderStatus==='all'||order.status===app.admin.orderStatus)&&(app.admin.orderFulfillment==='all'||order.fulfillment===app.admin.orderFulfillment);
+  });
+  if(!rows.length)return toast('Não há pedidos para exportar com os filtros atuais.');
+  const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
+  const fulfillmentLabels={delivery:'Entrega',table:'Mesa',pickup:'Retirada'};
+  const header=['Pedido','Data','Cliente','Telefone','Tipo','Mesa','Endereço','Status','Itens','Observações','Total (R$)'];
+  const csv=[header,...rows.map(order=>[
+    order.id,order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR'):'',order.customerName,order.phone,
+    fulfillmentLabels[order.fulfillment]||order.fulfillment,order.tableLabel||'',order.deliveryAddress||'',
+    statusLabels[order.status]||order.status,
+    (order.items||[]).map(item=>item.quantity+'x '+item.name+(item.ingredients?.length?' ('+item.ingredients.map(i=>i.name).join(', ')+')':'')).join(' | '),
+    order.note||'',(Number(order.totalCents||0)/100).toFixed(2).replace('.',',')
+  ])].map(row=>row.map(csvCell).join(';')).join('\\r\\n');
+  const blob=new Blob(['\\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='menuza-pedidos-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  toast(rows.length+' pedido(s) exportado(s).');
+}
 function renderOrdersAdmin(metrics,orders){
   const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML='<div class="loading-line">Atualizando pedidos…</div>';return}
   const cards=orders.map(order=>{
@@ -403,7 +432,7 @@ function renderOrdersAdmin(metrics,orders){
     const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...order.items.map(i=>i.name),...order.items.flatMap(i=>i.ingredients.map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
     return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div></div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><b>'+money(order.totalCents)+'</b></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
   const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
   if(statusFilter)statusFilter.value=app.admin.orderStatus;
   if(fulfillmentFilter)fulfillmentFilter.value=app.admin.orderFulfillment;
@@ -561,7 +590,7 @@ function handleClick(event){
   }
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
-  const action=target.dataset.action;
+  const action=target.dataset.action;\n  if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
   if(action==='toggle-favorite'){
     const id=target.dataset.product;
