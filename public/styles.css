@@ -616,3 +616,55 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
   .hero-art svg,.product-card h3,.search-box,.customer-auth-form .button,.admin-login .button{transition:none}
   .hero-art-wrap:hover .hero-art svg,.customer-auth-form .button:hover,.admin-login .button:hover{transform:none}
 }
+
+
+/* Spell UI adaptations for Menuza's vanilla JS interface: tilt spotlight, shimmer text and flow button */
+.product-card{
+  --mz-card-tilt-x:0deg;
+  --mz-card-tilt-y:0deg;
+  --mz-spot-x:50%;
+  --mz-spot-y:50%;
+  transform:perspective(1000px) rotateX(var(--mz-card-tilt-y)) rotateY(var(--mz-card-tilt-x));
+  transition:transform .22s var(--mz-ease-out),box-shadow .28s,border-color .28s;
+}
+.product-card:before{
+  background:radial-gradient(300px circle at var(--mz-spot-x) var(--mz-spot-y),rgba(157,132,255,.22),transparent 62%);
+}
+.product-card[data-tilt-active="true"]{
+  box-shadow:0 24px 52px rgba(42,29,83,.15);
+}
+.hero h1 em{
+  text-shadow:0 7px 30px rgba(109,76,245,.08);
+}
+.button-outline{
+  position:relative;
+  background:linear-gradient(var(--mz-bg),var(--mz-bg)) padding-box,
+    conic-gradient(from var(--mz-flow-angle,0deg),rgba(109,76,245,.18),rgba(177,140,255,.9),rgba(109,76,245,.18),rgba(109,76,245,.18)) border-box;
+  border:1px solid transparent;
+}
+.button-outline:hover{
+  box-shadow:0 10px 28px rgba(91,59,224,.12);
+}
+.add-button{position:relative;overflow:hidden;isolation:isolate}
+.add-button:after{
+  content:"";
+  position:absolute;inset:-40% auto -40% -60%;width:34%;
+  transform:rotate(22deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);
+  transition:left .5s var(--mz-ease-out);
+  pointer-events:none;z-index:-1;
+}
+.add-button:hover:after{left:130%}
+@media (hover:hover) and (pointer:fine){
+  .product-card[data-tilt-active="true"] .product-image{transform:translateZ(12px)}
+  .product-card[data-tilt-active="true"] .product-card-body{transform:translateZ(8px)}
+}
+.product-image,.product-card-body{transition:transform .24s var(--mz-ease-out)}
+@media(max-width:700px){
+  .product-card{transform:none!important}
+  .product-image,.product-card-body{transform:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .product-card,.product-image,.product-card-body,.add-button:after{transition:none!important}
+  .button-outline{background:var(--mz-bg);border:1px solid var(--mz-line)}
+}
