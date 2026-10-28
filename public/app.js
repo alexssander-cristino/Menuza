@@ -17,7 +17,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 })();
 
 const app = {
-  catalog: null, category: 'all', search: '', vegetarianOnly: false, sort: 'featured',
+  catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '',
   rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login'
@@ -110,7 +110,8 @@ function productSvg(product, ingredients, opts = {}) {
 }
 function cardMarkup(product) {
   const category = app.catalog.categories.find(c => c.id === product.categoryId)?.name || 'Especialidade';
-  return '<article class="product-card" data-product-card="'+esc(product.id)+'"><div class="product-image">'+productSvg(product,defaultIngredients(product,app.catalog))+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3><span class="product-price">'+money(product.baseCents)+'</span></div><p>'+esc(product.description)+'</p><div class="card-bottom"><span class="prep-time"><span>◷</span> '+Number(product.prepMinutes||25)+' min</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'">Personalizar <span>↗</span></button></div></div></article>';
+  const favorite = app.favorites.includes(product.id);
+  return '<article class="product-card" data-product-card="'+esc(product.id)+'"><div class="product-image">'+productSvg(product,defaultIngredients(product,app.catalog))+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span><button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+(favorite?'♥':'♡')+'</button></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3><span class="product-price">'+money(product.baseCents)+'</span></div><p>'+esc(product.description)+'</p><div class="card-bottom"><span class="prep-time"><span>◷</span> '+Number(product.prepMinutes||25)+' min</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'">Personalizar <span>↗</span></button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -118,7 +119,8 @@ function visibleProducts() {
     const query = normalizeSearch(app.search);
     const matchesSearch = !query || normalizeSearch(product.name+' '+product.description+' '+(product.categoryName||'')).includes(query);
     const vegetarian = product.type === 'pizza' || product.id === 'batatas';
-    return Number(product.active) !== 0 && matchesCategory && matchesSearch && (!app.vegetarianOnly || vegetarian);
+    const matchesFavorites = !app.favoritesOnly || app.favorites.includes(product.id);
+    return Number(product.active) !== 0 && matchesCategory && matchesSearch && (!app.vegetarianOnly || vegetarian) && matchesFavorites;
   });
   if (app.sort==='price') list=list.slice().sort((a,b)=>a.baseCents-b.baseCents);
   if (app.sort==='name') list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
@@ -132,7 +134,9 @@ function renderCatalog() {
   root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
   const products=visibleProducts();
   root.getElementById('menuGrid').innerHTML=products.length?products.map(cardMarkup).join(''):'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
-  root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis');
+  root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis')+(app.favoritesOnly?' nos favoritos':'');
+  const favoritesToggle=root.getElementById('favoritesFilter');
+  if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
 }
 function updateCartCount() { root.getElementById('cartCount').textContent=app.cart.reduce((sum,item)=>sum+item.quantity,0); }
 function selectedEntries(builder=app.builder) {
@@ -536,6 +540,13 @@ function handleClick(event){
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
   const action=target.dataset.action;
+  if(action==='toggle-favorite'){
+    const id=target.dataset.product;
+    if(!id||!app.catalog?.products.some(product=>product.id===id))return;
+    if(app.favorites.includes(id)){app.favorites=app.favorites.filter(item=>item!==id);toast('Removido dos favoritos.')}else{app.favorites=[...app.favorites.filter(item=>item!==id),id].slice(-200);toast('Adicionado aos favoritos.')}
+    try{localStorage.setItem('menuza-favorites',JSON.stringify(app.favorites))}catch{toast('Não foi possível salvar os favoritos neste navegador.')}
+    renderCatalog();return;
+  }
   if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
   if(action==='start-builder'||action==='build'){openBuilder(target.dataset.product);return}
   if(action==='cart'){openCart();return}
@@ -571,6 +582,7 @@ function syncFilters(){
   root.getElementById('searchInput').addEventListener('input',event=>{app.search=event.target.value;renderCatalog()});
   root.getElementById('sortSelect').addEventListener('change',event=>{app.sort=event.target.value;renderCatalog()});
   root.getElementById('vegetarianFilter').addEventListener('click',event=>{app.vegetarianOnly=!app.vegetarianOnly;event.currentTarget.setAttribute('aria-pressed',String(app.vegetarianOnly));renderCatalog()});
+  root.getElementById('favoritesFilter')?.addEventListener('click',()=>{app.favoritesOnly=!app.favoritesOnly;renderCatalog()});
   root.querySelector('[data-scroll="#menu"]').addEventListener('click',()=>root.getElementById('menu').scrollIntoView({behavior:'smooth'}));
   root.getElementById('searchInput').addEventListener('keydown',event=>{if(event.key==='Enter')root.getElementById('menu').scrollIntoView({behavior:'smooth'})});
 }
