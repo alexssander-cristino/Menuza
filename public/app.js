@@ -493,9 +493,9 @@ function renderAdminLogin(errorText=''){
   root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),website=formData.get('website');try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,website})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
+  const tabs=[['orders','Pedidos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
@@ -639,6 +639,30 @@ async function renderPrivacyRequestsAdmin(){
   target.querySelectorAll('[data-privacy-request-status]').forEach(select=>select.addEventListener('change',async()=>{select.disabled=true;try{await api('/api/admin/privacy-requests/'+encodeURIComponent(select.dataset.privacyRequestStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status da solicitação atualizado.')}catch(error){toast(error.message);select.disabled=false}}));
  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
+async function renderTablesAdmin(){
+  const target=root.getElementById('adminBody');
+  if(!target)return;
+  target.innerHTML='<div class="loading-line">Carregando salão 3D…</div>';
+  try{
+    const result=await api('/api/admin/tables'),tables=result.tables||[],counts=result.counts||{};
+    const labels={free:'Livre',occupied:'Ocupada',cleaning:'Precisa de limpeza'};
+    const icons={free:'✓',occupied:'●',cleaning:'✦'};
+    const cards=tables.map(table=>'<article class="table-unit status-'+esc(table.status)+'">'+
+      '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+'">'+
+      '<span class="table-chair chair-n"></span><span class="table-chair chair-e"></span><span class="table-chair chair-s"></span><span class="table-chair chair-w"></span>'+
+      '<span class="table-top"><span class="table-top-number">'+String(table.number).padStart(2,'0')+'</span><span class="table-top-status">'+icons[table.status]+'</span></span>'+
+      '<span class="table-leg table-leg-a"></span><span class="table-leg table-leg-b"></span></button>'+
+      '<div class="table-unit-meta"><strong>Mesa '+table.number+'</strong><span>'+table.seats+' lugares</span></div>'+
+      '<div class="table-status-label">'+labels[table.status]+'</div><div class="table-status-actions">'+
+      '<button type="button" data-table-status="free" data-table-id="'+esc(table.id)+'" '+(table.status==='free'?'aria-pressed="true"':'')+'>Livre</button>'+
+      '<button type="button" data-table-status="occupied" data-table-id="'+esc(table.id)+'" '+(table.status==='occupied'?'aria-pressed="true"':'')+'>Ocupada</button>'+
+      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div></article>').join('');
+    target.innerHTML='<section class="table-manager"><div class="table-manager-heading"><div><div class="eyebrow">MAPA DO SALÃO</div><h2>Gerenciamento de mesas</h2><p>Visualize o salão e atualize a situação de cada mesa.</p></div><div class="table-live"><span></span> Dados salvos no sistema</div></div>'+
+      '<div class="table-stats"><div class="table-stat table-stat-free"><span>Livres</span><b>'+(counts.free||0)+'</b></div><div class="table-stat table-stat-occupied"><span>Ocupadas</span><b>'+(counts.occupied||0)+'</b></div><div class="table-stat table-stat-cleaning"><span>Precisam de limpeza</span><b>'+(counts.cleaning||0)+'</b></div></div>'+
+      '<div class="table-map-shell"><div class="table-map-top"><span>VISÃO ISOMÉTRICA</span><span>'+tables.length+' mesas · clique nos status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-grid">'+cards+'</div></div></div>'+
+      '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section>';
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
+}
 async function renderSettingsAdmin(){
   const target=root.getElementById('adminBody');
   if(!target)return;
@@ -732,7 +756,7 @@ async function renderIngredientsAdmin(){
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
+  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
   clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
 }
 async function logoutAdmin(){
@@ -782,7 +806,7 @@ async function repeatCustomerOrder(orderId){
   }catch(error){toast(error.message||'Não foi possível repetir esse pedido.');}
 }
 function handleClick(event){
-  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab]');if(!target)return;
+  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.category){app.category=target.dataset.category;renderCatalog();return}
   if(target.dataset.size&&app.builder){app.builder.sizeKey=target.dataset.size;renderBuilder();return}
   if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
@@ -798,7 +822,9 @@ function handleClick(event){
   }
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
+  if(target.dataset.tableStatus){if(target.dataset.tableStatus==='select')return;const tableId=target.dataset.tableId,status=target.dataset.tableStatus;target.disabled=true;api('/api/admin/tables/'+encodeURIComponent(tableId),{method:'PATCH',body:JSON.stringify({status})}).then(()=>{toast('Status da mesa atualizado.');renderTablesAdmin()}).catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');target.disabled=false});return;}
   const action=target.dataset.action;
+  if(action==='refresh-tables'){renderTablesAdmin();return}
   if(action==='share-menu'){shareMenu();return}
   if(action==='share-product'){shareMenu(target.dataset.product);return}
   if(action==='export-orders'){exportVisibleOrders();return}
