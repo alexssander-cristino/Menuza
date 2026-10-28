@@ -22,7 +22,7 @@ const MAX_BODY = 64 * 1024;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 let lastRateCleanup = 0;
-const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
