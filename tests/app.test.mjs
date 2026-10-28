@@ -34,14 +34,13 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
 });
 
-test('o cardápio público carrega sem exigir login de cliente e mantém as rotas de conta e restaurante', async () => {
+test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.ok(client.includes("if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();return openMenu()"), 'routing must keep restaurant and account pages while allowing public menu');
-  const menuStart = client.indexOf('async function openMenu(){');
-  const menuEnd = client.indexOf('\n}', menuStart);
-  assert.ok(menuStart >= 0 && menuEnd > menuStart, 'openMenu must exist');
-  assert.ok(!client.slice(menuStart, menuEnd).includes('if(!app.customer)'), 'public catalog must not require a customer login');
-  assert.ok(client.includes('await openMenu();\n}\nstart();'), 'initial page must load the public catalog independently of customer authentication');
+  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
+  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}"), 'initial visits without a valid session must open the account login');
+  assert.ok(client.includes("if(hash==='admin')return showAdmin()"), 'restaurant login remains independently accessible');
+  assert.ok(client.includes("if(hash==='conta')return showCustomerAccount()"), 'customer login and account remain accessible');
+  assert.ok(client.includes("'/api/customer/me'"), 'session is validated by the server cookie, not a client-side flag');
 });
 
 test('o catálogo de demonstração tem tenants, categorias, produtos e recursos AR vazios', () => {
