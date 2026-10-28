@@ -629,7 +629,7 @@ async function toggleCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]');if(!row)return;
   try{await api('/api/admin/coupons/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({code:row.querySelector('b').textContent,discountType:row.dataset.type,discountValue:Number(row.dataset.value),minimumSubtotalCents:Number(row.dataset.minimum||0),startsAt:row.dataset.starts||null,expiresAt:row.dataset.expires||null,maxUses:row.dataset.maxUses?Number(row.dataset.maxUses):null,active:row.querySelector('.coupon-active-input').checked})});toast('Status do cupom atualizado.');renderCouponsAdmin()}catch(e){toast(e.message)}
 }
-async function renderPrivacyRequestsAdmin(){
+async async function renderPrivacyRequestsAdmin(){
  const target=root.getElementById('adminBody');if(!target)return;
  target.innerHTML='<div class="loading-line">Carregando solicitações…</div>';
  try{
