@@ -723,7 +723,8 @@ function handleClick(event){
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
   const action=target.dataset.action;
   if(action==='share-menu'){shareMenu();return}
-  if(action==='share-product'){shareMenu(target.dataset.product);return}\n  if(action==='export-orders'){exportVisibleOrders();return}
+  if(action==='share-product'){shareMenu(target.dataset.product);return}
+  if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='export-coupons'){exportCouponsCsv();return}
   if(action==='copy-coupon'){copyCouponCode(target.dataset.code);return}
   if(action==='apply-coupon'){applyCheckoutCoupon();return}
