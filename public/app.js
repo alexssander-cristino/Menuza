@@ -628,7 +628,16 @@ async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando adicionais…</div>';
   try{
     const catalog=await api('/api/admin/catalog');
-    target.innerHTML=['pizza','burger'].map(type=>'<section class="admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes de pizza':'Adicionais de hambúrguer')+'</h2><small>Preço por porção</small></div><div class="ingredient-admin-grid">'+catalog.ingredients.filter(i=>i.type===type).map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" step="0.01" aria-label="Preço adicional" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'</div></section>').join('');
+    target.innerHTML=['pizza','burger'].map(type=>{
+      const items=catalog.ingredients.filter(i=>i.type===type);
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes de pizza':'Adicionais de hambúrguer')+'</h2><small>'+items.length+' itens · preço por porção</small></div><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':'adicional')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':'adicionais')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+    }).join('');
+    target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
+      const type=input.dataset.ingredientSearch,query=normalizeSearch(input.value);
+      let visible=0;
+      target.querySelectorAll('[data-ingredient-admin]').forEach(row=>{if(row.querySelector('button')?.dataset.id&&catalog.ingredients.find(item=>item.id===row.dataset.ingredientAdmin)?.type!==type)return;const match=!query||row.dataset.name.includes(query);row.hidden=!match;if(match)visible++});
+      const empty=target.querySelector('[data-ingredient-empty="'+type+'"]');if(empty)empty.hidden=visible!==0;
+    }));
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
 function connectAdminEvents(){
@@ -652,8 +661,14 @@ async function saveProduct(id){
 }
 async function saveIngredient(id){
   const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');if(!row)return;
-  const inputs=row.querySelectorAll('input'),cents=Math.round(Number(inputs[0].value)*100),active=inputs[1].checked;
-  try{await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({cents,active})});toast('Adicional atualizado.')}catch(e){toast(e.message)}
+  const priceInput=row.querySelector('input[type="number"]'),activeInput=row.querySelector('input[type="checkbox"]'),button=row.querySelector('[data-action="save-ingredient"]');
+  const price=Number(String(priceInput.value).replace(',','.'));
+  if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
+  priceInput.removeAttribute('aria-invalid');
+  const cents=Math.round(price*100),active=activeInput.checked,original=button.textContent;
+  button.disabled=true;button.textContent='Salvando…';
+  try{await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({cents,active})});button.textContent='Salvo ✓';toast('Adicional atualizado.');setTimeout(()=>{if(button.isConnected){button.textContent=original;button.disabled=false}},1400)}
+  catch(e){button.textContent='Tentar novamente';button.disabled=false;toast(e.message)}
 }
 async function repeatCustomerOrder(orderId){
   const order=app.customerOrders.find(item=>item.id===orderId);
