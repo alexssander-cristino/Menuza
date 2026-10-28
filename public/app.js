@@ -17,7 +17,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 })();
 
 const app = {
-  catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), sort: 'featured',
+  catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
   rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login'
@@ -132,12 +132,30 @@ function renderCatalog() {
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
   root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
   root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
+  renderRecentProducts();
   const products=visibleProducts();
   root.getElementById('menuGrid').innerHTML=products.length?products.map(cardMarkup).join(''):'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
   root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis')+(app.favoritesOnly?' nos favoritos':'');
   const favoritesToggle=root.getElementById('favoritesFilter');
   if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
 }
+function renderRecentProducts(){
+  const section=root.getElementById('recentProductsSection');
+  const grid=root.getElementById('recentProductsGrid');
+  if(!section||!grid||!app.catalog)return;
+  const recent=app.recentProducts.map(id=>app.catalog.products.find(product=>product.id===id)).filter(product=>product&&Number(product.active)!==0);
+  section.hidden=recent.length===0;
+  grid.innerHTML=recent.map(cardMarkup).join('');
+  const clear=root.getElementById('clearRecentProducts');
+  if(clear)clear.hidden=recent.length===0;
+}
+function rememberRecentProduct(productId){
+  if(!app.catalog?.products.some(product=>product.id===productId))return;
+  app.recentProducts=[productId,...app.recentProducts.filter(id=>id!==productId)].slice(0,8);
+  try{localStorage.setItem('menuza-recent-products',JSON.stringify(app.recentProducts))}catch{}
+  renderRecentProducts();
+}
+
 function updateCartCount() { root.getElementById('cartCount').textContent=app.cart.reduce((sum,item)=>sum+item.quantity,0); }
 function selectedEntries(builder=app.builder) {
   if (!builder)return [];
@@ -158,6 +176,7 @@ function groupedIngredients(type) {
 }
 function openBuilder(productId,cartItem=null) {
   const product=app.catalog.products.find(p=>p.id===productId);if(!product)return;
+  rememberRecentProduct(productId);
   const initial=cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(product,app.catalog);
   app.builder={productId,ingredients:initial,sizeKey:cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',editId:cartItem?.cartId||null};
   app.rotate=0;app.zoom=1;renderBuilder();
@@ -683,6 +702,7 @@ function handleClick(event){
   if(action==='toggle-coupon'){toggleCoupon(target.dataset.id);return}
   if(action==='edit-coupon'){editCoupon(target.dataset.id);return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
+   if(action==='clear-recent-products'){app.recentProducts=[];try{localStorage.removeItem('menuza-recent-products')}catch{}renderRecentProducts();toast('Histórico de pratos limpo.');return}
   if(action==='toggle-favorite'){
     const id=target.dataset.product;
     if(!id||!app.catalog?.products.some(product=>product.id===id))return;
