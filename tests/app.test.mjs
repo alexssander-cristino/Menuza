@@ -71,7 +71,11 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(ready, true, 'server became ready: ' + lastError + ' exit=' + child.exitCode + ' url=' + base);
-  const catalogResponse = await fetch(base + '/api/catalog');
+  const sameOrigin = { Origin: base };
+  const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
+  assert.equal(registration.status, 201);
+  const customerCookie = registration.headers.get('set-cookie').split(';')[0];
+  const catalogResponse = await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } });
   const catalog = await catalogResponse.json();
   assert.equal(catalog.products.length, 6);
   assert.equal((await fetch(base + '/api/admin/orders')).status, 401);
@@ -85,42 +89,61 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
       unitPriceCents: 1
     }]
   };
-  const orderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(orderPayload) });
+  const orderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify(orderPayload) });
   assert.equal(orderResponse.status, 201);
   const created = (await orderResponse.json()).order;
   assert.equal(created.totalCents, 7070);
   assert.equal(created.items[0].ingredients.length, 4);
   assert.equal(created.items[0].snapshot.size.diameterCm, 35);
 
-  const loginResponse = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'test-pass' }) });
+  const loginResponse = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: 'test-pass' }) });
   assert.equal(loginResponse.status, 200);
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
+
+  const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 1, active: true }) });
+  assert.equal(couponResponse.status, 201);
+  const couponItems = orderPayload.items;
+  const couponValidation = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: ' SAVE 10 ', items: couponItems }) });
+  assert.equal(couponValidation.status, 200);
+  const validatedCoupon = await couponValidation.json();
+  assert.equal(validatedCoupon.code, 'SAVE10');
+  assert.equal(validatedCoupon.subtotalCents, 7070);
+  assert.equal(validatedCoupon.discountCents, 707);
+  const discountedOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-coupon-key-002', couponCode: 'SAVE10' }) });
+  assert.equal(discountedOrderResponse.status, 201);
+  const discountedOrder = (await discountedOrderResponse.json()).order;
+  assert.equal(discountedOrder.totalCents, 6363);
+  assert.equal(discountedOrder.discountCents, 707);
+  assert.equal(discountedOrder.couponCode, 'SAVE10');
+  const exhaustedCoupon = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
+  assert.equal(exhaustedCoupon.status, 422);
+  assert.match((await exhaustedCoupon.json()).error, /limite de utilizações/);
   assert.equal(adminOrders.status, 200);
   assert.equal((await adminOrders.json()).orders[0].items[0].ingredients[3].name, 'Bacon crocante');
-  const newProductResponse = await fetch(base + '/api/admin/products', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ name: 'Pão de alho da casa', categoryId: 'acompanhamentos', type: 'plate', baseCents: 2500, description: 'Alho assado e ervas.' }) });
+  const newProductResponse = await fetch(base + '/api/admin/products', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ name: 'Pão de alho da casa', categoryId: 'acompanhamentos', type: 'plate', baseCents: 2500, description: 'Alho assado e ervas.' }) });
   assert.equal(newProductResponse.status, 201);
   const newProduct = (await newProductResponse.json()).product;
   assert.equal(newProduct.name, 'Pão de alho da casa');
-  const priceUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ baseCents: 5400 }) });
+  const priceUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ baseCents: 5400 }) });
   assert.equal((await priceUpdate.json()).product.baseCents, 5400);
-  const toppingUpdate = await fetch(base + '/api/admin/ingredients/bacon', { method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ cents: 620 }) });
+  const toppingUpdate = await fetch(base + '/api/admin/ingredients/bacon', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ cents: 620 }) });
   assert.equal((await toppingUpdate.json()).ingredient.cents, 620);
   const changedCatalog = await (await fetch(base + '/api/catalog')).json();
   assert.equal(changedCatalog.products.find(product => product.id === 'pizza-calabresa').baseCents, 5400);
   assert.equal(changedCatalog.ingredients.find(ingredient => ingredient.id === 'bacon').cents, 620);
-  const stableSnapshot = (await (await fetch(base + '/api/tracking/' + created.trackingToken)).json()).order;
+  const stableSnapshot = (await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json()).order;
   assert.equal(stableSnapshot.totalCents, 7070);
   assert.equal(stableSnapshot.items[0].ingredients.find(ingredient => ingredient.id === 'bacon').unitPriceCents, 590);
 
-  const repeated = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...orderPayload, customerName: 'Alterado', items: orderPayload.items }) });
+  const repeated = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, customerName: 'Alterado', items: orderPayload.items }) });
   const repeatedBody = await repeated.json(); assert.equal(repeatedBody.order?.id, created.id, JSON.stringify(repeatedBody));
 
   const liveResponse = await fetch(base + '/api/admin/events', { headers: { cookie } });
   assert.equal(liveResponse.status, 200);
   const liveReader = liveResponse.body.getReader();
   await liveReader.read();
-  const updateResponse = await fetch(base + '/api/admin/orders/' + encodeURIComponent(created.id), { method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ status: 'confirmed' }) });
+  const updateResponse = await fetch(base + '/api/admin/orders/' + encodeURIComponent(created.id), { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'confirmed' }) });
   assert.equal((await updateResponse.json()).order.status, 'confirmed');
   const eventChunk = await liveReader.read();
   assert.match(new TextDecoder().decode(eventChunk.value), /order-updated/);
@@ -135,7 +158,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(restarted, true, 'server restarted with same database');
-  const recovered = await fetch(base + '/api/tracking/' + created.trackingToken);
+  const recovered = await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } });
   assert.equal(recovered.status, 200);
   assert.equal((await recovered.json()).order.status, 'confirmed');
 });
