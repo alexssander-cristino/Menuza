@@ -3,7 +3,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
+import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
 
@@ -28,6 +28,9 @@ await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
+db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
 
 function seedDatabase() {
@@ -59,9 +62,9 @@ function sign(payload) {
   const signature = createHmac('sha256', SECRET).update(body).digest('base64url');
   return body + '.' + signature;
 }
-function readSession(request) {
+function readSession(request, cookieName = 'mesa_session') {
   const cookie = request.headers.cookie || '';
-  const match = cookie.match(/(?:^|; )mesa_session=([^;]+)/);
+  const match = cookie.match(new RegExp('(?:^|; )' + cookieName + '=([^;]+)'));
   if (!match) return null;
   const [body, signature] = decodeURIComponent(match[1]).split('.');
   if (!body || !signature) return null;
@@ -76,8 +79,32 @@ function readSession(request) {
 }
 function requireAdmin(request) {
   const session = readSession(request);
-  if (!session || session.restaurantId !== RESTAURANT_ID) throw Object.assign(new Error('Entre no painel para continuar.'), { status: 401 });
+  if (!session || session.role !== 'admin' || session.restaurantId !== RESTAURANT_ID) throw Object.assign(new Error('Entre no painel para continuar.'), { status: 401 });
   return session;
+}
+function optionalCustomer(request) {
+  const session = readSession(request, 'menuza_customer_session');
+  if (!session || session.role !== 'customer' || !session.customerId) return null;
+  const customer = statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(session.customerId);
+  return customer ? { ...session, customer } : null;
+}
+function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
+function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
+function hashCustomerPassword(password, salt) { return scryptSync(password, salt, 64); }
+function verifyCustomerPassword(password, customer) { const expected = Buffer.from(customer.password_hash, 'hex'); const actual = hashCustomerPassword(password, customer.password_salt); return expected.length === actual.length && timingSafeEqual(expected, actual); }
+function createCustomer(payload) {
+  const name = cleanText(payload.name, 100), email = normalizeEmail(payload.email), phone = cleanText(payload.phone, 30), password = typeof payload.password === 'string' ? payload.password : '';
+  if (name.length < 2) throw Object.assign(new Error('Informe seu nome completo.'), { status: 422 });
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 422 });
+  if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
+  if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
+  const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
+  statement('INSERT INTO customers (id,name,email,phone,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?)').run(id,name,email,phone,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
+  return statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(id);
+}
+function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
+function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
+function listCustomerOrders(customerId) { return statement('SELECT id FROM orders WHERE customer_id=? AND restaurant_id=? ORDER BY created_at DESC LIMIT 100').all(customerId, RESTAURANT_ID).map(row => orderById(row.id));
 }
 function verifyPassword(candidate) {
   const a = createHmac('sha256', SECRET).update(String(candidate)).digest();
@@ -176,7 +203,7 @@ function addStream(restaurantId, response) {
   response.on('close', () => { clearInterval(heartbeat); set.delete(response); });
 }
 function cleanText(value, max = 240) { return String(value ?? '').trim().slice(0, max); }
-function createOrder(payload) {
+function createOrder(payload, customerId = null) {
   const customerName = cleanText(payload.customerName, 100);
   const phone = cleanText(payload.phone, 30);
   const fulfillment = payload.fulfillment;
@@ -210,8 +237,8 @@ function createOrder(payload) {
   try {
     const race = statement('SELECT id FROM orders WHERE restaurant_id=? AND idempotency_key=?').get(RESTAURANT_ID, idempotencyKey);
     if (race) { db.exec('ROLLBACK'); return orderById(race.id); }
-    statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now);
+    statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId);
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
     for (const item of pricedItems) {
       const snapshot = { productId: item.product.id, type: item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
@@ -328,13 +355,28 @@ const server = createServer(async (request, response) => {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
         clearLoginFailures(limit.key);
-        const token = sign({ restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
+        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
         return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
       }
       if (request.method === 'POST' && path === '/api/admin/logout') {
         requireAdmin(request);
         return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
       }
+      if (request.method === 'POST' && path === '/api/customer/register') {
+        const limit = loginRateLimit(request); if (!limit.allowed) return send(response,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(limit.retryAfter)});
+        const customer = createCustomer(await bodyOf(request)); clearLoginFailures(limit.key);
+        return send(response,201,{customer},{'Set-Cookie':customerSessionCookie(issueCustomerSession(customer))});
+      }
+      if (request.method === 'POST' && path === '/api/customer/login') {
+        const limit = loginRateLimit(request); if (!limit.allowed) return send(response,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(limit.retryAfter)});
+        const body = await bodyOf(request), email = normalizeEmail(body.email), customer = statement('SELECT * FROM customers WHERE email=?').get(email);
+        if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) { recordLoginFailure(limit.key); return send(response,401,{error:'E-mail ou senha inválidos.'}); }
+        clearLoginFailures(limit.key); const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
+        return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
+      }
+      if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
+      if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
+      if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'GET' && path === '/api/admin/me') { const admin = requireAdmin(request); return send(response, 200, { authenticated: true, restaurantId: admin.restaurantId }); }
       if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
       if (path.startsWith('/api/admin/')) requireAdmin(request);
@@ -362,13 +404,16 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
       }
       if (request.method === 'POST' && path === '/api/orders') {
-        const order = createOrder(await bodyOf(request));
+        const customerSession = optionalCustomer(request);
+        const order = createOrder(await bodyOf(request), customerSession?.customerId || null);
         return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
       }
       if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
         const token = path.slice('/api/tracking/'.length);
-        const row = statement('SELECT id FROM orders WHERE tracking_token=? AND restaurant_id=?').get(token, RESTAURANT_ID);
+        const row = statement('SELECT id,customer_id AS customerId FROM orders WHERE tracking_token=? AND restaurant_id=?').get(token, RESTAURANT_ID);
         if (!row) return send(response, 404, { error: 'Pedido não encontrado.' });
+        const customerSession = optionalCustomer(request);
+        if (row.customerId && (!customerSession || customerSession.customerId !== row.customerId)) return send(response, 404, { error: 'Pedido não encontrado.' });
         return send(response, 200, { order: orderById(row.id) });
       }
       return send(response, 404, { error: 'Rota da API não encontrada.' });
