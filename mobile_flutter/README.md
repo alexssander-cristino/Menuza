@@ -1,50 +1,54 @@
 # Menuza Mobile (Flutter)
 
-O aplicativo usa Flutter com uma WebView para abrir o sistema web original do Menuza. Assim, o cardápio, o construtor de pratos, a sacola, o checkout, o painel e a experiência 3D continuam usando a implementação web existente.
+O Menuza Mobile usa Flutter + WebView para manter o sistema web original, incluindo cardápio, construtor 3D, sacola, checkout e painel, sem duplicar essas funcionalidades em código nativo.
 
-## O que o app oferece
+## Melhorias incluídas
 
-- Tela de conexão clara quando o servidor está indisponível.
-- Botão de reconexão e indicador de carregamento.
-- Endereço do servidor editável e salvo no aparelho para os próximos usos.
-- Navegação de voltar do Android dentro do site.
-- JavaScript habilitado para manter as funções interativas do sistema web.
-- Ícone Android personalizável com uma imagem sua.
-- Build de APK pelo GitHub Actions.
+- Tela de abertura com identidade Menuza e animação discreta.
+- Indicador de carregamento e erros HTTP/de rede com opção de tentar novamente.
+- Endereço HTTP/HTTPS configurável e salvo no aparelho.
+- Alternância manual entre servidor local e servidor hospedado.
+- Navegação de voltar do Android e abertura externa de links de telefone, SMS, e-mail e WhatsApp.
+- Validação básica da URL antes de conectar.
+- Workflow automatizado que analisa o Dart, executa os testes e compila um APK para instalação.
 
-## Colocar a imagem do ícone
+## Servidor local (mesmo Wi-Fi)
 
-1. Escolha uma imagem quadrada em PNG, de preferência 1024 × 1024 pixels.
-2. Copie a imagem para **`mobile_flutter/assets/app_icon.png`**. Crie a pasta `assets` se ainda não existir.
-3. Envie as alterações ao GitHub.
-4. O workflow **Build Menuza Flutter APK** detecta a imagem, gera os ícones Android e monta o APK automaticamente.
+1. No computador, entre na pasta raiz do projeto e execute `npm start`.
+2. Descubra o IPv4 do computador com `ipconfig`.
+3. Conecte o computador e o celular à mesma rede Wi-Fi.
+4. No Menuza Mobile, use **Alterar endereço do servidor** e informe `http://IP-DO-PC:4173`, por exemplo `http://192.168.0.105:4173`.
+5. Se não conectar, confirme que o servidor está ativo e que o Firewall do Windows permite conexões de entrada na porta 4173.
 
-O arquivo deve se chamar exatamente `app_icon.png`. Deixe margem ao redor do símbolo, porque o Android pode recortar ícones adaptáveis em formatos diferentes. Use uma imagem que você tenha direito de usar.
+O IP pode mudar quando o roteador renova a conexão. Atualize o endereço no app se isso acontecer.
 
-## Testar no celular
+## Acesso pela internet
 
-1. No computador, execute `npm start` na raiz do repositório.
-2. Descubra o IPv4 atual do computador com `ipconfig`.
-3. Conecte celular e computador à mesma rede Wi-Fi.
-4. Instale o APK e abra o Menuza. Se o endereço padrão não funcionar, use **Alterar endereço do servidor** na tela de conexão.
+1. Hospede o servidor Node.js e o banco SQLite em um serviço que mantenha o processo e os dados persistentes.
+2. Configure domínio e HTTPS para o sistema hospedado.
+3. No app, informe a URL pública completa, por exemplo `https://menuza.seudominio.com`.
 
-Exemplo de endereço local: `http://192.168.0.105:4173`.
+**Importante:** configurar uma URL no aplicativo não publica o servidor automaticamente. O app não contém o backend nem o banco. O acesso remoto só funciona depois de hospedar o sistema e garantir armazenamento persistente para o SQLite; não use armazenamento efêmero para pedidos.
 
-**Importante:** o app móvel é o cliente; o servidor Node.js e o banco SQLite continuam no computador. Para funcionar fora da rede local ou quando o computador estiver desligado, será necessário hospedar o backend em um servidor acessível pela internet. O aplicativo não empacota o backend nem o banco.
+## Ícone do aplicativo
 
-## Gerar APK localmente
+Coloque um PNG quadrado seu em `mobile_flutter/assets/app_icon.png` (idealmente 1024 × 1024) e envie ao GitHub. O workflow gera o ícone Android automaticamente. Se esse arquivo não existir, será usado o ícone padrão do projeto Flutter.
+
+## Gerar e testar APK localmente
 
 Na pasta `mobile_flutter`, com Flutter SDK e Android SDK instalados:
 
 ```powershell
-flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza .
 flutter pub get
-if (Test-Path .\assets\app_icon.png) { dart run flutter_launcher_icons }
-flutter build apk --release
+flutter analyze
+flutter test
+flutter build apk --debug
 ```
 
-APK de release: `build/app/outputs/flutter-apk/app-release.apk`.
+APK de teste: `build/app/outputs/flutter-apk/app-debug.apk`.
 
-## Sobre a experiência 3D
+O GitHub Actions também executa análise, testes e build a cada alteração nos arquivos de `mobile_flutter`. Baixe o artefato `menuza-flutter-debug` na execução concluída em https://github.com/alexssander-cristino/Menuza/actions.
 
-O visualizador 3D existente é executado na WebView. O suporte a WebXR/realidade aumentada depende do Android, do aparelho e da versão da WebView; não pode ser garantido para todos os dispositivos.
+## Limites da WebView
+
+O app mantém as funcionalidades web existentes, mas câmera, seletor de arquivos, reprodução em tela cheia e realidade aumentada dependem da implementação web e do suporte do Android WebView. O build automatizado não substitui um teste físico de checkout, pedidos, câmera e visualizador 3D em um aparelho real.
