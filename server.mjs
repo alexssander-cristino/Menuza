@@ -19,9 +19,9 @@ const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
 const RESTAURANT_ID = 'rest-bela-mesa';
 const MAX_BODY = 64 * 1024;
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 5;
-const loginAttempts = new Map();
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+let lastRateCleanup = 0;
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 await mkdir(dirname(DATA_FILE), { recursive: true });
@@ -29,6 +29,8 @@ const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+db.exec(`CREATE TABLE IF NOT EXISTS security_rate_events (bucket_key TEXT NOT NULL, created_at INTEGER NOT NULL);`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_events_bucket_time ON security_rate_events(bucket_key, created_at)');
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
@@ -115,9 +117,11 @@ function securityHeaders() {
   return {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'no-referrer',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Cross-Origin-Resource-Policy': 'same-origin',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Origin-Agent-Cluster': '?1',
     ...(IS_PROD ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {})
   };
 }
@@ -125,25 +129,59 @@ function send(response, status, data, headers = {}) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), ...headers });
   response.end(JSON.stringify(data));
 }
-function loginRateLimit(request) {
-  const key = request.socket.remoteAddress || 'unknown';
+function clientIp(request) {
+  // Só confia no cabeçalho de proxy quando isso foi configurado explicitamente.
+  if (process.env.TRUST_PROXY === 'true') {
+    const forwarded = request.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.length <= 512) {
+      const first = forwarded.split(',')[0].trim();
+      if (first && /^[0-9a-fA-F:.]+$/.test(first)) return first;
+    }
+  }
+  return request.socket.remoteAddress || 'unknown';
+}
+function rateBucketKey(value) {
+  return createHmac('sha256', SECRET).update(String(value)).digest('hex');
+}
+function consumeRateLimits(rules) {
   const now = Date.now();
-  const current = loginAttempts.get(key);
-  if (!current || now - current.startedAt >= LOGIN_WINDOW_MS) {
-    loginAttempts.set(key, { startedAt: now, count: 0 });
-    return { allowed: true, key };
+  if (now - lastRateCleanup > RATE_CLEANUP_INTERVAL_MS) {
+    statement('DELETE FROM security_rate_events WHERE created_at < ?').run(now - 24 * 60 * 60 * 1000);
+    lastRateCleanup = now;
   }
-  if (current.count >= LOGIN_MAX_ATTEMPTS) {
-    return { allowed: false, retryAfter: Math.max(1, Math.ceil((LOGIN_WINDOW_MS - (now - current.startedAt)) / 1000)) };
+  const prepared = rules.map(rule => ({ key: rateBucketKey(rule.key), limit: rule.limit, windowMs: rule.windowMs }));
+  for (const rule of prepared) {
+    const row = statement('SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM security_rate_events WHERE bucket_key=? AND created_at>?')
+      .get(rule.key, now - rule.windowMs);
+    if (row.count >= rule.limit) {
+      return { allowed: false, retryAfter: Math.max(1, Math.ceil((row.oldest + rule.windowMs - now) / 1000)) };
+    }
   }
-  return { allowed: true, key };
+  const insert = statement('INSERT INTO security_rate_events (bucket_key, created_at) VALUES (?,?)');
+  for (const rule of prepared) insert.run(rule.key, now);
+  return { allowed: true };
 }
-function recordLoginFailure(key) {
-  const current = loginAttempts.get(key);
-  if (current) current.count += 1;
+function authRateLimit(request, scope, identity = '') {
+  const ip = clientIp(request);
+  const rules = [{ key: scope + ':ip:' + ip, limit: 15, windowMs: RATE_WINDOW_MS }];
+  if (identity) rules.push({ key: scope + ':identity:' + identity, limit: 8, windowMs: RATE_WINDOW_MS });
+  return consumeRateLimits(rules);
 }
-function clearLoginFailures(key) {
-  loginAttempts.delete(key);
+function endpointRateLimit(request, path) {
+  const ip = clientIp(request);
+  if (path === '/api/orders' && request.method === 'POST') {
+    return consumeRateLimits([{ key: 'orders:' + ip, limit: 8, windowMs: 10 * 60 * 1000 }]);
+  }
+  if (path.startsWith('/api/tracking/')) {
+    return consumeRateLimits([{ key: 'tracking:' + ip, limit: 60, windowMs: 60 * 1000 }]);
+  }
+  return consumeRateLimits([{ key: 'api:' + request.method + ':' + path + ':' + ip, limit: 120, windowMs: 60 * 1000 }]);
+}
+function rateLimitResponse(response, retryAfter = 900) {
+  return send(response, 429, { error: 'Muitas solicitações. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(Math.max(1, Math.min(3600, retryAfter))), 'Cache-Control': 'no-store' });
+}
+function hasHoneypot(body) {
+  return typeof body?.website === 'string' && body.website.trim().length > 0;
 }
 
 function fail(response, error) {
@@ -341,7 +379,7 @@ async function serveStatic(pathname, response) {
   if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
   try {
     const data = await readFile(target);
-    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
     response.end(data);
   } catch { send(response, 404, { error: 'Arquivo não encontrado.' }); }
 }
@@ -352,16 +390,17 @@ const server = createServer(async (request, response) => {
     assertSameOrigin(request);
     if (path.startsWith('/api/')) {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
+      const endpointLimit = endpointRateLimit(request, path);
+      if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/catalog') return send(response, 200, catalogFor());
       if (request.method === 'POST' && path === '/api/admin/login') {
-        const limit = loginRateLimit(request);
-        if (!limit.allowed) return send(response, 429, { error: 'Muitas tentativas. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(limit.retryAfter) });
+        const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
+        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
         const body = await bodyOf(request);
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
-          recordLoginFailure(limit.key);
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
-        clearLoginFailures(limit.key);
         const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
         return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
       }
@@ -370,15 +409,25 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
       }
       if (request.method === 'POST' && path === '/api/customer/register') {
-        const limit = loginRateLimit(request); if (!limit.allowed) return send(response,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(limit.retryAfter)});
-        const customer = createCustomer(await bodyOf(request)); clearLoginFailures(limit.key);
+        const body = await bodyOf(request);
+        const email = normalizeEmail(body.email);
+        const limit = consumeRateLimits([
+          { key: 'customer-register:ip:' + clientIp(request), limit: 5, windowMs: 60 * 60 * 1000 },
+          { key: 'customer-register:email:' + email, limit: 3, windowMs: 60 * 60 * 1000 }
+        ]);
+        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
+        const customer = createCustomer(body);
         return send(response,201,{customer},{'Set-Cookie':customerSessionCookie(issueCustomerSession(customer))});
       }
       if (request.method === 'POST' && path === '/api/customer/login') {
-        const limit = loginRateLimit(request); if (!limit.allowed) return send(response,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(limit.retryAfter)});
-        const body = await bodyOf(request), email = normalizeEmail(body.email), customer = statement('SELECT * FROM customers WHERE email=?').get(email);
-        if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) { recordLoginFailure(limit.key); return send(response,401,{error:'E-mail ou senha inválidos.'}); }
-        clearLoginFailures(limit.key); const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
+        const body = await bodyOf(request), email = normalizeEmail(body.email);
+        const limit = authRateLimit(request, 'customer-login', email);
+        if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
+        const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
+        if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
+        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
         return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
@@ -411,8 +460,10 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
       }
       if (request.method === 'POST' && path === '/api/orders') {
+        const body = await bodyOf(request);
+        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const customerSession = optionalCustomer(request);
-        const order = createOrder(await bodyOf(request), customerSession?.customerId || null);
+        const order = createOrder(body, customerSession?.customerId || null);
         return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
       }
       if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
@@ -429,6 +480,10 @@ const server = createServer(async (request, response) => {
     return await serveStatic(path, response);
   } catch (error) { return fail(response, error); }
 });
+server.requestTimeout = 15_000;
+server.headersTimeout = 10_000;
+server.keepAliveTimeout = 5_000;
+server.maxRequestsPerSocket = 1_000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Mesa Studio disponível em http://localhost:' + PORT);
   if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha mesa-demo (configure ADMIN_PASSWORD para alterar).');
