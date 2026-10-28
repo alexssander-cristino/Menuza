@@ -129,7 +129,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal((await priceUpdate.json()).product.baseCents, 5400);
   const toppingUpdate = await fetch(base + '/api/admin/ingredients/bacon', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ cents: 620 }) });
   assert.equal((await toppingUpdate.json()).ingredient.cents, 620);
-  const changedCatalog = await (await fetch(base + '/api/catalog')).json();
+  const changedCatalog = await (await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } })).json();
   assert.equal(changedCatalog.products.find(product => product.id === 'pizza-calabresa').baseCents, 5400);
   assert.equal(changedCatalog.ingredients.find(ingredient => ingredient.id === 'bacon').cents, 620);
   const stableSnapshot = (await (await fetch(base + '/api/tracking/' + created.trackingToken, { headers: { cookie: customerCookie } })).json()).order;
