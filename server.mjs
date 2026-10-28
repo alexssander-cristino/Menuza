@@ -387,7 +387,7 @@ function createOrder(payload, customerId = null) {
   const tableLabel = fulfillment === 'table' ? cleanText(payload.tableLabel, 30) : '';
   const deliveryAddress = fulfillment === 'delivery' ? cleanText(payload.deliveryAddress, 300) : '';
   if (fulfillment === 'table' && !tableLabel) throw Object.assign(new Error('Informe a mesa.'), { status: 422 });
-  if (fulfillment === 'table' && !/^\\d{1,3}$/.test(tableLabel)) throw Object.assign(new Error('Selecione uma mesa válida do salão.'), { status: 422 });
+  if (fulfillment === 'table' && !/^\d{1,3}$/.test(tableLabel)) throw Object.assign(new Error('Selecione uma mesa válida do salão.'), { status: 422 });
   if (fulfillment === 'delivery' && deliveryAddress.length < 8) throw Object.assign(new Error('Informe o endereço de entrega.'), { status: 422 });
   if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
   const idempotencyKey = cleanText(payload.idempotencyKey, 80);
