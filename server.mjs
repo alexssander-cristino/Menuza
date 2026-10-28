@@ -424,7 +424,12 @@ function createOrder(payload, customerId = null) {
     if (normalizedCouponCode) {
       const coupon = getCoupon(normalizedCouponCode);
       couponEligibility(coupon, subtotalCents);
-      statement('UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=?').run(coupon.id,RESTAURANT_ID);
+      // A validade de uso também é aplicada no UPDATE: o limite continua
+      // protegido no banco, mesmo se o fluxo for alterado futuramente.
+      const usage = statement("UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=? AND active=1 AND (max_uses IS NULL OR used_count < max_uses)").run(coupon.id,RESTAURANT_ID);
+      if (usage.changes !== 1) {
+        throw Object.assign(new Error('Esse cupom atingiu o limite de utilizações.'), { status: 422 });
+      }
     }
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
     for (const item of pricedItems) {
