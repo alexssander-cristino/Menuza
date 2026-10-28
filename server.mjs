@@ -232,6 +232,7 @@ function endpointRateLimit(request, path) {
       '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
       '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
       '/api/admin/tables',
+      '/api/tables/available',
       '/api/admin/orders/:id','/api/admin/products','/api/admin/products/:id','/api/admin/ingredients/:id',
       '/api/orders'
     ]);
@@ -386,6 +387,7 @@ function createOrder(payload, customerId = null) {
   const tableLabel = fulfillment === 'table' ? cleanText(payload.tableLabel, 30) : '';
   const deliveryAddress = fulfillment === 'delivery' ? cleanText(payload.deliveryAddress, 300) : '';
   if (fulfillment === 'table' && !tableLabel) throw Object.assign(new Error('Informe a mesa.'), { status: 422 });
+  if (fulfillment === 'table' && !/^\\d{1,3}$/.test(tableLabel)) throw Object.assign(new Error('Selecione uma mesa válida do salão.'), { status: 422 });
   if (fulfillment === 'delivery' && deliveryAddress.length < 8) throw Object.assign(new Error('Informe o endereço de entrega.'), { status: 422 });
   if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
   const idempotencyKey = cleanText(payload.idempotencyKey, 80);
@@ -411,6 +413,11 @@ function createOrder(payload, customerId = null) {
       if ((race.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
       return orderById(race.id);
     }
+    let reservedTable = null;
+    if (fulfillment === 'table') {
+      reservedTable = statement("SELECT id,table_number AS number FROM restaurant_tables WHERE restaurant_id=? AND table_number=? AND status='free'").get(RESTAURANT_ID, Number(tableLabel));
+      if (!reservedTable) throw Object.assign(new Error('Essa mesa não está mais livre. Atualize a lista e escolha outra.'), { status: 409 });
+    }
     statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
     if (normalizedCouponCode) {
@@ -424,6 +431,7 @@ function createOrder(payload, customerId = null) {
       insertItem.run(randomBytes(12).toString('hex'), orderId, item.product.id, item.product.name, item.quantity, item.priced.size.key, item.priced.crust?.key || '', JSON.stringify(item.priced.ingredients), item.notes, item.priced.unitPriceCents, JSON.stringify(snapshot));
     }
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, 'received', now, 'cliente');
+    if (reservedTable) statement("UPDATE restaurant_tables SET status='occupied',updated_at=? WHERE id=? AND restaurant_id=? AND status='free'").run(now,reservedTable.id,RESTAURANT_ID);
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   const created = orderById(orderId);
@@ -540,6 +548,11 @@ const server = createServer(async (request, response) => {
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
+      if (request.method === 'GET' && path === '/api/tables/available') {
+        requireCustomer(request);
+        const tables = statement("SELECT id,table_number AS number,seats FROM restaurant_tables WHERE restaurant_id=? AND status='free' ORDER BY table_number").all(RESTAURANT_ID);
+        return send(response, 200, { tables });
+      }
       if (request.method === 'POST' && path === '/api/admin/login') {
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
