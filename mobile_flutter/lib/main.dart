@@ -109,7 +109,9 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
           final requestUri = error.request?.uri;
           final serverUri = Uri.tryParse(_serverUrl);
           if (!mounted || requestUri == null || serverUri == null ||
-              requestUri.origin != serverUri.origin ||
+              requestUri.scheme != serverUri.scheme ||
+              requestUri.host != serverUri.host ||
+              requestUri.port != serverUri.port ||
               (requestUri.path != serverUri.path &&
                   !(serverUri.path.isEmpty && requestUri.path == '/'))) return;
           setState(() {
