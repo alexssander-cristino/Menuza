@@ -502,3 +502,64 @@ button, [role="button"], select, input[type="checkbox"], input[type="radio"] {
   .ticker > div, .hero-art svg { animation: none !important; }
 }
 
+
+
+/* Mobile performance and checkout polish — appended to preserve existing desktop styling. */
+@media (max-width: 760px) {
+  .site-header { contain: layout style; }
+  .hero-art svg { filter: drop-shadow(5px 12px 8px #3c305e18); }
+  .product-card { content-visibility: auto; contain-intrinsic-size: auto 285px; }
+  .menu-grid .product-card { contain-intrinsic-size: auto 320px; }
+  .product-card p { min-height: 0; }
+  .product-card-top { align-items: flex-start; }
+  .product-card h3 { overflow-wrap: anywhere; }
+  .product-card-top .product-price { flex: 0 0 auto; }
+  .cart-drawer { display: flex; flex-direction: column; }
+  .cart-drawer .cart-items { flex: 1 1 auto; }
+  .cart-drawer .cart-summary { flex: 0 0 auto; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .cart-item { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+  .cart-item-price { grid-column: 2; justify-self: start; }
+  .cart-item-actions { flex-wrap: wrap; }
+  .checkout-modal { width: 100%; }
+  .checkout-modal h2 { font-size: clamp(24px, 7vw, 30px); line-height: 1.1; }
+  .checkout-modal > p { font-size: 13px; line-height: 1.5; }
+  .checkout-modal .form-field { display: block; min-width: 0; }
+  .checkout-modal .form-field > span { display: block; margin-bottom: 7px; }
+  .checkout-modal .coupon-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .checkout-modal .coupon-input-row .button { min-height: 46px; }
+  .checkout-modal .fulfillment-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .checkout-modal .fulfillment-option { min-width: 0; padding-inline: 5px; font-size: 12px; }
+  .checkout-modal .checkout-legal-consent { align-items: flex-start; gap: 10px; line-height: 1.5; }
+  .checkout-modal .checkout-legal-consent input { flex: 0 0 20px; width: 20px; min-height: 20px; margin-top: 2px; }
+  .checkout-modal .checkout-total { gap: 12px; }
+  .checkout-modal .checkout-total > :last-child { text-align: right; }
+  .ingredient-list { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .ingredient-option { min-height: 46px; }
+  .ingredient-stepper button { min-width: 40px; min-height: 40px; }
+  .option-pills { gap: 7px; }
+  .option-pill { min-height: 42px; }
+  .builder-visual .visual-controls { max-width: calc(100% - 20px); gap: 2px; }
+  .builder-visual .visual-controls button { min-width: 36px; min-height: 36px; }
+  .builder-visual .visual-controls .control-label { min-width: 48px; }
+}
+@media (max-width: 390px) {
+  .announcement { font-size: 9px; }
+  .brand small { font-size: 9px; }
+  .cart-button { gap: 5px; padding-inline: 9px; }
+  .featured-grid, .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-card { padding: 7px 7px 10px; }
+  .product-card-body { padding: 8px 2px 0; }
+  .product-card-top { flex-wrap: wrap; gap: 3px; }
+  .product-card h3 { font-size: 12px; }
+  .product-card p { font-size: 10px; }
+  .product-price { font-size: 12px; }
+  .card-bottom { align-items: center; gap: 4px; }
+  .prep-time { font-size: 8px; }
+  .add-button { min-height: 40px; padding-inline: 7px; }
+  .checkout-modal .coupon-input-row { grid-template-columns: minmax(0, 1fr); }
+  .checkout-modal .coupon-input-row .button { width: 100%; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .product-card { content-visibility: auto; }
+  .button:hover, .cart-button:hover, .product-card:hover { transform: none; box-shadow: none; }
+}
