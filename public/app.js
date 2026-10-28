@@ -397,7 +397,7 @@ function applyOrderFilters(){
 }
 function csvCell(value){
   let text=String(value??'');
-  if(/^[=+@\\-\\t\\r]/.test(text))text="'"+text;
+  if(/^[=+\-@\t\r]/.test(text))text="'"+text;
   return '"'+text.replace(/"/g,'""')+'"';
 }
 function exportVisibleOrders(){
@@ -425,11 +425,12 @@ function exportVisibleOrders(){
   toast(rows.length+' pedido(s) exportado(s).');
 }
 function renderOrdersAdmin(metrics,orders){
+  app.admin.orders=orders;
   const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML='<div class="loading-line">Atualizando pedidos…</div>';return}
   const cards=orders.map(order=>{
     const lines=order.items.map(item=>'<div><strong>'+item.quantity+'× '+esc(item.name)+'</strong> · '+esc(item.snapshot.size.label)+'<br><span>'+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</span></div>').join('');
     const fulfillment=order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):order.fulfillment==='delivery'?'Entrega · '+esc(order.deliveryAddress):'Retirada';
-    let whatsappPhone=String(order.phone||'').replace(/\\D/g,'');if(whatsappPhone.length===10||whatsappPhone.length===11)whatsappPhone='55'+whatsappPhone;
+    let whatsappPhone=String(order.phone||'').replace(/\D/g,'');if(whatsappPhone.length===10||whatsappPhone.length===11)whatsappPhone='55'+whatsappPhone;
     const whatsappMessage=encodeURIComponent('Olá, '+(order.customerName||'')+'! Aqui é do restaurante sobre o pedido '+order.id+'.');
     const whatsappAction=whatsappPhone.length>=12&&whatsappPhone.length<=15?'<a class="button button-outline button-small order-whatsapp-link" href="https://wa.me/'+whatsappPhone+'?text='+whatsappMessage+'" target="_blank" rel="noopener noreferrer">WhatsApp ↗</a>':'';
     const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...order.items.map(i=>i.name),...order.items.flatMap(i=>i.ingredients.map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
@@ -593,7 +594,8 @@ function handleClick(event){
   }
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
   if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
-  const action=target.dataset.action;\n  if(action==='export-orders'){exportVisibleOrders();return}
+  const action=target.dataset.action;
+  if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
   if(action==='toggle-favorite'){
     const id=target.dataset.product;
