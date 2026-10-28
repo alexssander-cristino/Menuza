@@ -1,8 +1,73 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1b1530">
-<title>429 · Muitas solicitações | Menuza</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1b1530">
+<title>429 · Acesso temporariamente bloqueado | Menuza</title>
 <style>
-:root{color-scheme:light;--ink:#211a34;--muted:#716b80;--purple:#6d4bd1;--line:#e8e3f0}*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 10%,#eee8ff 0,transparent 42%),#faf9fc;color:var(--ink);font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(100%,560px);padding:clamp(28px,6vw,52px);border:1px solid var(--line);border-radius:28px;background:#fff;box-shadow:0 24px 80px #26174712}.brand{display:inline-flex;align-items:center;gap:10px;font-weight:850;letter-spacing:-.04em;font-size:21px;text-decoration:none;color:inherit}.mark{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:#211a34;color:white;font-size:21px}.code{margin:42px 0 8px;color:var(--purple);font-size:13px;font-weight:850;letter-spacing:.18em}h1{margin:0;font-size:clamp(32px,7vw,48px);line-height:1.06;letter-spacing:-.06em}p{margin:16px 0 0;color:var(--muted)}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}a.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px;border:1px solid var(--line);border-radius:12px;color:var(--ink);font-weight:750;text-decoration:none}a.primary{background:var(--ink);border-color:var(--ink);color:white}.note{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);font-size:12px}
-</style></head><body><main><a class="brand" href="/" aria-label="Menuza, início"><span class="mark">m</span>menuza</a><div class="code">ERRO 429 · HTTP TOO MANY REQUESTS</div><h1>Calma, vamos um pouco mais devagar.</h1><p>Recebemos muitas solicitações em pouco tempo. Para proteger sua conta e manter o Menuza disponível, o acesso foi temporariamente limitado.</p><p>Aguarde um pouco antes de tentar novamente. Você não precisa enviar o formulário várias vezes.</p><div class="actions"><a class="button primary" href="/">Voltar ao cardápio</a><a class="button" href="/">Ir para o início</a></div><p class="note">Código 429 — muitas solicitações. A limitação é automática e temporária.</p></main></body></html>
+:root{color-scheme:light;--ink:#211a34;--muted:#716b80;--purple:#6d4bd1;--line:#e8e3f0}
+*{box-sizing:border-box}
+body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 10%,#eee8ff 0,transparent 42%),#faf9fc;color:var(--ink);font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{width:min(100%,560px);padding:clamp(28px,6vw,52px);border:1px solid var(--line);border-radius:28px;background:#fff;box-shadow:0 24px 80px #26174712}
+.brand{display:inline-flex;align-items:center;gap:10px;font-weight:850;letter-spacing:-.04em;font-size:21px;color:inherit}
+.mark{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:#211a34;color:white;font-size:21px}
+.code{margin:42px 0 8px;color:var(--purple);font-size:13px;font-weight:850;letter-spacing:.18em}
+h1{margin:0;font-size:clamp(32px,7vw,48px);line-height:1.06;letter-spacing:-.06em}
+p{margin:16px 0 0;color:var(--muted)}
+.lock{display:flex;align-items:center;gap:14px;margin-top:26px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#faf9fc}
+.lock-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:14px;background:#eee8ff;color:var(--purple);font-size:22px}
+.lock strong{display:block;color:var(--ink);font-size:15px}
+#countdown{font-variant-numeric:tabular-nums;font-weight:800;color:var(--purple)}
+.note{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);font-size:12px}
+</style>
+<script>
+(() => {
+  const key = 'menuza-rate-limit-until';
+  const params = new URLSearchParams(location.search);
+  const requestedWait = Math.max(1, Math.min(3600, Number(params.get('wait')) || 900));
+  let until = Date.now() + requestedWait * 1000;
+  try {
+    const saved = Number(localStorage.getItem(key)) || 0;
+    until = Math.max(until, saved);
+    localStorage.setItem(key, String(until));
+  } catch {}
+  const remaining = () => Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  const render = () => {
+    const seconds = remaining();
+    const node = document.getElementById('countdown');
+    if (node) node.textContent = seconds > 0 ? Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') : 'liberado';
+    if (seconds <= 0) {
+      try { localStorage.removeItem(key); } catch {}
+      document.getElementById('message').textContent = 'O período de espera terminou. Você já pode voltar ao cardápio.';
+      document.getElementById('return').hidden = false;
+      window.removeEventListener('popstate', trapBack);
+    }
+  };
+  function trapBack() { history.pushState({ blocked: true }, '', location.href); }
+  history.replaceState({ blocked: true }, '', location.href);
+  history.pushState({ blocked: true }, '', location.href);
+  window.addEventListener('popstate', trapBack);
+  window.addEventListener('pageshow', render);
+  window.addEventListener('DOMContentLoaded', () => {
+    render();
+    setInterval(render, 1000);
+    document.getElementById('return').addEventListener('click', () => {
+      if (remaining() > 0) return;
+      location.replace('/');
+    });
+  });
+})();
+</script>
+</head>
+<body><main>
+<div class="brand" aria-label="Menuza"><span class="mark">m</span>menuza</div>
+<div class="code">ERRO 429 · HTTP TOO MANY REQUESTS</div>
+<h1>Acesso temporariamente bloqueado.</h1>
+<p id="message">Detectamos muitas solicitações em pouco tempo. Para proteger o serviço, o acesso fica bloqueado durante o período de espera. Voltar à página anterior não libera novas tentativas.</p>
+<div class="lock"><div class="lock-icon" aria-hidden="true">⌛</div><div><strong>Tempo restante para liberar</strong><span id="countdown" aria-live="polite">calculando…</span></div></div>
+<p>Não tente reenviar formulários repetidamente. O bloqueio do servidor continua valendo mesmo se esta página for fechada.</p>
+<button id="return" hidden type="button" style="margin-top:24px;min-height:46px;padding:0 18px;border:0;border-radius:12px;background:#211a34;color:white;font:inherit;font-weight:750;cursor:pointer">Voltar ao cardápio</button>
+<p class="note">Código 429 — muitas solicitações. O bloqueio é temporário e automático.</p>
+</main></body></html>
