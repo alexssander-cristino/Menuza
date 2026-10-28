@@ -19,6 +19,9 @@ const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
 const RESTAURANT_ID = 'rest-bela-mesa';
 const MAX_BODY = 64 * 1024;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const loginAttempts = new Map();
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 await mkdir(dirname(DATA_FILE), { recursive: true });
@@ -81,10 +84,41 @@ function verifyPassword(candidate) {
   const b = createHmac('sha256', SECRET).update(ADMIN_PASSWORD).digest();
   return timingSafeEqual(a, b);
 }
+function securityHeaders() {
+  return {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    ...(IS_PROD ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {})
+  };
+}
 function send(response, status, data, headers = {}) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...headers });
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), ...headers });
   response.end(JSON.stringify(data));
 }
+function loginRateLimit(request) {
+  const key = request.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const current = loginAttempts.get(key);
+  if (!current || now - current.startedAt >= LOGIN_WINDOW_MS) {
+    loginAttempts.set(key, { startedAt: now, count: 0 });
+    return { allowed: true, key };
+  }
+  if (current.count >= LOGIN_MAX_ATTEMPTS) {
+    return { allowed: false, retryAfter: Math.max(1, Math.ceil((LOGIN_WINDOW_MS - (now - current.startedAt)) / 1000)) };
+  }
+  return { allowed: true, key };
+}
+function recordLoginFailure(key) {
+  const current = loginAttempts.get(key);
+  if (current) current.count += 1;
+}
+function clearLoginFailures(key) {
+  loginAttempts.delete(key);
+}
+
 function fail(response, error) {
   const status = error.status || (error instanceof SyntaxError ? 400 : 500);
   if (status >= 500) console.error(error);
@@ -92,17 +126,23 @@ function fail(response, error) {
 }
 async function bodyOf(request) {
   let raw = '';
+  let bytes = 0;
   for await (const chunk of request) {
-    raw += chunk;
-    if (raw.length > MAX_BODY) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
+    bytes += chunk.length;
+    if (bytes > MAX_BODY) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
+    raw += chunk.toString('utf8');
   }
   if (!raw) return {};
   return JSON.parse(raw);
 }
 function assertSameOrigin(request) {
-  if (!['POST','PATCH','DELETE'].includes(request.method)) return;
+  if (!['POST','PATCH','PUT','DELETE'].includes(request.method)) return;
   const origin = request.headers.origin;
-  if (!origin) return;
+  const fetchSite = request.headers['sec-fetch-site'];
+  if (!origin) {
+    if (fetchSite === 'same-origin') return;
+    throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
+  }
   const expected = 'http://' + request.headers.host;
   const expectedSecure = 'https://' + request.headers.host;
   if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
@@ -280,8 +320,14 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
       if (request.method === 'GET' && path === '/api/catalog') return send(response, 200, catalogFor());
       if (request.method === 'POST' && path === '/api/admin/login') {
+        const limit = loginRateLimit(request);
+        if (!limit.allowed) return send(response, 429, { error: 'Muitas tentativas. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(limit.retryAfter) });
         const body = await bodyOf(request);
-        if (!verifyPassword(body.password)) return send(response, 401, { error: 'Senha incorreta.' });
+        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
+          recordLoginFailure(limit.key);
+          return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
+        }
+        clearLoginFailures(limit.key);
         const token = sign({ restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
         return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
       }
