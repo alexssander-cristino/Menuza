@@ -153,6 +153,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const tableCountsAfterUpdate = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
   assert.equal(tableCountsAfterUpdate.counts.occupied, 1);
   assert.equal(tableCountsAfterUpdate.counts.free, 11);
+  assert.equal((await fetch(base + '/api/tables/available')).status, 401, 'free table list requires a customer session');
   const availableTablesResponse = await fetch(base + '/api/tables/available', { headers: { cookie: customerCookie } });
   assert.equal(availableTablesResponse.status, 200);
   const availableTables = (await availableTablesResponse.json()).tables;
