@@ -367,21 +367,63 @@ async function renderSettingsAdmin(){
   target.innerHTML='<div class="loading-line">Carregando configurações…</div>';
   try{
     const {restaurant}=await api('/api/admin/settings');
-    target.innerHTML='<section class="admin-panel settings-panel"><div class="admin-panel-head"><div><h2>Identidade do restaurante</h2><small>Essas informações são usadas na experiência do cardápio.</small></div></div><form id="restaurantSettingsForm" class="admin-form-grid"><label class="form-field wide"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="'+esc(restaurant.name)+'" placeholder="Nome que aparece no cardápio"></label><label class="form-field"><span>Tempo médio de preparo (minutos)</span><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="'+Number(restaurant.prepMinutes)+'"></label><div class="wide settings-note">Use um tempo realista para orientar seus clientes. Você pode ajustar esse valor sempre que a operação mudar.</div><div class="wide settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar configurações</button></div></form></section><section class="admin-panel settings-info"><div class="admin-panel-head"><h2>Conta e segurança</h2></div><p>O painel usa sessão protegida por cookie HttpOnly. Para trocar a senha de acesso, altere a variável <code>ADMIN_PASSWORD</code> no ambiente em que o servidor é executado e reinicie a aplicação.</p><p><strong>Importante:</strong> mantenha <code>APP_SECRET</code> e <code>ADMIN_PASSWORD</code> configuradas no ambiente de produção.</p></section>';
-    root.getElementById('restaurantSettingsForm').addEventListener('submit',async event=>{
+    const initialName=String(restaurant.name||'').trim();
+    const initialPrep=Number(restaurant.prepMinutes)||30;
+    target.innerHTML=`
+      <div class="settings-intro">
+        <div><div class="eyebrow">PERSONALIZE SUA EXPERIÊNCIA</div><h2>Seu restaurante, do seu jeito.</h2><p>Atualize as informações que seus clientes veem no cardápio.</p></div>
+        <span class="settings-status" id="settingsStatus"><span></span> Tudo salvo</span>
+      </div>
+      <div class="settings-layout">
+        <section class="admin-panel settings-panel">
+          <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">✳</span></div>
+          <form id="restaurantSettingsForm" class="settings-form">
+            <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
+            <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
+            <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
+            <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
+          </form>
+        </section>
+        <aside class="settings-side">
+          <section class="settings-preview-card">
+            <div class="settings-preview-top"><span>PRÉVIA DO CARDÁPIO</span><span class="preview-live-dot">AO VIVO</span></div>
+            <div class="settings-preview-art" aria-hidden="true"><div class="preview-plate"><span>✳</span></div><i class="preview-spark spark-one"></i><i class="preview-spark spark-two"></i></div>
+            <div class="settings-preview-copy"><span class="eyebrow">BEM-VINDO AO</span><h3 id="settingsPreviewName">${esc(initialName||'Seu restaurante')}</h3><p>Feito para deixar sua experiência mais saborosa.</p><div class="settings-preview-meta"><span><span aria-hidden="true">◷</span> <b id="settingsPreviewPrep">${initialPrep} min</b> de preparo</span><span class="preview-open-pill"><i></i> Cardápio</span></div></div>
+          </section>
+          <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">⌑</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
+        </aside>
+      </div>`;
+    const form=root.getElementById('restaurantSettingsForm');
+    const nameInput=form.elements.name;
+    const prepInput=form.elements.prepMinutes;
+    const status=root.getElementById('settingsStatus');
+    const saveButton=form.querySelector('button[type="submit"]');
+    const setDirty=()=>{
+      root.getElementById('settingsPreviewName').textContent=nameInput.value.trim()||'Seu restaurante';
+      root.getElementById('settingsPreviewPrep').textContent=(Number(prepInput.value)||0)+' min';
+      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep;
+      status.classList.toggle('is-dirty',dirty);
+      status.innerHTML=dirty?'<span></span> Alterações não salvas':'<span></span> Tudo salvo';
+      saveButton.disabled=!dirty;
+      root.getElementById('settingsError').textContent='';
+    };
+    form.addEventListener('input',setDirty);
+    saveButton.disabled=true;
+    form.addEventListener('submit',async event=>{
       event.preventDefault();
-      const form=event.currentTarget;
       const data=new FormData(form);
-      const button=form.querySelector('button[type="submit"]');
+      const name=String(data.get('name')||'').trim();
+      const prepMinutes=Number(data.get('prepMinutes'));
       const error=root.getElementById('settingsError');
-      button.disabled=true;error.textContent='';
+      if(name.length<2||!Number.isFinite(prepMinutes)||prepMinutes<5||prepMinutes>240){error.textContent='Confira o nome e o tempo de preparo antes de salvar.';return}
+      saveButton.disabled=true;saveButton.textContent='Salvando…';error.textContent='';
       try{
-        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name:data.get('name'),prepMinutes:Number(data.get('prepMinutes'))})});
+        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes})});
         if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes}
         applyRestaurantBranding(result.restaurant.name);
         toast('Configurações salvas.');
-      }catch(e){error.textContent=e.message}
-      finally{button.disabled=false}
+        await renderSettingsAdmin();
+      }catch(e){error.textContent=e.message;saveButton.disabled=false;saveButton.innerHTML='Tentar novamente <span aria-hidden="true">↗</span>'}
     });
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
