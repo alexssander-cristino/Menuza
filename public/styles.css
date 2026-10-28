@@ -1174,3 +1174,92 @@ body{overscroll-behavior-y:contain}
 
 /* Checkout: seleção sincronizada com a disponibilidade real das mesas */
 .table-availability-hint{display:block;margin-top:7px;color:var(--muted,#777383);font-size:10px;line-height:1.5}.form-field select[name="tableLabel"]{width:100%;min-height:42px;padding:11px 12px;border:1px solid #d8d7dc;border-radius:3px;background:#fff;color:var(--ink);font:inherit;font-size:11px}.form-field select[name="tableLabel"]:disabled{background:#f2f1f5;color:#8a8596;cursor:wait}.form-field select[name="tableLabel"]:focus-visible{outline:2px solid #837e92;outline-offset:2px}
+
+
+/* Menuza — evolução visual do salão e dos modelos de mesa */
+.table-manager{gap:22px}
+.table-manager-heading{align-items:center}
+.table-manager-heading h2{font-size:clamp(26px,3vw,34px)}
+.table-stat{position:relative;overflow:hidden;min-height:94px;align-content:center;gap:10px}
+.table-stat:after{content:"";position:absolute;width:84px;height:84px;border:1px solid currentColor;border-radius:50%;right:-23px;bottom:-39px;opacity:.08}
+.table-stat-free{color:#16865d}.table-stat-occupied{color:#b97719}.table-stat-cleaning{color:#7155c4}
+.table-stat span{color:var(--mz-muted)}
+.table-map-shell{border-radius:22px;box-shadow:0 18px 50px #2920440c}
+.table-map-top{align-items:center;padding:16px 20px;background:linear-gradient(110deg,#fff,#faf9fd)}
+.table-map{min-height:520px;padding:62px 38px 56px;background-color:#f4f1f8;background-image:linear-gradient(#dcd6e8 1px,transparent 1px),linear-gradient(90deg,#dcd6e8 1px,transparent 1px);background-size:26px 26px}
+.table-map:before{inset:8% 6% 10%;background:linear-gradient(145deg,#f5f1f7,#e7e1ef 80%);border:1px solid #d3cadf;box-shadow:inset 0 0 0 9px #fbf9fc, inset 0 0 0 10px #ded6e8;transform:rotateX(5deg) rotateZ(-1deg);border-radius:24px}
+.table-map-wall{background:linear-gradient(90deg,#b4a8c8,#d1c7df);box-shadow:0 7px 0 #a99bbd,0 12px 20px #4b3b6520;border-radius:4px}
+.table-map-wall-back{height:10px;top:9%;left:9%;right:9%;transform:skewX(-28deg)}
+.table-map-wall-side{width:10px;top:11%;bottom:13%;right:9%;transform:skewY(-28deg)}
+.table-map-counter{position:absolute;z-index:1;left:12%;top:13%;width:clamp(100px,17%,190px);height:34px;border:1px solid #bcb0cc;border-radius:7px;background:linear-gradient(#d8d0e3,#bfb2d1);box-shadow:0 5px 0 #a99abf,0 9px 14px #45335a14;display:flex;align-items:center;justify-content:space-evenly;color:#5f5272;font-size:8px;font-weight:800;letter-spacing:.12em}
+.table-map-counter i{width:6px;height:6px;border-radius:50%;background:#f8f5fb;box-shadow:0 0 0 2px #a99cbd}
+.table-map-entry{position:absolute;z-index:1;bottom:6%;left:14%;display:flex;align-items:center;gap:8px;color:#847796;font-size:8px;font-weight:800;letter-spacing:.1em}
+.table-map-entry i{display:block;width:32px;height:5px;border-radius:4px;background:#a9c9b6;box-shadow:0 2px 0 #83ad95}
+.table-map-plant{position:absolute;z-index:1;width:27px;height:27px;border:4px solid #d4c6b6;border-radius:7px;background:radial-gradient(circle at 50% 50%,#3d926b 0 18%,#65b185 19% 35%,#327e5b 36% 54%,#79bd8f 55%);box-shadow:0 4px 0 #b8a796,0 7px 12px #42364b14}
+.table-map-plant-a{right:14%;top:15%}.table-map-plant-b{left:10%;bottom:13%}
+.table-map-plant i{position:absolute;width:7px;height:13px;background:#5aa77a;border-radius:100% 0 100% 0;top:-9px;left:5px;transform:rotate(-25deg)}
+.table-map-grid{gap:44px 28px;max-width:1000px;padding:44px 24px 34px;transform:rotateX(5deg) rotateZ(-1deg)}
+.table-unit{position:relative;gap:0}
+.table-object{width:116px;height:104px;filter:drop-shadow(0 14px 8px #32214620)}
+.table-object:focus-visible{outline:3px solid #7965d8;outline-offset:5px;border-radius:16px}
+.table-top{left:21px;top:12px;width:74px;height:60px;border:2px solid #ffffffb8;border-radius:13px;box-shadow:inset 0 1px 0 #ffffffb5,0 8px 0 #00000018,0 12px 16px #34244720}
+.table-shape-round .table-top{left:27px;top:12px;width:62px;height:62px;border-radius:50%;transform:rotateX(52deg);box-shadow:inset 0 1px 0 #ffffffb5,0 7px 0 #00000018,0 12px 16px #34244720}
+.table-shape-round .table-top-number{transform:rotateX(-52deg)}
+.table-shape-round .table-top-status{transform:rotateX(-52deg)}
+.table-shape-rectangle .table-top{left:11px;top:17px;width:94px;height:54px;border-radius:12px;transform:rotateX(52deg) rotateZ(45deg)}
+.table-shape-rectangle .table-top-number,.table-shape-rectangle .table-top-status{transform:rotateZ(-45deg) rotateX(-52deg)}
+.table-top-number{font-size:17px;font-weight:800;text-shadow:0 1px 2px #0003}
+.table-top-status{font-size:11px}
+.table-setting{position:absolute;top:11px;left:12px;width:15px;height:15px;border:2px solid #ffffffa8;border-radius:50%;opacity:.78;box-shadow:0 0 0 2px #ffffff25}
+.table-setting:before{content:"";position:absolute;width:3px;height:18px;left:-6px;top:-3px;border-left:1px solid #ffffffb0;border-right:1px solid #ffffffb0}
+.table-setting i{position:absolute;width:4px;height:4px;border-radius:50%;background:#ffffffbb;right:-7px;top:3px}
+.table-setting b{position:absolute;width:2px;height:12px;background:#ffffffa8;right:-11px;top:0}
+.table-setting-b{left:auto;right:12px;top:auto;bottom:10px}
+.table-setting-b:before{left:auto;right:-6px}
+.table-setting-b i{right:auto;left:-7px}
+.table-setting-b b{right:auto;left:-11px}
+.status-free .table-top{background:linear-gradient(145deg,#43d49b,#16885d);box-shadow:inset 0 1px 0 #ffffffb5,0 8px 0 #0c7047,0 13px 18px #16845a35}
+.status-occupied .table-top{background:linear-gradient(145deg,#ffd38b,#d8841c);box-shadow:inset 0 1px 0 #ffffffb5,0 8px 0 #b66c11,0 13px 18px #d8831938}
+.status-cleaning .table-top{background:linear-gradient(145deg,#c0b1ff,#785bd8);box-shadow:inset 0 1px 0 #ffffffb5,0 8px 0 #6043b6,0 13px 18px #7659d638}
+.table-leg{top:57px;width:7px;height:26px;background:linear-gradient(90deg,#b5a9c3,#e0d9e8);border-radius:3px;box-shadow:0 2px 0 #9d91ac}
+.table-leg-a{left:31px}.table-leg-b{right:31px}
+.table-leg-c{left:40px;top:62px}.table-leg-d{right:40px;top:62px}
+.table-chair{width:19px;height:17px;border-radius:7px 7px 5px 5px;background:linear-gradient(135deg,#d7cfe2,#a79bbd);border:2px solid #fff;box-shadow:0 4px 0 #9c90ad,0 6px 9px #4b3d5b20}
+.chair-n{top:0;left:48px}.chair-s{bottom:1px;left:48px}.chair-e{top:42px;right:1px}.chair-w{top:42px;left:1px}
+.chair-n2{top:0;left:68px}.chair-s2{bottom:1px;left:68px}.chair-e2{top:60px;right:1px}.chair-w2{top:60px;left:1px}
+.table-shape-round .chair-n,.table-shape-round .chair-s{left:48px}
+.table-shape-round .chair-e,.table-shape-round .chair-w{display:none}
+.table-shape-rectangle .chair-n,.table-shape-rectangle .chair-s{left:42px}
+.table-shape-rectangle .chair-n2{left:67px}.table-shape-rectangle .chair-s2{left:67px}
+.table-unit-meta{gap:7px;margin-top:2px}
+.table-unit-meta strong{font-size:12px;letter-spacing:-.01em}
+.table-unit-meta span{font-size:10px}
+.table-status-label{margin-top:5px;font-size:10px;letter-spacing:.01em}
+.table-status-actions{gap:3px;margin-top:10px;background:#ece8f2;border:1px solid #e4deec;padding:3px;box-shadow:inset 0 1px 1px #30204308}
+.table-status-actions button{padding:7px 8px;font-size:9px;transition:background .16s,color .16s,transform .16s}
+.table-status-actions button:hover{transform:translateY(-1px)}
+.table-manager-foot{padding:2px 2px 0;font-size:11px}
+@media(max-width:760px){
+ .table-map{padding:48px 8px 44px;background-size:22px 22px}
+ .table-map-grid{gap:30px 2px;padding:46px 0 24px;transform:none}
+ .table-map-counter{top:10%;left:9%;height:27px;width:125px;font-size:7px}
+ .table-map-plant-a{right:9%;top:11%}.table-map-plant-b{left:7%;bottom:9%}
+ .table-map-entry{left:12%;bottom:3%;font-size:7px}
+ .table-object{transform:scale(.9);margin:-4px 0}
+ .table-object:hover{transform:translateY(-2px) scale(.93)}
+ .table-top-number{font-size:16px}
+ .table-status-actions{gap:2px}
+ .table-status-actions button{padding:7px 5px;font-size:8px}
+}
+@media(max-width:380px){
+ .table-map{padding-left:3px;padding-right:3px}
+ .table-map-grid{gap:25px 0;padding-left:0;padding-right:0}
+ .table-object{transform:scale(.82);margin:-8px 0}
+ .table-object:hover{transform:translateY(-2px) scale(.85)}
+ .table-status-actions{gap:1px}
+ .table-status-actions button{padding:7px 4px;font-size:7px}
+}
+@media(prefers-reduced-motion:reduce){
+ .table-unit,.table-object,.table-status-actions button{transition:none}
+ .table-unit:hover,.table-object:hover{transform:none}
+}
