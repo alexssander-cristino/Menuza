@@ -287,7 +287,7 @@ function addStream(restaurantId, response) {
   response.on('close', () => { clearInterval(heartbeat); set.delete(response); });
 }
 function cleanText(value, max = 240) { return String(value ?? '').trim().slice(0, max); }
-function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/\\s+/g, ''); }
+function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/\s+/g, ''); }
 function couponPublic(row) {
   return { id: row.id, code: row.code, discountType: row.discount_type, discountValue: row.discount_value,
     minimumSubtotalCents: row.minimum_subtotal_cents, startsAt: row.starts_at, expiresAt: row.expires_at,
