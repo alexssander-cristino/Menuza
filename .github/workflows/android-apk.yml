@@ -28,8 +28,11 @@ jobs:
         run: |
           flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza "$RUNNER_TEMP/menuza_build"
           cp mobile_flutter/pubspec.yaml "$RUNNER_TEMP/menuza_build/pubspec.yaml"
-          mkdir -p "$RUNNER_TEMP/menuza_build/lib"
-          cp mobile_flutter/lib/main.dart "$RUNNER_TEMP/menuza_build/lib/main.dart"
+          rm -rf "$RUNNER_TEMP/menuza_build/lib"
+          cp -R mobile_flutter/lib "$RUNNER_TEMP/menuza_build/lib"
+          if [ -d mobile_flutter/test ]; then
+            cp -R mobile_flutter/test "$RUNNER_TEMP/menuza_build/test"
+          fi
           cp mobile_flutter/android/app/src/main/AndroidManifest.xml "$RUNNER_TEMP/menuza_build/android/app/src/main/AndroidManifest.xml"
           if [ -f mobile_flutter/assets/app_icon.png ]; then
             mkdir -p "$RUNNER_TEMP/menuza_build/assets"
@@ -49,6 +52,14 @@ jobs:
           else
             echo "Nenhum ícone personalizado encontrado; usando o ícone padrão do Flutter."
           fi
+
+      - name: Analyze Flutter code
+        working-directory: ${{ runner.temp }}/menuza_build
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        working-directory: ${{ runner.temp }}/menuza_build
+        run: flutter test
 
       - name: Build debug APK
         working-directory: ${{ runner.temp }}/menuza_build
