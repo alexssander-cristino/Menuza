@@ -1125,3 +1125,16 @@ body{overscroll-behavior-y:contain}
 /* One-tap catalog reset remains easy to reach on narrow screens. */
 .clear-catalog-filters{white-space:nowrap;min-height:34px;font-size:11px}
 @media(max-width:700px){.clear-catalog-filters{width:100%;grid-column:1/-1;justify-content:center}}
+
+
+/* Busca e feedback de salvamento na gestão de ingredientes. */
+.ingredient-admin-panel{min-width:0}
+.ingredient-admin-search{display:flex;align-items:center;gap:9px;max-width:460px;min-height:42px;margin:0 0 14px;padding:0 12px;border:1px solid var(--mz-line);border-radius:11px;background:var(--mz-surface)}
+.ingredient-admin-search>span{font-size:21px;color:var(--mz-muted)}
+.ingredient-admin-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--mz-ink);font:inherit;font-size:12px}
+.ingredient-admin-search:focus-within{border-color:var(--mz-violet-500);box-shadow:0 0 0 3px rgba(109,76,245,.09)}
+.ingredient-admin-row[hidden],.ingredient-search-empty[hidden]{display:none!important}
+.ingredient-search-empty{grid-column:1/-1;margin:8px 0;padding:18px;border:1px dashed var(--mz-line);border-radius:12px;text-align:center;color:var(--mz-muted);font-size:12px}
+.ingredient-admin-row input[aria-invalid="true"]{border-color:#c74646!important;box-shadow:0 0 0 3px rgba(199,70,70,.1)}
+.ingredient-admin-row button:disabled{opacity:.6;cursor:wait}
+@media(max-width:480px){.ingredient-admin-search{max-width:none}.ingredient-admin-panel .admin-panel-head{align-items:flex-start;gap:8px;flex-wrap:wrap}}
