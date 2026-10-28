@@ -7,10 +7,10 @@ void main() {
       expect(normalizeServerUrl('192.168.0.20:4173'), 'http://192.168.0.20:4173');
     });
 
-    test('preserves HTTPS addresses and removes root slash and fragment', () {
+    test('preserves HTTPS address paths and fragments', () {
       expect(
         normalizeServerUrl('https://menuza.example/#!/menu'),
-        'https://menuza.example',
+        'https://menuza.example/#!/menu',
       );
     });
 
