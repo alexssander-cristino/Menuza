@@ -517,6 +517,30 @@ function bindSpellCardInteractions(){
   });
 }
 
+
+/* GetLayers-inspired subtle pointer parallax for the hero food scene. */
+function bindGetLayersHeroMotion(){
+  const scene=root.querySelector('.hero-art-wrap');
+  if(!scene||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  if(!window.matchMedia('(hover: hover) and (pointer: fine)').matches)return;
+  let frame=0;
+  scene.addEventListener('pointermove',event=>{
+    const rect=scene.getBoundingClientRect();
+    const x=(event.clientX-rect.left)/rect.width-.5;
+    const y=(event.clientY-rect.top)/rect.height-.5;
+    if(frame)cancelAnimationFrame(frame);
+    frame=requestAnimationFrame(()=>{
+      scene.style.setProperty('--mz-scene-x',(x*-9).toFixed(2)+'px');
+      scene.style.setProperty('--mz-scene-y',(y*-7).toFixed(2)+'px');
+    });
+  });
+  scene.addEventListener('pointerleave',()=>{
+    if(frame)cancelAnimationFrame(frame);
+    scene.style.setProperty('--mz-scene-x','0px');
+    scene.style.setProperty('--mz-scene-y','0px');
+  });
+}
+
 async function start(){
   root.body.addEventListener('click',handleClick);
   root.addEventListener('change',async event=>{
@@ -524,7 +548,7 @@ async function start(){
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
   root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
-  syncFilters();updateCartCount();bindSpellCardInteractions();
+  syncFilters();updateCartCount();bindSpellCardInteractions();bindGetLayersHeroMotion();
   window.addEventListener('hashchange',onRoute);
   const initialHash=location.hash.replace(/^#/,'');
   if(initialHash==='admin'||initialHash.startsWith('pedido/')){onRoute();return}
