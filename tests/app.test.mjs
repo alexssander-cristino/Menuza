@@ -116,6 +116,9 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(discountedOrder.totalCents, 6363);
   assert.equal(discountedOrder.discountCents, 707);
   assert.equal(discountedOrder.couponCode, 'SAVE10');
+  const repeatedDiscountedOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-coupon-key-002', couponCode: 'SAVE10' }) });
+  assert.equal(repeatedDiscountedOrderResponse.status, 201);
+  assert.equal((await repeatedDiscountedOrderResponse.json()).order.id, discountedOrder.id);
   const exhaustedCoupon = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
   assert.equal(exhaustedCoupon.status, 422);
   assert.match((await exhaustedCoupon.json()).error, /limite de utilizações/);
