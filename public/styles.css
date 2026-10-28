@@ -500,3 +500,7 @@ body.builder-open { overflow: hidden; overscroll-behavior: none; }
 .customer-orders-section-head h2{font-size:28px;letter-spacing:-.045em;margin:5px 0 0}
 .customer-orders-section-head .text-link{white-space:nowrap}
 @media(max-width:560px){.customer-auth-card{padding:18px}.customer-profile-card{align-items:flex-start;padding:18px}.customer-orders-section-head{align-items:flex-start;flex-direction:column}.customer-orders-section-head h2{font-size:25px}}
+
+
+/* Honeypot anti-bot: fora da área visível e fora da navegação por teclado. */
+.hp-field{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
