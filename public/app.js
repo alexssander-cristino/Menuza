@@ -322,16 +322,17 @@ function checkoutForm(){
   root.getElementById('checkoutForm').addEventListener('submit',submitCheckout);
   const couponInput = root.getElementById('checkoutCouponCode');
   couponInput?.addEventListener('input', () => {
-    if (!app.checkoutCoupon) return;
+    app.couponValidationVersion = (app.couponValidationVersion || 0) + 1;
     const enteredCode = couponInput.value.toUpperCase().replace(/\s+/g, '');
-    if (enteredCode === app.checkoutCoupon.code) return;
-    app.checkoutCoupon = null;
+    if (app.checkoutCoupon && enteredCode !== app.checkoutCoupon.code) {
+      app.checkoutCoupon = null;
+      updateCheckoutTotals();
+    }
     const message = root.getElementById('checkoutCouponMessage');
-    if (message) {
-      message.textContent = 'O código mudou. Aplique o cupom novamente para validar o desconto.';
+    if (message && enteredCode !== app.checkoutCoupon?.code) {
+      message.textContent = enteredCode ? 'Aplique o cupom para validar o desconto.' : '';
       message.className = 'coupon-message';
     }
-    updateCheckoutTotals();
   });
 }
 async function submitCheckout(event){
@@ -344,15 +345,26 @@ async function submitCheckout(event){
 async function applyCheckoutCoupon(){
   const input=root.getElementById('checkoutCouponCode'),message=root.getElementById('checkoutCouponMessage');
   if(!input||!message)return;
-  const code=input.value.trim().toUpperCase();
-  if(!code){app.checkoutCoupon=null;message.textContent='Digite um código de cupom.';message.className='coupon-message is-error';updateCheckoutTotals();return}
-  const button=root.querySelector('[data-action="apply-coupon"]');if(button){button.disabled=true;button.textContent='Validando…'}
+  const code=input.value.trim().toUpperCase().replace(/\s+/g,'');
+  if(!code){app.couponValidationVersion=(app.couponValidationVersion||0)+1;app.checkoutCoupon=null;message.textContent='Digite um código de cupom.';message.className='coupon-message is-error';updateCheckoutTotals();return}
+  const version=app.couponValidationVersion=(app.couponValidationVersion||0)+1;
+  const button=root.querySelector('[data-action="apply-coupon"]');
+  const submitButton=root.querySelector('#checkoutForm [type="submit"]');
+  if(button){button.disabled=true;button.textContent='Validando…'}
+  if(submitButton)submitButton.disabled=true;
   try{
     const result=await api('/api/coupons/validate',{method:'POST',body:JSON.stringify({code,items:app.cart.map(item=>({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))})});
+    const currentCode=input.value.toUpperCase().replace(/\s+/g,'');
+    if(version!==app.couponValidationVersion||currentCode!==code)return;
     app.checkoutCoupon={code:result.code,discountCents:result.discountCents,subtotalCents:result.subtotalCents};
     message.textContent='Cupom aplicado! Você economiza '+money(result.discountCents)+'.';message.className='coupon-message is-success';updateCheckoutTotals();
-  }catch(e){app.checkoutCoupon=null;message.textContent=e.message;message.className='coupon-message is-error';updateCheckoutTotals()}
-  finally{if(button){button.disabled=false;button.textContent='Aplicar'}}
+  }catch(e){
+    if(version!==app.couponValidationVersion||input.value.toUpperCase().replace(/\s+/g,'')!==code)return;
+    app.checkoutCoupon=null;message.textContent=e.message;message.className='coupon-message is-error';updateCheckoutTotals();
+  }finally{
+    if(button){button.disabled=false;button.textContent='Aplicar'}
+    if(submitButton)submitButton.disabled=false;
+  }
 }
 function updateCheckoutTotals(){
   const subtotal=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
