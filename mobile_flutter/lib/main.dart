@@ -106,7 +106,12 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
           });
         },
         onHttpError: (error) {
-          if (!mounted || error.request?.isForMainFrame != true) return;
+          final requestUri = error.request?.uri;
+          final serverUri = Uri.tryParse(_serverUrl);
+          if (!mounted || requestUri == null || serverUri == null ||
+              requestUri.origin != serverUri.origin ||
+              (requestUri.path != serverUri.path &&
+                  !(serverUri.path.isEmpty && requestUri.path == '/'))) return;
           setState(() {
             _loading = false;
             _loadError = 'O servidor respondeu com erro HTTP ' +
