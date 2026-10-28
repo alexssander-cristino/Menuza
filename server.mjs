@@ -507,8 +507,8 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && path === '/api/orders') {
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const customerSession = optionalCustomer(request);
-        const order = createOrder(body, customerSession?.customerId || null);
+        const customerSession = requireCustomer(request);
+        const order = createOrder(body, customerSession.customerId);
         return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
       }
       if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
