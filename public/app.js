@@ -1,4 +1,4 @@
-import { FoodScene } from './food-scene.js?v=5';
+import { FoodScene } from './food-scene.js?v=6';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
 // Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
@@ -193,13 +193,24 @@ function openBuilder(productId,cartItem=null) {
   app.builder={productId,ingredients:initial,sizeKey:cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',editId:cartItem?.cartId||null};
   app.rotate=0;app.zoom=1;renderBuilder();
 }
-function arStatusText() {
+function arStatusText(product = app.catalog?.products.find(item => item.id === app.builder?.productId)) {
   if (app.arSupported === null) return 'Verificando compatibilidade com realidade aumentada…';
-  return app.arSupported ? 'Realidade aumentada disponível neste aparelho. A câmera só abre após o seu toque.' : 'AR indisponível neste navegador ou aparelho — você continua com a prévia 3D.';
+  if (app.arSupported) return 'RA por câmera disponível via WebXR. A câmera só abre após o seu toque.';
+  const modelUrl = String(product?.modelUrl || '');
+  const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const nativeModelAvailable = (appleDevice && /\.usdz($|[?#])/i.test(modelUrl)) ||
+    (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(modelUrl));
+  if (nativeModelAvailable) return 'Este prato pode abrir no visualizador de RA do aparelho.';
+  return 'RA por câmera não disponível neste navegador para este prato — você ainda pode usar a prévia 3D.';
 }
 async function detectAR() {
   if (app.arSupported !== null) return;
-  try { app.arSupported = Boolean(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { app.arSupported = false; }
+  try {
+    app.arSupported = app.scene
+      ? await app.scene.supportsAR()
+      : Boolean(globalThis.isSecureContext && navigator.xr && await navigator.xr.isSessionSupported('immersive-ar'));
+  } catch { app.arSupported = false; }
   const node = root.getElementById('arStatus');
   if (node) node.textContent = arStatusText();
 }
@@ -380,6 +391,9 @@ function openCheckout(){
 async function launchAR(productId) {
   const product = app.catalog.products.find(p => p.id === productId);
   if (!product) return;
+
+  // Primeiro tenta a RA WebXR, que usa o modelo procedural atual e não depende de
+  // um arquivo GLB/USDZ separado. Se a sessão falhar, tenta a alternativa nativa.
   if (app.scene && app.scene.product.id === productId) {
     try {
       if (await app.scene.supportsAR()) {
@@ -387,19 +401,27 @@ async function launchAR(productId) {
         return;
       }
     } catch (error) {
-      toast(error.message || 'Não foi possível iniciar a câmera AR neste aparelho.');
-      return;
+      console.warn('[Menuza AR] WebXR indisponível; tentando alternativa nativa.', error);
     }
   }
+
   if (product.modelUrl) {
     const url = new URL(product.modelUrl, location.href);
-    if (url.protocol !== 'https:' && url.hostname !== 'localhost') return toast('O modelo AR precisa estar em uma origem HTTPS segura.');
+    if (url.protocol !== 'https:' && url.hostname !== 'localhost') {
+      toast('O modelo de RA precisa estar em uma origem HTTPS segura.');
+      return;
+    }
+
+    const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
     if (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(url.href)) {
       const intent = 'intent://arvr.google.com/scene-viewer/1.0?file=' + encodeURIComponent(url.href) + '&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end;';
       location.href = intent;
       return;
     }
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && /\.usdz($|[?#])/i.test(url.href)) {
+
+    if (appleDevice && /\.usdz($|[?#])/i.test(url.href)) {
       const anchor = root.createElement('a');
       anchor.setAttribute('rel', 'ar');
       anchor.href = url.href;
@@ -414,8 +436,12 @@ async function launchAR(productId) {
       return;
     }
   }
-  if (app.builder) { app.viewMode = '3d'; renderBuilder(); }
-  toast('A realidade aumentada não está disponível neste navegador. Mostrando a prévia 3D interativa.');
+
+  if (app.builder) {
+    app.viewMode = '3d';
+    renderBuilder();
+  }
+  toast('A RA por câmera não é compatível com este navegador/aparelho ou não há modelo nativo configurado para este prato. A prévia 3D continua disponível.');
 }
 function showTracking(token){
   root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('trackingView').classList.remove('hidden');
