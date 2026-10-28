@@ -846,3 +846,84 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
   .accessibility-preview { align-items:stretch; flex-direction:column; }
   .accessibility-preview .button { width:100%; }
 }
+
+
+/* Menuza accessibility: keep the selected type scale consistent across the full interface. */
+html { font-size: calc(16px * var(--mz-access-font-scale, 1)) !important; }
+body { font-size: calc(15px * var(--mz-access-font-scale, 1)); }
+body :where(button, input, select, textarea) { font-size: inherit; }
+html[data-mz-theme="dark"] {
+  color-scheme: dark;
+  --ink: #f4f0ff;
+  --ink-2: #e3dcef;
+  --muted: #c4bdd2;
+  --line: #494253;
+  --cream: #17141f;
+  --paper: #211d2b;
+  --mz-ink: #f4f0ff;
+  --mz-ink-2: #e3dcef;
+  --mz-muted: #c4bdd2;
+  --mz-line: #494253;
+  --mz-bg: #17141f;
+  --mz-surface: #211d2b;
+  background: #17141f !important;
+  color: #f4f0ff;
+}
+html[data-mz-theme="dark"] body,
+html[data-mz-theme="dark"] main,
+html[data-mz-theme="dark"] .site-header,
+html[data-mz-theme="dark"] .site-footer,
+html[data-mz-theme="dark"] .admin-shell,
+html[data-mz-theme="dark"] .admin-body,
+html[data-mz-theme="dark"] .menu-section,
+html[data-mz-theme="dark"] .craft-section,
+html[data-mz-theme="dark"] .settings-layout,
+html[data-mz-theme="dark"] .settings-side {
+  background-color: #17141f !important;
+  color: #f4f0ff !important;
+}
+html[data-mz-theme="dark"] :where(.admin-panel,.settings-panel,.settings-preview-card,.settings-security-card,.accessibility-settings-panel,.accessibility-setting-group,.accessibility-toggle,.accessibility-preview,.tracking-card,.order-card,.metric-card,.catalog-row,.settings-note,.demo-credential,.cart-drawer,.checkout-modal,.builder-content,.modal-content,.order-detail,.table-map-shell,.table-stat,.table-manager,.table-manager-foot,.settings-form) {
+  background-color: #211d2b !important;
+  color: #f4f0ff !important;
+  border-color: #494253 !important;
+}
+html[data-mz-theme="dark"] :where(.table-map,.table-map:before,.table-status-actions,.table-unit.table-selected) {
+  background-color: #292333 !important;
+  color: #f4f0ff !important;
+  border-color: #494253 !important;
+}
+html[data-mz-theme="dark"] :where(h1,h2,h3,h4,h5,h6,p,span,strong,b,label,legend,dt,dd,li,summary,.eyebrow,.admin-section-heading,.admin-panel-head,.settings-intro,.settings-preview-copy,.table-unit-meta,.table-status-label,.table-manager-heading) {
+  color: inherit;
+}
+html[data-mz-theme="dark"] :where(.hero-copy,.hero-copy p,.craft-text p,.product-card p,.settings-intro p,.settings-preview-copy p,.settings-security-card p,.accessibility-setting-group p,.accessibility-toggle small,.accessibility-save-status,.field-hint,.admin-top p,.admin-panel-head small,.catalog-row small,.order-customer,.order-lines,.table-unit-meta span,.table-manager-foot) {
+  color: #c4bdd2 !important;
+}
+html[data-mz-theme="dark"] :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea,.search-box,.order-status-select,.form-field select,.form-field input,.form-field textarea) {
+  color: #f4f0ff !important;
+  background-color: #17141f !important;
+  border-color: #625a72 !important;
+}
+html[data-mz-theme="dark"] input::placeholder,
+html[data-mz-theme="dark"] textarea::placeholder { color: #aaa1bc !important; opacity: 1; }
+html[data-mz-theme="dark"] :where(a:not(.button),.quiet-link,.admin-tab,.button-outline) { color: #d9ccff; }
+html[data-mz-theme="dark"] :where(.admin-tab.active,.button-dark,.button-primary,.add-button,.table-status-actions button.active) {
+  color: #fff !important;
+}
+html[data-mz-theme="dark"] :where(.admin-tabs,.settings-actions,.settings-note,.accessibility-preview,.accessibility-setting-group,.accessibility-toggle) {
+  border-color: #494253 !important;
+}
+html[data-mz-theme="dark"] .accessibility-preview { background: #30283e !important; }
+html[data-mz-theme="dark"] .table-map {
+  background-image: linear-gradient(#393144 1px, transparent 1px), linear-gradient(90deg, #393144 1px, transparent 1px) !important;
+}
+html[data-mz-theme="dark"] .table-map:before {
+  background: linear-gradient(145deg, #30283a, #25202f 80%) !important;
+  box-shadow: inset 0 0 0 9px #211d2b, inset 0 0 0 10px #494253 !important;
+}
+html[data-mz-theme="dark"] .table-map-top { background: #211d2b !important; color: #f4f0ff !important; }
+html[data-mz-theme="dark"] .table-status-actions { background: #30283a !important; }
+html[data-mz-theme="dark"] .table-unit.table-selected { background: #393047 !important; }
+html[data-mz-theme="dark"] .site-footer { border-color: #494253 !important; }
+html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-hint,.admin-top p,.admin-panel-head small,.accessibility-setting-group p,.accessibility-toggle small) {
+  color: #fff !important;
+}
