@@ -182,6 +182,24 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const duplicateTableBooking = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '2', idempotencyKey: 'integration-table-order-003' }) });
   assert.equal(duplicateTableBooking.status, 409, 'checkout cannot reserve a table already occupied');
 
+  // Mesas utilizadas precisam ir para limpeza ao concluir ou cancelar o pedido.
+  const finishedTableOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '3', idempotencyKey: 'integration-table-finish-003' }) });
+  assert.equal(finishedTableOrderResponse.status, 201);
+  const finishedTableOrder = (await finishedTableOrderResponse.json()).order;
+  for (const status of ['confirmed', 'preparing', 'ready', 'completed']) {
+    const response = await fetch(base + '/api/admin/orders/' + encodeURIComponent(finishedTableOrder.id), { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status }) });
+    assert.equal(response.status, 200, 'table order transition to ' + status);
+  }
+  const tablesAfterCompletion = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
+  assert.equal(tablesAfterCompletion.tables.find(table => table.number === 3).status, 'cleaning', 'completed dine-in order moves its table to cleaning');
+  const cancelledTableOrderResponse = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '4', idempotencyKey: 'integration-table-cancel-004' }) });
+  assert.equal(cancelledTableOrderResponse.status, 201);
+  const cancelledTableOrder = (await cancelledTableOrderResponse.json()).order;
+  const cancelledTableResponse = await fetch(base + '/api/admin/orders/' + encodeURIComponent(cancelledTableOrder.id), { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'cancelled' }) });
+  assert.equal(cancelledTableResponse.status, 200);
+  const tablesAfterCancellation = await (await fetch(base + '/api/admin/tables', { headers: { cookie } })).json();
+  assert.equal(tablesAfterCancellation.tables.find(table => table.number === 4).status, 'cleaning', 'cancelled dine-in order also moves its table to cleaning');
+
   const couponResponse = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'SAVE10', discountType: 'percent', discountValue: 10, minimumSubtotalCents: 5000, maxUses: 2, active: true }) });
   assert.equal(couponResponse.status, 201);
   const couponItems = orderPayload.items;
