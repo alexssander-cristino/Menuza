@@ -246,6 +246,16 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const exhaustedCoupon = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
   assert.equal(exhaustedCoupon.status, 422);
   assert.match((await exhaustedCoupon.json()).error, /limite de utilizações/);
+
+  const oneUseCoupon = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'ONEUSE', discountType: 'fixed', discountValue: 500, maxUses: 1, active: true }) });
+  assert.equal(oneUseCoupon.status, 201);
+  const competingOrders = await Promise.all([
+    fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-oneuse-race-001', couponCode: 'ONEUSE' }) }),
+    fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-oneuse-race-002', couponCode: 'ONEUSE' }) })
+  ]);
+  assert.deepEqual(competingOrders.map(response => response.status).sort(), [201, 422], 'a one-use coupon must not be redeemed by two distinct orders');
+  const oneUseExhausted = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'ONEUSE', items: couponItems }) });
+  assert.equal(oneUseExhausted.status, 422, 'the winning checkout consumes exactly one coupon use');
   assert.equal(adminOrders.status, 200);
   assert.equal((await adminOrders.json()).orders[0].items[0].ingredients[3].name, 'Bacon crocante');
   const newProductResponse = await fetch(base + '/api/admin/products', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ name: 'Pão de alho da casa', categoryId: 'acompanhamentos', type: 'plate', baseCents: 2500, description: 'Alho assado e ervas.' }) });
