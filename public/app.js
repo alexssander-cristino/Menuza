@@ -338,7 +338,7 @@ function applyRestaurantBranding(name){
   const clean=String(name||'').trim();
   if(!clean)return;
   const announcement=root.querySelector('.announcement');
-  if(announcement){const spans=announcement.querySelectorAll('span');if(spans.length>=2)spans[1].textContent='Restaurante: '+clean}
+  if(announcement){const label=announcement.querySelector('span:not(.live-dot):not(.announcement-divider):not(.announcement-right)');if(label)label.textContent='Restaurante: '+clean}
   const footer=root.querySelector('.footer-bottom');
   if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© Menuza · Cardápio digital de '+clean;
 }
