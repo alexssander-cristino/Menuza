@@ -13,7 +13,7 @@ const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', curre
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
 function setCart() { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); updateCartCount(); }
 const ORDER_TOKENS_KEY = 'menuza-customer-order-tokens';
-function savedOrderTokens() { try { const value = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '[]'); return Array.isArray(value) ? [...new Set(value.filter(token => typeof token === 'string' && /^[a-f0-9]{32,80}$/i.test(token)))].slice(0, 30) : []; } catch { return []; } }
+function savedOrderTokens() { try { const value = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '[]'); return Array.isArray(value) ? [...new Set(value.filter(token => typeof token === 'string' && /^[A-Za-z0-9_-]{32,80}$/.test(token)))].slice(0, 30) : []; } catch { return []; } }
 function rememberOrderToken(token) { if (!token || typeof token !== 'string') return; localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify([token, ...savedOrderTokens().filter(item => item !== token)].slice(0, 30))); }
 function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
