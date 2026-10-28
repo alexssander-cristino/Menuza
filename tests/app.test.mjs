@@ -176,6 +176,9 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(tablesAfterCheckout.tables.find(table => table.number === 2).status, 'occupied', 'successful table checkout reserves the selected table');
   assert.equal(tablesAfterCheckout.counts.occupied, 2);
   assert.equal(tablesAfterCheckout.counts.free, 10);
+  const prematureTableRelease = await fetch(base + '/api/admin/tables/table-2', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'free' }) });
+  assert.equal(prematureTableRelease.status, 409, 'a table with an active dine-in order cannot be released for another customer');
+  assert.match((await prematureTableRelease.json()).error, /pedido em andamento/);
   const duplicateTableBooking = await fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, fulfillment: 'table', tableLabel: '2', idempotencyKey: 'integration-table-order-003' }) });
   assert.equal(duplicateTableBooking.status, 409, 'checkout cannot reserve a table already occupied');
 
