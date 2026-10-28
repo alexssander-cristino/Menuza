@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateItemPrice, makeSeed, INGREDIENTS } from '../src/catalog.mjs';
+import { restaurantLocalDatePrefix } from '../src/time.mjs';
 import { buildFoodGeometry } from '../public/food-scene.js';
+
+test('dashboard usa a data local do restaurante em vez do dia UTC do servidor', () => {
+  assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T02:00:00.000Z')), '2026-10-27');
+  assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T04:00:00.000Z')), '2026-10-28');
+});
 
 test('pizza calcula tamanho e adicionais sem confiar em preço do cliente', () => {
   const pizza = { type: 'pizza', baseCents: 4990 };
