@@ -265,3 +265,22 @@ html,body{overflow-x:clip}.hero-art svg{max-width:100%}@media(max-width:900px){.
   }
 }
 
+
+/* Admin settings */
+.settings-panel{max-width:850px}
+.settings-note{font-size:11px;line-height:1.7;color:#777181;background:#f5f3f8;border-left:3px solid var(--orange);padding:12px 14px;margin:8px 0}
+.settings-actions{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.settings-actions .error-text{margin:0}
+.settings-info{max-width:850px}
+.settings-info p{font-size:11px;line-height:1.8;color:#716c7b}
+.settings-info code{font-size:10px;background:#f1eff4;padding:2px 4px;border-radius:3px}
+.admin-tab{cursor:pointer}
+.admin-tab:focus-visible,.button:focus-visible,.tiny-link:focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+@media(max-width:600px){
+  .settings-actions{align-items:stretch;flex-direction:column}
+  .settings-actions .button{width:100%}
+  .admin-top{gap:14px;flex-direction:column}
+  .admin-top-actions{flex-direction:row;flex-wrap:wrap}
+  .admin-top-actions .button{flex:1;justify-content:center}
+  .admin-tabs{scrollbar-width:thin}
+}
