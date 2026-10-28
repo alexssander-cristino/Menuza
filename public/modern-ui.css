@@ -1,0 +1,51 @@
+/* Menuza UI refinement — native CSS adaptations inspired by React Bits, shadcn/ui and Magic UI.
+   Kept framework-free to preserve the existing vanilla JS + Node app. */
+:root { --mz-glow: rgba(109, 76, 245, .18); --mz-ring: rgba(109, 76, 245, .42); --mz-elevated: 0 18px 50px rgba(35, 25, 74, .10); }
+::selection { background: #dcd3ff; color: #25164e; }
+:focus-visible { outline: 3px solid var(--mz-ring); outline-offset: 3px; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
+.hero-art-wrap::before { content:""; position:absolute; width:min(92%,440px); aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 30% 25%,rgba(207,197,255,.75),transparent 37%),radial-gradient(circle at 68% 65%,rgba(180,166,232,.42),transparent 43%); filter:blur(22px); opacity:.82; pointer-events:none; animation:mz-aurora-drift 13s ease-in-out infinite alternate; }
+.hero-art-wrap > * { z-index:1; }
+@keyframes mz-aurora-drift { from{transform:translate3d(-8px,5px,0) scale(.97)} to{transform:translate3d(10px,-8px,0) scale(1.04)} }
+.product-card { --pointer-x:50%; --pointer-y:50%; isolation:isolate; border-radius:14px; box-shadow:0 1px 2px rgba(27,21,48,.025); transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .28s ease; }
+.product-card::after { content:""; position:absolute; inset:0; z-index:3; border-radius:inherit; pointer-events:none; opacity:0; background:radial-gradient(260px circle at var(--pointer-x) var(--pointer-y),rgba(255,255,255,.58),transparent 62%); transition:opacity .25s ease; }
+.product-card:hover { transform:translateY(-5px); border-color:rgba(109,76,245,.34); box-shadow:0 16px 42px rgba(43,31,84,.11),0 0 0 1px rgba(109,76,245,.035); }
+.product-card:hover::after { opacity:1; }
+.product-image { border-radius:9px; }
+.product-label { backdrop-filter:blur(12px); }
+.add-button { border-radius:999px; padding:8px 10px; transition:color .2s ease,background .2s ease,transform .2s ease; }
+.add-button:hover { color:#fff; background:var(--mz-violet-600); transform:translateY(-1px); }
+.button-dark,.cart-button,.ar-button { position:relative; isolation:isolate; overflow:hidden; }
+.button-dark::after,.cart-button::after,.ar-button::after { content:""; position:absolute; inset:-30% auto -30% -60%; width:36%; transform:skewX(-20deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent); transition:left .65s cubic-bezier(.2,.8,.2,1); pointer-events:none; }
+.button-dark:hover::after,.cart-button:hover::after,.ar-button:hover::after { left:130%; }
+.button,.cart-button,.share-menu-button,.quiet-link,.filter-toggle,.category-chip,.text-link { transition-timing-function:cubic-bezier(.2,.8,.2,1); }
+.button:active,.cart-button:active,.category-chip:active,.filter-toggle:active { transform:scale(.98); }
+.search-box { border-radius:10px; transition:border-color .2s ease,box-shadow .2s ease,background .2s ease; }
+.search-box:focus-within { border-color:var(--mz-violet-500); background:#fff; box-shadow:0 0 0 4px rgba(109,76,245,.10); }
+.search-box input:focus-visible { outline:none; }
+.category-chip { border-radius:999px; }
+.category-chip.active { box-shadow:0 5px 16px rgba(27,21,48,.12); }
+.filter-toggle { border-radius:999px; }
+.filter-toggle:hover { background:rgba(109,76,245,.08); color:var(--mz-violet-700); }
+.sort-label select { border-radius:8px; padding:7px 9px; }
+.sort-label select:focus-visible { outline-offset:1px; }
+.site-header { backdrop-filter:blur(18px); background:rgba(246,245,249,.92); }
+.cart-button { box-shadow:0 5px 16px rgba(27,21,48,.12); }
+.share-menu-button { border-radius:999px; }
+.share-menu-button:hover { background:rgba(109,76,245,.08); }
+.text-link { text-underline-offset:5px; }
+.text-link:hover { color:var(--mz-violet-700); border-color:var(--mz-violet-500); }
+.section-heading h2 em,.craft-text h2 em { background:linear-gradient(105deg,var(--mz-violet-700),#8b75f7 48%,var(--mz-violet-600)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+@media(max-width:760px) {
+  .wrap { width:min(100% - 32px,1190px); }
+  .site-header { padding-inline:16px; }
+  .product-card { border-radius:12px; }
+  .product-card:hover { transform:none; box-shadow:none; }
+  .product-card::after { display:none; }
+  .hero-art-wrap::before { width:88%; filter:blur(15px); }
+  .button-dark::after,.cart-button::after,.ar-button::after { display:none; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
+}
