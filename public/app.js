@@ -301,12 +301,13 @@ function syncSceneUi(artMode) {
   scene.setActive(!artMode);
   setStageState(scene.state);
 }
+function invalidateCheckoutKey(){ app.checkoutKey=''; }
 function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
   const product=app.catalog.products.find(p=>p.id===builder.productId);
   const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
-  setCart();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na sacola.':'Adicionado à sacola.');openCart();
+  invalidateCheckoutKey();setCart();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na sacola.':'Adicionado à sacola.');openCart();
 }
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
 function cartItemPrice(item){
@@ -767,7 +768,7 @@ async function repeatCustomerOrder(orderId){
       rebuilt.push({cartId:randomId(),productId:product.id,name:product.name,type:product.type,quantity:Math.max(1,Math.min(10,Number(old.quantity)||1)),sizeKey,crustKey,ingredients,notes:typeof old.notes==='string'?old.notes.slice(0,500):''});
     }
     if(!rebuilt.length)return toast('Os produtos desse pedido não estão mais disponíveis.');
-    app.cart=rebuilt;setCart();showHome();renderCatalog();toast(rebuilt.length<(order.items||[]).length?'Pedido recuperado; alguns itens indisponíveis foram ignorados.':'Pedido anterior recuperado na sacola.');openCart();
+    app.cart=rebuilt;invalidateCheckoutKey();setCart();showHome();renderCatalog();toast(rebuilt.length<(order.items||[]).length?'Pedido recuperado; alguns itens indisponíveis foram ignorados.':'Pedido anterior recuperado na sacola.');openCart();
   }catch(error){toast(error.message||'Não foi possível repetir esse pedido.');}
 }
 function handleClick(event){
@@ -823,8 +824,8 @@ function handleClick(event){
   if(action==='zoom-out'&&app.builder){app.scene?.zoomBy(1/1.15);return}
   if(action==='view-ar'){launchAR(target.dataset.product);return}if(action==='exit-ar'){app.scene?.exitAR();return}
   if(action==='close-cart'||(action==='cart-backdrop'&&event.target===target)){app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';return}
-  if(action==='qty'){const item=app.cart.find(i=>i.cartId===target.dataset.id);if(item){item.quantity=Math.max(1,Math.min(10,item.quantity+Number(target.dataset.delta)));setCart();renderCart()}return}
-  if(action==='remove-cart-item'){app.cart=app.cart.filter(i=>i.cartId!==target.dataset.id);setCart();renderCart();return}
+  if(action==='qty'){const item=app.cart.find(i=>i.cartId===target.dataset.id);if(item){const next=Math.max(1,Math.min(10,item.quantity+Number(target.dataset.delta)));if(next!==item.quantity){item.quantity=next;invalidateCheckoutKey();setCart();renderCart()}}return}
+  if(action==='remove-cart-item'){const next=app.cart.filter(i=>i.cartId!==target.dataset.id);if(next.length!==app.cart.length){app.cart=next;invalidateCheckoutKey();setCart();renderCart()}return}
   if(action==='edit-cart-item'){const item=app.cart.find(i=>i.cartId===target.dataset.id);app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';if(item)openBuilder(item.productId,item);return}
   if(action==='checkout'){openCheckout();return}
   if(action==='close-checkout'||(action==='checkout-backdrop'&&event.target===target)){app.checkoutOpen=false;root.getElementById('checkoutRoot').innerHTML='';return}
