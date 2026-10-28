@@ -12,14 +12,22 @@
   let until = now + requestedWait * 1000;
 
   try {
-    const savedUntil = Number.parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+    const storedValue = localStorage.getItem(STORAGE_KEY);
 
-    // Ao recarregar, reutiliza o prazo salvo. Não soma um novo período a cada visita.
-    if (Number.isFinite(savedUntil) && savedUntil > now) {
+    // Se já existe um prazo salvo, nunca reinicia a contagem ao atualizar.
+    if (storedValue !== null) {
+      const savedUntil = Number.parseInt(storedValue, 10);
+
+      // Prazo encerrado: qualquer nova visita à página 429 segue para o login.
+      if (!Number.isFinite(savedUntil) || savedUntil <= now) {
+        window.location.replace('/#conta');
+        return;
+      }
+
       until = savedUntil;
+    } else {
+      localStorage.setItem(STORAGE_KEY, String(until));
     }
-
-    localStorage.setItem(STORAGE_KEY, String(until));
   } catch {
     // Sem armazenamento local, o cronômetro funciona apenas durante esta visita.
   }
@@ -44,18 +52,20 @@
       : 'liberado';
 
     if (seconds === 0) {
+      // Mantém um marcador de expiração para que F5 não inicie outro bloqueio.
       try {
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, '0');
       } catch {
-        // O bloqueio visual pode terminar mesmo sem armazenamento local.
+        // O redirecionamento automático continua funcionando nesta visita.
       }
-      message.textContent = 'O período de espera terminou. Você já pode voltar ao cardápio.';
-      returnButton.hidden = false;
       window.removeEventListener('popstate', trapBack);
       if (window.menuzaCountdownInterval) {
         window.clearInterval(window.menuzaCountdownInterval);
         window.menuzaCountdownInterval = null;
       }
+      message.textContent = 'Tempo encerrado. Redirecionando para o login…';
+      returnButton.hidden = true;
+      window.location.replace('/#conta');
     }
   }
 
