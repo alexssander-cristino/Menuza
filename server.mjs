@@ -568,7 +568,7 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
       if (request.method === 'POST' && path === '/api/coupons/validate') {
-        const customer = requireCustomer(request);
+        requireCustomer(request);
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const result = validateCouponForOrder(body.code, body.items);
