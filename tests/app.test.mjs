@@ -378,6 +378,15 @@ test('login do cliente aparece antes de terminar a verificação da sessão', as
 });
 
 
+test('comanda imprimível inclui dados do pedido e escapa conteúdo dinâmico', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function printOrderTicket(orderId)'));
+  assert.ok(client.includes('data-action="print-order"'));
+  assert.ok(client.includes("esc(order.customerName||'Não informado')"));
+  assert.ok(client.includes("esc(order.deliveryAddress)"));
+  assert.ok(client.includes("window.addEventListener('afterprint',cleanup)"));
+});
+
 test('QR geral abre o cardápio sem parâmetros de mesa', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   const start = client.indexOf('function menuQrUrl()');
