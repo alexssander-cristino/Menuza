@@ -35,6 +35,8 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset
 await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
+try { db.exec("ALTER TABLE restaurants ADD COLUMN logo_url TEXT NOT NULL DEFAULT ''"); }
+catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
@@ -114,7 +116,7 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
     }).filter(Boolean);
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: row.active, createdAt: row.createdAt, updatedAt: row.updatedAt, items };
   });
-  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
+  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -557,13 +559,15 @@ function patchProduct(productId, patch) {
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
 function patchRestaurantSettings(patch) {
-  const current = statement('SELECT name,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+  const current = statement('SELECT name,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
   if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
   const prepMinutes = patch.prepMinutes === undefined ? current.prepMinutes : Number(patch.prepMinutes);
+  const logoUrl = patch.logoUrl === undefined ? current.logoUrl : cleanText(patch.logoUrl, 500);
+  if (logoUrl && (!/^https:\/\//i.test(logoUrl) || !/^https:\/\/[^\s<>"']+$/i.test(logoUrl))) throw Object.assign(new Error('Use o endereço HTTPS direto da imagem da logo.'), { status: 422 });
   if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
   if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
-  statement('UPDATE restaurants SET name=?,prep_minutes=? WHERE id=?').run(name, prepMinutes, RESTAURANT_ID);
+  statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, logoUrl, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'settings-updated' });
   return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
 }
