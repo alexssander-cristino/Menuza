@@ -64,7 +64,7 @@ test('checkout mantém a chave idempotente após recarregar e invalida quando o 
 test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
-  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}"), 'initial visits without a valid session must open the account login');
+  assert.ok(client.includes("const firstRoute=app.tableQr?'conta':'admin'"), 'initial visits open restaurant login while table QR visitors use customer login');
   assert.ok(client.includes("if(hash==='admin')return showAdmin()"), 'restaurant login remains independently accessible');
   assert.ok(client.includes("if(hash==='conta')return showCustomerAccount()"), 'customer login and account remain accessible');
   assert.ok(client.includes("'/api/customer/me'"), 'session is validated by the server cookie, not a client-side flag');
