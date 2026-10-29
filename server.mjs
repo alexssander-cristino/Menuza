@@ -569,7 +569,7 @@ function patchRestaurantSettings(patch) {
   if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
   statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, logoUrl, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'settings-updated' });
-  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
 }
 function patchIngredient(ingredientId, patch) {
   const current = statement('SELECT * FROM ingredients WHERE id=? AND restaurant_id=?').get(ingredientId, RESTAURANT_ID);
