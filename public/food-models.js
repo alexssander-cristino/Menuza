@@ -654,9 +654,55 @@ function plateLayout(product, ings, size, o) {
   return { parts, total: .05, radius: R, extentH: [0, .055] };
 }
 
+// Converte nomes personalizados do painel em peças procedurais conhecidas.
+ // Assim, "Catupiry extra", "Pepperoni", "Cheddar adicional" etc. alteram o modelo
+ // sem exigir que o ID cadastrado seja igual ao nome interno do modelo.
+function resolveVisualIngredient(type, ingredient) {
+  const id = String(ingredient?.id || '').toLowerCase();
+  const raw = String(ingredient?.name || ingredient?.label || ingredient?.groupName || id);
+  const name = raw.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
+  const has = (...terms) => terms.some(term => text.includes(term));
+  const knownPizza = new Set(['molho-tomate','mussarela',...Object.keys(TOPPINGS)]);
+  const knownBurger = new Set(['pao-brioche','carne','queijo-cheddar','alface','tomate-burger','molho-especial','picles','cebola-burger','queijo-extra','bacon-burger','ovo']);
+  if ((type === 'pizza' && knownPizza.has(id)) || (type === 'burger' && knownBurger.has(id))) return { ...ingredient };
+  let visualId = '';
+  if (type === 'pizza') {
+    if (has('molho','sauce')) visualId = 'molho-tomate';
+    else if (has('mussarela','mozzarella','mozzarela','queijo','cheddar','parmesao','parmesao','gorgonzola','provolone','coalho')) visualId = 'mussarela';
+    else if (has('calabresa','pepperoni','pepperoni','salame')) visualId = 'calabresa';
+    else if (has('champignon','cogumelo','fungo','shimeji','shitake','portobello')) visualId = 'champignon';
+    else if (has('frango','frango desfiado','chicken','palmito')) visualId = 'frango';
+    else if (has('bacon','panceta','linguica','linguica')) visualId = 'bacon';
+    else if (has('cebola','onion','alho','alho poro')) visualId = 'cebola';
+    else if (has('azeitona','oliva','olive')) visualId = 'azeitona';
+    else if (has('catupiry','requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
+    else if (has('milho','corn')) visualId = 'milho';
+    else if (has('oregano','manjericao','salsinha','cebolinha','rucula','erva','herb')) visualId = 'oregano';
+    else if (has('tomate','tomato','pimentao','pepper')) visualId = 'tomate';
+    else if (has('alho frito','cebola crispy','crispy')) visualId = 'cebola';
+  } else if (type === 'burger') {
+    if (has('pao','brioche','bun')) visualId = 'pao-brioche';
+    else if (has('carne','hamburguer','burger','patty','bovina')) visualId = 'carne';
+    else if (has('cheddar','queijo','mussarela','mozzarella','prato','provolone','gorgonzola')) visualId = has('extra','adicional','dobro','duplo') ? 'queijo-extra' : 'queijo-cheddar';
+    else if (has('alface','lettuce','rucula')) visualId = 'alface';
+    else if (has('tomate','tomato')) visualId = 'tomate-burger';
+    else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','aioli')) visualId = 'molho-especial';
+    else if (has('picles','pickle','pepino')) visualId = 'picles';
+    else if (has('cebola','onion','alho')) visualId = 'cebola-burger';
+    else if (has('bacon','panceta')) visualId = 'bacon-burger';
+    else if (has('ovo','egg')) visualId = 'ovo';
+    else if (has('frango','crispy chicken')) visualId = 'carne';
+  } else {
+    return { ...ingredient };
+  }
+  if (!visualId) return { ...ingredient };
+  return { ...ingredient, id: visualId };
+}
+
 export function buildFoodLayout(product, ingredients, size, options = {}) {
   const o = { detail: options.detail || 1, crustKey: options.crustKey };
-  const type = product.type, list = ingredients || [];
+  const type = product.type, list = (ingredients || []).map(item => resolveVisualIngredient(type, item));
   let layout, bounds;
   if (type === 'pizza') {
     layout = pizzaLayout(product, list, size, o);
