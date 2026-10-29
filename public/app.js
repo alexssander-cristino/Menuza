@@ -1362,7 +1362,10 @@ async function loadAvailableTables(select){
 async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
   const cents=Math.round(Number(row.querySelector('.product-price-input').value)*100),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked;
-  try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available})});toast('Produto atualizado.')}catch(e){toast(e.message)}
+  const defaultIngredientIds=[...row.querySelector('.product-recipe-input').selectedOptions].map(option=>option.value);
+  const selectedAddons=[...row.querySelector('.product-addons-input').selectedOptions].map(option=>option.value);
+  const ingredientIds=[...new Set([...selectedAddons,...defaultIngredientIds])];
+  try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available,ingredientIds,defaultIngredientIds})});toast('Produto, receita e adicionais atualizados.');renderCatalogAdmin()}catch(error){toast(error.message)}
 }
 async function createIngredient(type,form){
   const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.'));
