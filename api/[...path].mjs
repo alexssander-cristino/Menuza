@@ -131,6 +131,15 @@ async function catalogFor(admin = false) {
   });
   return { restaurant: restaurant.rows[0] || null, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
+async function validateProductIngredientIds(value, type) {
+  if (!Array.isArray(value) || value.length > 40 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
+    throw fail('Selecione ingredientes válidos para o produto.', 422);
+  }
+  if (!value.length) return [];
+  const result = await query('SELECT id FROM ingredients WHERE restaurant_id=$1 AND type=$2 AND active=1 AND id=ANY($3::text[])', [RESTAURANT_ID, type, value]);
+  if (result.rows.length !== value.length) throw fail('Um dos ingredientes selecionados não está ativo ou não pertence a esse tipo de produto.', 422);
+  return value;
+}
 async function orderById(id) {
   const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
     FROM orders o JOIN restaurants r ON r.id=o.restaurant_id WHERE o.id=$1 AND o.restaurant_id=$2`, [id, RESTAURANT_ID]);
@@ -504,14 +513,17 @@ export default async function handler(req,res) {
       if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(price)||price<500||price>1000000) throw fail('Preencha nome, tipo e preço-base válidos.',422);
       const cat=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[categoryId,RESTAURANT_ID])).rows[0]; if(!cat) throw fail('Escolha uma categoria válida.',422);
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
+      const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,25,$8,$9,$10,$11,$11)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
+      await query('UPDATE products SET ingredient_ids_json=$1 WHERE id=$2 AND restaurant_id=$3',[JSON.stringify(ingredientIds),productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
       const b=await bodyOf(req), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
+      const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       if(name.length<2||!Number.isInteger(price)||price<500||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
-      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,updated_at=$6 WHERE id=$7 AND restaurant_id=$8',[name,description,price,active,available,new Date().toISOString(),id,RESTAURANT_ID]);
+      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),updated_at=$7 WHERE id=$8 AND restaurant_id=$9',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),new Date().toISOString(),id,RESTAURANT_ID]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
