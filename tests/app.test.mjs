@@ -375,3 +375,10 @@ test('login do cliente aparece antes de terminar a verificação da sessão', as
   assert.ok(accountView.includes("renderCustomerAuth();try{const result=await api('/api/customer/me')"), 'customer login must render before the session request resolves');
   assert.ok(accountView.includes("if(app.customer)await renderCustomerDashboard()"), 'a valid session must still open the customer dashboard');
 });
+
+
+test('biblioteca QR Code não acessa this no escopo do módulo ES', async () => {
+  const qr = await readFile(new URL('../public/qrcode.js', import.meta.url), 'utf8');
+  assert.ok(qr.includes('if (_getAndroid() && _getAndroid() <= 2.1)'), 'Android compatibility check must use the detector function');
+  assert.ok(!qr.includes('if (this._android && this._android <= 2.1)'), 'top-level this is undefined in ES modules');
+});
