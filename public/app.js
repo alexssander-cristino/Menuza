@@ -1339,8 +1339,9 @@ async function start(){
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
-  if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}
+  if(initialHash==='admin'||initialHash==='conta'){onRoute();return}
   if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}
+  if(initialHash.startsWith('pedido/')){onRoute();return}
   await openMenu();
 }
 setInterval(updateOrderElapsedTimes,30000);
