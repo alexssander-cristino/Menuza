@@ -651,6 +651,23 @@ function plateLayout(product, ings, size, o) {
     { kind: 'ramekin', key: key('ramekin'), y: 0, base: false, xz: [-R * .5, R * .38], build: () => ramekinMesh(seed, detail), dy: .0074 }
   ];
   parts[2].y = .0074; parts[2].x = -R * .5; parts[2].z = R * .38;
+  const count = Math.min(10, ings.length);
+  for (let i = 0; i < count; i++) {
+    const item = ings[i], n = String(item.id || '').toLowerCase(), q = clamp(Number(item.quantity) || 1, 1, 3), idx = i;
+    const angle = idx * 2.39996 + seed * .013, radius = R * (.16 + .23 * Math.sqrt((idx + 1) / Math.max(1, count)));
+    const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
+    let kind = 'plate-piece', build;
+    if (n.includes('cheese') || n.includes('queijo')) { kind = 'plate-cheese'; build = () => cheeseMesh(R * .18, .006, seed + idx * 13, detail); }
+    else if (n.includes('tomato') || n.includes('tomate') || n.includes('piment')) { kind = 'plate-tomato'; build = () => tomatoMesh(R * .19, 1, seed + idx * 13, detail, q); }
+    else if (n.includes('bacon') || n.includes('calabresa') || n.includes('linguica')) { kind = 'plate-bacon'; build = () => baconMesh(R * .18, 1, seed + idx * 13, detail, q); }
+    else if (n.includes('alface') || n.includes('rucula') || n.includes('salada') || n.includes('erva') || n.includes('oregano')) { kind = 'plate-greens'; build = () => lettuceMesh(R * .17, 1, seed + idx * 13, detail, q + 1); }
+    else if (n.includes('molho') || n.includes('maionese') || n.includes('ketchup') || n.includes('mostarda') || n.includes('barbecue')) { kind = 'plate-sauce'; build = () => sauceMesh(R * .15, 1, seed + idx * 13, detail); }
+    else if (n.includes('carne') || n.includes('hamburguer') || n.includes('frango') || n.includes('chicken')) { kind = 'plate-protein'; build = () => pattyMesh(R * .18, .008 + q * .001, seed + idx * 13, detail); }
+    else if (n.includes('ovo') || n.includes('egg')) { kind = 'plate-egg'; build = () => eggMesh(R * .17, 1, seed + idx * 13, detail); }
+    else if (n.includes('cebola') || n.includes('picles') || n.includes('pepino') || n.includes('azeitona') || n.includes('cogumelo') || n.includes('champignon')) { kind = 'plate-vegetable'; build = () => pickleMesh(R * .15, 1, seed + idx * 13, detail, q); }
+    else { build = () => pattyMesh(R * .14, .006 + q * .001, seed + idx * 13, detail); }
+    parts.push({ kind, key: key(kind + '-' + idx + '-' + q), y: .008 + idx * .0005, x, z, base: false, build });
+  }
   return { parts, total: .05, radius: R, extentH: [0, .055] };
 }
 
@@ -693,8 +710,16 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('bacon','panceta')) visualId = 'bacon-burger';
     else if (has('ovo','egg')) visualId = 'ovo';
     else if (has('frango','crispy chicken')) visualId = 'carne';
-  } else {
-    return { ...ingredient };
+  } else if (type === 'plate') {
+    if (has('queijo','cheddar','mussarela','catupiry','cream')) visualId = 'plate-cheese';
+    else if (has('tomate','tomato','pimentao','pimenta')) visualId = 'plate-tomato';
+    else if (has('bacon','calabresa','linguica','salame')) visualId = 'plate-bacon';
+    else if (has('alface','rucula','salada','salsinha','cebolinha','oregano','erva','verde')) visualId = 'plate-greens';
+    else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','sauce')) visualId = 'plate-sauce';
+    else if (has('carne','hamburguer','frango','chicken','proteina')) visualId = 'plate-protein';
+    else if (has('ovo','egg')) visualId = 'plate-egg';
+    else if (has('cebola','picles','pepino','azeitona','cogumelo','champignon')) visualId = 'plate-vegetable';
+    else visualId = 'plate-piece';
   }
   if (!visualId) {
     const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
