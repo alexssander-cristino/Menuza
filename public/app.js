@@ -1339,8 +1339,14 @@ async function start(){
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
+  const hasTableQr=Boolean(qrToken&&qrNumber&&app.tableQr);
   if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}
-  if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}
+  if(!app.customer){
+    const firstRoute=hasTableQr?'conta':'admin';
+    history.replaceState(null,'',location.pathname+location.search+'#'+firstRoute);
+    onRoute();
+    return;
+  }
   await openMenu();
 }
 setInterval(updateOrderElapsedTimes,30000);
