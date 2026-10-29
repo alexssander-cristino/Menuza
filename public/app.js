@@ -1,3 +1,6 @@
+const MENUZA_APP_BUILD = '54';
+try { localStorage.setItem('menuza-app-build', MENUZA_APP_BUILD); } catch {}
+
 import { FoodScene } from './food-scene.js?v=7';
 import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
