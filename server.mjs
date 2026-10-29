@@ -651,6 +651,7 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
+      if (request.method === 'GET' && path === '/api/restaurant/branding') { return send(response, 200, { restaurant: statement('SELECT name,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) }); }
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
       if (request.method === 'GET' && path.startsWith('/api/tables/qr/')) {
         const token = path.slice('/api/tables/qr/'.length);
