@@ -187,7 +187,11 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
       _progress = 0;
     });
     try {
-      await _controller.loadRequest(Uri.parse(normalized));
+      final appUri = Uri.parse(normalized);
+      final customerLoginUri = appUri.replace(
+        fragment: appUri.fragment.isEmpty ? 'conta' : appUri.fragment,
+      );
+      await _controller.loadRequest(customerLoginUri);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('menuza_server_url', normalized);
     } catch (_) {
