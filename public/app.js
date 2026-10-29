@@ -1538,20 +1538,15 @@ async function start(){
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
   try{const branding=await api('/api/restaurant/branding');applyRestaurantBranding(branding.restaurant?.name,branding.restaurant?.logoUrl)}catch{}
-  if(initialHash==='conta'){onRoute();return}
-  // Migra URLs antigas que ficaram salvas em #admin para o login do cliente.
-  if(initialHash==='admin'){
-    history.replaceState(null,'',location.pathname+location.search+'#conta');
-    onRoute();
-    return;
-  }
+  // Rotas públicas/específicas devem ser resolvidas antes do bloqueio de sessão do cliente.
+  // O painel do restaurante usa #admin e precisa continuar acessível após atualizar a página.
+  if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}
   if(!app.customer){
     const firstRoute='conta';
     history.replaceState(null,'',location.pathname+location.search+'#'+firstRoute);
     onRoute();
     return;
   }
-  if(initialHash.startsWith('pedido/')){onRoute();return}
   await openMenu();
 }
 setInterval(updateOrderElapsedTimes,30000);
