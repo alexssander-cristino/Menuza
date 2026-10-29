@@ -844,6 +844,7 @@ async function renderSettingsAdmin(){
     const {restaurant}=await api('/api/admin/settings');
     const initialName=String(restaurant.name||'').trim();
     const initialPrep=Number(restaurant.prepMinutes)||30;
+    const initialLogoUrl=String(restaurant.logoUrl||'').trim();
     target.innerHTML=`
       <div class="settings-intro">
         <div><div class="eyebrow">PERSONALIZE SUA EXPERIÊNCIA</div><h2>Seu restaurante, do seu jeito.</h2><p>Atualize as informações que seus clientes veem no cardápio.</p></div>
@@ -854,6 +855,7 @@ async function renderSettingsAdmin(){
           <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">✳</span></div>
           <form id="restaurantSettingsForm" class="settings-form">
             <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
+            <label class="form-field"><span>URL da logo do restaurante</span><input name="logoUrl" type="url" maxlength="500" value="${esc(initialLogoUrl)}" placeholder="https://seusite.com/logo.png" inputmode="url"><small class="field-hint">Cole o link HTTPS direto de uma imagem PNG, JPG ou WebP. Deixe vazio para usar as iniciais.</small></label>
             <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
             <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
             <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
@@ -945,12 +947,13 @@ async function renderSettingsAdmin(){
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;
     const prepInput=form.elements.prepMinutes;
+    const logoInput=form.elements.logoUrl;
     const status=root.getElementById('settingsStatus');
     const saveButton=form.querySelector('button[type="submit"]');
     const setDirty=()=>{
       root.getElementById('settingsPreviewName').textContent=nameInput.value.trim()||'Seu restaurante';
       root.getElementById('settingsPreviewPrep').textContent=(Number(prepInput.value)||0)+' min';
-      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep;
+      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||logoInput.value.trim()!==initialLogoUrl;
       status.classList.toggle('is-dirty',dirty);
       status.innerHTML=dirty?'<span></span> Alterações não salvas':'<span></span> Tudo salvo';
       saveButton.disabled=!dirty;
@@ -963,26 +966,43 @@ async function renderSettingsAdmin(){
       const data=new FormData(form);
       const name=String(data.get('name')||'').trim();
       const prepMinutes=Number(data.get('prepMinutes'));
+      const logoUrl=String(data.get('logoUrl')||'').trim();
       const error=root.getElementById('settingsError');
       if(name.length<2||!Number.isFinite(prepMinutes)||prepMinutes<5||prepMinutes>240){error.textContent='Confira o nome e o tempo de preparo antes de salvar.';return}
       saveButton.disabled=true;saveButton.textContent='Salvando…';error.textContent='';
       try{
-        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes})});
-        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes}
-        applyRestaurantBranding(result.restaurant.name);
+        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes,logoUrl})});
+        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes;app.catalog.restaurant.logoUrl=result.restaurant.logoUrl||''}
+        applyRestaurantBranding(result.restaurant.name,result.restaurant.logoUrl);
         toast('Configurações salvas.');
         await renderSettingsAdmin();
       }catch(e){error.textContent=e.message;saveButton.disabled=false;saveButton.innerHTML='Tentar novamente <span aria-hidden="true">↗</span>'}
     });
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
-function applyRestaurantBranding(name){
+function applyRestaurantBranding(name,logoUrl=''){
   const clean=String(name||'').trim();
   if(!clean)return;
-  const announcement=root.querySelector('.announcement');
-  if(announcement){const label=announcement.querySelector('span:not(.live-dot):not(.announcement-divider):not(.announcement-right)');if(label)label.textContent='Restaurante: '+clean}
+  const initials=clean.split(/\\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toLocaleUpperCase('pt-BR');
+  for(const brand of root.querySelectorAll('[data-restaurant-brand]')){
+    const label=brand.querySelector('[data-restaurant-name]');
+    if(label)label.textContent=clean;
+    const image=brand.querySelector('[data-restaurant-logo]');
+    const fallback=brand.querySelector('[data-restaurant-initials]');
+    if(image){
+      image.alt='Logo de '+clean;
+      image.hidden=!logoUrl;
+      image.onerror=()=>{image.hidden=true;if(fallback)fallback.hidden=false};
+      image.onload=()=>{if(fallback)fallback.hidden=true};
+      if(logoUrl){image.src=logoUrl}else{image.removeAttribute('src')}
+    }
+    if(fallback){fallback.textContent=initials;fallback.hidden=Boolean(logoUrl)}
+    brand.setAttribute('aria-label',clean+' — início');
+  }
   const footer=root.querySelector('.footer-bottom');
-  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© Menuza · Cardápio digital de '+clean;
+  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© '+clean+' · Cardápio digital com Menuza';
+  const announcement=root.querySelector('.announcement');
+  if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
 async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando adicionais…</div>';
@@ -1055,7 +1075,7 @@ async function repeatCustomerOrder(orderId){
   if(!order)return toast('Não encontrei esse pedido no seu histórico.');
   if(app.cart.length&&!window.confirm('Deseja substituir os itens atuais da sacola pelo pedido anterior?'))return;
   try{
-    if(!app.catalog){app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name);renderCatalog()}
+    if(!app.catalog){app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);renderCatalog()}
     const available=new Map(app.catalog.products.filter(item=>Number(item.active)!==0).map(item=>[item.id,item]));
     const validIngredients=new Map(app.catalog.ingredients.filter(item=>Number(item.active)!==0).map(item=>[item.id,item]));
     const rebuilt=[];
