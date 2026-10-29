@@ -18,7 +18,7 @@
    ```powershell
    $env:DATABASE_URL="postgresql://..."
    $env:DATA_FILE="C:\caminho\para\data\mesa.sqlite"
-   node scripts/import-sqlite-to-neon.mjs
+   $env:CONFIRM_SQLITE_TO_POSTGRES_MIGRATION="yes"`r`n   node scripts/migrate-sqlite-to-postgres.mjs
    ```
 
 5. Se o banco Neon estiver vazio e não houver banco SQLite para importar, execute `node scripts/migrate-neon.mjs` para criar os dados de demonstração. Não execute o seed de demonstração antes da importação de produção.
@@ -28,6 +28,6 @@
 ## Importante
 
 - Não coloque credenciais no Git nem em mensagens. Use as variáveis de ambiente do Vercel.
-- O script de importação usa `ON CONFLICT DO NOTHING`: rode-o com o banco alvo correto e revise os totais antes de colocar o tráfego em produção.
+- O script de migração exige confirmação explícita, valida a integridade do SQLite, exige um destino vazio e usa uma transação para evitar misturar dados. Revise os totais informados antes de colocar o tráfego em produção.
 - A migração de dados e a implantação não são consideradas concluídas até validar os fluxos reais com as variáveis de ambiente e o banco Neon configurados.
 - A hospedagem serverless não mantém conexões SSE permanentes. O endpoint de eventos abre uma conexão curta para compatibilidade; a interface deve continuar usando o polling de contingência.
