@@ -669,11 +669,11 @@ function resolveVisualIngredient(type, ingredient) {
   let visualId = '';
   if (type === 'pizza') {
     if (has('molho','sauce')) visualId = 'molho-tomate';
-    else if (has('mussarela','mozzarella','mozzarela','queijo','cheddar','parmesao','parmesao','gorgonzola','provolone','coalho')) visualId = 'mussarela';
-    else if (has('calabresa','pepperoni','pepperoni','salame')) visualId = 'calabresa';
+    else if (has('mussarela','mozzarella','mozzarela','queijo','cheddar','parmesao','gorgonzola','provolone','coalho')) visualId = has('extra','adicional','dobro','duplo','recheio') ? 'requeijao' : 'mussarela';
+    else if (has('calabresa','pepperoni','salame')) visualId = 'calabresa';
     else if (has('champignon','cogumelo','fungo','shimeji','shitake','portobello')) visualId = 'champignon';
-    else if (has('frango','frango desfiado','chicken','palmito')) visualId = 'frango';
-    else if (has('bacon','panceta','linguica','linguica')) visualId = 'bacon';
+    else if (has('frango','frango desfiado','chicken')) visualId = 'frango';
+    else if (has('bacon','panceta','linguica')) visualId = 'bacon';
     else if (has('cebola','onion','alho','alho poro')) visualId = 'cebola';
     else if (has('azeitona','oliva','olive')) visualId = 'azeitona';
     else if (has('catupiry','requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
@@ -684,7 +684,7 @@ function resolveVisualIngredient(type, ingredient) {
   } else if (type === 'burger') {
     if (has('pao','brioche','bun')) visualId = 'pao-brioche';
     else if (has('carne','hamburguer','burger','patty','bovina')) visualId = 'carne';
-    else if (has('cheddar','queijo','mussarela','mozzarella','prato','provolone','gorgonzola')) visualId = has('extra','adicional','dobro','duplo') ? 'queijo-extra' : 'queijo-cheddar';
+    else if (has('cheddar','queijo','mussarela','mozzarella','prato','provolone','gorgonzola')) visualId = 'queijo-extra';
     else if (has('alface','lettuce','rucula')) visualId = 'alface';
     else if (has('tomate','tomato')) visualId = 'tomate-burger';
     else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','aioli')) visualId = 'molho-especial';
@@ -696,13 +696,36 @@ function resolveVisualIngredient(type, ingredient) {
   } else {
     return { ...ingredient };
   }
-  if (!visualId) return { ...ingredient };
-  return { ...ingredient, id: visualId };
+  if (!visualId) {
+    const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+    if (type === 'pizza') {
+      if (/queij|latic|molho|crem/.test(group)) visualId = 'requeijao';
+      else if (/carne|prote|frango/.test(group)) visualId = 'frango';
+      else if (/tempero|erva|verde/.test(group)) visualId = 'oregano';
+      else if (/veget|legum/.test(group)) visualId = 'cebola';
+      else visualId = 'requeijao'; // peça genérica para nomes livres sem correspondência conhecida
+    } else if (type === 'burger') {
+      if (/queij|latic/.test(group)) visualId = 'queijo-extra';
+      else if (/carne|prote/.test(group)) visualId = 'carne';
+      else if (/molho|crem/.test(group)) visualId = 'molho-especial';
+      else if (/veget|verde/.test(group)) visualId = 'alface';
+      else visualId = 'queijo-extra'; // peça genérica para nomes livres sem correspondência conhecida
+    }
+  }
+  return visualId ? { ...ingredient, id: visualId } : { ...ingredient };
 }
 
 export function buildFoodLayout(product, ingredients, size, options = {}) {
   const o = { detail: options.detail || 1, crustKey: options.crustKey };
-  const type = product.type, list = (ingredients || []).map(item => resolveVisualIngredient(type, item));
+  const type = product.type;
+  const combined = new Map();
+  for (const original of (ingredients || [])) {
+    const item = resolveVisualIngredient(type, original);
+    const previous = combined.get(item.id);
+    if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, 3);
+    else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, 3) });
+  }
+  const list = Array.from(combined.values());
   let layout, bounds;
   if (type === 'pizza') {
     layout = pizzaLayout(product, list, size, o);
