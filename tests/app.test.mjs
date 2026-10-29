@@ -65,7 +65,8 @@ test('visitante sem sessão é direcionado ao login antes de acessar o cardápio
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
   assert.ok(client.includes("const firstRoute='conta'"), 'new visitors open customer login by default');
-  assert.ok(client.includes("if(initialHash==='admin')"), 'stale admin URLs are redirected to customer login on initial visit');
+  assert.ok(client.includes("if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}"), 'restaurant, account and order tracking routes are resolved before customer login redirect');
+  assert.ok(!client.includes("history.replaceState(null,'',location.pathname+location.search+'#conta');\n    onRoute();\n    return;"), 'refreshing the restaurant route must not redirect to customer login');
   assert.ok(client.includes("if(hash==='admin')return showAdmin()"), 'restaurant login remains independently accessible');
   assert.ok(client.includes("if(hash==='conta')return showCustomerAccount()"), 'customer login and account remain accessible');
   assert.ok(client.includes("'/api/customer/me'"), 'session is validated by the server cookie, not a client-side flag');
