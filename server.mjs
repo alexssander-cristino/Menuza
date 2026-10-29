@@ -19,7 +19,7 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
-const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\\s+/g, '').toUpperCase();
+const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
 const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const ADMIN_SESSION_TTL_SECONDS = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
