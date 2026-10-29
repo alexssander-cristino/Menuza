@@ -43,7 +43,7 @@ A ferramenta `scripts/migrate-sqlite-to-postgres.mjs` copia as tabelas conhecida
 Pré-requisitos:
 - Backup validado do arquivo SQLite.
 - PostgreSQL de destino com `migrations/postgres/001_initial.sql` aplicado.
-- Dependência Node `pg` instalada no ambiente que executará a migração.
+- Dependências instaladas com `npm install`; a ferramenta usa o driver `@neondatabase/serverless` já declarado no projeto.
 - Banco PostgreSQL de destino vazio nas tabelas Menuza. Faça um ensaio com uma cópia antes de usar dados reais.
 
 Exemplo no PowerShell:
