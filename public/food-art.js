@@ -332,7 +332,8 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
 }
 
 /* ───────────────────────────── PORÇÃO (BATATAS) ───────────────────────────── */
-export function plateArt(seed = 'plate') {
+export function plateArt(seed = 'plate', ingredients = []) {
+  if (Array.isArray(seed)) { const first = seed; seed = typeof ingredients === 'string' ? ingredients : 'plate'; ingredients = first; }
   const id = 'pl' + (++uidCounter), rng = rngFrom('plate:' + seed);
   let fries = '';
   for (let i = 0; i < 34; i++) {
@@ -344,7 +345,19 @@ export function plateArt(seed = 'plate') {
   for (let i = 0; i < 40; i++) salt += '<circle cx="' + f(150 + rng() * 200) + '" cy="' + f(150 + rng() * 110) + '" r="' + f(.8 + rng() * 1.1) + '" fill="#fff" opacity=".85"/>';
   let herbs = '';
   for (let i = 0; i < 6; i++) herbs += '<path transform="translate(' + f(170 + rng() * 160) + ' ' + f(165 + rng() * 80) + ') rotate(' + f(rng() * 360) + ')" d="M0 0q9-14 19-6q-8 13-19 6z" fill="#5f7d3f"/>';
-  return '<svg viewBox="0 0 500 420" role="img" aria-label="Porção de batatas fritas" xmlns="http://www.w3.org/2000/svg"><defs>'
+  const garnish = (ingredients || []).filter(item => item && item.id && !['batatas','batata-frita','fritas'].includes(String(item.id).toLowerCase())).slice(0, 10).map((item, index) => {
+    const name = String(item.name || item.id).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const x = 160 + (index % 5) * 45 + (rng() - .5) * 12, y = 175 + Math.floor(index / 5) * 56 + (rng() - .5) * 10;
+    if (/molho|maionese|ketchup|mostarda|barbecue/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="17" ry="9" fill="#d88b48" stroke="#a85d2c" stroke-width="2"/>';
+    if (/queijo|cheddar|mussarela|catupiry/.test(name)) return '<path d="M' + f(x-17) + ' ' + f(y-7) + 'q17-8 34 0l-4 16q-14 6-26 0z" fill="#f4d16d" stroke="#c49a3f" stroke-width="2"/>';
+    if (/frango|carne|hamburguer|bacon|calabresa|linguica/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="18" ry="11" fill="' + (/bacon|calabresa|linguica/.test(name)?'#b94c36':'#b98558') + '" stroke="#77452d" stroke-width="2"/><path d="M' + f(x-9) + ' ' + f(y) + 'q9-7 18 0" fill="none" stroke="#e8bc8b" stroke-width="2"/>';
+    if (/tomate|pimentao|pimenta/.test(name)) return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="13" fill="#d84a33" stroke="#a52f20" stroke-width="2"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="5" fill="#f7c7a2"/>';
+    if (/milho|ervilha/.test(name)) return '<g fill="#f1c84e">' + [0,1,2,3,4].map(n=>'<circle cx="' + f(x-8+n*4) + '" cy="' + f(y+(n%2)*4) + '" r="3"/>').join('') + '</g>';
+    if (/alface|rucula|salada|salsinha|cebolinha|oregano|erva/.test(name)) return '<path d="M' + f(x-18) + ' ' + f(y+6) + 'q4-24 20-15q16-6 17 12q-18 14-37 3z" fill="#5f8b43" stroke="#3f6531" stroke-width="2"/>';
+    if (/cebola|cogumelo|champignon|azeitona|picles|pepino/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="15" ry="9" fill="' + (/azeitona|picles|pepino/.test(name)?'#4d6d3b':'#e5d0b2') + '" stroke="#7e6548" stroke-width="2"/>';
+    return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="16" ry="10" fill="#c99059" stroke="#8b5a31" stroke-width="2"/><ellipse cx="' + f(x-4) + '" cy="' + f(y-3) + '" rx="5" ry="2" fill="#f1d4a8" opacity=".7"/>';
+  }).join('');
+  return '<svg viewBox="0 0 500 420" role="img" aria-label="Porção personalizada com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg"><defs>'
     + '<linearGradient id="' + id + 'fry" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#f2c15f"/><stop offset=".6" stop-color="#e0a043"/><stop offset="1" stop-color="#c98a32"/></linearGradient>'
     + '<radialGradient id="' + id + 'pl" cx="40%" cy="30%" r="85%"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcdae4"/></radialGradient>'
     + '<filter id="' + id + 'blur"><feGaussianBlur stdDeviation="9"/></filter>'
@@ -352,5 +365,5 @@ export function plateArt(seed = 'plate') {
     + '<ellipse cx="258" cy="262" rx="216" ry="134" fill="#1b1530" opacity=".22" filter="url(#' + id + 'blur)"/>'
     + '<ellipse cx="250" cy="236" rx="206" ry="130" fill="url(#' + id + 'pl)" stroke="#cfcddb" stroke-width="3"/>'
     + '<ellipse cx="250" cy="238" rx="150" ry="88" fill="#efedf5" stroke="#d9d7e3" stroke-width="2"/>'
-    + '<g filter="url(#' + id + 'ts)">' + fries + '</g>' + salt + herbs + '</svg>';
+    + '<g filter="url(#' + id + 'ts)">' + fries + '</g>' + salt + herbs + '<g class="plate-custom-ingredients">' + garnish + '</g></svg>';
 }
