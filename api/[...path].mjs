@@ -389,6 +389,38 @@ export default async function handler(req,res) {
       const b=await bodyOf(req); if(!['open','in_progress','closed'].includes(b.status)) throw fail('Status inválido.',422);
       const result=await query('UPDATE privacy_requests SET status=$1,updated_at=$2 WHERE id=$3',[b.status,new Date().toISOString(),id]); if(!result.rowCount) throw fail('Solicitação não encontrada.',404); return json(res,200,{ok:true});
     }
+    if (method==='GET'&&path==='/api/admin/categories') {
+      const categories=(await query(`SELECT c.id,c.name,c.slug,c.sort_order AS "sortOrder",COUNT(p.id)::int AS "productCount"
+        FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.restaurant_id=c.restaurant_id
+        WHERE c.restaurant_id=$1 GROUP BY c.id ORDER BY c.sort_order,c.name`,[RESTAURANT_ID])).rows;
+      return json(res,200,{categories});
+    }
+    if (method==='POST'&&path==='/api/admin/categories') {
+      const b=await bodyOf(req),name=clean(b.name,60),slug=slugify(name);
+      if(name.length<2||name.length>60||!slug) throw fail('Informe um nome de categoria entre 2 e 60 caracteres.',422);
+      if((await query('SELECT id FROM categories WHERE restaurant_id=$1 AND (slug=$2 OR LOWER(name)=LOWER($3))',[RESTAURANT_ID,slug,name])).rowCount) throw fail('Já existe uma categoria com esse nome.',409);
+      const id='cat_'+randomBytes(10).toString('hex');
+      const order=Number((await query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM categories WHERE restaurant_id=$1',[RESTAURANT_ID])).rows[0]?.next||0);
+      await query('INSERT INTO categories (id,restaurant_id,name,slug,sort_order) VALUES ($1,$2,$3,$4,$5)',[id,RESTAURANT_ID,name,slug,order]);
+      return json(res,201,{category:{id,name,slug,sortOrder:order,productCount:0}});
+    }
+    if (method==='PATCH'&&path.startsWith('/api/admin/categories/')) {
+      const b=await bodyOf(req),name=clean(b.name,60),slug=slugify(name);
+      if(!id||name.length<2||name.length>60||!slug) throw fail('Informe um nome de categoria entre 2 e 60 caracteres.',422);
+      const current=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(!current) throw fail('Categoria não encontrada.',404);
+      if((await query('SELECT id FROM categories WHERE restaurant_id=$1 AND id<>$2 AND (slug=$3 OR LOWER(name)=LOWER($4))',[RESTAURANT_ID,id,slug,name])).rowCount) throw fail('Já existe uma categoria com esse nome.',409);
+      const result=await query('UPDATE categories SET name=$1,slug=$2 WHERE id=$3 AND restaurant_id=$4 RETURNING id,name,slug,sort_order AS "sortOrder"',[name,slug,id,RESTAURANT_ID]);
+      return json(res,200,{category:result.rows[0]});
+    }
+    if (method==='DELETE'&&path.startsWith('/api/admin/categories/')) {
+      const category=(await query('SELECT id,name FROM categories WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(!category) throw fail('Categoria não encontrada.',404);
+      const used=(await query('SELECT COUNT(*)::int AS count FROM products WHERE category_id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(Number(used?.count)>0) throw fail('Esta categoria tem produtos vinculados. Transfira os produtos para outra categoria antes de excluir.',409);
+      await query('DELETE FROM categories WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
+      return json(res,200,{ok:true});
+    }
     if (method==='GET'&&path==='/api/admin/catalog') return json(res,200,await catalogFor(true));
     if (method==='GET'&&path==='/api/admin/settings') {
       // A migração do esquema pode ter sido aplicada antes da migração dos dados.
