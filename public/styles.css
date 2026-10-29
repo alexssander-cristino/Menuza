@@ -1417,3 +1417,15 @@ body{overscroll-behavior-y:contain}
 .category-admin-actions .category-delete-button{color:#a64747}
 .category-admin-actions button:disabled{opacity:.38;cursor:not-allowed}
 @media(max-width:600px){.category-admin-row{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:14px 0}.category-admin-row .form-field{grid-column:1/-1}.category-admin-meta{grid-column:1;grid-row:2;flex-direction:row;align-items:center;gap:7px;flex-wrap:wrap}.category-admin-meta>b{font-size:15px}.category-admin-meta .category-slug{width:100%;max-width:none}.category-admin-actions{grid-column:2;grid-row:2;align-self:start}.category-admin-actions .tiny-link{padding:8px 4px}}
+
+
+/* Cadastro de adicionais opcionais */
+.ingredient-create-form{display:grid;grid-template-columns:minmax(150px,1.4fr) minmax(120px,1fr) minmax(110px,.7fr) auto;align-items:end;gap:12px;padding:16px;margin:0 0 18px;border:1px solid var(--mz-line);border-radius:14px;background:var(--mz-bg)}
+.ingredient-create-form .form-field{min-width:0;margin:0}
+.ingredient-create-form .form-field span{display:block;margin-bottom:6px;font-size:12px;font-weight:700;color:var(--mz-ink-2)}
+.ingredient-create-form input{width:100%;min-width:0}
+.ingredient-create-form button{white-space:nowrap;min-height:42px}
+.ingredient-create-note{grid-column:1/-1;margin:0;color:var(--mz-muted);font-size:12px;line-height:1.45}
+.ingredient-help{margin:-5px 0 14px;color:var(--mz-muted);font-size:13px;line-height:1.5}
+@media(max-width:760px){.ingredient-create-form{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px;gap:10px}.ingredient-create-form button{grid-column:1/-1;width:100%}.ingredient-create-note{grid-column:1/-1}}
+@media(max-width:420px){.ingredient-create-form{grid-template-columns:1fr}.ingredient-create-form button,.ingredient-create-note{grid-column:auto}}
