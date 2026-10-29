@@ -1379,3 +1379,7 @@ body{overscroll-behavior-y:contain}
 .admin-connection-status.is-offline{color:#a23d36;border-color:#f0c7c3;background:#fff4f3}
 .admin-connection-status.is-offline .connection-status-dot{background:#d44e45}
 @media(max-width:600px){.admin-connection-status{justify-content:center;flex:0 0 100%;order:-1}}
+
+/* Respeita o atributo hidden nos logos: evita imagem vazia sobre as iniciais. */
+.brand-mark img[hidden]{display:none!important}
+.brand-mark [data-restaurant-initials][hidden]{display:none!important}
