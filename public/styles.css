@@ -1368,3 +1368,14 @@ body{overscroll-behavior-y:contain}
 .orders-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .order-sound-toggle[aria-pressed="true"]{border-color:#2b8a67;color:#176b4b;background:#edf9f3}
 @media(max-width:600px){.orders-header-actions{width:100%;justify-content:stretch}.orders-header-actions>*{flex:1}.order-sound-toggle{white-space:normal}}
+
+/* Estado de conexão do painel e recuperação em redes instáveis */
+.orders-header-actions{align-items:center}
+.admin-connection-status{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:5px 9px;border:1px solid #d8e0dc;border-radius:999px;color:#64736b;background:#f7faf8;font-size:11px;font-weight:700;white-space:nowrap}
+.connection-status-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#a3ada7}
+.admin-connection-status.is-connected{color:#176b4b;border-color:#b8e2ce;background:#edf9f3}
+.admin-connection-status.is-connected .connection-status-dot{background:#239765;box-shadow:0 0 0 3px #d4f1e2}
+.admin-connection-status.is-connecting .connection-status-dot,.admin-connection-status.is-reconnecting .connection-status-dot{background:#d99a26}
+.admin-connection-status.is-offline{color:#a23d36;border-color:#f0c7c3;background:#fff4f3}
+.admin-connection-status.is-offline .connection-status-dot{background:#d44e45}
+@media(max-width:600px){.admin-connection-status{justify-content:center;flex:0 0 100%;order:-1}}
