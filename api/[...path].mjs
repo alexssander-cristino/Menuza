@@ -108,6 +108,7 @@ async function limit(req, key, maximum, windowMs) {
   return 0;
 }
 async function catalogFor(admin = false) {
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   const active = admin ? '' : ' AND active=1';
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
