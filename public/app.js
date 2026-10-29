@@ -1342,8 +1342,7 @@ async function start(){
   const hasTableQr=Boolean(qrToken&&qrNumber&&app.tableQr);
   if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}
   if(!app.customer){
-    const firstRoute=hasTableQr?'conta':'admin';
-    history.replaceState(null,'',location.pathname+location.search+'#'+firstRoute);
+    history.replaceState(null,'',location.pathname+location.search+'#conta');
     onRoute();
     return;
   }
