@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS products (
   width_cm DOUBLE PRECISION,
   depth_cm DOUBLE PRECISION,
   height_cm DOUBLE PRECISION,
+  ingredient_ids_json TEXT NOT NULL DEFAULT '[]',
+  default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]',
+  ingredients_configured INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
