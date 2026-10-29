@@ -2,13 +2,26 @@
   'use strict';
 
   const STORAGE_KEY = 'menuza-rate-limit-until';
+  const BUILD_KEY = 'menuza-app-build';
+  const CURRENT_BUILD = '54';
+  const now = Date.now();
+
+  // Uma versão nova corrige falsos positivos do honeypot. Remove apenas o
+  // bloqueio visual antigo; o servidor continua aplicando o rate limit real.
+  try {
+    if (localStorage.getItem(BUILD_KEY) !== CURRENT_BUILD) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.replace('/#conta');
+      return;
+    }
+  } catch {}
+
   const params = new URLSearchParams(window.location.search);
   const parsedWait = Number.parseInt(params.get('wait') || '', 10);
   const requestedWait = Number.isFinite(parsedWait)
     ? Math.max(1, Math.min(3600, parsedWait))
     : 900;
 
-  const now = Date.now();
   let until = now + requestedWait * 1000;
 
   try {
