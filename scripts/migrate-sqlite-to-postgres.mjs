@@ -37,6 +37,22 @@ try {
     throw new Error('O banco SQLite falhou no integrity_check. Nenhum dado foi migrado.');
   }
   const tables = new Set(source.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name));
+  // Avoid silently mixing old/partial data with an existing target database.
+  for (const table of tableOrder) {
+    if (!tables.has(table)) continue;
+    const destinationExists = await client.query(
+      "SELECT to_regclass($1) AS relation",
+      [table]
+    );
+    if (!destinationExists.rows[0]?.relation) {
+      throw new Error(`Tabela ${table} não existe no destino. Aplique migrations/postgres/001_initial.sql primeiro.`);
+    }
+    const destinationCount = await client.query(`SELECT COUNT(*)::int AS count FROM "${table}"`);
+    if (Number(destinationCount.rows[0].count) !== 0) {
+      throw new Error(`Destino não está vazio: ${table} contém ${destinationCount.rows[0].count} registros. Use um banco de destino vazio para evitar mistura de dados.`);
+    }
+  }
+
   await client.query('BEGIN');
   for (const table of tableOrder) {
     if (!tables.has(table)) continue;
@@ -49,11 +65,11 @@ try {
       const names = columns.map(name => '"' + name.replace(/"/g, '""') + '"').join(', ');
       const values = columns.map(name => row[name]);
       const result = await client.query(
-        `INSERT INTO "${table}" (${names}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+        `INSERT INTO "${table}" (${names}) VALUES (${placeholders})`,
         values
       );
       if (result.rowCount) counts[table].inserted++;
-      else counts[table].skipped++;
+      else throw new Error(`Não foi possível inserir registro em ${table}; transação será revertida.`);
     }
     totalRows += rows.length;
   }
