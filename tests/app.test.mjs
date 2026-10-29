@@ -368,3 +368,10 @@ test('modelo 3D do hambúrguer muda a composição conforme os adicionais e tama
   assert.ok(double.geometry.positions.length > classic.geometry.positions.length);
   assert.ok(withBacon.geometry.positions.length > double.geometry.positions.length);
 });
+
+test('login do cliente aparece antes de terminar a verificação da sessão', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const accountView = client.slice(client.indexOf('async function showCustomerAccount()'), client.indexOf('function renderCustomerAuth('));
+  assert.ok(accountView.includes("renderCustomerAuth();try{const result=await api('/api/customer/me')"), 'customer login must render before the session request resolves');
+  assert.ok(accountView.includes("if(app.customer)await renderCustomerDashboard()"), 'a valid session must still open the customer dashboard');
+});
