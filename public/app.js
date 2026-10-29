@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '66';
+const MENUZA_APP_BUILD = '67';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -587,8 +587,17 @@ function toggleOrderSound(){
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
-  try{const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);if(app.admin.authenticated&&app.admin.tab==='orders'){trackNewOrders(result.orders||[]);renderOrdersAdmin(metrics,result.orders)}}
-  catch(e){if(e.message.includes('Entre no painel'))renderAdminLogin(e.message)}
+  try{
+    const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);
+    if(app.admin.authenticated&&app.admin.tab==='orders'){
+      trackNewOrders(result.orders||[]);
+      setAdminConnectionState('connected');
+      renderOrdersAdmin(metrics,result.orders);
+    }
+  }catch(e){
+    setAdminConnectionState(navigator.onLine?'reconnecting':'offline');
+    if(e.message.includes('Entre no painel'))renderAdminLogin(e.message);
+  }
 }
 async function exportSalesReport(){
   const days=Math.max(7,Math.min(90,Number(root.getElementById('analyticsDays')?.value)||7));
@@ -692,7 +701,7 @@ function renderOrdersAdmin(metrics,orders){
     const elapsed=['received','confirmed','preparing'].includes(order.status)?'<span class="order-elapsed" data-order-elapsed data-created-at="'+Date.parse(order.createdAt)+'" data-prep-minutes="'+Number(metrics.prepMinutes||30)+'" aria-live="off"></span>':'';
     return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div>'+elapsed+'</div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><div class="order-card-footer-actions"><button class="button button-outline button-small order-print-button" type="button" data-action="print-order" data-order-id="'+esc(order.id)+'">Imprimir comanda</button>'+whatsappAction+'<b>'+money(order.totalCents)+'</b></div></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+(app.admin.soundEnabled?'Som ativado ✓':'Ativar som de novos pedidos')+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><span class="admin-connection-status is-connecting" id="adminConnectionStatus" role="status" aria-live="polite"><span class="connection-status-dot"></span><span class="connection-status-label">Conectando…</span></span><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+(app.admin.soundEnabled?'Som ativado ✓':'Ativar som de novos pedidos')+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
   updateOrderElapsedTimes();
   const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
   if(statusFilter)statusFilter.value=app.admin.orderStatus;
@@ -775,6 +784,13 @@ function exportCouponsCsv(){
   const csv='Código;Tipo;Desconto;Pedido mínimo (R$);Início;Validade;Limite de usos;Utilizações;Status\r\n'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));const link=root.createElement('a');link.href=url;link.download='menuza-cupons.csv';root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);toast('Lista de cupons exportada.');
 }
+function dateTimeLocalValue(value){
+  if(!value)return '';
+  const date=new Date(value);
+  if(!Number.isFinite(date.getTime()))return '';
+  const pad=part=>String(part).padStart(2,'0');
+  return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'T'+pad(date.getHours())+':'+pad(date.getMinutes());
+}
 function editCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]'),form=root.getElementById('newCouponForm');
   if(!row||!form)return;
@@ -784,8 +800,8 @@ function editCoupon(id){
   form.elements.discountValue.value=row.dataset.type==='fixed'?(Number(row.dataset.value)/100):Number(row.dataset.value);
   form.elements.discountValue.max=row.dataset.type==='percent'?'100':'10000';
   form.elements.minimum.value=(Number(row.dataset.minimum||0)/100).toFixed(2);
-  form.elements.startsAt.value=row.dataset.starts?new Date(row.dataset.starts).toISOString().slice(0,16):'';
-  form.elements.expiresAt.value=row.dataset.expires?new Date(row.dataset.expires).toISOString().slice(0,16):'';
+  form.elements.startsAt.value=dateTimeLocalValue(row.dataset.starts);
+  form.elements.expiresAt.value=dateTimeLocalValue(row.dataset.expires);
   form.elements.maxUses.value=row.dataset.maxUses||'';
   root.getElementById('couponFormTitle').textContent='Editar cupom '+row.querySelector('b').textContent;
   root.getElementById('couponSubmitButton').textContent='Salvar alterações';
@@ -1128,11 +1144,57 @@ async function renderIngredientsAdmin(){
     }));
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
+function setAdminConnectionState(state){
+  app.admin.connectionState=state;
+  const node=root.getElementById('adminConnectionStatus');
+  if(!node)return;
+  const labels={connected:'Ao vivo',connecting:'Conectando…',reconnecting:'Reconectando…',offline:'Sem conexão'};
+  node.classList.remove('is-connected','is-connecting','is-reconnecting','is-offline');
+  node.classList.add('is-'+(labels[state]?state:'connecting'));
+  const label=node.querySelector('.connection-status-label');
+  if(label)label.textContent=labels[state]||labels.connecting;
+  node.setAttribute('aria-label','Conexão do painel: '+(labels[state]||labels.connecting));
+}
+function handleAdminOnline(){
+  if(!app.admin.authenticated)return;
+  setAdminConnectionState('connecting');
+  refreshAdmin();
+  // EventSource tenta reconectar sozinho; fechar e abrir garante recuperação
+  // também em navegadores que ficaram suspensos por muito tempo.
+  connectAdminEvents();
+}
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
+  setAdminConnectionState(navigator.onLine?'connecting':'offline');
   app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin()});
-  clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
+  app.admin.eventSource.onopen=()=>{
+    setAdminConnectionState('connected');
+    if(app.admin.tab==='orders')refreshAdmin();
+  };
+  app.admin.eventSource.onerror=()=>{
+    setAdminConnectionState(navigator.onLine?'reconnecting':'offline');
+    // O polling continua ativo como contingência enquanto o canal ao vivo volta.
+  };
+  app.admin.eventSource.addEventListener('update',()=>{
+    setAdminConnectionState('connected');
+    if(app.admin.tab==='orders')refreshAdmin();
+    else if(app.admin.tab==='analytics')renderAnalyticsAdmin();
+    else if(app.admin.tab==='combos')renderCombosAdmin();
+    else if(app.admin.tab==='tables')renderTablesAdmin();
+    else if(app.admin.tab==='catalog')renderCatalogAdmin();
+    else if(app.admin.tab==='ingredients')renderIngredientsAdmin();
+    else if(app.admin.tab==='coupons')renderCouponsAdmin();
+    else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();
+    else renderSettingsAdmin();
+  });
+  clearInterval(app.admin.refreshTimer);
+  app.admin.refreshTimer=setInterval(refreshAdmin,20000);
+  if(!app.admin.networkListenersBound){
+    window.addEventListener('online',handleAdminOnline);
+    window.addEventListener('offline',()=>setAdminConnectionState('offline'));
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&app.admin.authenticated){refreshAdmin();if(app.admin.eventSource?.readyState===EventSource.CLOSED)connectAdminEvents()}});
+    app.admin.networkListenersBound=true;
+  }
 }
 async function logoutAdmin(){
   try{await api('/api/admin/logout',{method:'POST'})}catch{}
