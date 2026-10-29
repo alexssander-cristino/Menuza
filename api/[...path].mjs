@@ -113,11 +113,15 @@ async function catalogFor(admin = false) {
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
-    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
+    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
-  const productRows = products.rows;
+  const productRows = products.rows.map(product => {
+    let ingredientIds = [];
+    try { ingredientIds = JSON.parse(product.ingredientIdsJson || '[]'); } catch {}
+    return { ...product, ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [] };
+  });
   const ingredientsOut = ingredients.rows.map(i => ({ ...i, included: Number(i.included) === 1 || i.included === true, visual: INGREDIENTS.find(x => x.id === i.id)?.visual || 'herb' }));
   const combos = comboRows.rows.map(row => {
     let entries = [];
