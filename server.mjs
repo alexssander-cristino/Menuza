@@ -35,9 +35,9 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset
 await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
+db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 try { db.exec("ALTER TABLE restaurants ADD COLUMN logo_url TEXT NOT NULL DEFAULT ''"); }
 catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
-db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
