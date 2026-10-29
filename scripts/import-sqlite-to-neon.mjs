@@ -9,7 +9,7 @@ if (!existsSync(file)) {
   console.error('Defina DATA_FILE com o caminho do banco atual antes de importar.');
   process.exitCode = 1;
 } else {
-  const sqlite = new DatabaseSync(file, { readOnly: true });
+  const sqlite = new DatabaseSync(file);
   const tables = [
     'restaurants', 'categories', 'products', 'ingredients', 'customers',
     'combos', 'coupons', 'restaurant_tables', 'orders', 'order_items',
