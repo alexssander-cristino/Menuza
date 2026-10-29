@@ -548,7 +548,7 @@ export default async function handler(req,res) {
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
       const b=await bodyOf(req), name=clean(b.name,80), type=clean(b.type,20), groupName=clean(b.groupName,50)||'Adicionais', price=Number(b.cents);
-      if(name.length<2||!['pizza','burger'].includes(type)||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipo e preço válido para o adicional.',422);
+      if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipo e preço válido para o adicional.',422);
       const duplicate=(await query('SELECT id FROM ingredients WHERE restaurant_id=$1 AND type=$2 AND lower(name)=lower($3) LIMIT 1',[RESTAURANT_ID,type,name])).rows[0];
       if(duplicate) throw fail('Já existe um ingrediente ou adicional com esse nome para esse tipo.',409);
       const id=slugify(name)+'-'+randomBytes(3).toString('hex');
