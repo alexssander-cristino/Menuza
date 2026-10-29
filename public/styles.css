@@ -1321,3 +1321,19 @@ body{overscroll-behavior-y:contain}
 .menu-general-qr-panel{margin-top:22px}
 .menu-general-qr-panel>p{max-width:760px;color:var(--mz-muted,#6e687a);line-height:1.65}
 @media(max-width:600px){.analytics-period-actions{width:100%;align-items:stretch}.analytics-period-actions .analytics-period{flex:1}.analytics-period-actions .button{width:100%}}
+
+
+@media print {
+  body:has(.table-qr-backdrop) * { visibility: hidden !important; }
+  .table-qr-backdrop, .table-qr-backdrop * { visibility: visible !important; }
+  .table-qr-backdrop {
+    position: absolute !important; inset: 0 !important; display: block !important;
+    padding: 0 !important; background: #fff !important; overflow: visible !important;
+  }
+  .table-qr-dialog {
+    width: 100% !important; max-width: none !important; margin: 0 auto !important;
+    border: 0 !important; box-shadow: none !important; color: #111 !important;
+  }
+  .table-qr-close, .table-qr-actions { display: none !important; }
+  .table-qr-code { break-inside: avoid; }
+}
