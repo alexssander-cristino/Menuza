@@ -1337,3 +1337,28 @@ body{overscroll-behavior-y:contain}
   .table-qr-close, .table-qr-actions { display: none !important; }
   .table-qr-code { break-inside: avoid; }
 }
+
+
+/* Comanda imprimível: legível em A4 e em impressoras térmicas */
+.order-print-sheet{display:none}
+.order-print-button{white-space:nowrap}
+.print-ticket-brand{font-size:11px;font-weight:900;letter-spacing:.22em}
+.print-ticket-order{font-size:18px;font-weight:800;margin:4px 0 0}
+.print-ticket-meta{border-top:1px dashed #888;border-bottom:1px dashed #888;padding:8px 0;margin:12px 0}
+.print-ticket-meta p{margin:4px 0;overflow-wrap:anywhere}
+.print-ticket-item{padding:8px 0;border-bottom:1px dashed #bbb;break-inside:avoid}
+.print-ticket-item-head{display:flex;justify-content:space-between;gap:12px}
+.print-ticket-item p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}
+.print-ticket-note{margin-top:12px;overflow-wrap:anywhere}
+.print-ticket-note p{margin:4px 0}
+.print-ticket-footer{font-size:10px;color:#555;margin-top:14px}
+.order-print-sheet footer{display:flex;justify-content:space-between;gap:12px;border-top:2px solid #111;margin-top:12px;padding-top:10px;font-size:17px}
+@media(max-width:600px){.order-card-footer-actions{flex-wrap:wrap}.order-print-button{flex:1}}
+@media print {
+  body:has(#orderPrintSheet) > *:not(#orderPrintSheet){display:none !important}
+  body:has(#orderPrintSheet) #orderPrintSheet{display:block !important;position:static !important;width:100% !important;max-width:none !important;margin:0 !important;padding:0 !important;background:#fff !important;color:#111 !important;font:12px/1.45 Arial,sans-serif !important}
+  body:has(#orderPrintSheet) #orderPrintSheet h1{font-size:22px;margin:8px 0 0}
+  body:has(#orderPrintSheet) #orderPrintSheet *{visibility:visible !important;box-shadow:none !important}
+  body:has(#orderPrintSheet) #orderPrintSheet .print-ticket-item strong{font-size:13px}
+  body:has(#orderPrintSheet) #orderPrintSheet footer strong{font-size:18px}
+}
