@@ -1,9 +1,9 @@
 import { FoodScene } from './food-scene.js?v=71';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
-import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js';
+import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=2';
 
-const MENUZA_APP_BUILD = '71';
+const MENUZA_APP_BUILD = '72';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -135,10 +135,21 @@ async function api(path, options = {}) {
 }
 function defaultIngredients(product, catalog) {
   const available = catalog.ingredients.filter(item => item.type === product.type && item.active !== 0);
+  if (product.ingredientsConfigured) {
+    return (product.defaultIngredientIds || []).filter(id => available.some(item => item.id === id)).map(id => ({ id, quantity: 1 }));
+  }
   const selected = available.filter(item => item.included).map(item => ({ id: item.id, quantity: 1 }));
   const presets = { 'pizza-da-horta':['tomate','champignon','oregano'], 'pizza-calabresa':['calabresa','cebola'], 'pizza-quatro-queijos':['requeijao'], 'burger-defumado':['bacon-burger','cebola-burger','picles'] };
   for (const id of presets[product.id] || []) if (available.some(item => item.id === id) && !selected.some(item => item.id === id)) selected.push({ id, quantity: 1 });
   return selected;
+}
+function productIngredientNames(product, ids = product.defaultIngredientIds || []) {
+  const names = new Map((app.catalog?.ingredients || []).map(item => [item.id, item.name]));
+  return (ids || []).map(id => names.get(id)).filter(Boolean);
+}
+function ingredientDescription(product, ids = product.defaultIngredientIds || []) {
+  const names = productIngredientNames(product, ids);
+  return names.length ? 'Ingredientes: ' + names.join(', ') + '.' : '';
 }
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
@@ -218,9 +229,10 @@ function builderPrice(builder=app.builder) {
   const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents*item.quantity,0);
   return Math.max(0,product.baseCents+(size?.deltaCents||0)+(crust?.priceCents||0)+extras);
 }
-function groupedIngredients(type) {
+function groupedIngredients(type, product = null) {
   const map=new Map();
-  for(const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0)){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
+  const allowed = product?.ingredientsConfigured ? new Set([...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]) : null;
+  for(const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0&&(!allowed||allowed.has(i.id))){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
   return Array.from(map.entries());
 }
 function openBuilder(productId,cartItem=null) {
@@ -278,7 +290,7 @@ function renderBuilder() {
   const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Ilustração</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + productSvg(product, layered, { double: builder.sizeKey === 'duplo' }) + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '"></canvas><div class="drag-hint" aria-hidden="true"><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
   const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(product.baseCents + size.deltaCents))) + '</small></button>').join('');
   const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
-  const ingredientGroups = groupedIngredients(product.type);
+  const ingredientGroups = groupedIngredients(product.type, product);
   let ingredientHtml = ingredientGroups.length ? '<div class="step-row"><b>03</b> Ingredientes e adicionais</div><p class="ingredient-help">Adicionais pagos são opcionais. Você pode continuar sem escolher nenhum.</p>' : '';
   for (const [group, items] of ingredientGroups) {
     ingredientHtml += '<div class="step-row"><b>•</b> ' + esc(group) + '</div><div class="ingredient-list">' + items.map(item => {
