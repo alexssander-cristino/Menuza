@@ -6,5 +6,11 @@
       "maxDuration": 15
     }
   },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/dispatch?path=:path*"
+    }
+  ],
   "cleanUrls": false
 }
