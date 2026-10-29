@@ -989,3 +989,36 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
   .table-qr-close,.table-qr-url,.table-qr-actions,.table-qr-footnote{display:none!important}
   .table-qr-code{margin:20px auto;border:0;width:320px}
 }
+
+
+/* Corrige avisos/toasts cortados no mobile: remove o translateX(-50%) do layout centralizado. */
+@media (max-width: 760px) {
+  .toast {
+    box-sizing: border-box;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    padding: 12px 14px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-height: 1.5;
+    transform: translateY(20px);
+  }
+  .toast.show { transform: translateY(0); }
+  .ar-row { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+  .ar-row .ar-button { width: 100%; max-width: 100%; }
+  .ar-status {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-height: 1.5;
+  }
+}
