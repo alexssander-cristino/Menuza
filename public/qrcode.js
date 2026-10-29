@@ -219,7 +219,7 @@ var QRCode;
 		return Drawing;
 	})();
 
-	var useSVG = document.documentElement.tagName.toLowerCase() === "svg";
+	var useSVG = typeof document !== "undefined" && document.documentElement.tagName.toLowerCase() === "svg";
 
 	// Drawing in DOM by using Table tag
 	var Drawing = useSVG ? svgDrawer : !_isSupportCanvas() ? (function () {
