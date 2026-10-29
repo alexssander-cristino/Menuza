@@ -1379,7 +1379,7 @@ async function openMenu(){
       app.catalog=await api('/api/catalog');
       app.cart=normalizeCartForCatalog(app.cart,app.catalog);
       setCart();
-      applyRestaurantBranding(app.catalog.restaurant?.name);
+      applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
       renderCatalog();
     }
     showHome();
