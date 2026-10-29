@@ -1410,6 +1410,9 @@ function handleClick(event){
   if(action==='download-table-qr'){downloadTableQr(target.dataset.tableNumber);return}
   if(action==='print-table-qr'){window.print();return}
   if(action==='refresh-tables'){renderTablesAdmin();return}
+   if(action==='refresh-categories'){renderCategoryAdmin();return}
+   if(action==='save-category'){saveCategory(target.dataset.id);return}
+   if(action==='delete-category'){deleteCategory(target.dataset.id);return}
    if(action==='refresh-analytics'){renderAnalyticsAdmin();return}
    if(action==='add-combo'){addComboToCart(target.dataset.id);return}
    if(action==='save-combo-status'){saveComboStatus(target.dataset.id);return}
