@@ -1340,7 +1340,12 @@ async function start(){
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
   if(initialHash==='admin'||initialHash==='conta'){onRoute();return}
-  if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}
+  if(!app.customer){
+    const firstRoute=app.tableQr?'conta':'admin';
+    history.replaceState(null,'',location.pathname+location.search+'#'+firstRoute);
+    onRoute();
+    return;
+  }
   if(initialHash.startsWith('pedido/')){onRoute();return}
   await openMenu();
 }
