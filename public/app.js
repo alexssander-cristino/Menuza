@@ -1339,7 +1339,13 @@ async function start(){
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
-  if(initialHash==='admin'||initialHash==='conta'){onRoute();return}
+  if(initialHash==='conta'){onRoute();return}
+  // Migra URLs antigas que ficaram salvas em #admin para o login do cliente.
+  if(initialHash==='admin'){
+    history.replaceState(null,'',location.pathname+location.search+'#conta');
+    onRoute();
+    return;
+  }
   if(!app.customer){
     const firstRoute='conta';
     history.replaceState(null,'',location.pathname+location.search+'#'+firstRoute);
