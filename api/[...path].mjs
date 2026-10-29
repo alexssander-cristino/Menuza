@@ -390,9 +390,22 @@ export default async function handler(req,res) {
       const result=await query('UPDATE privacy_requests SET status=$1,updated_at=$2 WHERE id=$3',[b.status,new Date().toISOString(),id]); if(!result.rowCount) throw fail('Solicitação não encontrada.',404); return json(res,200,{ok:true});
     }
     if (method==='GET'&&path==='/api/admin/catalog') return json(res,200,await catalogFor(true));
-    if (method==='GET'&&path==='/api/admin/settings') return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
+    if (method==='GET'&&path==='/api/admin/settings') {
+      // A migração do esquema pode ter sido aplicada antes da migração dos dados.
+      // Garante o registro-base para que a tela de configurações não receba restaurant undefined.
+      await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
+        VALUES ($1,$2,$3,'BRL',30,$4,'')
+        ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
+      const restaurant=(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
+      if (!restaurant) throw fail('Não foi possível carregar as configurações do restaurante.',503);
+      return json(res,200,{restaurant});
+    }
     if (method==='PATCH'&&path==='/api/admin/settings') {
+      await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
+        VALUES ($1,$2,$3,'BRL',30,$4,'')
+        ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
       const b=await bodyOf(req,1500000), current=(await query('SELECT name,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
+      if (!current) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       const name=b.name===undefined?current.name:clean(b.name,80), prep=b.prepMinutes===undefined?Number(current.prepMinutes):Number(b.prepMinutes), logo=b.logoUrl===undefined?current.logoUrl:clean(b.logoUrl,1400000);
       if(name.length<2||!Number.isInteger(prep)||prep<5||prep>240) throw fail('Confira o nome e o tempo médio de preparo.',422);
       if(logo&&!/^https:\/\/[^\s<>"']+$/i.test(logo)&&!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo)) throw fail('Envie uma imagem PNG, JPG ou WebP válida.',422);
