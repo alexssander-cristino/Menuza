@@ -187,7 +187,11 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
       _progress = 0;
     });
     try {
-      await _controller.loadRequest(Uri.parse(normalized));
+      final appUri = Uri.parse(normalized);
+      final customerLoginUri = appUri.replace(
+        fragment: appUri.fragment.isEmpty ? 'conta' : appUri.fragment,
+      );
+      await _controller.loadRequest(customerLoginUri);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('menuza_server_url', normalized);
     } catch (_) {
@@ -221,6 +225,41 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
         _loading = false;
         _loadError = 'Falha ao recarregar. Confira a conexão e tente novamente.';
       });
+    }
+  }
+
+  Future<void> _openAccount() async {
+    try {
+      await _controller.runJavaScript("window.location.hash = '#conta';");
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível abrir a conta agora.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logoutFromMobile() async {
+    try {
+      await _controller.runJavaScript("""
+        (async () => {
+          const adminPage = window.location.hash === '#admin';
+          const endpoint = adminPage ? '/api/admin/logout' : '/api/customer/logout';
+          try {
+            await fetch(endpoint, { method: 'POST', credentials: 'include' });
+          } finally {
+            window.location.hash = adminPage ? '#admin' : '#conta';
+            window.location.reload();
+          }
+        })();
+      """);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível encerrar a sessão.')),
+        );
+      }
     }
   }
 
@@ -422,6 +461,41 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
             backgroundColor: Colors.transparent,
             color: _purple,
           )),
+        if (!_initializing && _loadError == null)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Material(
+              color: Colors.white.withValues(alpha: .96),
+              elevation: 5,
+              shadowColor: _ink.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  TextButton.icon(
+                    onPressed: _openAccount,
+                    icon: const Icon(Icons.person_outline_rounded, size: 18),
+                    label: const Text('Minha conta'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _purple,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  IconButton(
+                    tooltip: 'Sair da conta',
+                    onPressed: _logoutFromMobile,
+                    icon: const Icon(Icons.logout_rounded, size: 19),
+                    color: _ink,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                  ),
+                ]),
+              ),
+            ),
+          ),
       ])),
     ),
   );
