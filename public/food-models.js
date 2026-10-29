@@ -660,7 +660,7 @@ function plateLayout(product, ings, size, o) {
 function resolveVisualIngredient(type, ingredient) {
   const id = String(ingredient?.id || '').toLowerCase();
   const raw = String(ingredient?.name || ingredient?.label || ingredient?.groupName || id);
-  const name = raw.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
   const has = (...terms) => terms.some(term => text.includes(term));
   const knownPizza = new Set(['molho-tomate','mussarela',...Object.keys(TOPPINGS)]);
@@ -697,7 +697,7 @@ function resolveVisualIngredient(type, ingredient) {
     return { ...ingredient };
   }
   if (!visualId) {
-    const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+    const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     if (type === 'pizza') {
       if (/queij|latic|molho|crem/.test(group)) visualId = 'requeijao';
       else if (/carne|prote|frango/.test(group)) visualId = 'frango';
