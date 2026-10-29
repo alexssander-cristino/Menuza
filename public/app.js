@@ -837,21 +837,41 @@ async function renderCatalogAdmin(){
   try{
     const catalog=await api('/api/admin/catalog');
     const ingredientChoices=(type,selected=[],name='ingredientIds')=>catalog.ingredients.filter(item=>item.type===type&&item.active!==0).map(item=>'<label class="ingredient-choice"><input type="checkbox" name="'+name+'" value="'+esc(item.id)+'" '+(selected.includes(item.id)?'checked':'')+'><span>'+esc(item.name)+'</span>'+(item.cents?'<small>+'+money(item.cents)+'</small>':'')+'</label>').join('');
-    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Novo produto</h2><small>Defina a receita padrão e quais adicionais o cliente pode escolher.</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type" id="newProductType"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Porção</option></select></label><label class="form-field"><span>Preço-base (R$)</span><input name="price" type="number" min="5" step="0.01" required placeholder="49,90"></label><label class="form-field wide"><span>Descrição complementar</span><input name="description" maxlength="300" placeholder="Ex.: Massa artesanal assada em forno a lenha"></label><label class="form-field wide"><span>Ingredientes da receita padrão</span><div class="ingredient-checkbox-list" data-product-select="recipe">'+ingredientChoices('pizza',[],'defaultIngredientIds')+'</div><small>Já vêm selecionados no pedido e formam a descrição automática de ingredientes.</small><small data-new-recipe-preview>Ingredientes: nenhum selecionado.</small></label><label class="form-field wide"><span>Adicionais permitidos neste produto</span><div class="ingredient-checkbox-list" data-product-select="addons">'+ingredientChoices('pizza',[],'ingredientIds')+'</div><small>O cliente só verá estes adicionais. Os ingredientes da receita padrão também serão permitidos automaticamente.</small></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos cadastrados</h2><small>Edite a receita, os adicionais e a disponibilidade de cada produto.</small></div></div><div class="product-admin-list">'+catalog.products.map(product=>'<article class="product-admin-entry" data-product-admin="'+esc(product.id)+'"><div class="catalog-row"><div><b>'+esc(product.name)+'</b><small>'+esc(catalog.categories.find(item=>item.id===product.categoryId)?.name||'')+'</small></div><label><span class="sr-only">Preço em reais</span><input type="number" class="product-price-input" min="5" step="0.01" value="'+(product.baseCents/100).toFixed(2)+'"></label><label><input type="checkbox" class="product-active-input" '+(product.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(product.available!==0?'checked':'')+'> Disponível</label><button class="tiny-link" data-action="save-product" data-id="'+esc(product.id)+'">Salvar</button></div><div class="product-ingredient-config"><label><span>Receita padrão</span><div class="ingredient-checkbox-list product-recipe-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),'defaultIngredientIds')+'</div></label><label><span>Adicionais permitidos</span><div class="ingredient-checkbox-list product-addons-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.ingredientIds||[]):catalog.ingredients.filter(item=>item.type===product.type&&item.active!==0).map(item=>item.id),'ingredientIds')+'</div></label><small data-product-recipe-preview>Descrição automática: '+esc(productIngredientNames(product,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),catalog).join(', ')||'Nenhum ingrediente definido')+'</small></div></article>').join('')+'</div></section>';
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Novo produto</h2><small>Defina a receita padrão e quais adicionais o cliente pode escolher.</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type" id="newProductType"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Porção</option></select></label><label class="form-field"><span>Preço-base (R$)</span><input name="price" type="number" min="5" step="0.01" required placeholder="49,90"></label><label class="form-field wide"><span>Descrição complementar</span><input name="description" maxlength="300" placeholder="Ex.: Massa artesanal assada em forno a lenha"></label><label class="form-field wide"><span>Ingredientes da receita padrão</span><div class="ingredient-checkbox-list" data-product-select="recipe">'+ingredientChoices('pizza',[],'defaultIngredientIds')+'</div><small>Já vêm selecionados no pedido e formam a descrição automática de ingredientes.</small><small data-new-recipe-preview>Ingredientes: nenhum selecionado.</small><div class="recipe-live-preview" data-new-recipe-art aria-live="polite"><span>Prévia da receita</span></div></label><label class="form-field wide"><span>Adicionais permitidos neste produto</span><div class="ingredient-checkbox-list" data-product-select="addons">'+ingredientChoices('pizza',[],'ingredientIds')+'</div><small>O cliente só verá estes adicionais. Os ingredientes da receita padrão também serão permitidos automaticamente.</small></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos cadastrados</h2><small>Edite a receita, os adicionais e a disponibilidade de cada produto.</small></div></div><div class="product-admin-list">'+catalog.products.map(product=>'<article class="product-admin-entry" data-product-admin="'+esc(product.id)+'"><div class="catalog-row"><div><b>'+esc(product.name)+'</b><small>'+esc(catalog.categories.find(item=>item.id===product.categoryId)?.name||'')+'</small></div><label><span class="sr-only">Preço em reais</span><input type="number" class="product-price-input" min="5" step="0.01" value="'+(product.baseCents/100).toFixed(2)+'"></label><label><input type="checkbox" class="product-active-input" '+(product.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(product.available!==0?'checked':'')+'> Disponível</label><button class="tiny-link" data-action="save-product" data-id="'+esc(product.id)+'">Salvar</button></div><div class="product-ingredient-config"><label><span>Receita padrão</span><div class="ingredient-checkbox-list product-recipe-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),'defaultIngredientIds')+'</div></label><label><span>Adicionais permitidos</span><div class="ingredient-checkbox-list product-addons-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.ingredientIds||[]):catalog.ingredients.filter(item=>item.type===product.type&&item.active!==0).map(item=>item.id),'ingredientIds')+'</div></label><small data-product-recipe-preview>Descrição automática: '+esc(productIngredientNames(product,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),catalog).join(', ')||'Nenhum ingrediente definido')+'</small><div class="recipe-live-preview" data-product-recipe-art aria-live="polite"><span>Prévia da receita</span></div></div></article>').join('')+'</div></section>';
     const updateRecipePreview=(select,preview,prefix='Ingredientes: ')=>{
       if(!select||!preview)return;
       const names=[...select.querySelectorAll('input:checked')].map(input=>input.closest('.ingredient-choice')?.querySelector('span')?.textContent.trim()||'').filter(Boolean);
       preview.textContent=names.length?prefix+names.join(', ')+'.':prefix+'nenhum selecionado.';
     };
+    app.admin.recipePreviewCatalog=catalog;
+    const typeSelect=root.getElementById('newProductType');
     const newRecipeSelect=target.querySelector('[data-product-select="recipe"]');
+    newRecipeSelect.dataset.previewProductId='admin-new-product-preview';
     const newRecipePreview=target.querySelector('[data-new-recipe-preview]');
-    newRecipeSelect?.addEventListener('change',()=>updateRecipePreview(newRecipeSelect,newRecipePreview));
+    const newRecipeArt=target.querySelector('[data-new-recipe-art]');
+    const updateRecipeArtwork=(select,preview,product)=>{
+      if(!select||!preview||!product)return;
+      const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
+      preview.innerHTML='<span class="recipe-preview-caption">Prévia atualizada pelas seleções</span>'+productSvg(product,ingredients)+'<button type="button" class="recipe-preview-3d" data-action="admin-recipe-3d" data-product-id="'+esc(product.id)+'">Abrir modelo 3D</button>';
+      syncAdminRecipe3DPreview(product.id,select,catalog);
+    };
+    const refreshNewRecipePreview=()=>{
+      updateRecipePreview(newRecipeSelect,newRecipePreview);
+      updateRecipeArtwork(newRecipeSelect,newRecipeArt,{id:'admin-new-product-preview',name:'Prévia',type:typeSelect.value,baseCents:0});
+    };
+    newRecipeSelect?.addEventListener('change',refreshNewRecipePreview);
     target.querySelectorAll('.product-admin-entry').forEach(row=>{
       const recipeSelect=row.querySelector('.product-recipe-input');
+      recipeSelect.dataset.previewProductId=row.dataset.productAdmin;
       const preview=row.querySelector('[data-product-recipe-preview]');
-      recipeSelect?.addEventListener('change',()=>updateRecipePreview(recipeSelect,preview,'Descrição automática: Ingredientes: '));
+      const product=catalog.products.find(item=>item.id===row.dataset.productAdmin);
+      const refreshProductRecipe=()=>{
+        updateRecipePreview(recipeSelect,preview,'Descrição automática: Ingredientes: ');
+        updateRecipeArtwork(recipeSelect,row.querySelector('[data-product-recipe-art]'),product);
+      };
+      recipeSelect?.addEventListener('change',refreshProductRecipe);
+      refreshProductRecipe();
     });
-    const typeSelect=root.getElementById('newProductType');
     const updateIngredientOptions=()=>{
       const type=typeSelect.value;
       for(const list of target.querySelectorAll('[data-product-select]')){
@@ -859,9 +879,10 @@ async function renderCatalogAdmin(){
         const name=list.dataset.productSelect==='recipe'?'defaultIngredientIds':'ingredientIds';
         list.innerHTML=ingredientChoices(type,prior,name);
       }
-      updateRecipePreview(newRecipeSelect,newRecipePreview);
+      refreshNewRecipePreview();
     };
     typeSelect.addEventListener('change',updateIngredientOptions);
+    refreshNewRecipePreview();
     root.getElementById('newProductForm').addEventListener('submit',async event=>{
       event.preventDefault();
       const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('newProductError');
@@ -1309,6 +1330,53 @@ async function renderIngredientsAdmin(){
     }));
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
+function syncAdminRecipe3DPreview(productId,select,catalog){
+  const preview=app.admin.recipePreview;
+  if(!preview||preview.productId!==productId||!preview.scene)return;
+  const product=productId==='admin-new-product-preview'
+    ? {id:productId,name:'Prévia',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{preview.scene.update(product,ingredients,size,{crustKey:'tradicional'});}catch(error){toast(error.message||'Não foi possível atualizar o modelo 3D.');}
+}
+function openAdminRecipe3D(productId){
+  const catalog=app.admin.recipePreviewCatalog;
+  if(!catalog)return;
+  const isNew=productId==='admin-new-product-preview';
+  const row=isNew?root.getElementById('newProductForm'):root.querySelector('[data-product-admin="'+CSS.escape(productId)+'"]');
+  const select=row?.querySelector(isNew?'[data-product-select="recipe"]':'.product-recipe-input');
+  if(!select)return;
+  const product=isNew
+    ? {id:productId,name:'Prévia da receita',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  app.admin.recipePreview?.scene?.dispose?.();
+  root.getElementById('adminRecipe3dPreview')?.remove();
+  const overlay=root.createElement('div');
+  overlay.id='adminRecipe3dPreview';
+  overlay.className='modal-backdrop admin-recipe-3d-backdrop';
+  overlay.innerHTML='<section class="admin-recipe-3d-modal" role="dialog" aria-modal="true" aria-label="Prévia 3D da receita"><header><div><strong>Modelo 3D em tempo real</strong><small>Altere as caixas de seleção da receita para atualizar o prato.</small></div><button type="button" data-action="close-admin-recipe-3d" aria-label="Fechar prévia 3D">×</button></header><div class="admin-recipe-3d-stage"><canvas id="adminRecipe3dCanvas" aria-label="Modelo 3D da receita"></canvas><div id="adminRecipe3dHud" aria-live="polite"></div></div><p>O modelo acompanha os ingredientes marcados na receita padrão.</p></section>';
+  root.body.append(overlay);
+  const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{
+    const scene=new FoodScene(root.getElementById('adminRecipe3dCanvas'),product,ingredients,size,root.getElementById('adminRecipe3dHud'),{crustKey:'tradicional'});
+    app.admin.recipePreview={productId,scene};
+    scene.setActive(true);
+  }catch(error){
+    overlay.remove();app.admin.recipePreview=null;
+    toast(error.message||'Não foi possível abrir o modelo 3D neste navegador.');
+  }
+}
+function closeAdminRecipe3D(){
+  app.admin.recipePreview?.scene?.dispose?.();
+  app.admin.recipePreview=null;
+  root.getElementById('adminRecipe3dPreview')?.remove();
+}
 function setAdminConnectionState(state){
   app.admin.connectionState=state;
   const node=root.getElementById('adminConnectionStatus');
@@ -1529,6 +1597,8 @@ function handleClick(event){
     renderCatalog();return;
   }
   if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
+  if(action==='admin-recipe-3d'){openAdminRecipe3D(target.dataset.productId);return}
+  if(action==='close-admin-recipe-3d'){closeAdminRecipe3D();return}
   if(action==='start-builder'||action==='build'){openBuilder(target.dataset.product);return}
   if(action==='cart'){openCart();return}
   if(action==='close-builder'){app.builder=null;renderBuilder();return}

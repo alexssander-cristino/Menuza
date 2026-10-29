@@ -1460,3 +1460,29 @@ body{overscroll-behavior-y:contain}
 .ingredient-admin-panel .admin-panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ingredient-admin-panel .admin-panel-head h2{margin:0}.ingredient-admin-panel .admin-panel-head small{margin-left:auto}
 .product-ingredient-config .ingredient-checkbox-list{max-height:220px}.product-ingredient-config .ingredient-choice{min-height:38px}
 @media(max-width:700px){.product-admin-entry [data-action="save-product"]{width:100%}.ingredient-admin-row{grid-template-columns:minmax(0,1fr) 82px 28px 76px}.ingredient-admin-row button{min-width:68px;padding:7px 8px}}
+
+
+/* Seleção de ingredientes no painel: checkbox clicável e prévia visual imediata. */
+.ingredient-choice{position:relative;user-select:none;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.ingredient-choice input[type="checkbox"]{width:17px;height:17px;min-width:17px;margin:0;accent-color:#6d4cf5;cursor:pointer;flex:0 0 17px}
+.ingredient-choice:has(input:checked){box-shadow:inset 0 0 0 1px #b9a9ed}
+.ingredient-choice:focus-within{outline:2px solid #8b75eb;outline-offset:2px}
+.recipe-live-preview{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin:10px 0 4px;padding:10px;border:1px solid #e8e2f3;border-radius:12px;background:linear-gradient(145deg,#fbfaff,#f5f1ff);overflow:hidden}
+.recipe-live-preview>svg{display:block;width:100%;max-width:240px;height:auto;max-height:185px;justify-self:center}
+.recipe-preview-caption{font-size:10px;color:#6d5b91;font-weight:650}
+.product-admin-entry .recipe-live-preview{grid-column:1/-1;margin:4px 0 0;grid-template-columns:1fr}
+.product-admin-entry .recipe-live-preview>svg{max-width:180px;max-height:140px}
+@media(max-width:520px){.recipe-live-preview{padding:8px}.recipe-live-preview>svg{max-height:145px}.ingredient-choice{gap:7px}}
+
+.admin-recipe-3d-backdrop{z-index:10020;display:grid;place-items:center;padding:16px}
+.admin-recipe-3d-modal{width:min(620px,100%);max-height:min(88dvh,760px);overflow:auto;border-radius:18px;background:#fff;padding:16px;box-shadow:0 24px 80px #20163840}
+.admin-recipe-3d-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.admin-recipe-3d-modal>header>div{display:grid;gap:5px}
+.admin-recipe-3d-modal>header strong{font-size:15px;color:#281d40}
+.admin-recipe-3d-modal>header small,.admin-recipe-3d-modal>p{font-size:11px;line-height:1.5;color:#756b86}
+.admin-recipe-3d-modal>header button{width:36px;height:36px;border:1px solid #e6e0ef;border-radius:10px;background:#f8f5ff;font-size:24px;cursor:pointer}
+.admin-recipe-3d-stage{height:clamp(260px,55vh,460px);position:relative;margin-top:12px;border:1px solid #e8e2f3;border-radius:14px;overflow:hidden;background:radial-gradient(ellipse at 50% 36%,#fff 0%,#f3effb 68%,#eae4f6 100%)}
+.admin-recipe-3d-stage canvas{display:block;width:100%;height:100%;touch-action:pan-y}
+.admin-recipe-3d-stage #adminRecipe3dHud{position:absolute;inset:auto 8px 8px;pointer-events:none}
+.recipe-preview-3d{justify-self:center;min-height:32px;padding:7px 12px;border:1px solid #d8cafa;border-radius:9px;background:#fff;color:#5b3be0;font-size:11px;font-weight:700;cursor:pointer}
+.recipe-preview-3d:hover{background:#f1ebff}
