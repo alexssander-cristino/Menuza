@@ -858,6 +858,7 @@ async function renderCatalogAdmin(){
         const prior=[...select.selectedOptions].map(option=>option.value);
         select.innerHTML=ingredientOptions(type,prior);
       }
+      updateRecipePreview(newRecipeSelect,newRecipePreview);
     };
     typeSelect.addEventListener('change',updateIngredientOptions);
     root.getElementById('newProductForm').addEventListener('submit',async event=>{
