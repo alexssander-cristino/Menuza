@@ -30,7 +30,7 @@ try {
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
@@ -239,7 +239,7 @@ function arStatusText(product = app.catalog?.products.find(item => item.id === a
   const nativeModelAvailable = (appleDevice && /\.usdz($|[?#])/i.test(modelUrl)) ||
     (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(modelUrl));
   if (nativeModelAvailable) return 'Este prato pode abrir no visualizador de RA do aparelho.';
-  return 'RA por câmera não disponível neste navegador para este prato — você ainda pode usar a prévia 3D.';
+  return 'Se a RA nativa não estiver disponível, tente o modo câmera com posicionamento manual. A prévia 3D também continua disponível.';
 }
 async function detectAR() {
   if (app.arSupported !== null) return;
@@ -252,6 +252,7 @@ async function detectAR() {
   if (node) node.textContent = arStatusText();
 }
 function renderBuilder() {
+  if (app.arLite?.active) stopCameraAR();
   const builderRoot = root.getElementById('builderRoot');
   const previousContent = builderRoot.querySelector('.builder-content');
   const previousScrollTop = previousContent ? previousContent.scrollTop : 0;
@@ -462,6 +463,77 @@ function openCheckout(){
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
   ensureCheckoutKey();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
 }
+function updateCameraARTransform() {
+  const ar = app.arLite;
+  if (!ar?.active || !ar.target) return;
+  ar.target.style.transform = `translate(${ar.x}px, ${ar.y}px) scale(${ar.scale})`;
+  ar.target.style.transformOrigin = 'center center';
+}
+function stopCameraAR() {
+  const ar = app.arLite;
+  if (!ar?.active && !ar?.stream && !ar?.video) return;
+  try { ar?.stream?.getTracks?.().forEach(track => track.stop()); } catch {}
+  try { ar?.video?.pause?.(); if (ar?.video) ar.video.srcObject = null; ar?.video?.remove?.(); } catch {}
+  const stage = root.querySelector('.food-stage');
+  stage?.classList.remove('ar-camera-mode');
+  stage?.removeAttribute('data-ar-mode');
+  if (ar?.target) { ar.target.style.transform = ''; ar.target.style.transformOrigin = ''; }
+  const hud = root.getElementById('arHud');
+  if (hud) { hud.classList.remove('ar-active'); hud.innerHTML = ''; }
+  app.arLite = { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null };
+  if (app.scene) { app.scene.hud = hud; app.scene.last = 0; app.scene.schedule?.(); }
+}
+async function startCameraAR(productId) {
+  if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    app.viewMode = '3d';
+    if (app.builder) renderBuilder();
+    toast('Este navegador não libera a câmera. Você ainda pode girar e ampliar o prato em 3D.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    if (!app.builder || app.builder.productId !== productId) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    app.viewMode = '3d';
+    renderBuilder();
+    const stage = root.querySelector('.food-stage');
+    const hud = root.getElementById('arHud');
+    if (!stage || !hud) throw new Error('Não encontrei a área de visualização do prato.');
+    const video = root.createElement('video');
+    video.className = 'ar-camera-video';
+    video.autoplay = true; video.muted = true; video.playsInline = true;
+    video.setAttribute('aria-label', 'Imagem da câmera para posicionar o prato');
+    video.srcObject = stream;
+    stage.insertBefore(video, stage.firstChild);
+    const target = app.scene ? stage.querySelector('.food-canvas') : (stage.querySelector('.food-fallback') || stage.querySelector('.food-art-view'));
+    if (!target) throw new Error('Não foi possível preparar o prato para a câmera.');
+    app.arLite = { active: true, stream, video, x: 0, y: 0, scale: 0.82, target };
+    stage.classList.add('ar-camera-mode');
+    stage.dataset.arMode = app.scene ? '3d' : 'art';
+    hud.classList.add('ar-active');
+    hud.innerHTML = '<strong>Modo câmera · posicionamento manual</strong><span>Mova o prato com as setas e ajuste o tamanho. Este modo não detecta automaticamente a superfície.</span><div class="ar-camera-controls"><button type="button" data-action="ar-lite-left" aria-label="Mover prato para a esquerda">←</button><button type="button" data-action="ar-lite-up" aria-label="Mover prato para cima">↑</button><button type="button" data-action="ar-lite-down" aria-label="Mover prato para baixo">↓</button><button type="button" data-action="ar-lite-right" aria-label="Mover prato para a direita">→</button><button type="button" data-action="ar-lite-smaller" aria-label="Diminuir prato">−</button><button type="button" data-action="ar-lite-larger" aria-label="Aumentar prato">＋</button><button type="button" data-action="exit-ar-lite">Voltar</button></div>';
+    updateCameraARTransform();
+    try { await video.play(); } catch {}
+    video.addEventListener('error', () => { stopCameraAR(); toast('A câmera foi interrompida. Você pode continuar usando a prévia 3D.'); }, { once: true });
+  } catch (error) {
+    try { stream?.getTracks?.().forEach(track => track.stop()); } catch {}
+    stopCameraAR();
+    app.viewMode = '3d';
+    if (app.builder) renderBuilder();
+    const reason = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
+      ? 'Permita o acesso à câmera nas configurações do navegador e tente novamente.'
+      : error?.name === 'NotFoundError'
+        ? 'Não encontrei uma câmera disponível neste aparelho.'
+        : 'Não foi possível abrir a câmera neste aparelho.';
+    toast(reason + ' A visualização 3D continua disponível.');
+  }
+}
 async function launchAR(productId) {
   const product = app.catalog.products.find(p => p.id === productId);
   if (!product) return;
@@ -511,11 +583,7 @@ async function launchAR(productId) {
     }
   }
 
-  if (app.builder) {
-    app.viewMode = '3d';
-    renderBuilder();
-  }
-  toast('A RA por câmera não é compatível com este navegador/aparelho ou não há modelo nativo configurado para este prato. A prévia 3D continua disponível.');
+  await startCameraAR(productId);
 }
 function showTracking(token){
   root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('trackingView').classList.remove('hidden');
@@ -1349,7 +1417,24 @@ function handleClick(event){
   if(action==='toggle-auto'&&app.builder){app.scene?.toggleAuto();return}
   if(action==='zoom-in'&&app.builder){app.scene?.zoomBy(1.15);return}
   if(action==='zoom-out'&&app.builder){app.scene?.zoomBy(1/1.15);return}
-  if(action==='view-ar'){launchAR(target.dataset.product);return}if(action==='exit-ar'){app.scene?.exitAR();return}
+  if(action==='view-ar'){launchAR(target.dataset.product);return}
+  if(action==='exit-ar-lite'){stopCameraAR();return}
+  if(action==='ar-lite-left'||action==='ar-lite-right'||action==='ar-lite-up'||action==='ar-lite-down'||action==='ar-lite-smaller'||action==='ar-lite-larger'){
+    const ar=app.arLite;
+    if(ar?.active){
+      const stage=root.querySelector('.food-stage');
+      const step=Math.max(12,Math.round(Math.min(stage?.clientWidth||300,stage?.clientHeight||240)*.055));
+      if(action==='ar-lite-left')ar.x-=step;
+      if(action==='ar-lite-right')ar.x+=step;
+      if(action==='ar-lite-up')ar.y-=step;
+      if(action==='ar-lite-down')ar.y+=step;
+      if(action==='ar-lite-smaller')ar.scale=Math.max(.35,ar.scale-.1);
+      if(action==='ar-lite-larger')ar.scale=Math.min(1.65,ar.scale+.1);
+      updateCameraARTransform();
+    }
+    return;
+  }
+  if(action==='exit-ar'){app.scene?.exitAR();return}
   if(action==='close-cart'||(action==='cart-backdrop'&&event.target===target)){app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';return}
   if(action==='qty'){const item=app.cart.find(i=>i.cartId===target.dataset.id);if(item){const next=Math.max(1,Math.min(10,item.quantity+Number(target.dataset.delta)));if(next!==item.quantity){item.quantity=next;invalidateCheckoutKey();setCart();renderCart()}}return}
   if(action==='remove-cart-item'){const next=app.cart.filter(i=>i.cartId!==target.dataset.id);if(next.length!==app.cart.length){app.cart=next;invalidateCheckoutKey();setCart();renderCart()}return}
