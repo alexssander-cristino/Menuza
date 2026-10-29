@@ -2,7 +2,7 @@ import { FoodScene } from './food-scene.js?v=7';
 import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '55';
+const MENUZA_APP_BUILD = '58';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -58,10 +58,13 @@ function normalizeSearch(value) {
 function normalizeCartForCatalog(value, catalog) {
   if (!Array.isArray(value) || !catalog) return [];
   const products = new Map(catalog.products.map(product => [product.id, product]));
+  const combos = new Map((catalog.combos || []).map(combo => [combo.id, combo]));
   const sizes = catalog.sizes || {};
   const ingredients = new Map(catalog.ingredients.map(item => [item.id, item]));
   return value.filter(item => {
-    if (!item || typeof item !== 'object' || typeof item.productId !== 'string') return false;
+    if (!item || typeof item !== 'object') return false;
+    if (typeof item.comboId === 'string') return combos.has(item.comboId) && Number(combos.get(item.comboId).active) !== 0 && Number.isInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 10;
+    if (typeof item.productId !== 'string') return false;
     const product = products.get(item.productId);
     if (!product || Number(product.active) === 0) return false;
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) return false;
@@ -77,6 +80,10 @@ function normalizeCartForCatalog(value, catalog) {
       return !(ingredient.included && entry.quantity !== 1);
     });
   }).slice(0, 50).map(item => {
+    if (typeof item.comboId === 'string') {
+      const combo = combos.get(item.comboId);
+      return { cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(), comboId: combo.id, name: combo.name, type: 'combo', quantity: item.quantity, ingredients: [], sizeKey: 'combo', crustKey: '', notes: '' };
+    }
     const product = products.get(item.productId);
     return {
       cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(),
@@ -140,6 +147,12 @@ function productSvg(product, ingredients, opts = {}) {
   if (product.type === 'burger') return burgerArt(ingredients || defaultIngredients(product, app.catalog), product.id, opts);
   return plateArt(product.id);
 }
+function comboCardMarkup(combo) {
+  const itemText=(combo.items||[]).map(item=>(item.quantity>1?item.quantity+'× ':'')+item.name).join(' · ');
+  const regularTotal=(combo.items||[]).reduce((sum,item)=>sum+(Number(item.baseCents)||0)*(Number(item.quantity)||1),0);
+  const saved=Math.max(0,regularTotal-Number(combo.priceCents||0));
+  return '<article class="product-card combo-card"><div class="product-image combo-art" aria-hidden="true"><span class="combo-mark">COMBO</span><span class="combo-dish">＋</span><span class="combo-savings">Economize '+money(saved)+'</span></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(combo.name)+'</h3><span class="product-price">'+money(combo.priceCents)+'</span></div><p>'+esc(combo.description||itemText)+'</p><small class="combo-items-list">'+esc(itemText)+'</small><div class="card-bottom"><span class="prep-time">Preço promocional</span><button class="add-button" data-action="add-combo" data-id="'+esc(combo.id)+'">Adicionar combo <span>↗</span></button></div></div></article>';
+}
 function cardMarkup(product) {
   const category = app.catalog.categories.find(c => c.id === product.categoryId)?.name || 'Especialidade';
   const favorite = app.favorites.includes(product.id);
@@ -166,8 +179,11 @@ function renderCatalog() {
   root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
   renderRecentProducts();
   const products=visibleProducts();
-  root.getElementById('menuGrid').innerHTML=products.length?products.map(cardMarkup).join(''):'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
-  root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis')+(app.favoritesOnly?' nos favoritos':'');
+  const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
+  root.getElementById('menuGrid').innerHTML=(comboCards+products.map(cardMarkup).join(''))||'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
+  const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
+  const visibleCount=products.length+visibleComboCount;
+  root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
   const favoritesToggle=root.getElementById('favoritesFilter');
   if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
 }
@@ -331,6 +347,7 @@ function addBuilderToCart() {
 }
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
 function cartItemPrice(item){
+  if(item.comboId){return Number(app.catalog.combos?.find(combo=>combo.id===item.comboId)?.priceCents)||0;}
   const product=app.catalog.products.find(p=>p.id===item.productId);if(!product)return 0;
   const size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
@@ -340,6 +357,7 @@ function cartItemPrice(item){
 function renderCart(){
   const total=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
   const items=app.cart.map(item=>{
+    if(item.comboId){const combo=app.catalog.combos?.find(entry=>entry.id===item.comboId);const contents=(combo?.items||[]).map(entry=>(entry.quantity>1?entry.quantity+'× ':'')+entry.name).join(', ');return '<article class="cart-item combo-cart-item"><div class="cart-thumb combo-thumb">＋</div><div><h3>'+esc(combo?.name||item.name)+'</h3><p>Combo promocional<br>'+esc(contents)+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';}
     const product=app.catalog.products.find(p=>p.id===item.productId),names=new Map(app.catalog.ingredients.map(i=>[i.id,i.name]));
     const components=item.ingredients.map(i=>names.get(i.id)).filter(Boolean).join(', '),size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey)?.label||'';
     return '<article class="cart-item"><div class="cart-thumb">'+productSvg(product,item.ingredients.map(entry=>({...app.catalog.ingredients.find(ingredient=>ingredient.id===entry.id),quantity:entry.quantity})).filter(entry=>entry.id))+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(size)+(item.crustKey&&item.crustKey!=='tradicional'?' · '+esc(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+'<br>'+esc(components||'Composição da casa')+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';
@@ -369,7 +387,7 @@ function checkoutForm(){
 }
 async function submitCheckout(event){
   event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),error=root.getElementById('checkoutError');
-  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel'),deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
+  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel'),deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>item.comboId?({comboId:item.comboId,quantity:item.quantity,notes:item.notes}):({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
   if(payload.fulfillment==='table'&&!payload.tableLabel){error.textContent='Selecione uma mesa livre antes de confirmar.';form.querySelector('[name=tableLabel]')?.focus();return}
   button.disabled=true;button.textContent='Enviando para a cozinha…';error.textContent='';
   try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();app.checkoutCoupon=null;rememberOrderToken(result.order.trackingToken);app.checkoutOpen=false;app.cartOpen=false;clearCheckoutKey();root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
@@ -526,13 +544,13 @@ async function showAdmin(){
   try{await api('/api/admin/me');app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch{app.admin.authenticated=false;renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Bela Mesa para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>↗</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
-  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password');try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
+  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Bela Mesa para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador (se 2FA estiver ativado)</span><input type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>↗</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
+  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),otp=String(formData.get('otp')||'').trim();try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,otp})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
+  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
@@ -620,6 +638,44 @@ async function renderCatalogAdmin(){
     target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos</h2><small>Preço-base, descrição e disponibilidade</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Porção</option></select></label><label class="form-field"><span>Preço-base (R$)</span><input name="price" type="number" min="5" step="0.01" required placeholder="49,90"></label><label class="form-field wide"><span>Descrição</span><input name="description" maxlength="300" placeholder="Ingredientes e detalhes do prato"></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="catalog-list">'+catalog.products.map(p=>'<div class="catalog-row" data-product-admin="'+esc(p.id)+'"><div><b>'+esc(p.name)+'</b><small>'+esc(catalog.categories.find(c=>c.id===p.categoryId)?.name||'')+' · '+esc(p.description.slice(0,70))+'</small></div><label><span class="sr-only">Preço em reais</span><input type="number" class="product-price-input" min="5" step="0.01" value="'+(p.baseCents/100).toFixed(2)+'"></label><label><input type="checkbox" class="product-active-input" '+(p.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(p.available!==0?'checked':'')+'> Disponível</label><button class="tiny-link" data-action="save-product" data-id="'+esc(p.id)+'">Salvar</button></div>').join('')+'</div></section>';
     root.getElementById('newProductForm').addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget),price=Math.round(Number(data.get('price'))*100);try{await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,description:data.get('description')})});toast('Produto cadastrado.');renderCatalogAdmin()}catch(e){root.getElementById('newProductError').textContent=e.message}});
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
+}
+async function renderAnalyticsAdmin(days=7){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML='<div class="loading-line">Calculando indicadores de vendas…</div>';
+  try{
+    const data=await api('/api/admin/analytics?days='+days);
+    const moneyValue=value=>money(Number(value)||0);
+    const maxRevenue=Math.max(1,...data.daily.map(row=>Number(row.revenueCents)||0));
+    const dayLabels=data.daily.map(row=>({date:row.date,label:new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),revenue:Number(row.revenueCents)||0,orders:Number(row.orders)||0}));
+    const bars=dayLabels.map(row=>'<div class="analytics-bar-column" title="'+esc(row.date)+' · '+row.orders+' pedido(s) · '+moneyValue(row.revenue)+'"><span>'+moneyValue(row.revenue)+'</span><div class="analytics-bar-track"><i style="height:'+Math.max(3,Math.round(row.revenue/maxRevenue*100))+'%"></i></div><small>'+esc(row.label)+'</small></div>').join('');
+    const fulfillmentLabels={table:'Mesa',pickup:'Retirada',delivery:'Entrega'};
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Visão geral das vendas</h2><small>Pedidos registrados no período selecionado; valores cancelados não entram no faturamento.</small></div><label class="analytics-period"><span>Período</span><select id="analyticsDays"><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label></div><div class="metrics-grid analytics-metrics"><div class="metric-card"><span>Faturamento</span><b>'+moneyValue(data.summary.revenueCents)+'</b><small>Pedidos não cancelados</small></div><div class="metric-card"><span>Pedidos</span><b>'+Number(data.summary.orders||0)+'</b><small>No período</small></div><div class="metric-card"><span>Ticket médio</span><b>'+moneyValue(data.summary.averageTicketCents)+'</b><small>Exclui cancelamentos</small></div><div class="metric-card"><span>Cancelados</span><b>'+Number(data.summary.cancelled||0)+'</b><small>Pedidos cancelados</small></div></div></section><div class="admin-content-grid analytics-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Faturamento por dia</h2><small>Valores em reais</small></div></div><div class="analytics-chart">'+(bars||'<p class="admin-empty">Ainda não há vendas nesse período.</p>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Produtos mais vendidos</h2></div><ol class="analytics-popular">'+(data.popular.length?data.popular.map((row,index)=>'<li><span class="analytics-rank">'+(index+1)+'</span><span class="analytics-product-name">'+esc(row.name)+'</span><b>'+Number(row.quantity||0)+' un.</b></li>').join(''):'<li class="admin-empty">Sem vendas no período.</li>')+'</ol></section><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos por modalidade</h2></div><ul class="popular-list">'+(data.fulfillment.length?data.fulfillment.map(row=>'<li><span>'+esc(fulfillmentLabels[row.type]||row.type)+'</span><small>'+Number(row.orders||0)+' pedido(s)</small></li>').join(''):'<li><span>Sem pedidos no período.</span></li>')+'</ul></section></aside></div>';
+    root.getElementById('analyticsDays').value=String(days);
+    root.getElementById('analyticsDays').addEventListener('change',event=>renderAnalyticsAdmin(Number(event.target.value)));
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar os indicadores.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-analytics">Tentar novamente</button></section>'}
+}
+async function renderCombosAdmin(){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML='<div class="loading-line">Carregando combos…</div>';
+  try{
+    const result=await api('/api/admin/combos');
+    const products=result.products.filter(product=>Number(product.active)!==0&&Number(product.available)!==0);
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Criar combo promocional</h2><small>Escolha de 2 a 6 produtos. O preço do combo deve ser inferior à soma dos preços-base.</small></div></div><form id="newComboForm" class="admin-form-grid"><label class="form-field"><span>Nome do combo</span><input name="name" required minlength="2" maxlength="80" placeholder="Ex.: Noite de pizza"></label><label class="form-field"><span>Preço promocional (R$)</span><input name="price" type="number" min="1" step="0.01" required placeholder="59,90"></label><label class="form-field wide"><span>Descrição (opcional)</span><input name="description" maxlength="240" placeholder="Uma descrição curta para o cardápio"></label><label class="form-field wide"><span>Produtos do combo</span><select name="products" multiple size="6" required aria-describedby="comboProductsHint">'+products.map(product=>'<option value="'+esc(product.id)+'">'+esc(product.name)+' · '+money(product.baseCents)+'</option>').join('')+'</select><small id="comboProductsHint">No computador use Ctrl para selecionar vários produtos; no celular selecione os itens desejados.</small></label><div class="wide"><p class="error-text" id="newComboError" role="alert"></p><button class="button button-dark button-small" type="submit">Criar combo +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Combos cadastrados</h2><small>'+result.combos.length+' combo(s)</small></div></div><div class="combo-admin-list">'+(result.combos.map(combo=>'<article class="combo-admin-row" data-combo-row="'+esc(combo.id)+'"><div><b>'+esc(combo.name)+'</b><small>'+esc(combo.items.map(item=>(item.quantity>1?item.quantity+'× ':'')+item.name).join(' · '))+'</small><small>Preço: '+money(combo.priceCents)+(combo.active?' · Ativo':' · Inativo')+'</small></div><label><input type="checkbox" class="combo-active-input" '+(combo.active?'checked':'')+'> Ativo</label><button class="button button-outline button-small" data-action="save-combo-status" data-id="'+esc(combo.id)+'">Salvar status</button></article>').join('')||'<div class="admin-empty">Nenhum combo criado ainda.</div>')+'</div></section>';
+    root.getElementById('newComboForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form),selected=[...form.elements.products.selectedOptions].map(option=>({productId:option.value,quantity:1})),error=root.getElementById('newComboError');if(selected.length<2||selected.length>6){error.textContent='Selecione de 2 a 6 produtos.';return}try{await api('/api/admin/combos',{method:'POST',body:JSON.stringify({name:data.get('name'),description:data.get('description'),priceCents:Math.round(Number(data.get('price'))*100),items:selected})});if(app.catalog)app.catalog=null;toast('Combo criado e publicado no cardápio.');renderCombosAdmin()}catch(e){error.textContent=e.message}});
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
+}
+async function saveComboStatus(id){
+  const row=root.querySelector('[data-combo-row="'+CSS.escape(id)+'"]');if(!row)return;
+  try{
+    const catalog=await api('/api/admin/combos'),combo=catalog.combos.find(item=>item.id===id);if(!combo)return;
+    await api('/api/admin/combos/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name:combo.name,description:combo.description,priceCents:combo.priceCents,items:combo.items.map(item=>({productId:item.productId,quantity:item.quantity})),active:row.querySelector('.combo-active-input').checked})});
+    if(app.catalog)app.catalog=null;toast('Status do combo atualizado.');renderCombosAdmin();
+  }catch(error){toast(error.message||'Não foi possível atualizar o combo.')}
+}
+function addComboToCart(id){
+  const combo=app.catalog?.combos?.find(item=>item.id===id&&Number(item.active)!==0);if(!combo)return toast('Esse combo não está mais disponível.');
+  app.cart.push({cartId:randomId(),comboId:combo.id,name:combo.name,type:'combo',quantity:1,ingredients:[],sizeKey:'combo',crustKey:'',notes:''});
+  invalidateCheckoutKey();setCart();toast('Combo adicionado à sacola.');openCart();
 }
 async function renderCouponsAdmin(){
   const target=root.getElementById('adminBody');if(!target)return;
@@ -928,7 +984,7 @@ async function renderIngredientsAdmin(){
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
+  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin()});
   clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
 }
 async function logoutAdmin(){
@@ -1030,6 +1086,9 @@ function handleClick(event){
   }
   const action=target.dataset.action;
   if(action==='refresh-tables'){renderTablesAdmin();return}
+   if(action==='refresh-analytics'){renderAnalyticsAdmin();return}
+   if(action==='add-combo'){addComboToCart(target.dataset.id);return}
+   if(action==='save-combo-status'){saveComboStatus(target.dataset.id);return}
   if(action==='share-menu'){shareMenu();return}
   if(action==='share-product'){shareMenu(target.dataset.product);return}
   if(action==='export-orders'){exportVisibleOrders();return}

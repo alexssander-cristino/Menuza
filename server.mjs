@@ -7,6 +7,7 @@ import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypt
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
 import { restaurantLocalDatePrefix } from './src/time.mjs';
+import { verifyTotp } from './src/auth-totp.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(ROOT, 'public');
@@ -18,6 +19,7 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
+const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
 const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const ADMIN_SESSION_TTL_SECONDS = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
@@ -49,6 +51,11 @@ try { db.exec('ALTER TABLE products ADD COLUMN available INTEGER NOT NULL DEFAUL
 catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
+db.exec(`CREATE TABLE IF NOT EXISTS combos (
+  id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', price_cents INTEGER NOT NULL,
+  items_json TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);`);
 db.exec(`CREATE TABLE IF NOT EXISTS coupons (
   id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   code TEXT NOT NULL, discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
@@ -91,7 +98,17 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
   const ingredients = ingredientRows.map(row => ({ ...row, included: row.included === 1, visual: INGREDIENTS.find(i => i.id === row.id)?.visual || 'herb' }));
-  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
+  const comboRows = statement('SELECT id,name,description,price_cents AS priceCents,items_json AS itemsJson,active,created_at AS createdAt,updated_at AS updatedAt FROM combos WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY created_at DESC').all(restaurantId);
+  const combos = comboRows.map(row => {
+    let itemIds = [];
+    try { itemIds = JSON.parse(row.itemsJson); } catch {}
+    const items = itemIds.map(entry => {
+      const product = products.find(item => item.id === entry.productId) || statement('SELECT id,name,description,type,base_price_cents AS baseCents,active,available FROM products WHERE id=? AND restaurant_id=?').get(entry.productId, restaurantId);
+      return product ? { productId: product.id, name: product.name, quantity: entry.quantity, baseCents: product.baseCents } : null;
+    }).filter(Boolean);
+    return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: row.active, createdAt: row.createdAt, updatedAt: row.updatedAt, items };
+  });
+  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -334,6 +351,26 @@ function priceOrderItems(itemsInput) {
   const catalog = catalogFor(RESTAURANT_ID);
   let subtotalCents = 0;
   const pricedItems = itemsInput.map(entry => {
+    if (entry && typeof entry.comboId === 'string') {
+      const row = statement("SELECT id,name,description,price_cents AS priceCents,items_json AS itemsJson,active FROM combos WHERE id=? AND restaurant_id=?").get(entry.comboId, RESTAURANT_ID);
+      if (!row || row.active !== 1) throw Object.assign(new Error('Um dos combos está indisponível.'), { status: 409 });
+      const quantity = Number(entry.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw Object.assign(new Error('A quantidade do combo é inválida.'), { status: 422 });
+      let comboItems = [];
+      try { comboItems = JSON.parse(row.itemsJson); } catch {}
+      if (comboItems.length < 2) throw Object.assign(new Error('Este combo precisa ser revisado pelo restaurante.'), { status: 409 });
+      for (const comboItem of comboItems) {
+        const product = catalog.products.find(p => p.id === comboItem.productId && p.active === 1 && p.available === 1);
+        if (!product) throw Object.assign(new Error('Um produto de um combo está indisponível. Atualize o cardápio.'), { status: 409 });
+      }
+      const product = { id: row.id, name: row.name, description: row.description, type: 'plate', widthCm: null, heightCm: null };
+      const priced = { linePriceCents: row.priceCents * quantity, unitPriceCents: row.priceCents, size: { key: 'combo', label: 'Combo' }, crust: null, ingredients: [], comboItems: comboItems.map(item => {
+        const source = catalog.products.find(p => p.id === item.productId);
+        return { productId: source.id, name: source.name, quantity: item.quantity };
+      }) };
+      subtotalCents += priced.linePriceCents;
+      return { product, quantity, notes: cleanText(entry.notes, 300), priced, combo: true };
+    }
     const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
     if (!product || product.available !== 1) throw Object.assign(new Error('Um dos produtos está indisponível ou esgotado no momento.'), { status: 409 });
     const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
@@ -348,6 +385,39 @@ function validateCouponForOrder(code, itemsInput) {
   if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
   const coupon = getCoupon(normalized);
   return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
+}
+function saveCombo(payload, id = null) {
+  const name = cleanText(payload.name, 80);
+  const description = cleanText(payload.description, 240);
+  const priceCents = Number(payload.priceCents);
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  if (name.length < 2 || !Number.isInteger(priceCents) || priceCents < 100 || priceCents > 1000000) throw Object.assign(new Error('Informe nome e preço válido para o combo.'), { status: 422 });
+  if (rawItems.length < 2 || rawItems.length > 6) throw Object.assign(new Error('Um combo precisa ter de 2 a 6 produtos.'), { status: 422 });
+  const items = [];
+  for (const entry of rawItems) {
+    const productId = cleanText(entry?.productId, 100);
+    const quantity = Number(entry?.quantity ?? 1);
+    const product = statement('SELECT id,name,base_price_cents AS baseCents,active,available FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
+    if (!product || product.active !== 1 || product.available !== 1) throw Object.assign(new Error('Selecione apenas produtos ativos e disponíveis.'), { status: 422 });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 5) throw Object.assign(new Error('A quantidade de cada produto deve ficar entre 1 e 5.'), { status: 422 });
+    items.push({ productId, quantity });
+  }
+  const regularTotal = items.reduce((sum, entry) => sum + statement('SELECT base_price_cents AS price FROM products WHERE id=? AND restaurant_id=?').get(entry.productId, RESTAURANT_ID).price * entry.quantity, 0);
+  if (priceCents >= regularTotal) throw Object.assign(new Error('O preço promocional deve ser menor que a soma dos preços-base dos produtos.'), { status: 422 });
+  const now = new Date().toISOString();
+  if (id) {
+    const current = statement('SELECT id FROM combos WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+    if (!current) throw Object.assign(new Error('Combo não encontrado.'), { status: 404 });
+    statement('UPDATE combos SET name=?,description=?,price_cents=?,items_json=?,active=?,updated_at=? WHERE id=? AND restaurant_id=?')
+      .run(name,description,priceCents,JSON.stringify(items),payload.active === undefined ? 1 : (payload.active ? 1 : 0),now,id,RESTAURANT_ID);
+    emit(RESTAURANT_ID, { type: 'catalog-updated' });
+    return catalogFor(RESTAURANT_ID, true).combos.find(combo => combo.id === id);
+  }
+  const newId = 'cmb_' + randomBytes(12).toString('hex');
+  statement('INSERT INTO combos (id,restaurant_id,name,description,price_cents,items_json,active,created_at,updated_at) VALUES (?,?,?,?,?,?,1,?,?)')
+    .run(newId,RESTAURANT_ID,name,description,priceCents,JSON.stringify(items),now,now);
+  emit(RESTAURANT_ID, { type: 'catalog-updated' });
+  return catalogFor(RESTAURANT_ID, true).combos.find(combo => combo.id === newId);
 }
 function saveCoupon(payload, id = null) {
   const code = couponCode(payload.code);
@@ -438,7 +508,7 @@ function createOrder(payload, customerId = null) {
     }
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
     for (const item of pricedItems) {
-      const snapshot = { productId: item.product.id, type: item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
+      const snapshot = { productId: item.product.id, type: item.combo ? 'combo' : item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, comboItems: item.priced.comboItems || [], unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
       insertItem.run(randomBytes(12).toString('hex'), orderId, item.product.id, item.product.name, item.quantity, item.priced.size.key, item.priced.crust?.key || '', JSON.stringify(item.priced.ingredients), item.notes, item.priced.unitPriceCents, JSON.stringify(snapshot));
     }
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, 'received', now, 'cliente');
@@ -562,6 +632,7 @@ const server = createServer(async (request, response) => {
     assertSameOrigin(request);
     if (path.startsWith('/api/')) {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
+      if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
@@ -576,7 +647,7 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
+        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password) || (ADMIN_TOTP_SECRET && !verifyTotp(ADMIN_TOTP_SECRET, body.otp))) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
         const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, iat: Date.now(), exp: Date.now() + ADMIN_SESSION_TTL_MS });
@@ -668,6 +739,20 @@ const server = createServer(async (request, response) => {
         const result = validateCouponForOrder(body.code, body.items);
         return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
       }
+      if (request.method === 'GET' && path === '/api/admin/analytics') {
+        requireAdmin(request);
+        const rawDays = Number(url.searchParams.get('days') || 7);
+        const days = [7, 30, 90].includes(rawDays) ? rawDays : 7;
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const summary = statement("SELECT COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents,COALESCE(SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END),0) AS cancelled FROM orders WHERE restaurant_id=? AND created_at>=?").get(RESTAURANT_ID, since);
+        const daily = statement("SELECT substr(created_at,1,10) AS date,COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents FROM orders WHERE restaurant_id=? AND created_at>=? GROUP BY substr(created_at,1,10) ORDER BY date").all(RESTAURANT_ID, since);
+        const fulfillment = statement("SELECT fulfillment AS type,COUNT(*) AS orders FROM orders WHERE restaurant_id=? AND created_at>=? AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC").all(RESTAURANT_ID, since);
+        const popular = statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8").all(RESTAURANT_ID, since);
+        return send(response, 200, { days, summary, daily, fulfillment, popular });
+      }
+      if (request.method === 'GET' && path === '/api/admin/combos') return send(response, 200, { combos: catalogFor(RESTAURANT_ID, true).combos, products: catalogFor(RESTAURANT_ID, true).products });
+      if (request.method === 'POST' && path === '/api/admin/combos') return send(response, 201, { combo: saveCombo(await bodyOf(request)) });
+      if (request.method === 'PATCH' && path.startsWith('/api/admin/combos/')) return send(response, 200, { combo: saveCombo(await bodyOf(request), path.slice('/api/admin/combos/'.length)) });
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/tables') {

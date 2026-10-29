@@ -166,3 +166,16 @@ O script cria uma regra de entrada no Firewall do Windows para TCP 4173 e inicia
 - Cabeçalhos de segurança, limite de tamanho do corpo, validação de origem e timeouts HTTP.
 - `TRUST_PROXY=true` só deve ser ativado se o servidor estiver atrás de um proxy reverso confiável que sobrescreva `X-Forwarded-For`; caso contrário, o IP é obtido da conexão TCP.
 - O Menuza não possui atualmente endpoints de LLM/IA. Se forem adicionados, aplique autenticação e cotas próprias, limite de tokens/tamanho, timeout, validação de saída e nunca exponha chaves de provedores no navegador. `robots.txt` e `llms.txt` são diretivas informativas, não mecanismos de controle de acesso.
+
+
+## Segurança do painel: autenticação em dois fatores (TOTP)
+
+O painel administrativo aceita um código TOTP de seis dígitos compatível com aplicativos autenticadores. Para ativar, configure a variável de ambiente `ADMIN_TOTP_SECRET` com uma chave Base32 aleatória de pelo menos 16 caracteres e cadastre a mesma chave no aplicativo autenticador. O código muda a cada 30 segundos; o servidor tolera uma janela de um intervalo para compensar pequenas diferenças de relógio.
+
+Gere uma chave localmente sem compartilhá-la ou colocá-la no repositório, por exemplo com Node.js:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(20).toString('base64'))"
+```
+
+A saída acima está em Base64, não Base32; converta-a para Base32 usando um gerador confiável executado localmente ou um gerenciador de segredos. Cadastre a chave no autenticador e configure `ADMIN_TOTP_SECRET` no ambiente de hospedagem. Não registre a chave em logs, issues ou commits. Sem essa variável, o login mantém compatibilidade e o segundo fator não é exigido.
