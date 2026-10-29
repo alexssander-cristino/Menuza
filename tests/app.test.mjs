@@ -431,3 +431,13 @@ test('editar validade de cupom preserva o horário local do navegador', async ()
   assert.ok(client.includes('form.elements.expiresAt.value=dateTimeLocalValue(row.dataset.expires)'));
   assert.ok(!client.includes("new Date(row.dataset.starts).toISOString().slice(0,16)"));
 });
+
+
+test('logo do restaurante oculta a imagem quando não há URL e mostra as iniciais como fallback', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(styles.includes('.brand-mark img[hidden]{display:none!important}'));
+  assert.ok(styles.includes('.brand-mark [data-restaurant-initials][hidden]{display:none!important}'));
+  assert.ok(client.includes('image.hidden=!logoUrl'));
+  assert.ok(client.includes('if(fallback)fallback.hidden=false'));
+});
