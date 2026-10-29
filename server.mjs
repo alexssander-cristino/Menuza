@@ -7,6 +7,7 @@ import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypt
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
 import { restaurantLocalDatePrefix } from './src/time.mjs';
+import { verifyTotp } from './src/auth-totp.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(ROOT, 'public');
@@ -18,6 +19,7 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
+const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\\s+/g, '').toUpperCase();
 const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const ADMIN_SESSION_TTL_SECONDS = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
@@ -630,6 +632,7 @@ const server = createServer(async (request, response) => {
     assertSameOrigin(request);
     if (path.startsWith('/api/')) {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
+      if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
@@ -644,7 +647,7 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
+        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password) || (ADMIN_TOTP_SECRET && !verifyTotp(ADMIN_TOTP_SECRET, body.otp))) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
         const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, iat: Date.now(), exp: Date.now() + ADMIN_SESSION_TTL_MS });
