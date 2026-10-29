@@ -948,3 +948,19 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
 .analytics-popular li>b{font-size:12px;white-space:nowrap}
 @media(max-width:760px){.analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-period{width:100%}.admin-panel-head:has(.analytics-period){align-items:stretch;flex-direction:column}.analytics-chart{min-height:205px}.analytics-bar-track{height:125px}}
 @media(max-width:380px){.analytics-metrics .metric-card{padding:12px}.analytics-metrics .metric-card>b{font-size:19px}.analytics-chart{padding-inline:2px}}
+
+
+/* Promotional combos. */
+.combo-art{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:radial-gradient(circle at 50% 35%,rgba(121,101,216,.2),transparent 60%),var(--surface-soft,#f4f1fa);position:relative}
+.combo-mark{font-size:10px;letter-spacing:.18em;font-weight:800;color:var(--accent,#7965d8)}
+.combo-dish{display:grid;place-items:center;width:76px;height:76px;border:2px solid currentColor;border-radius:50%;font-size:40px;color:var(--accent,#7965d8);box-shadow:0 8px 20px rgba(30,20,60,.08)}
+.combo-savings{font-size:11px;font-weight:700;color:var(--accent,#7965d8)}
+.combo-items-list{display:block;color:var(--muted,#758278);font-size:11px;margin-top:6px}
+.combo-thumb{display:grid;place-items:center;background:var(--surface-soft,#f4f1fa);color:var(--accent,#7965d8);font-size:28px}
+.combo-admin-list{display:grid;gap:8px}
+.combo-admin-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line,#e8e5ed);border-radius:12px;min-width:0}
+.combo-admin-row>div{display:grid;gap:4px;flex:1;min-width:0}
+.combo-admin-row small{font-size:12px;color:var(--muted,#758278);overflow-wrap:anywhere}
+.combo-admin-row label{font-size:12px;white-space:nowrap}
+#newComboForm select[multiple]{min-height:145px}
+@media(max-width:540px){.combo-admin-row{align-items:flex-start;flex-wrap:wrap}.combo-admin-row>div{flex-basis:100%}.combo-admin-row .button{margin-left:auto}.combo-admin-row label{margin-right:auto}}
