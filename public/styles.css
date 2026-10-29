@@ -1451,3 +1451,12 @@ body{overscroll-behavior-y:contain}
 .ingredient-choice span{min-width:0;overflow-wrap:anywhere}
 .ingredient-choice small{margin-left:auto;white-space:nowrap;color:#7a6a9b;font-size:10px}
 @media(max-width:420px){.ingredient-checkbox-list{grid-template-columns:1fr}.ingredient-choice{padding:9px}}
+
+
+/* Menuza 77 — feedback claro de salvamento e controles de ingredientes */
+.product-admin-entry [data-action="save-product"],.ingredient-admin-row [data-action="save-ingredient"]{min-height:36px;min-width:76px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;padding:7px 12px;background:#f2edff;color:#5a3ac4;font-weight:700;text-decoration:none}
+.product-admin-entry [data-action="save-product"]:disabled,.ingredient-admin-row [data-action="save-ingredient"]:disabled{opacity:.62;cursor:wait}
+.product-admin-entry .product-price-input[aria-invalid="true"],.ingredient-admin-row input[aria-invalid="true"]{border-color:#d14b58;box-shadow:0 0 0 2px #d14b5820}
+.ingredient-admin-panel .admin-panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ingredient-admin-panel .admin-panel-head h2{margin:0}.ingredient-admin-panel .admin-panel-head small{margin-left:auto}
+.product-ingredient-config .ingredient-checkbox-list{max-height:220px}.product-ingredient-config .ingredient-choice{min-height:38px}
+@media(max-width:700px){.product-admin-entry [data-action="save-product"]{width:100%}.ingredient-admin-row{grid-template-columns:minmax(0,1fr) 82px 28px 76px}.ingredient-admin-row button{min-width:68px;padding:7px 8px}}
