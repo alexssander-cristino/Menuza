@@ -18,7 +18,8 @@
    ```powershell
    $env:DATABASE_URL="postgresql://..."
    $env:DATA_FILE="C:\caminho\para\data\mesa.sqlite"
-   $env:CONFIRM_SQLITE_TO_POSTGRES_MIGRATION="yes"`r`n   node scripts/migrate-sqlite-to-postgres.mjs
+   $env:CONFIRM_SQLITE_TO_POSTGRES_MIGRATION="yes"
+      node scripts/migrate-sqlite-to-postgres.mjs
    ```
 
 5. Se o banco Neon estiver vazio e não houver banco SQLite para importar, execute `node scripts/migrate-neon.mjs` para criar os dados de demonstração. Não execute o seed de demonstração antes da importação de produção.
