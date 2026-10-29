@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Pool } from '@neondatabase/serverless';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourcePath = resolve(process.env.DATA_FILE || resolve(ROOT, 'data', 'mesa.sqlite'));
@@ -10,11 +11,8 @@ if (!process.env.CONFIRM_SQLITE_TO_POSTGRES_MIGRATION || process.env.CONFIRM_SQL
   throw new Error('Migração bloqueada por segurança. Faça backup e defina CONFIRM_SQLITE_TO_POSTGRES_MIGRATION=yes.');
 }
 
-const { default: pg } = await import('pg').catch(() => {
-  throw new Error('Dependência pg não instalada. Execute npm install e tente novamente.');
-});
 const source = new DatabaseSync(sourcePath, { readOnly: true });
-const pool = new pg.Pool({
+const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSL === 'disable' ? false : (process.env.PGSSL === 'require' ? { rejectUnauthorized: false } : undefined),
   max: 2,
