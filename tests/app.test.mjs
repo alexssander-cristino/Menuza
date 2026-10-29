@@ -378,6 +378,18 @@ test('login do cliente aparece antes de terminar a verificação da sessão', as
 });
 
 
+test('QR geral abre o cardápio sem parâmetros de mesa', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const start = client.indexOf('function menuQrUrl()');
+  const end = client.indexOf('function openMenuQr()', start);
+  assert.ok(start >= 0 && end > start, 'general menu QR URL helper must exist');
+  const helper = client.slice(start, end);
+  assert.ok(helper.includes("url.hash='menu'"));
+  assert.ok(!helper.includes("searchParams.set('mesa'"));
+  assert.ok(!helper.includes("searchParams.set('t'"));
+  assert.ok(client.includes("menuza-cardapio-geral-qrcode.png"));
+});
+
 test('biblioteca QR Code não acessa this no escopo do módulo ES', async () => {
   const qr = await readFile(new URL('../public/qrcode.js', import.meta.url), 'utf8');
   assert.ok(qr.includes('if (_getAndroid() && _getAndroid() <= 2.1)'), 'Android compatibility check must use the detector function');
