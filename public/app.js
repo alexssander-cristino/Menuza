@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '62';
+const MENUZA_APP_BUILD = '64';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -560,6 +560,23 @@ async function refreshAdmin(){
   try{const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);if(app.admin.authenticated&&app.admin.tab==='orders')renderOrdersAdmin(metrics,result.orders)}
   catch(e){if(e.message.includes('Entre no painel'))renderAdminLogin(e.message)}
 }
+async function exportSalesReport(){
+  const days=Math.max(7,Math.min(90,Number(root.getElementById('analyticsDays')?.value)||7));
+  try{
+    const data=await api('/api/admin/analytics?days='+days);
+    const rows=[['Relatório de vendas Menuza'],['Período (dias)',days],[],['Resumo','Valor'],['Faturamento (R$)',((Number(data.summary.revenueCents)||0)/100).toFixed(2).replace('.',',')],['Pedidos',Number(data.summary.orders)||0],['Ticket médio (R$)',((Number(data.summary.averageTicketCents)||0)/100).toFixed(2).replace('.',',')],['Cancelados',Number(data.summary.cancelled)||0],[],['Data','Pedidos','Faturamento (R$)']];
+    for(const row of data.daily||[])rows.push([row.date,Number(row.orders)||0,((Number(row.revenueCents)||0)/100).toFixed(2).replace('.',',')]);
+    rows.push([],['Produtos mais vendidos','Quantidade']);
+    for(const row of data.popular||[])rows.push([row.name,Number(row.quantity)||0]);
+    rows.push([],['Modalidade','Pedidos']);
+    const fulfillmentLabels={table:'Mesa',pickup:'Retirada',delivery:'Entrega'};
+    for(const row of data.fulfillment||[])rows.push([fulfillmentLabels[row.type]||row.type,Number(row.orders)||0]);
+    const csv='\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),link=root.createElement('a');
+    link.href=url;link.download='menuza-relatorio-vendas-'+days+'-dias.csv';root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+    toast('Relatório de vendas exportado.');
+  }catch(error){toast(error.message||'Não foi possível exportar o relatório.')}
+}
 function statusSelect(order){
   const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
   const options={received:[['confirmed','Confirmar'],['cancelled','Cancelar']],confirmed:[['preparing','Iniciar preparo'],['cancelled','Cancelar']],preparing:[['ready','Marcar como pronto'],['cancelled','Cancelar']],ready:order.fulfillment==='delivery'?[['delivering','Saiu para entrega']]:[['completed','Concluir pedido']],delivering:[['completed','Concluir pedido']],completed:[],cancelled:[]}[order.status]||[];
@@ -652,7 +669,7 @@ async function renderAnalyticsAdmin(days=7){
     const dayLabels=data.daily.map(row=>({date:row.date,label:new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),revenue:Number(row.revenueCents)||0,orders:Number(row.orders)||0}));
     const bars=dayLabels.map(row=>'<div class="analytics-bar-column" title="'+esc(row.date)+' · '+row.orders+' pedido(s) · '+moneyValue(row.revenue)+'"><span>'+moneyValue(row.revenue)+'</span><div class="analytics-bar-track"><i style="height:'+Math.max(3,Math.round(row.revenue/maxRevenue*100))+'%"></i></div><small>'+esc(row.label)+'</small></div>').join('');
     const fulfillmentLabels={table:'Mesa',pickup:'Retirada',delivery:'Entrega'};
-    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Visão geral das vendas</h2><small>Pedidos registrados no período selecionado; valores cancelados não entram no faturamento.</small></div><label class="analytics-period"><span>Período</span><select id="analyticsDays"><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label></div><div class="metrics-grid analytics-metrics"><div class="metric-card"><span>Faturamento</span><b>'+moneyValue(data.summary.revenueCents)+'</b><small>Pedidos não cancelados</small></div><div class="metric-card"><span>Pedidos</span><b>'+Number(data.summary.orders||0)+'</b><small>No período</small></div><div class="metric-card"><span>Ticket médio</span><b>'+moneyValue(data.summary.averageTicketCents)+'</b><small>Exclui cancelamentos</small></div><div class="metric-card"><span>Cancelados</span><b>'+Number(data.summary.cancelled||0)+'</b><small>Pedidos cancelados</small></div></div></section><div class="admin-content-grid analytics-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Faturamento por dia</h2><small>Valores em reais</small></div></div><div class="analytics-chart">'+(bars||'<p class="admin-empty">Ainda não há vendas nesse período.</p>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Produtos mais vendidos</h2></div><ol class="analytics-popular">'+(data.popular.length?data.popular.map((row,index)=>'<li><span class="analytics-rank">'+(index+1)+'</span><span class="analytics-product-name">'+esc(row.name)+'</span><b>'+Number(row.quantity||0)+' un.</b></li>').join(''):'<li class="admin-empty">Sem vendas no período.</li>')+'</ol></section><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos por modalidade</h2></div><ul class="popular-list">'+(data.fulfillment.length?data.fulfillment.map(row=>'<li><span>'+esc(fulfillmentLabels[row.type]||row.type)+'</span><small>'+Number(row.orders||0)+' pedido(s)</small></li>').join(''):'<li><span>Sem pedidos no período.</span></li>')+'</ul></section></aside></div>';
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Visão geral das vendas</h2><small>Pedidos registrados no período selecionado; valores cancelados não entram no faturamento.</small></div><div class="analytics-period-actions"><label class="analytics-period"><span>Período</span><select id="analyticsDays"><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label><button class="button button-outline button-small" type="button" data-action="export-sales-report">Exportar CSV</button></div></div><div class="metrics-grid analytics-metrics"><div class="metric-card"><span>Faturamento</span><b>'+moneyValue(data.summary.revenueCents)+'</b><small>Pedidos não cancelados</small></div><div class="metric-card"><span>Pedidos</span><b>'+Number(data.summary.orders||0)+'</b><small>No período</small></div><div class="metric-card"><span>Ticket médio</span><b>'+moneyValue(data.summary.averageTicketCents)+'</b><small>Exclui cancelamentos</small></div><div class="metric-card"><span>Cancelados</span><b>'+Number(data.summary.cancelled||0)+'</b><small>Pedidos cancelados</small></div></div></section><div class="admin-content-grid analytics-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Faturamento por dia</h2><small>Valores em reais</small></div></div><div class="analytics-chart">'+(bars||'<p class="admin-empty">Ainda não há vendas nesse período.</p>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Produtos mais vendidos</h2></div><ol class="analytics-popular">'+(data.popular.length?data.popular.map((row,index)=>'<li><span class="analytics-rank">'+(index+1)+'</span><span class="analytics-product-name">'+esc(row.name)+'</span><b>'+Number(row.quantity||0)+' un.</b></li>').join(''):'<li class="admin-empty">Sem vendas no período.</li>')+'</ol></section><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos por modalidade</h2></div><ul class="popular-list">'+(data.fulfillment.length?data.fulfillment.map(row=>'<li><span>'+esc(fulfillmentLabels[row.type]||row.type)+'</span><small>'+Number(row.orders||0)+' pedido(s)</small></li>').join(''):'<li><span>Sem pedidos no período.</span></li>')+'</ul></section></aside></div>';
     root.getElementById('analyticsDays').value=String(days);
     root.getElementById('analyticsDays').addEventListener('change',event=>renderAnalyticsAdmin(Number(event.target.value)));
   }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar os indicadores.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-analytics">Tentar novamente</button></section>'}
@@ -750,6 +767,20 @@ async function renderPrivacyRequestsAdmin(){
  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
 function tableQrUrl(number,token){const url=new URL(location.pathname,location.origin);url.searchParams.set('mesa',String(number));url.searchParams.set('t',token);url.hash='menu';return url.href}
+function menuQrUrl(){const url=new URL(location.pathname,location.origin);url.hash='menu';return url.href}
+function openMenuQr(){
+  const url=menuQrUrl(),target=root.getElementById('menuQrModalRoot');if(!target)return;
+  target.innerHTML='<div class="table-qr-backdrop" data-action="close-menu-qr"><section class="table-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="menuQrTitle"><button class="icon-button table-qr-close" type="button" data-action="close-menu-qr" aria-label="Fechar">×</button><div class="eyebrow">DIVULGUE SEU CARDÁPIO</div><h2 id="menuQrTitle">QR Code geral do cardápio</h2><p>Este código abre o cardápio público do restaurante. Não identifica mesa nem vincula o pedido a uma mesa específica.</p><div class="table-qr-code" id="menuQrCode" aria-label="QR Code geral do cardápio"></div><label class="table-qr-url"><span>Link público do cardápio</span><input id="menuQrUrl" readonly value="'+esc(url)+'"></label><div class="table-qr-actions"><button class="button button-outline" type="button" data-action="copy-menu-qr">Copiar link</button><button class="button button-outline" type="button" data-action="download-menu-qr">Baixar PNG</button><button class="button button-dark" type="button" data-action="print-menu-qr">Imprimir</button></div><p class="table-qr-footnote">Use em fachada, redes sociais, panfletos ou balcão. O cliente escolhe retirada, entrega ou mesa durante o checkout.</p></section></div>';
+  try{new QRCode(root.getElementById('menuQrCode'),{text:url,width:280,height:280,colorDark:'#1b1530',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H})}
+  catch(error){root.getElementById('menuQrCode').innerHTML='<p class="error-text">Não foi possível gerar o QR Code neste navegador. Tente novamente.</p>';toast('Falha ao gerar o QR Code.')}
+}
+function closeMenuQr(){const target=root.getElementById('menuQrModalRoot');if(target)target.innerHTML=''}
+function downloadMenuQr(){
+  const canvas=root.querySelector('#menuQrCode canvas');const image=root.querySelector('#menuQrCode img');let dataUrl='';
+  try{if(canvas)dataUrl=canvas.toDataURL('image/png');else if(image?.src?.startsWith('data:image/'))dataUrl=image.src}catch{}
+  if(!dataUrl)return toast('O QR Code ainda não está pronto para baixar.');
+  const link=root.createElement('a');link.href=dataUrl;link.download='menuza-cardapio-geral-qrcode.png';root.body.appendChild(link);link.click();link.remove();
+}
 function openTableQr(number,token){
   if(!/^\d{1,3}$/.test(String(number))||!/^[A-Za-z0-9_-]{32,64}$/.test(String(token)))return toast('Não foi possível abrir o QR Code desta mesa. Atualize o mapa.');
   const url=tableQrUrl(number,token),target=root.getElementById('tableQrModalRoot');if(!target)return;
@@ -870,6 +901,7 @@ async function renderSettingsAdmin(){
           <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">⌑</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
         </aside>
       </div>
+      <section class="admin-panel menu-general-qr-panel"><div class="admin-panel-head"><div><h2>QR Code geral do cardápio</h2><small>Um único código para divulgar o cardápio inteiro, sem associação a mesas.</small></div><span class="settings-section-icon" aria-hidden="true">▦</span></div><p>Baixe ou imprima o QR para colocar na entrada, balcão, embalagens e materiais de divulgação. O código permanece igual enquanto o endereço público do sistema não mudar.</p><div class="settings-actions"><button class="button button-dark button-small" type="button" data-action="show-menu-qr">Gerar QR Code do cardápio</button></div><div id="menuQrModalRoot"></div></section>
       <section class="admin-panel accessibility-settings-panel" aria-labelledby="accessibilitySettingsTitle">
         <div class="admin-panel-head"><div><h2 id="accessibilitySettingsTitle">Acessibilidade e aparência</h2><small>Personalize a leitura e a navegação em todo o Menuza. As escolhas ficam salvas neste dispositivo.</small></div><span class="settings-section-icon" aria-hidden="true">Aa</span></div>
         <div class="accessibility-settings-grid">
@@ -1157,6 +1189,12 @@ function handleClick(event){
     return;
   }
   const action=target.dataset.action;
+  if(action==='show-menu-qr'){openMenuQr();return}
+  if(action==='close-menu-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeMenuQr();return}
+  if(action==='copy-menu-qr'){const input=root.getElementById('menuQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link público do cardápio copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
+  if(action==='download-menu-qr'){downloadMenuQr();return}
+  if(action==='print-menu-qr'){window.print();return}
+  if(action==='export-sales-report'){exportSalesReport();return}
   if(action==='show-table-qr'){openTableQr(target.dataset.tableNumber,target.dataset.tableToken);return}
   if(action==='close-table-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeTableQr();return}
   if(action==='copy-table-qr'){const input=root.getElementById('tableQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link exclusivo da mesa copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
