@@ -18,6 +18,11 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
+const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_SECONDS = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
+if (IS_PROD && ADMIN_PASSWORD.length < 14) console.warn('[Menuza Security] ADMIN_PASSWORD deve ter pelo menos 14 caracteres.');
+if (IS_PROD && process.env.APP_SECRET.length < 32) console.warn('[Menuza Security] APP_SECRET deve ter pelo menos 32 caracteres aleatórios.');
 const RESTAURANT_ID = 'rest-bela-mesa';
 const MAX_BODY = 64 * 1024;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -93,7 +98,7 @@ function sign(payload) {
   const signature = createHmac('sha256', SECRET).update(body).digest('base64url');
   return body + '.' + signature;
 }
-function readSession(request, cookieName = 'mesa_session') {
+function readSession(request, cookieName = ADMIN_SESSION_COOKIE) {
   const cookie = request.headers.cookie || '';
   const match = cookie.match(new RegExp('(?:^|; )' + cookieName + '=([^;]+)'));
   if (!match) return null;
@@ -574,12 +579,14 @@ const server = createServer(async (request, response) => {
         if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
-        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
+        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, iat: Date.now(), exp: Date.now() + ADMIN_SESSION_TTL_MS });
+        // Em produção, o prefixo __Host- impede cookies de sessão definidos por subdomínios.
+        const cookie = ADMIN_SESSION_COOKIE + '=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + ADMIN_SESSION_TTL_SECONDS + (IS_PROD ? '; Secure' : '');
+        return send(response, 200, { ok: true }, { 'Set-Cookie': cookie });
       }
       if (request.method === 'POST' && path === '/api/admin/logout') {
-        requireAdmin(request);
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
+        // Logout deve limpar o cookie mesmo que a sessão já tenha expirado.
+        return send(response, 200, { ok: true }, { 'Set-Cookie': ADMIN_SESSION_COOKIE + '=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
       }
       if (request.method === 'POST' && path === '/api/customer/register') {
         const body = await bodyOf(request);
