@@ -1383,3 +1383,20 @@ body{overscroll-behavior-y:contain}
 /* Respeita o atributo hidden nos logos: evita imagem vazia sobre as iniciais. */
 .brand-mark img[hidden]{display:none!important}
 .brand-mark [data-restaurant-initials][hidden]{display:none!important}
+
+
+/* Menuza AR compatível: fallback de câmera com posicionamento manual quando WebXR/AR nativo não existe. */
+.food-stage.ar-camera-mode{isolation:isolate;overflow:hidden;border-radius:18px;background:#17131d;touch-action:manipulation}
+.food-stage.ar-camera-mode .ar-camera-video{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;background:#17131d}
+.food-stage.ar-camera-mode .food-canvas{position:absolute!important;inset:0;z-index:1;width:100%;height:100%;visibility:visible!important;pointer-events:none}
+.food-stage.ar-camera-mode[data-ar-mode="art"] .food-art-view{display:none!important}
+.food-stage.ar-camera-mode .food-fallback{z-index:1;pointer-events:none}
+.food-stage.ar-camera-mode .view-toggle,.food-stage.ar-camera-mode .drag-hint,.food-stage.ar-camera-mode .food-status{display:none!important}
+.food-stage.ar-camera-mode .ar-hud{z-index:5;inset:0;padding:12px 10px 10px;justify-content:space-between;gap:8px;background:linear-gradient(180deg,#100d1a75 0%,transparent 35%,transparent 55%,#100d1ab8 100%);pointer-events:none}
+.food-stage.ar-camera-mode .ar-hud strong{margin-top:6px}
+.food-stage.ar-camera-mode .ar-hud span{max-width:95%;font-size:10px}
+.ar-camera-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;width:100%;pointer-events:auto}
+.ar-camera-controls button{min-width:38px;min-height:38px;margin:0;padding:8px 12px;border:1px solid #ffffff9c;border-radius:12px;background:#191427ed;color:white;font:600 15px/1 system-ui,sans-serif;box-shadow:0 3px 12px #0003;touch-action:manipulation}
+.ar-camera-controls button:last-child{font-size:11px;padding-inline:14px}
+@media(max-width:380px){.food-stage.ar-camera-mode .ar-hud{padding:8px 5px}.food-stage.ar-camera-mode .ar-hud strong{font-size:10px}.food-stage.ar-camera-mode .ar-hud span{font-size:9px}.ar-camera-controls{gap:4px}.ar-camera-controls button{min-width:34px;min-height:34px;padding:6px 9px}}
+@media(prefers-reduced-motion:reduce){.food-stage.ar-camera-mode .food-canvas{transition:none!important}}
