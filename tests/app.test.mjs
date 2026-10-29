@@ -441,3 +441,9 @@ test('logo do restaurante oculta a imagem quando não há URL e mostra as inicia
   assert.ok(client.includes('image.hidden=!logoUrl'));
   assert.ok(client.includes('if(fallback)fallback.hidden=false'));
 });
+
+
+test('abrir o cardápio preserva a logo configurada do restaurante', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl)'));
+});
