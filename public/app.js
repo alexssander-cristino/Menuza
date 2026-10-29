@@ -1002,7 +1002,8 @@ async function renderSettingsAdmin(){
   if(!target)return;
   target.innerHTML='<div class="loading-line">Carregando configurações…</div>';
   try{
-    const {restaurant}=await api('/api/admin/settings');
+    const settingsResult=await api('/api/admin/settings');
+    const restaurant=settingsResult?.restaurant&&typeof settingsResult.restaurant==='object'?settingsResult.restaurant:{};
     const initialName=String(restaurant.name||'').trim();
     const initialPrep=Number(restaurant.prepMinutes)||30;
     const initialLogoUrl=String(restaurant.logoUrl||'').trim();
