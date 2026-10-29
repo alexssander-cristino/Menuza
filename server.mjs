@@ -27,6 +27,8 @@ if (IS_PROD && ADMIN_PASSWORD.length < 14) console.warn('[Menuza Security] ADMIN
 if (IS_PROD && process.env.APP_SECRET.length < 32) console.warn('[Menuza Security] APP_SECRET deve ter pelo menos 32 caracteres aleatórios.');
 const RESTAURANT_ID = 'rest-bela-mesa';
 const MAX_BODY = 64 * 1024;
+const MAX_LOGO_BODY = 1_500_000;
+const MAX_LOGO_DATA_URL = 1_400_000;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 let lastRateCleanup = 0;
@@ -284,12 +286,12 @@ function fail(response, error) {
   if (status >= 500) console.error(error);
   send(response, status, { error: status >= 500 ? 'O servidor não conseguiu concluir a solicitação.' : error.message });
 }
-async function bodyOf(request) {
+async function bodyOf(request, maxBytes = MAX_BODY) {
   let raw = '';
   let bytes = 0;
   for await (const chunk of request) {
     bytes += chunk.length;
-    if (bytes > MAX_BODY) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
+    if (bytes > maxBytes) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
     raw += chunk.toString('utf8');
   }
   if (!raw) return {};
@@ -563,8 +565,11 @@ function patchRestaurantSettings(patch) {
   if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
   const prepMinutes = patch.prepMinutes === undefined ? current.prepMinutes : Number(patch.prepMinutes);
-  const logoUrl = patch.logoUrl === undefined ? current.logoUrl : cleanText(patch.logoUrl, 500);
-  if (logoUrl && (!/^https:\/\//i.test(logoUrl) || !/^https:\/\/[^\s<>"']+$/i.test(logoUrl))) throw Object.assign(new Error('Use o endereço HTTPS direto da imagem da logo.'), { status: 422 });
+  const logoUrl = patch.logoUrl === undefined ? current.logoUrl : (typeof patch.logoUrl === 'string' ? patch.logoUrl.trim() : '');
+  const validUploadedLogo = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logoUrl);
+  const validRemoteLogo = /^https:\/\/[^\s<>"']+$/i.test(logoUrl) && logoUrl.length <= 500;
+  if (logoUrl && !validUploadedLogo && !validRemoteLogo) throw Object.assign(new Error('Envie uma imagem PNG, JPG ou WebP válida, ou mantenha a logo atual.'), { status: 422 });
+  if (validUploadedLogo && logoUrl.length > MAX_LOGO_DATA_URL) throw Object.assign(new Error('A logo ficou grande demais. Escolha uma imagem de até 1 MB.'), { status: 413 });
   if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
   if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
   statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, logoUrl, RESTAURANT_ID);
@@ -808,10 +813,10 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
       if (request.method === 'GET' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
+        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
       }
       if (request.method === 'PATCH' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request)) });
+        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request, MAX_LOGO_BODY)) });
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/orders/')) {
         const id = path.slice('/api/admin/orders/'.length);
