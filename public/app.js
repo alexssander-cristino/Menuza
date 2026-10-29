@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '67';
+const MENUZA_APP_BUILD = '68';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -231,15 +231,13 @@ function openBuilder(productId,cartItem=null) {
   app.rotate=0;app.zoom=1;renderBuilder();
 }
 function arStatusText(product = app.catalog?.products.find(item => item.id === app.builder?.productId)) {
-  if (app.arSupported === null) return 'Verificando compatibilidade com realidade aumentada…';
-  if (app.arSupported) return 'RA por câmera disponível via WebXR. A câmera só abre após o seu toque.';
-  const modelUrl = String(product?.modelUrl || '');
-  const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const nativeModelAvailable = (appleDevice && /\.usdz($|[?#])/i.test(modelUrl)) ||
-    (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(modelUrl));
-  if (nativeModelAvailable) return 'Este prato pode abrir no visualizador de RA do aparelho.';
-  return 'Se a RA nativa não estiver disponível, tente o modo câmera com posicionamento manual. A prévia 3D também continua disponível.';
+  if (app.arSupported === null) return 'Verificando opções de realidade aumentada…';
+  if (app.arSupported) return 'RA com rastreamento automático disponível neste navegador.';
+  const cameraAvailable = Boolean(globalThis.isSecureContext && navigator.mediaDevices?.getUserMedia);
+  if (cameraAvailable) {
+    return 'Use “Ver na minha mesa” para abrir a câmera e posicionar o prato manualmente. O rastreamento automático depende do aparelho.';
+  }
+  return 'Para usar a câmera, abra o cardápio por HTTPS e permita o acesso à câmera. A prévia 3D continua disponível.';
 }
 async function detectAR() {
   if (app.arSupported !== null) return;
