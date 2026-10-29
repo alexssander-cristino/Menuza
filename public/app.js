@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '65';
+const MENUZA_APP_BUILD = '66';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -30,7 +30,7 @@ try {
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
@@ -555,9 +555,39 @@ function renderAdmin(){
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
   if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
 }
+let orderAlertAudioContext=null;
+function playOrderAlert(){
+  try{
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)return;
+    orderAlertAudioContext ||= new AudioContextClass();
+    if(orderAlertAudioContext.state==='suspended')orderAlertAudioContext.resume();
+    const now=orderAlertAudioContext.currentTime;
+    [880,1175].forEach((frequency,index)=>{
+      const oscillator=orderAlertAudioContext.createOscillator(),gain=orderAlertAudioContext.createGain(),start=now+index*.16;
+      oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(.14,start+.02);gain.gain.exponentialRampToValueAtTime(.0001,start+.13);
+      oscillator.connect(gain);gain.connect(orderAlertAudioContext.destination);oscillator.start(start);oscillator.stop(start+.14);
+    });
+  }catch{}
+}
+function trackNewOrders(orders){
+  const ids=new Set((orders||[]).map(order=>String(order.id)));
+  if(app.admin.lastOrderIds===null){app.admin.lastOrderIds=ids;return}
+  const hasNewReceived=(orders||[]).some(order=>!app.admin.lastOrderIds.has(String(order.id))&&order.status==='received');
+  app.admin.lastOrderIds=ids;
+  if(hasNewReceived&&app.admin.soundEnabled)playOrderAlert();
+}
+function toggleOrderSound(){
+  app.admin.soundEnabled=!app.admin.soundEnabled;
+  try{localStorage.setItem('menuza-order-sound',app.admin.soundEnabled?'on':'off')}catch{}
+  if(app.admin.soundEnabled){playOrderAlert();toast('Alerta sonoro ativado. Você ouvirá um aviso quando chegar um novo pedido.')}
+  else toast('Alerta sonoro desativado.');
+  const button=root.querySelector('[data-action="toggle-order-sound"]');
+  if(button){button.setAttribute('aria-pressed',String(app.admin.soundEnabled));button.textContent=app.admin.soundEnabled?'Som ativado ✓':'Ativar som de novos pedidos'}
+}
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
-  try{const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);if(app.admin.authenticated&&app.admin.tab==='orders')renderOrdersAdmin(metrics,result.orders)}
+  try{const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);if(app.admin.authenticated&&app.admin.tab==='orders'){trackNewOrders(result.orders||[]);renderOrdersAdmin(metrics,result.orders)}}
   catch(e){if(e.message.includes('Entre no painel'))renderAdminLogin(e.message)}
 }
 async function exportSalesReport(){
@@ -662,7 +692,7 @@ function renderOrdersAdmin(metrics,orders){
     const elapsed=['received','confirmed','preparing'].includes(order.status)?'<span class="order-elapsed" data-order-elapsed data-created-at="'+Date.parse(order.createdAt)+'" data-prep-minutes="'+Number(metrics.prepMinutes||30)+'" aria-live="off"></span>':'';
     return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div>'+elapsed+'</div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><div class="order-card-footer-actions"><button class="button button-outline button-small order-print-button" type="button" data-action="print-order" data-order-id="'+esc(order.id)+'">Imprimir comanda</button>'+whatsappAction+'<b>'+money(order.totalCents)+'</b></div></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+(app.admin.soundEnabled?'Som ativado ✓':'Ativar som de novos pedidos')+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
   updateOrderElapsedTimes();
   const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
   if(statusFilter)statusFilter.value=app.admin.orderStatus;
@@ -1226,6 +1256,7 @@ function handleClick(event){
   if(action==='share-product'){shareMenu(target.dataset.product);return}
   if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='print-order'){printOrderTicket(target.dataset.orderId);return}
+  if(action==='toggle-order-sound'){toggleOrderSound();return}
   if(action==='export-coupons'){exportCouponsCsv();return}
   if(action==='copy-coupon'){copyCouponCode(target.dataset.code);return}
   if(action==='apply-coupon'){applyCheckoutCoupon();return}
