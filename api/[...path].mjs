@@ -199,6 +199,7 @@ async function createOrder(body, customerId) {
   const id='BM-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+randomBytes(3).toString('hex').toUpperCase();
   const token=randomBytes(24).toString('base64url'), now=new Date().toISOString();
   await withTransaction(async client => {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[RESTAURANT_ID+':'+key]);
     const duplicate=await client.query('SELECT id,customer_id AS "customerId" FROM orders WHERE restaurant_id=$1 AND idempotency_key=$2 FOR UPDATE',[RESTAURANT_ID,key]);
     if (duplicate.rows[0]) {
       if ((duplicate.rows[0].customerId||null)!==(customerId||null)) throw fail('Esta chave de pedido já foi utilizada.',409);
