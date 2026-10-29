@@ -1,7 +1,7 @@
-import { FoodScene } from './food-scene.js?v=7';
-import { formatOrderStatusTime } from './order-status-time.js?v=1';
-import QRCode from './qrcode.js?v=1';
-import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
+import { FoodScene } from './food-scene.js';
+import { formatOrderStatusTime } from './order-status-time.js';
+import QRCode from './qrcode.js';
+import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js';
 
 const MENUZA_APP_BUILD = '68';
 try {
