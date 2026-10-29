@@ -509,6 +509,16 @@ export default async function handler(req,res) {
       await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,updated_at=$6 WHERE id=$7 AND restaurant_id=$8',[name,description,price,active,available,new Date().toISOString(),id,RESTAURANT_ID]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
+    if (method==='POST'&&path==='/api/admin/ingredients') {
+      const b=await bodyOf(req), name=clean(b.name,80), type=clean(b.type,20), groupName=clean(b.groupName,50)||'Adicionais', price=Number(b.cents);
+      if(name.length<2||!['pizza','burger'].includes(type)||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipo e preço válido para o adicional.',422);
+      const duplicate=(await query('SELECT id FROM ingredients WHERE restaurant_id=$1 AND type=$2 AND lower(name)=lower($3) LIMIT 1',[RESTAURANT_ID,type,name])).rows[0];
+      if(duplicate) throw fail('Já existe um ingrediente ou adicional com esse nome para esse tipo.',409);
+      const id=slugify(name)+'-'+randomBytes(3).toString('hex');
+      const orderResult=await query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID]);
+      await query('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,1,$7)',[id,RESTAURANT_ID,name,type,groupName,price,Number(orderResult.rows[0]?.next_order)||0]);
+      return json(res,201,{ingredient:(await catalogFor(true)).ingredients.find(i=>i.id===id)});
+    }
     if (method==='PATCH'&&path.startsWith('/api/admin/ingredients/')) {
       const b=await bodyOf(req), old=(await query('SELECT * FROM ingredients WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Ingrediente não encontrado.',404);
       const cents=b.cents===undefined?Number(old.addon_cents):Number(b.cents), active=b.active===undefined?Number(old.active):(b.active?1:0);
