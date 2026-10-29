@@ -4,7 +4,7 @@
 import {
   TAU, clamp, lerp, sstep, hash, randomFor, lin, mix, mul, noise3, fbm, rigid, onSurface, norm, cross, sub,
   profile, smoothPoly, superPuck, loopProfile, Mesh, MAT, poissonDisc
-} from './food-geo.js?v=1';
+} from './food-geo.js';
 
 const C = {
   bunCrown: lin('#b9702c'), bunSide: lin('#cf9448'), bunCrumb: lin('#efd6a2'), bunToast: lin('#d8a458'), bunDeep: lin('#a8662a'), bunUnder: lin('#c98b45'),
