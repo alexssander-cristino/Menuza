@@ -1,9 +1,9 @@
-import { FoodScene } from './food-scene.js';
+import { FoodScene } from './food-scene.js?v=71';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js';
 
-const MENUZA_APP_BUILD = '70';
+const MENUZA_APP_BUILD = '71';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
