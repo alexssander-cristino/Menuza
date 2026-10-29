@@ -235,19 +235,19 @@ async function createOrder(body, customerId) {
 }
 async function updateOrderStatus(id, next) {
   if (!STATUS_FLOW.includes(next)) throw fail('Estado de pedido inválido.',422);
-  return await withTransaction(async client => {
+  await withTransaction(async client => {
     const found=await client.query('SELECT * FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
     const order=found.rows[0];
     if (!order) throw fail('Pedido não encontrado.',404);
-    if (order.status===next) return await orderById(id);
+    if (order.status===next) return;
     const transitions={received:['confirmed','cancelled'],confirmed:['preparing','cancelled'],preparing:['ready','cancelled'],ready:order.fulfillment==='delivery'?['delivering']:['completed'],delivering:['completed'],completed:[],cancelled:[]};
     if (!transitions[order.status]?.includes(next)) throw fail('Essa mudança de status não está disponível.',409);
     const now=new Date().toISOString();
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
     if (order.fulfillment==='table'&&['completed','cancelled'].includes(next)&&order.table_label) await client.query(`UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3`,[now,RESTAURANT_ID,Number(order.table_label)]);
-    return await orderById(id);
   });
+  return await orderById(id);
 }
 async function saveCoupon(body,id=null) {
   const code=normalizeCoupon(body.code), type=body.discountType, value=Number(body.discountValue), minimum=Number(body.minimumSubtotalCents??0);
