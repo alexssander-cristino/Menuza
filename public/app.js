@@ -3,7 +3,13 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
 const MENUZA_APP_BUILD = '54';
-try { localStorage.setItem('menuza-app-build', MENUZA_APP_BUILD); } catch {}
+try {
+  if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
+    // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
+    localStorage.removeItem('menuza-rate-limit-until');
+    localStorage.setItem('menuza-app-build', MENUZA_APP_BUILD);
+  }
+} catch {}
 
 // Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
 (() => {
