@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '61';
+const MENUZA_APP_BUILD = '62';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -1359,6 +1359,7 @@ async function start(){
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
+  try{const branding=await api('/api/restaurant/branding');applyRestaurantBranding(branding.restaurant?.name,branding.restaurant?.logoUrl)}catch{}
   if(initialHash==='conta'){onRoute();return}
   // Migra URLs antigas que ficaram salvas em #admin para o login do cliente.
   if(initialHash==='admin'){
