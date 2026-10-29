@@ -983,7 +983,7 @@ async function renderSettingsAdmin(){
 function applyRestaurantBranding(name,logoUrl=''){
   const clean=String(name||'').trim();
   if(!clean)return;
-  const initials=clean.split(/\\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toLocaleUpperCase('pt-BR');
+  const initials=clean.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toLocaleUpperCase('pt-BR');
   for(const brand of root.querySelectorAll('[data-restaurant-brand]')){
     const label=brand.querySelector('[data-restaurant-name]');
     if(label)label.textContent=clean;
