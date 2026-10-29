@@ -1400,3 +1400,20 @@ body{overscroll-behavior-y:contain}
 .ar-camera-controls button:last-child{font-size:11px;padding-inline:14px}
 @media(max-width:380px){.food-stage.ar-camera-mode .ar-hud{padding:8px 5px}.food-stage.ar-camera-mode .ar-hud strong{font-size:10px}.food-stage.ar-camera-mode .ar-hud span{font-size:9px}.ar-camera-controls{gap:4px}.ar-camera-controls button{min-width:34px;min-height:34px;padding:6px 9px}}
 @media(prefers-reduced-motion:reduce){.food-stage.ar-camera-mode .food-canvas{transition:none!important}}
+
+/* Administração de categorias */
+.category-admin-row{grid-template-columns:minmax(180px,1fr) minmax(100px,auto) auto;align-items:center;gap:14px;padding:16px 0}
+.category-admin-row .form-field{display:grid;gap:6px;min-width:0;margin:0}
+.category-admin-row .form-field>span{font-size:11px;font-weight:700;color:#756d83}
+.category-admin-row .category-name-input{width:100%;min-width:0;box-sizing:border-box;border:1px solid #e4dfeb;border-radius:10px;background:#fff;padding:11px 12px;color:#29223a;font:inherit}
+.category-admin-row .category-name-input:focus{outline:2px solid #a99be5;outline-offset:1px}
+.category-admin-row .category-name-input[aria-invalid="true"]{border-color:#b84646}
+.category-admin-meta{display:flex;flex-direction:column;align-items:flex-start;gap:3px;white-space:nowrap}
+.category-admin-meta>b{font-size:18px;color:#34264d}
+.category-admin-meta>small{font-size:11px;color:#81788c}
+.category-admin-meta .category-slug{max-width:180px;overflow-wrap:anywhere;color:#a098aa}
+.category-admin-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.category-admin-actions .tiny-link{border:0;background:transparent;color:#6550a6;font:700 12px/1.2 inherit;cursor:pointer;padding:9px 5px}
+.category-admin-actions .category-delete-button{color:#a64747}
+.category-admin-actions button:disabled{opacity:.38;cursor:not-allowed}
+@media(max-width:600px){.category-admin-row{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:14px 0}.category-admin-row .form-field{grid-column:1/-1}.category-admin-meta{grid-column:1;grid-row:2;flex-direction:row;align-items:center;gap:7px;flex-wrap:wrap}.category-admin-meta>b{font-size:15px}.category-admin-meta .category-slug{width:100%;max-width:none}.category-admin-actions{grid-column:2;grid-row:2;align-self:start}.category-admin-actions .tiny-link{padding:8px 4px}}
