@@ -1473,3 +1473,16 @@ body{overscroll-behavior-y:contain}
 .product-admin-entry .recipe-live-preview{grid-column:1/-1;margin:4px 0 0;grid-template-columns:1fr}
 .product-admin-entry .recipe-live-preview>svg{max-width:180px;max-height:140px}
 @media(max-width:520px){.recipe-live-preview{padding:8px}.recipe-live-preview>svg{max-height:145px}.ingredient-choice{gap:7px}}
+
+.admin-recipe-3d-backdrop{z-index:10020;display:grid;place-items:center;padding:16px}
+.admin-recipe-3d-modal{width:min(620px,100%);max-height:min(88dvh,760px);overflow:auto;border-radius:18px;background:#fff;padding:16px;box-shadow:0 24px 80px #20163840}
+.admin-recipe-3d-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.admin-recipe-3d-modal>header>div{display:grid;gap:5px}
+.admin-recipe-3d-modal>header strong{font-size:15px;color:#281d40}
+.admin-recipe-3d-modal>header small,.admin-recipe-3d-modal>p{font-size:11px;line-height:1.5;color:#756b86}
+.admin-recipe-3d-modal>header button{width:36px;height:36px;border:1px solid #e6e0ef;border-radius:10px;background:#f8f5ff;font-size:24px;cursor:pointer}
+.admin-recipe-3d-stage{height:clamp(260px,55vh,460px);position:relative;margin-top:12px;border:1px solid #e8e2f3;border-radius:14px;overflow:hidden;background:radial-gradient(ellipse at 50% 36%,#fff 0%,#f3effb 68%,#eae4f6 100%)}
+.admin-recipe-3d-stage canvas{display:block;width:100%;height:100%;touch-action:pan-y}
+.admin-recipe-3d-stage #adminRecipe3dHud{position:absolute;inset:auto 8px 8px;pointer-events:none}
+.recipe-preview-3d{justify-self:center;min-height:32px;padding:7px 12px;border:1px solid #d8cafa;border-radius:9px;background:#fff;color:#5b3be0;font-size:11px;font-weight:700;cursor:pointer}
+.recipe-preview-3d:hover{background:#f1ebff}
