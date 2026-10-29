@@ -181,7 +181,9 @@ function renderCatalog() {
   const products=visibleProducts();
   const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
   root.getElementById('menuGrid').innerHTML=(comboCards+products.map(cardMarkup).join(''))||'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
-  root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis')+(app.favoritesOnly?' nos favoritos':'');
+  const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
+  const visibleCount=products.length+visibleComboCount;
+  root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
   const favoritesToggle=root.getElementById('favoritesFilter');
   if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
 }
@@ -982,7 +984,7 @@ async function renderIngredientsAdmin(){
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
+  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin()});
   clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
 }
 async function logoutAdmin(){
