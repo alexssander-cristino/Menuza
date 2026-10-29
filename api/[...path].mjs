@@ -300,6 +300,12 @@ export default async function handler(req,res) {
       const origin=req.headers.origin, host=req.headers.host;
       if (origin&&host&&origin!=='https://'+host&&origin!=='http://'+host) throw fail('Origem da solicitação não permitida.',403);
     }
+    const globalRetry=await limit(req,'api-global',240,60000);
+    if(globalRetry) return json(res,429,{error:'Muitas solicitações. Aguarde um pouco e tente novamente.'},{'Retry-After':String(globalRetry)});
+    if(method==='POST'&&path==='/api/orders') {
+      const orderRetry=await limit(req,'orders-create',60,600000);
+      if(orderRetry) return json(res,429,{error:'Muitos pedidos foram enviados deste endereço. Aguarde antes de tentar novamente.'},{'Retry-After':String(orderRetry)});
+    }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if (method==='GET'&&path==='/api/restaurant/branding') return json(res,200,{restaurant:(await query('SELECT name,logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null});
     if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
