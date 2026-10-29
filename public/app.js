@@ -77,8 +77,13 @@ function normalizeCartForCatalog(value, catalog) {
       const ingredient = ingredients.get(entry?.id);
       if (!ingredient || ingredient.type !== product.type || Number(ingredient.active) === 0 ||
           !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > 3 || seen.has(entry.id)) return false;
+      if (product.ingredientsConfigured) {
+        const allowed = new Set([...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]);
+        if (!allowed.has(entry.id)) return false;
+      }
       seen.add(entry.id);
-      return !(ingredient.included && entry.quantity !== 1);
+      const included = product.ingredientsConfigured ? (product.defaultIngredientIds || []).includes(entry.id) : ingredient.included;
+      return !(included && entry.quantity !== 1);
     });
   }).slice(0, 50).map(item => {
     if (typeof item.comboId === 'string') {
