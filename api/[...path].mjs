@@ -364,7 +364,19 @@ export default async function handler(req,res) {
     if (path.startsWith('/api/admin/')) requireAdmin(req);
     if (method==='GET'&&path==='/api/admin/me') return json(res,200,{authenticated:true,restaurantId:RESTAURANT_ID});
     if (method==='GET'&&path==='/api/admin/security') return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET)});
-    if (method==='GET'&&path==='/api/admin/events') return json(res,501,{error:'Atualizações em tempo real serão substituídas por consulta periódica nesta hospedagem.'});
+    if (method==='GET'&&path==='/api/admin/events') {
+      res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control','no-cache, no-transform');
+      res.setHeader('Connection','keep-alive');
+      res.setHeader('X-Accel-Buffering','no');
+      res.write('retry: 4000\\n\\nevent: update\\ndata: {"type":"connected"}\\n\\n');
+      return await new Promise(resolve => {
+        const heartbeat=setInterval(()=>{try{res.write(': ping\\n\\n');}catch{}},3000);
+        const finish=()=>{clearInterval(heartbeat);try{res.end();}catch{}resolve();};
+        const timeout=setTimeout(finish,10000);
+        req.on('close',()=>{clearTimeout(timeout);finish();});
+      });
+    }
     if (method==='GET'&&path==='/api/admin/privacy-requests') return json(res,200,{requests:(await query("SELECT id,name,email,phone,request_type AS \"requestType\",details,status,created_at AS \"createdAt\",updated_at AS \"updatedAt\" FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,created_at DESC LIMIT 200")).rows});
     if (method==='PATCH'&&path.startsWith('/api/admin/privacy-requests/')) {
       const b=await bodyOf(req); if(!['open','in_progress','closed'].includes(b.status)) throw fail('Status inválido.',422);
