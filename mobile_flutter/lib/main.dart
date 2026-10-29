@@ -113,11 +113,13 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
               requestUri.host != serverUri.host ||
               requestUri.port != serverUri.port ||
               (requestUri.path != serverUri.path &&
-                  !(serverUri.path.isEmpty && requestUri.path == '/'))) return;
+                  !(serverUri.path.isEmpty && requestUri.path == '/'))) {
+            return;
+          }
+          final statusCode = error.response?.statusCode;
           setState(() {
             _loading = false;
-            _loadError = 'O servidor respondeu com erro HTTP ' +
-                (error.response?.statusCode?.toString() ?? '') + '.';
+            _loadError = 'O servidor respondeu com erro HTTP ${statusCode ?? 'desconhecido'}.';
           });
         },
         onWebResourceError: (error) {

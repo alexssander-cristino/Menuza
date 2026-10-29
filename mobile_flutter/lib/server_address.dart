@@ -1,7 +1,7 @@
 String normalizeServerUrl(String value) {
   var normalized = value.trim();
   if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
-    normalized = 'http://' + normalized;
+    normalized = 'http://$normalized';
   }
   return normalized;
 }

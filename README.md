@@ -1,4 +1,4 @@
-# Bela Mesa — cardápio digital interativo
+# Menuza — cardápio digital interativo
 
 Aplicação local de demonstração para um restaurante: cardápio responsivo, composição de pizzas e hambúrgueres por camadas, sacola, checkout, pedidos persistidos, acompanhamento do cliente e painel de cozinha com atualização por Server-Sent Events.
 
@@ -6,7 +6,8 @@ Aplicação local de demonstração para um restaurante: cardápio responsivo, c
 
 Requisitos: Node.js 22.5 ou superior. A persistência usa o módulo SQLite incluído no Node. Não são necessárias dependências npm.
 
-    cd outputs/mesa-studio
+Na raiz do repositório, execute:
+
     npm start
 
 Acesse http://localhost:4173. O arquivo data/mesa.sqlite é criado na primeira execução. Para desenvolvimento com reinício automático, use npm run dev.
@@ -54,7 +55,7 @@ Exemplo PowerShell para desenvolvimento:
 
 ## API principal
 
-- GET /api/catalog — catálogo público ativo e opções de montagem.
+- GET /api/catalog — catálogo ativo e opções de montagem; exige sessão de cliente.
 - POST /api/orders — cria o pedido; recebe cliente, modalidade, composição e chave de idempotência.
 - GET /api/tracking/:token — consulta o pedido com token aleatório de acompanhamento.
 - POST /api/admin/login, POST /api/admin/logout, GET /api/admin/me — sessão do painel.
@@ -66,7 +67,7 @@ Exemplo PowerShell para desenvolvimento:
 
     npm test
 
-A suíte usa node:test e inicia uma instância temporária com outro SQLite. Cobre preços e remoção independente de ingredientes, validação de composição, geometria 3D em função de tamanho e composição, autorização, prevenção de pedido duplicado, fluxo de status e recuperação após reiniciar o servidor.
+A suíte Node usa `node:test` e inicia uma instância temporária com outro SQLite. Cobre preços e remoção independente de ingredientes, geometria 3D, autenticação/autorização, cadastro e sessão do cliente, checkout, cupons (incluindo limite de uso concorrente), ocupação e limpeza de mesas, idempotência, atualização em tempo real e recuperação após reiniciar o servidor. O app Flutter também tem testes para normalização e validação do endereço do servidor.
 
 ## Visualizador 3D e realidade aumentada
 
@@ -128,7 +129,7 @@ O servidor Node.js e o SQLite continuam no computador; o APK não inclui o backe
 
 ### Gerar APK
 
-O workflow [Build Menuza Flutter APK](https://github.com/alexssander-cristino/Menuza/actions/workflows/android-apk.yml) compila automaticamente quando arquivos de `mobile_flutter/` mudam. Acesse **Actions**, abra a execução mais recente e baixe o artefato `menuza-flutter-debug`.
+O workflow [Build Menuza Flutter APK](https://github.com/alexssander-cristino/Menuza/actions/workflows/android-apk.yml) compila quando arquivos de `mobile_flutter/` mudam. Acesse **Actions**, abra a execução mais recente e baixe o artefato `menuza-flutter-debug`. A pipeline executa `flutter analyze`, `flutter test` e a compilação do APK.
 
 Para compilar localmente, com Flutter e Android SDK instalados:
 
