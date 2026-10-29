@@ -603,7 +603,7 @@ function burgerLayout(product, ings, size, o, kH) {
   if (has('tomate-burger')) { const n = qty('tomate-burger'); add('tomato', n, () => tomatoMesh(R, kH, seed + 4, detail, n), (.0072 * n + .0008) * kH); }
   if (has('picles')) { const n = qty('picles'); add('pickles', n, () => pickleMesh(R, kH, seed + 5, detail, n), .0034 * n * kH); }
   if (has('cebola-burger')) { const n = qty('cebola-burger'); add('onion', n, () => onionMesh(R, kH, seed + 6, detail, n), .0046 * n * kH); }
-  const patties = has('carne') ? (size?.key === 'duplo' ? 2 : 1) : 0;
+  const patties = has('carne') ? Math.min(3, Math.max(size?.key === 'duplo' ? 2 : 1, qty('carne'))) : 0;
   let slices = clamp((has('queijo-cheddar') ? 1 : 0) + qty('queijo-extra'), 0, 4);
   const Hp = .017 * (patties === 2 ? .88 : 1) * kH, Rpat = R * .92;
   for (let p = 0; p < patties; p++) {
