@@ -2,7 +2,7 @@ import { FoodScene } from './food-scene.js?v=7';
 import { formatOrderStatusTime } from './order-status-time.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '55';
+const MENUZA_APP_BUILD = '56';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -530,9 +530,9 @@ function renderAdminLogin(errorText=''){
   root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password');try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
+  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
@@ -620,6 +620,21 @@ async function renderCatalogAdmin(){
     target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos</h2><small>Preço-base, descrição e disponibilidade</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Porção</option></select></label><label class="form-field"><span>Preço-base (R$)</span><input name="price" type="number" min="5" step="0.01" required placeholder="49,90"></label><label class="form-field wide"><span>Descrição</span><input name="description" maxlength="300" placeholder="Ingredientes e detalhes do prato"></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="catalog-list">'+catalog.products.map(p=>'<div class="catalog-row" data-product-admin="'+esc(p.id)+'"><div><b>'+esc(p.name)+'</b><small>'+esc(catalog.categories.find(c=>c.id===p.categoryId)?.name||'')+' · '+esc(p.description.slice(0,70))+'</small></div><label><span class="sr-only">Preço em reais</span><input type="number" class="product-price-input" min="5" step="0.01" value="'+(p.baseCents/100).toFixed(2)+'"></label><label><input type="checkbox" class="product-active-input" '+(p.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(p.available!==0?'checked':'')+'> Disponível</label><button class="tiny-link" data-action="save-product" data-id="'+esc(p.id)+'">Salvar</button></div>').join('')+'</div></section>';
     root.getElementById('newProductForm').addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget),price=Math.round(Number(data.get('price'))*100);try{await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,description:data.get('description')})});toast('Produto cadastrado.');renderCatalogAdmin()}catch(e){root.getElementById('newProductError').textContent=e.message}});
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
+}
+async function renderAnalyticsAdmin(days=7){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML='<div class="loading-line">Calculando indicadores de vendas…</div>';
+  try{
+    const data=await api('/api/admin/analytics?days='+days);
+    const moneyValue=value=>money(Number(value)||0);
+    const maxRevenue=Math.max(1,...data.daily.map(row=>Number(row.revenueCents)||0));
+    const dayLabels=data.daily.map(row=>({date:row.date,label:new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),revenue:Number(row.revenueCents)||0,orders:Number(row.orders)||0}));
+    const bars=dayLabels.map(row=>'<div class="analytics-bar-column" title="'+esc(row.date)+' · '+row.orders+' pedido(s) · '+moneyValue(row.revenue)+'"><span>'+moneyValue(row.revenue)+'</span><div class="analytics-bar-track"><i style="height:'+Math.max(3,Math.round(row.revenue/maxRevenue*100))+'%"></i></div><small>'+esc(row.label)+'</small></div>').join('');
+    const fulfillmentLabels={table:'Mesa',pickup:'Retirada',delivery:'Entrega'};
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Visão geral das vendas</h2><small>Pedidos registrados no período selecionado; valores cancelados não entram no faturamento.</small></div><label class="analytics-period"><span>Período</span><select id="analyticsDays"><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label></div><div class="metrics-grid analytics-metrics"><div class="metric-card"><span>Faturamento</span><b>'+moneyValue(data.summary.revenueCents)+'</b><small>Pedidos não cancelados</small></div><div class="metric-card"><span>Pedidos</span><b>'+Number(data.summary.orders||0)+'</b><small>No período</small></div><div class="metric-card"><span>Ticket médio</span><b>'+moneyValue(data.summary.averageTicketCents)+'</b><small>Exclui cancelamentos</small></div><div class="metric-card"><span>Cancelados</span><b>'+Number(data.summary.cancelled||0)+'</b><small>Pedidos cancelados</small></div></div></section><div class="admin-content-grid analytics-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Faturamento por dia</h2><small>Valores em reais</small></div></div><div class="analytics-chart">'+(bars||'<p class="admin-empty">Ainda não há vendas nesse período.</p>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Produtos mais vendidos</h2></div><ol class="analytics-popular">'+(data.popular.length?data.popular.map((row,index)=>'<li><span class="analytics-rank">'+(index+1)+'</span><span class="analytics-product-name">'+esc(row.name)+'</span><b>'+Number(row.quantity||0)+' un.</b></li>').join(''):'<li class="admin-empty">Sem vendas no período.</li>')+'</ol></section><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos por modalidade</h2></div><ul class="popular-list">'+(data.fulfillment.length?data.fulfillment.map(row=>'<li><span>'+esc(fulfillmentLabels[row.type]||row.type)+'</span><small>'+Number(row.orders||0)+' pedido(s)</small></li>').join(''):'<li><span>Sem pedidos no período.</span></li>')+'</ul></section></aside></div>';
+    root.getElementById('analyticsDays').value=String(days);
+    root.getElementById('analyticsDays').addEventListener('change',event=>renderAnalyticsAdmin(Number(event.target.value)));
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar os indicadores.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-analytics">Tentar novamente</button></section>'}
 }
 async function renderCouponsAdmin(){
   const target=root.getElementById('adminBody');if(!target)return;
@@ -1030,6 +1045,7 @@ function handleClick(event){
   }
   const action=target.dataset.action;
   if(action==='refresh-tables'){renderTablesAdmin();return}
+   if(action==='refresh-analytics'){renderAnalyticsAdmin();return}
   if(action==='share-menu'){shareMenu();return}
   if(action==='share-product'){shareMenu(target.dataset.product);return}
   if(action==='export-orders'){exportVisibleOrders();return}
