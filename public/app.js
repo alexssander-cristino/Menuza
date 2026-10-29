@@ -243,7 +243,7 @@ function builderPrice(builder=app.builder) {
 function groupedIngredients(type, product = null) {
   const map=new Map();
   const allowed = product?.ingredientsConfigured ? new Set([...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]) : null;
-  for(const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0&&(!allowed||allowed.has(i.id))){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
+  for (const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0&&(!allowed||allowed.has(i.id)))){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
   return Array.from(map.entries());
 }
 function openBuilder(productId,cartItem=null) {

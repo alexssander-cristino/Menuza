@@ -18,7 +18,7 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
   throw new Error('Em produção, configure APP_SECRET e ADMIN_PASSWORD antes de iniciar.');
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'AdminRestaura1!';
 const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
 const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -859,6 +859,6 @@ server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 1_000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Mesa Studio disponível em http://localhost:' + PORT);
-  if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha mesa-demo (configure ADMIN_PASSWORD para alterar).');
+  if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha AdminRestaura1! (configure ADMIN_PASSWORD para alterar).');
 });
 for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => { server.close(() => { db.close(); process.exit(0); }); server.closeAllConnections(); });
