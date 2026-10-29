@@ -668,6 +668,17 @@ const server = createServer(async (request, response) => {
         const result = validateCouponForOrder(body.code, body.items);
         return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
       }
+      if (request.method === 'GET' && path === '/api/admin/analytics') {
+        requireAdmin(request);
+        const rawDays = Number(url.searchParams.get('days') || 7);
+        const days = [7, 30, 90].includes(rawDays) ? rawDays : 7;
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const summary = statement("SELECT COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents,COALESCE(SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END),0) AS cancelled FROM orders WHERE restaurant_id=? AND created_at>=?").get(RESTAURANT_ID, since);
+        const daily = statement("SELECT substr(created_at,1,10) AS date,COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents FROM orders WHERE restaurant_id=? AND created_at>=? GROUP BY substr(created_at,1,10) ORDER BY date").all(RESTAURANT_ID, since);
+        const fulfillment = statement("SELECT fulfillment AS type,COUNT(*) AS orders FROM orders WHERE restaurant_id=? AND created_at>=? AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC").all(RESTAURANT_ID, since);
+        const popular = statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8").all(RESTAURANT_ID, since);
+        return send(response, 200, { days, summary, daily, fulfillment, popular });
+      }
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/tables') {
