@@ -843,14 +843,17 @@ async function renderCatalogAdmin(){
       const names=[...select.querySelectorAll('input:checked')].map(input=>input.closest('.ingredient-choice')?.querySelector('span')?.textContent.trim()||'').filter(Boolean);
       preview.textContent=names.length?prefix+names.join(', ')+'.':prefix+'nenhum selecionado.';
     };
+    app.admin.recipePreviewCatalog=catalog;
     const typeSelect=root.getElementById('newProductType');
     const newRecipeSelect=target.querySelector('[data-product-select="recipe"]');
+    newRecipeSelect.dataset.previewProductId='admin-new-product-preview';
     const newRecipePreview=target.querySelector('[data-new-recipe-preview]');
     const newRecipeArt=target.querySelector('[data-new-recipe-art]');
     const updateRecipeArtwork=(select,preview,product)=>{
       if(!select||!preview||!product)return;
       const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
-      preview.innerHTML='<span class="recipe-preview-caption">Prévia atualizada pelas seleções</span>'+productSvg(product,ingredients);
+      preview.innerHTML='<span class="recipe-preview-caption">Prévia atualizada pelas seleções</span>'+productSvg(product,ingredients)+'<button type="button" class="recipe-preview-3d" data-action="admin-recipe-3d" data-product-id="'+esc(product.id)+'">Abrir modelo 3D</button>';
+      syncAdminRecipe3DPreview(product.id,select,catalog);
     };
     const refreshNewRecipePreview=()=>{
       updateRecipePreview(newRecipeSelect,newRecipePreview);
@@ -859,6 +862,7 @@ async function renderCatalogAdmin(){
     newRecipeSelect?.addEventListener('change',refreshNewRecipePreview);
     target.querySelectorAll('.product-admin-entry').forEach(row=>{
       const recipeSelect=row.querySelector('.product-recipe-input');
+      recipeSelect.dataset.previewProductId=row.dataset.productAdmin;
       const preview=row.querySelector('[data-product-recipe-preview]');
       const product=catalog.products.find(item=>item.id===row.dataset.productAdmin);
       const refreshProductRecipe=()=>{
@@ -1326,6 +1330,53 @@ async function renderIngredientsAdmin(){
     }));
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
+function syncAdminRecipe3DPreview(productId,select,catalog){
+  const preview=app.admin.recipePreview;
+  if(!preview||preview.productId!==productId||!preview.scene)return;
+  const product=productId==='admin-new-product-preview'
+    ? {id:productId,name:'Prévia',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{preview.scene.update(product,ingredients,size,{crustKey:'tradicional'});}catch(error){toast(error.message||'Não foi possível atualizar o modelo 3D.');}
+}
+function openAdminRecipe3D(productId){
+  const catalog=app.admin.recipePreviewCatalog;
+  if(!catalog)return;
+  const isNew=productId==='admin-new-product-preview';
+  const row=isNew?root.getElementById('newProductForm'):root.querySelector('[data-product-admin="'+CSS.escape(productId)+'"]');
+  const select=row?.querySelector(isNew?'[data-product-select="recipe"]':'.product-recipe-input');
+  if(!select)return;
+  const product=isNew
+    ? {id:productId,name:'Prévia da receita',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  app.admin.recipePreview?.scene?.dispose?.();
+  root.getElementById('adminRecipe3dPreview')?.remove();
+  const overlay=root.createElement('div');
+  overlay.id='adminRecipe3dPreview';
+  overlay.className='modal-backdrop admin-recipe-3d-backdrop';
+  overlay.innerHTML='<section class="admin-recipe-3d-modal" role="dialog" aria-modal="true" aria-label="Prévia 3D da receita"><header><div><strong>Modelo 3D em tempo real</strong><small>Altere as caixas de seleção da receita para atualizar o prato.</small></div><button type="button" data-action="close-admin-recipe-3d" aria-label="Fechar prévia 3D">×</button></header><div class="admin-recipe-3d-stage"><canvas id="adminRecipe3dCanvas" aria-label="Modelo 3D da receita"></canvas><div id="adminRecipe3dHud" aria-live="polite"></div></div><p>O modelo acompanha os ingredientes marcados na receita padrão.</p></section>';
+  root.body.append(overlay);
+  const ingredients=[...select.querySelectorAll('input:checked')].map(input=>catalog.ingredients.find(item=>item.id===input.value)).filter(Boolean).map(item=>({...item,quantity:1}));
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{
+    const scene=new FoodScene(root.getElementById('adminRecipe3dCanvas'),product,ingredients,size,root.getElementById('adminRecipe3dHud'),{crustKey:'tradicional'});
+    app.admin.recipePreview={productId,scene};
+    scene.setActive(true);
+  }catch(error){
+    overlay.remove();app.admin.recipePreview=null;
+    toast(error.message||'Não foi possível abrir o modelo 3D neste navegador.');
+  }
+}
+function closeAdminRecipe3D(){
+  app.admin.recipePreview?.scene?.dispose?.();
+  app.admin.recipePreview=null;
+  root.getElementById('adminRecipe3dPreview')?.remove();
+}
 function setAdminConnectionState(state){
   app.admin.connectionState=state;
   const node=root.getElementById('adminConnectionStatus');
@@ -1546,6 +1597,8 @@ function handleClick(event){
     renderCatalog();return;
   }
   if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
+  if(action==='admin-recipe-3d'){openAdminRecipe3D(target.dataset.productId);return}
+  if(action==='close-admin-recipe-3d'){closeAdminRecipe3D();return}
   if(action==='start-builder'||action==='build'){openBuilder(target.dataset.product);return}
   if(action==='cart'){openCart();return}
   if(action==='close-builder'){app.builder=null;renderBuilder();return}
