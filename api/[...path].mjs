@@ -390,6 +390,7 @@ export default async function handler(req,res) {
       const result=await query('UPDATE privacy_requests SET status=$1,updated_at=$2 WHERE id=$3',[b.status,new Date().toISOString(),id]); if(!result.rowCount) throw fail('Solicitação não encontrada.',404); return json(res,200,{ok:true});
     }
     if (method==='GET'&&path==='/api/admin/categories') {
+      await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url) VALUES ($1,$2,$3,'BRL',30,$4,'') ON CONFLICT (id) DO NOTHING`,[RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
       const categories=(await query(`SELECT c.id,c.name,c.slug,c.sort_order AS "sortOrder",COUNT(p.id)::int AS "productCount"
         FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.restaurant_id=c.restaurant_id
         WHERE c.restaurant_id=$1 GROUP BY c.id ORDER BY c.sort_order,c.name`,[RESTAURANT_ID])).rows;
