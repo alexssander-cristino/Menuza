@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function decodeBase32(value) {
-  const input = String(value || '').replace(/\\s+/g, '').replace(/=+$/g, '').toUpperCase();
+  const input = String(value || '').replace(/\s+/g, '').replace(/=+$/g, '').toUpperCase();
   if (!input || !/^[A-Z2-7]+$/.test(input)) return null;
   let bits = 0;
   let buffer = 0;
@@ -33,7 +33,7 @@ function codeAt(secret, counter) {
 
 /** Verify RFC 6238 TOTP using a 30-second step and at most one step of clock drift. */
 export function verifyTotp(secretText, candidate, now = Date.now()) {
-  if (typeof candidate !== 'string' || !/^\\d{6}$/.test(candidate) || !Number.isFinite(now)) return false;
+  if (typeof candidate !== 'string' || !/^\d{6}$/.test(candidate) || !Number.isFinite(now)) return false;
   const secret = decodeBase32(secretText);
   if (!secret || secret.length < 10) return false;
   const counter = Math.floor(now / 30_000);
