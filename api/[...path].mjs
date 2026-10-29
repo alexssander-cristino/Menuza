@@ -289,7 +289,7 @@ async function saveCombo(body,id=null) {
 }
 
 export default async function handler(req,res) {
-  const path='/'+(Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')).replace(/^\/+|\/+$/g,'');
+  const path='/api/'+(Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')).replace(/^\/+|\/+$/g,'');
   const method=req.method||'GET';
   const allowed=new Set(['GET','POST','PATCH','PUT','DELETE','OPTIONS']);
   if (!allowed.has(method)) return json(res,405,{error:'Método não permitido.'},{Allow:'GET, POST, PATCH, PUT, DELETE, OPTIONS'});
@@ -363,6 +363,7 @@ export default async function handler(req,res) {
     }
     if (path.startsWith('/api/admin/')) requireAdmin(req);
     if (method==='GET'&&path==='/api/admin/me') return json(res,200,{authenticated:true,restaurantId:RESTAURANT_ID});
+    if (method==='GET'&&path==='/api/admin/security') return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET)});
     if (method==='GET'&&path==='/api/admin/events') return json(res,501,{error:'Atualizações em tempo real serão substituídas por consulta periódica nesta hospedagem.'});
     if (method==='GET'&&path==='/api/admin/privacy-requests') return json(res,200,{requests:(await query("SELECT id,name,email,phone,request_type AS \"requestType\",details,status,created_at AS \"createdAt\",updated_at AS \"updatedAt\" FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,created_at DESC LIMIT 200")).rows});
     if (method==='PATCH'&&path.startsWith('/api/admin/privacy-requests/')) {
