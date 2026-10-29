@@ -412,3 +412,22 @@ test('biblioteca QR Code não acessa this no escopo do módulo ES', async () => 
   assert.ok(qr.includes('if (_getAndroid() && _getAndroid() <= 2.1)'), 'Android compatibility check must use the detector function');
   assert.ok(!qr.includes('if (this._android && this._android <= 2.1)'), 'top-level this is undefined in ES modules');
 });
+
+
+test('painel mostra estado da conexão e recupera atualizações ao voltar online', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function setAdminConnectionState(state)'));
+  assert.ok(client.includes("app.admin.eventSource.onopen=()"));
+  assert.ok(client.includes("app.admin.eventSource.onerror=()"));
+  assert.ok(client.includes("window.addEventListener('online',handleAdminOnline)"));
+  assert.ok(client.includes('adminConnectionStatus'));
+  assert.ok(client.includes('setInterval(refreshAdmin,20000)'), 'polling remains as a fallback if live updates fail');
+});
+
+test('editar validade de cupom preserva o horário local do navegador', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function dateTimeLocalValue(value)'));
+  assert.ok(client.includes('form.elements.startsAt.value=dateTimeLocalValue(row.dataset.starts)'));
+  assert.ok(client.includes('form.elements.expiresAt.value=dateTimeLocalValue(row.dataset.expires)'));
+  assert.ok(!client.includes("new Date(row.dataset.starts).toISOString().slice(0,16)"));
+});
