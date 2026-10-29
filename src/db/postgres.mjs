@@ -5,7 +5,6 @@ if (!connectionString) {
   throw new Error('DATABASE_URL não configurada. Defina a variável de ambiente do Neon.');
 }
 
-// Pool compartilhado por instância serverless. Use a connection string pooled do Neon.
 export const pool = new Pool({
   connectionString,
   max: 5,
@@ -25,11 +24,7 @@ export async function withTransaction(work) {
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // Preserve the original failure.
-    }
+    try { await client.query('ROLLBACK'); } catch {}
     throw error;
   } finally {
     client.release();
