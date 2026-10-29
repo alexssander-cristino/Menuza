@@ -1442,3 +1442,12 @@ body{overscroll-behavior-y:contain}
 .product-ingredient-config select,.admin-form-grid select[multiple]{width:100%;min-width:0;border:1px solid #ded9e7;border-radius:8px;padding:8px;background:#fff;color:#282431;font:inherit;font-size:11px}
 .product-ingredient-config small,.admin-form-grid .form-field small{grid-column:1/-1;color:#81798d;font-size:10px;line-height:1.5}
 @media(max-width:700px){.product-ingredient-config{grid-template-columns:1fr}.product-admin-entry .catalog-row{grid-template-columns:1fr 90px}.product-admin-entry .catalog-row>label,.product-admin-entry .catalog-row>button{justify-self:start}.product-ingredients-description{font-size:10px}.builder-ingredients-summary{font-size:11px}}
+
+
+.ingredient-checkbox-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:190px;overflow:auto;padding:2px}
+.ingredient-choice{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 9px;border:1px solid #e7e2ef;border-radius:9px;background:#fff;color:#4d455e;font-size:11px;line-height:1.35;cursor:pointer}
+.ingredient-choice:has(input:checked){border-color:#b9a9ed;background:#f5f1ff;color:#3e2c75}
+.ingredient-choice input{flex:0 0 auto;accent-color:#6d4cf5}
+.ingredient-choice span{min-width:0;overflow-wrap:anywhere}
+.ingredient-choice small{margin-left:auto;white-space:nowrap;color:#7a6a9b;font-size:10px}
+@media(max-width:420px){.ingredient-checkbox-list{grid-template-columns:1fr}.ingredient-choice{padding:9px}}
