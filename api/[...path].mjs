@@ -195,7 +195,14 @@ async function priceItems(input) {
     const product = cat.products.find(p => p.id === entry?.productId && Number(p.active) === 1 && Number(p.available) === 1);
     if (!product) throw fail('Um dos produtos está indisponível ou esgotado no momento.', 409);
     let pricedItem;
-    try { pricedItem = calculateItemPrice({ product, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:cat.ingredients }); }
+    const productIngredientIds = new Set([...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]);
+    const productIngredientCatalog = product.ingredientsConfigured
+      ? cat.ingredients.filter(ingredient => productIngredientIds.has(ingredient.id)).map(ingredient => ({
+          ...ingredient,
+          included: (product.defaultIngredientIds || []).includes(ingredient.id)
+        }))
+      : cat.ingredients;
+    try { pricedItem = calculateItemPrice({ product, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
     priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), priced:pricedItem });
