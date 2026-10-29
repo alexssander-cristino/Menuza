@@ -246,7 +246,7 @@ function rateLimitResponse(response, retryAfter = 900) {
   return send(response, 429, { error: 'Muitas solicitações. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(Math.max(1, Math.min(3600, retryAfter))), 'Cache-Control': 'no-store' });
 }
 function hasHoneypot(body) {
-  return typeof body?.website === 'string' && body.website.trim().length > 0;
+  return ['contact_check', 'website'].some(key => typeof body?.[key] === 'string' && body[key].trim().length > 0);
 }
 
 function fail(response, error) {
@@ -566,10 +566,11 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { tables });
       }
       if (request.method === 'POST' && path === '/api/admin/login') {
+        // Campos honeypot não são usados no login: gerenciadores de senha do navegador
+        // podem preenchê-los automaticamente e bloquear usuários legítimos com HTTP 429.
+        const body = await bodyOf(request);
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        const body = await bodyOf(request);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
@@ -593,10 +594,11 @@ const server = createServer(async (request, response) => {
         return send(response,201,{customer},{'Set-Cookie':customerSessionCookie(issueCustomerSession(customer))});
       }
       if (request.method === 'POST' && path === '/api/customer/login') {
+        // Não rejeitar honeypots neste endpoint: o Chrome e outros gerenciadores
+        // de credenciais podem preencher campos ocultos. O rate limit segue ativo.
         const body = await bodyOf(request), email = normalizeEmail(body.email);
         const limit = authRateLimit(request, 'customer-login', email);
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
         if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
         const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
