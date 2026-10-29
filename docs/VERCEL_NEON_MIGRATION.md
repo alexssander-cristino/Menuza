@@ -6,7 +6,7 @@
 - As rotas de API serverless usam Neon/PostgreSQL; o servidor SQLite continua disponível para desenvolvimento local.
 - `api/health.mjs` verifica a conexão real com o banco.
 - `api/[...path].mjs` implementa os endpoints de cliente, pedidos, rastreio, painel, produtos, adicionais, combos, cupons, mesas e solicitações de privacidade.
-- O script de importação transfere os dados atuais do SQLite para PostgreSQL sem sobrescrever registros conflitantes.
+- O script existente importa os dados atuais do SQLite para PostgreSQL com validação de integridade e transação.
 
 ## Configuração necessária no Neon
 
