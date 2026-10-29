@@ -179,3 +179,13 @@ node -e "console.log(require('node:crypto').randomBytes(20).toString('base64'))"
 ```
 
 A saída acima está em Base64, não Base32; converta-a para Base32 usando um gerador confiável executado localmente ou um gerenciador de segredos. Cadastre a chave no autenticador e configure `ADMIN_TOTP_SECRET` no ambiente de hospedagem. Não registre a chave em logs, issues ou commits. Sem essa variável, o login mantém compatibilidade e o segundo fator não é exigido.
+
+
+## QR Code por mesa
+
+- No painel, abra **Mesas 3D** e use **QR Code da mesa** para abrir o código individual.
+- Cada mesa recebe um token aleatório persistido no SQLite; o link é validado pelo servidor antes de associar o pedido à mesa.
+- A janela permite copiar o link, baixar o QR em PNG ou imprimir. O QR abre o cardápio com a mesa pré-selecionada; pedidos adicionais podem ser feitos na mesma mesa enquanto ela estiver ocupada.
+- Uma mesa em limpeza não aceita novos pedidos pelo QR até que a equipe a libere. Pedidos sem o token individual continuam usando a lista de mesas livres.
+- O QR contém o endereço público atual do Menuza. Gere/baixe novamente os códigos se o domínio público mudar. Teste cada impressão com um celular antes de colocar em uso.
+- O gerador QRCode.js é distribuído sob licença MIT; o aviso está em `public/QR-CODE-LICENSE.txt`.
