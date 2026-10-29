@@ -617,9 +617,9 @@ function renderAdminLogin(errorText=''){
   root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),otp=String(formData.get('otp')||'').trim();try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,otp})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
+  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['categories','Categorias'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
 }
 let orderAlertAudioContext=null;
 function playOrderAlert(){
@@ -773,6 +773,38 @@ function renderOrdersAdmin(metrics,orders){
   if(statusFilter)statusFilter.value=app.admin.orderStatus;
   if(fulfillmentFilter)fulfillmentFilter.value=app.admin.orderFulfillment;
   applyOrderFilters();
+}
+async function renderCategoryAdmin(){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML='<div class="loading-line">Carregando categorias…</div>';
+  try{
+    const result=await api('/api/admin/categories');
+    const categories=Array.isArray(result.categories)?result.categories:[];
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Cadastrar categoria</h2><small>Organize os produtos em seções que aparecem no cardápio público.</small></div><span class="settings-section-icon" aria-hidden="true">▦</span></div><form id="newCategoryForm" class="admin-form-grid"><label class="form-field wide"><span>Nome da categoria</span><input name="name" required minlength="2" maxlength="60" placeholder="Ex.: Pizzas tradicionais" autocomplete="off"></label><div class="wide"><p class="error-text" id="newCategoryError" role="alert"></p><button class="button button-dark button-small" type="submit">Cadastrar categoria +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Categorias cadastradas</h2><small>'+categories.length+' categoria(s) · os nomes atualizados aparecem no cardápio</small></div></div>'+(categories.length?'<div class="catalog-list">'+categories.map(c=>'<div class="catalog-row category-admin-row" data-category-admin="'+esc(c.id)+'"><label class="form-field"><span>Nome</span><input class="category-name-input" value="'+esc(c.name)+'" required minlength="2" maxlength="60" aria-label="Nome da categoria '+esc(c.name)+'"></label><div class="category-admin-meta"><b>'+Number(c.productCount||0)+'</b><small>produto(s)</small><small class="category-slug">'+esc(c.slug)+'</small></div><div class="category-admin-actions"><button class="tiny-link" type="button" data-action="save-category" data-id="'+esc(c.id)+'">Salvar</button><button class="tiny-link category-delete-button" type="button" data-action="delete-category" data-id="'+esc(c.id)+'" '+(Number(c.productCount)>0?'disabled title="Transfira os produtos antes de excluir"':'')+'>Excluir</button></div></div>').join('')+'</div>':'<div class="admin-empty">Nenhuma categoria cadastrada. Crie a primeira acima para começar a organizar os produtos.</div>')+'</section>';
+    root.getElementById('newCategoryForm').addEventListener('submit',async event=>{
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),error=root.getElementById('newCategoryError'),name=String(new FormData(form).get('name')||'').trim();
+      if(name.length<2||name.length>60){error.textContent='Use um nome entre 2 e 60 caracteres.';return}
+      button.disabled=true;button.textContent='Cadastrando…';error.textContent='';
+      try{await api('/api/admin/categories',{method:'POST',body:JSON.stringify({name})});toast('Categoria cadastrada.');await renderCategoryAdmin()}
+      catch(e){error.textContent=e.message;button.disabled=false;button.textContent='Cadastrar categoria +'}
+    });
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar as categorias.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-categories">Tentar novamente</button></section>'}
+}
+async function saveCategory(id){
+  const row=root.querySelector('[data-category-admin="'+CSS.escape(id)+'"]');if(!row)return;
+  const input=row.querySelector('.category-name-input'),button=row.querySelector('[data-action="save-category"]'),name=String(input.value||'').trim();
+  if(name.length<2||name.length>60){input.setAttribute('aria-invalid','true');toast('Use um nome entre 2 e 60 caracteres.');return}
+  input.removeAttribute('aria-invalid');button.disabled=true;button.textContent='Salvando…';
+  try{await api('/api/admin/categories/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name})});toast('Categoria atualizada.');await renderCategoryAdmin()}
+  catch(error){toast(error.message);button.disabled=false;button.textContent='Salvar'}
+}
+async function deleteCategory(id){
+  const row=root.querySelector('[data-category-admin="'+CSS.escape(id)+'"]');if(!row)return;
+  const name=row.querySelector('.category-name-input')?.value||'esta categoria';
+  if(!window.confirm('Excluir "'+name+'" permanentemente?'))return;
+  const button=row.querySelector('[data-action="delete-category"]');if(button){button.disabled=true;button.textContent='Excluindo…'}
+  try{await api('/api/admin/categories/'+encodeURIComponent(id),{method:'DELETE'});toast('Categoria excluída.');await renderCategoryAdmin()}
+  catch(error){toast(error.message);if(button){button.disabled=false;button.textContent='Excluir'}}
 }
 async function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando cardápio…</div>';
