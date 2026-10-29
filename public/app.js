@@ -855,7 +855,7 @@ async function renderSettingsAdmin(){
           <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">✳</span></div>
           <form id="restaurantSettingsForm" class="settings-form">
             <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
-            <label class="form-field"><span>URL da logo do restaurante</span><input name="logoUrl" type="url" maxlength="500" value="${esc(initialLogoUrl)}" placeholder="https://seusite.com/logo.png" inputmode="url"><small class="field-hint">Cole o link HTTPS direto de uma imagem PNG, JPG ou WebP. Deixe vazio para usar as iniciais.</small></label>
+            <div class="form-field logo-upload-field"><span>Logo do restaurante</span><div class="logo-upload-control"><label class="logo-upload-button" for="restaurantLogoFile"><span aria-hidden="true">↑</span> Escolher imagem</label><input id="restaurantLogoFile" name="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="logo-upload-preview" id="restaurantLogoPreview">${initialLogoUrl ? `<img src="${esc(initialLogoUrl)}" alt="Prévia da logo atual">` : '<span>Logo</span>'}</div></div><small class="field-hint">Envie PNG, JPG ou WebP de até 1 MB. A logo será salva no sistema, sem precisar de link externo.</small><label class="logo-remove-option"><input type="checkbox" name="removeLogo" id="restaurantLogoRemove"><span>Remover logo e usar as iniciais do restaurante</span></label></div>
             <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
             <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
             <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
@@ -947,26 +947,54 @@ async function renderSettingsAdmin(){
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;
     const prepInput=form.elements.prepMinutes;
-    const logoInput=form.elements.logoUrl;
+    const logoFileInput=form.elements.logoFile;
+    const removeLogoInput=form.elements.removeLogo;
+    const logoPreview=root.getElementById('restaurantLogoPreview');
+    let selectedLogoData='';
     const status=root.getElementById('settingsStatus');
     const saveButton=form.querySelector('button[type="submit"]');
     const setDirty=()=>{
       root.getElementById('settingsPreviewName').textContent=nameInput.value.trim()||'Seu restaurante';
       root.getElementById('settingsPreviewPrep').textContent=(Number(prepInput.value)||0)+' min';
-      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||logoInput.value.trim()!==initialLogoUrl;
+      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||Boolean(logoFileInput.files?.length)||removeLogoInput.checked;
       status.classList.toggle('is-dirty',dirty);
       status.innerHTML=dirty?'<span></span> Alterações não salvas':'<span></span> Tudo salvo';
       saveButton.disabled=!dirty;
       root.getElementById('settingsError').textContent='';
     };
     form.addEventListener('input',setDirty);
+    logoFileInput.addEventListener('change',()=>{
+      selectedLogoData='';
+      const file=logoFileInput.files?.[0];
+      if(!file){logoPreview.innerHTML=initialLogoUrl?'<img src="'+esc(initialLogoUrl)+'" alt="Prévia da logo atual">':'<span>Logo</span>';setDirty();return}
+      if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1024*1024){
+        root.getElementById('settingsError').textContent='Escolha PNG, JPG ou WebP com até 1 MB.';
+        logoFileInput.value='';
+        return;
+      }
+      const reader=new FileReader();
+      reader.onload=()=>{
+        selectedLogoData=String(reader.result||'');
+        logoPreview.innerHTML='<img alt="Prévia da nova logo">';
+        logoPreview.querySelector('img').src=selectedLogoData;
+        removeLogoInput.checked=false;
+        setDirty();
+      };
+      reader.onerror=()=>{root.getElementById('settingsError').textContent='Não foi possível ler essa imagem. Tente outro arquivo.'};
+      reader.readAsDataURL(file);
+    });
+    removeLogoInput.addEventListener('change',()=>{
+      if(removeLogoInput.checked){logoFileInput.value='';selectedLogoData='';logoPreview.innerHTML='<span>Logo</span>'}
+      else logoPreview.innerHTML=initialLogoUrl?'<img src="'+esc(initialLogoUrl)+'" alt="Prévia da logo atual">':'<span>Logo</span>';
+      setDirty();
+    });
     saveButton.disabled=true;
     form.addEventListener('submit',async event=>{
       event.preventDefault();
       const data=new FormData(form);
       const name=String(data.get('name')||'').trim();
       const prepMinutes=Number(data.get('prepMinutes'));
-      const logoUrl=String(data.get('logoUrl')||'').trim();
+      const logoUrl=removeLogoInput.checked?'':(selectedLogoData||initialLogoUrl);
       const error=root.getElementById('settingsError');
       if(name.length<2||!Number.isFinite(prepMinutes)||prepMinutes<5||prepMinutes>240){error.textContent='Confira o nome e o tempo de preparo antes de salvar.';return}
       saveButton.disabled=true;saveButton.textContent='Salvando…';error.textContent='';
