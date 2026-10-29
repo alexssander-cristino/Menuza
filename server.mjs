@@ -78,9 +78,8 @@ if (db.prepare('SELECT COUNT(*) AS count FROM restaurant_tables WHERE restaurant
   const addTable = db.prepare('INSERT INTO restaurant_tables (id,restaurant_id,table_number,seats,status,note,updated_at) VALUES (?,?,?,?,?,?,?)');
   for (let number = 1; number <= 12; number++) addTable.run('table-' + number, RESTAURANT_ID, number, number <= 4 ? 2 : 4, 'free', '', now);
 }
-}
-for (const table of statement('SELECT id FROM restaurant_tables WHERE restaurant_id=? AND (qr_token IS NULL OR qr_token=\'\')').all(RESTAURANT_ID)) {
-  statement('UPDATE restaurant_tables SET qr_token=? WHERE id=? AND restaurant_id=?').run(randomBytes(24).toString('base64url'), table.id, RESTAURANT_ID);
+for (const table of db.prepare("SELECT id FROM restaurant_tables WHERE restaurant_id=? AND (qr_token IS NULL OR qr_token='')").all(RESTAURANT_ID)) {
+  db.prepare('UPDATE restaurant_tables SET qr_token=? WHERE id=? AND restaurant_id=?').run(randomBytes(24).toString('base64url'), table.id, RESTAURANT_ID);
 }
 
 function seedDatabase() {
