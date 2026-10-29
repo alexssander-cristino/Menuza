@@ -1,9 +1,9 @@
-import { FoodScene } from './food-scene.js?v=72';
+import { FoodScene } from './food-scene.js?v=73';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
-import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=3';
+import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
 
-const MENUZA_APP_BUILD = '76';
+const MENUZA_APP_BUILD = '77';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -158,11 +158,11 @@ function ingredientDescription(product, ids = product.defaultIngredientIds || []
 }
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
-const plateArt = seed => plateArtSvg(seed);
+const plateArt = (seed, ingredients) => plateArtSvg(seed, ingredients || []);
 function productSvg(product, ingredients, opts = {}) {
   if (product.type === 'pizza') return pizzaArt(ingredients || defaultIngredients(product, app.catalog), product.id);
   if (product.type === 'burger') return burgerArt(ingredients || defaultIngredients(product, app.catalog), product.id, opts);
-  return plateArt(product.id);
+  return plateArt(product.id, ingredients || defaultIngredients(product, app.catalog));
 }
 function comboCardMarkup(combo) {
   const itemText=(combo.items||[]).map(item=>(item.quantity>1?item.quantity+'× ':'')+item.name).join(' · ');
@@ -864,14 +864,18 @@ async function renderCatalogAdmin(){
     typeSelect.addEventListener('change',updateIngredientOptions);
     root.getElementById('newProductForm').addEventListener('submit',async event=>{
       event.preventDefault();
-      const form=event.currentTarget,data=new FormData(form),price=Math.round(Number(data.get('price'))*100);
+      const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('newProductError');
+      if(button.disabled)return;
+      const data=new FormData(form),price=Math.round(Number(data.get('price'))*100);
       const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
       const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value);
       const ingredientIds=[...new Set([...selectedAddons,...selectedRecipe])];
+      button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
       try{
         await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,description:data.get('description'),ingredientIds,defaultIngredientIds:selectedRecipe})});
-        toast('Produto cadastrado com receita e adicionais.');renderCatalogAdmin();
-      }catch(error){root.getElementById('newProductError').textContent=error.message}
+        toast('Produto cadastrado. Receita, descrição e personalização atualizadas.');
+        await renderCatalogAdmin();
+      }catch(error){errorNode.textContent=error.message||'Não foi possível salvar o produto.';button.disabled=false;button.textContent='Tentar novamente';}
     });
   }catch(error){target.innerHTML='<p class="error-text">'+esc(error.message)+'</p>'}
 }
@@ -1292,9 +1296,9 @@ async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando adicionais…</div>';
   try{
     const catalog=await api('/api/admin/catalog');
-    target.innerHTML=['pizza','burger'].map(type=>{
+    target.innerHTML=['pizza','burger','plate'].map(type=>{
       const items=catalog.ingredients.filter(i=>i.type===type);
-      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':'Ingredientes e adicionais de hambúrguer')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':'Ex.: Cheddar extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':'adicional')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':'adicionais')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de porções')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':type==='burger'?'Ex.: Cheddar extra':'Ex.: Bacon extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':type==='burger'?'adicional':'ingrediente')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':type==='burger'?'adicionais':'ingredientes')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
     }).join('');
     target.querySelectorAll('[data-new-ingredient-type]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();createIngredient(form.dataset.newIngredientType,form)}));
     target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
@@ -1387,11 +1391,20 @@ async function loadAvailableTables(select){
 }
 async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
-  const cents=Math.round(Number(row.querySelector('.product-price-input').value)*100),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked;
+  const button=row.querySelector('[data-action="save-product"]');if(!button||button.disabled)return;
+  const priceInput=row.querySelector('.product-price-input');
+  const cents=Math.round(Number(priceInput.value)*100),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked;
   const defaultIngredientIds=[...row.querySelectorAll('.product-recipe-input input:checked')].map(input=>input.value);
   const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
   const ingredientIds=[...new Set([...selectedAddons,...defaultIngredientIds])];
-  try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available,ingredientIds,defaultIngredientIds})});toast('Produto, receita e adicionais atualizados.');renderCatalogAdmin()}catch(error){toast(error.message)}
+  if(!Number.isInteger(cents)||cents<500||cents>1000000){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço-base entre R$ 5,00 e R$ 10.000,00.');return}
+  priceInput.removeAttribute('aria-invalid');
+  button.disabled=true;button.textContent='Salvando…';
+  try{
+    await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available,ingredientIds,defaultIngredientIds})});
+    toast('Produto salvo. Receita, descrição e modelo atualizados.');
+    await renderCatalogAdmin();
+  }catch(error){toast(error.message||'Não foi possível salvar o produto.');if(button.isConnected){button.disabled=false;button.textContent='Tentar novamente'}}
 }
 async function createIngredient(type,form){
   const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.'));
