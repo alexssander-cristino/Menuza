@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js';
 
-const MENUZA_APP_BUILD = '69';
+const MENUZA_APP_BUILD = '70';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -282,7 +282,7 @@ function renderBuilder() {
   let ingredientHtml = ingredientGroups.length ? '<div class="step-row"><b>03</b> Ingredientes e adicionais</div><p class="ingredient-help">Adicionais pagos são opcionais. Você pode continuar sem escolher nenhum.</p>' : '';
   for (const [group, items] of ingredientGroups) {
     ingredientHtml += '<div class="step-row"><b>•</b> ' + esc(group) + '</div><div class="ingredient-list">' + items.map(item => {
-      const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), price = item.cents ? '+ ' + money(item.cents) : 'incluído';
+      const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), price = item.included ? 'incluído' : item.cents ? '+ ' + money(item.cents) : 'grátis';
       return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + '" type="button" aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + (active && !item.included ? '<div class="ingredient-stepper" aria-label="Quantidade de ' + esc(item.name) + '"><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="-1" aria-label="Diminuir ' + esc(item.name) + '">−</button><span>' + entry.quantity + '×</span><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="1" aria-label="Aumentar ' + esc(item.name) + '">+</button></div>' : '') + '</div>';
     }).join('') + '</div>';
   }
