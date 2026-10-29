@@ -378,6 +378,14 @@ test('login do cliente aparece antes de terminar a verificação da sessão', as
 });
 
 
+test('alerta sonoro de novos pedidos é opcional e guarda a preferência local', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("localStorage.getItem('menuza-order-sound')==='on'"));
+  assert.ok(client.includes('function trackNewOrders(orders)'));
+  assert.ok(client.includes("if(hasNewReceived&&app.admin.soundEnabled)playOrderAlert()"));
+  assert.ok(client.includes('data-action="toggle-order-sound"'));
+});
+
 test('comanda imprimível inclui dados do pedido e escapa conteúdo dinâmico', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes('function printOrderTicket(orderId)'));
