@@ -18,6 +18,38 @@ function rngFrom(seed) {
   };
 }
 const f = n => Math.round(n * 10) / 10;
+function inferIngredientVisual(value, type) {
+  const name = String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+  const has = (...words) => words.some(word => name.includes(word));
+  if (type === 'pizza') {
+    if (has('molho', 'sauce')) return 'molho-tomate';
+    if (has('catupiry', 'requeijao', 'cream cheese')) return 'cream';
+    if (has('mussarela', 'mozzarella', 'queijo', 'cheddar', 'gorgonzola', 'parmesao', 'provolone')) return 'mussarela';
+    if (has('calabresa', 'pepperoni', 'salame', 'linguica')) return 'pepperoni';
+    if (has('bacon', 'panceta')) return 'bacon';
+    if (has('frango', 'chicken')) return 'chicken';
+    if (has('cebola', 'alho', 'onion', 'garlic')) return 'onion';
+    if (has('tomate', 'tomato', 'pimentao')) return 'tomato';
+    if (has('milho', 'corn')) return 'corn';
+    if (has('azeitona', 'olive')) return 'olive';
+    if (has('champignon', 'cogumelo', 'mushroom')) return 'mushroom';
+    if (has('oregano', 'manjericao', 'basil', 'erva', 'tempero', 'rucula')) return 'herb';
+    return 'herb';
+  }
+  if (type === 'burger') {
+    if (has('pao', 'brioche', 'bun')) return 'pao-brioche';
+    if (has('carne', 'hamburguer', 'burger', 'blend', 'smash', 'frango', 'chicken')) return 'carne';
+    if (has('alface', 'lettuce')) return 'alface';
+    if (has('tomate', 'tomato')) return 'tomate-burger';
+    if (has('cebola', 'onion')) return 'cebola-burger';
+    if (has('picles', 'pepino', 'pickle')) return 'picles';
+    if (has('bacon', 'panceta')) return 'bacon-burger';
+    if (has('ovo', 'egg')) return 'ovo';
+    if (has('cheddar', 'queijo', 'mussarela', 'provolone', 'gorgonzola')) return 'queijo-cheddar';
+    if (has('molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'bbq', 'sauce')) return 'molho-especial';
+  }
+  return '';
+}
 
 // Contorno orgânico fechado (curvas suaves entre pontos com raio variável)
 function blobPath(cx, cy, r, jitter, rng, n = 26, squash = 1) {
@@ -87,7 +119,13 @@ function pizzaTopping(type, rng) {
 export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) {
   const id = 'pz' + (++uidCounter), rng = rngFrom('pizza:' + seed);
   const ids = new Set(ingredients.map(i => i.id));
-  const hasSauce = ids.has('molho-tomate'), hasCheese = ids.has('mussarela');
+  const visualOf = item => {
+    const source = lookup(item.id) || item;
+    return inferIngredientVisual(source.name || item.name || item.id, 'pizza') || source.visual || item.visual || item.id;
+  };
+  const visuals = ingredients.map(visualOf);
+  const hasSauce = ids.has('molho-tomate') || visuals.includes('molho-tomate');
+  const hasCheese = ids.has('mussarela') || visuals.includes('mussarela');
   const cx = 250, cy = 250;
 
   /* base de massa */
@@ -134,7 +172,7 @@ export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) 
   const pieces = [];
   ingredients.forEach(item => {
     const src = lookup(item.id) || item;
-    const visual = src.visual || item.visual || item.id;
+    const visual = inferIngredientVisual(src.name || item.name || item.id, 'pizza') || src.visual || item.visual || item.id;
     if (!PIZZA_PIECES[visual] || ['mussarela', 'molho-tomate'].includes(item.id)) return;
     const units = Math.max(1, Math.min(3, Number(item.quantity) || 1));
     const count = Math.min(14, PIZZA_PIECES[visual] * units);
@@ -188,7 +226,7 @@ function wavyEdge(x0, x1, y, amp, waves, rng, down = true) {
 
 export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   const id = 'bg' + (++uidCounter), rng = rngFrom('burger:' + seed);
-  const get = key => ingredients.find(i => i.id === key);
+  const get = key => ingredients.find(i => i.id === key || inferIngredientVisual(i.name || i.visual || i.id, 'burger') === key);
   const has = key => !!get(key);
   const qty = key => Math.max(1, Math.min(3, Number(get(key)?.quantity) || 1));
   const cls = key => 'food-ingredient' + (get(key)?.pop ? ' ingredient-pop' : '');
