@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js';
 
-const MENUZA_APP_BUILD = '68';
+const MENUZA_APP_BUILD = '69';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -278,8 +278,9 @@ function renderBuilder() {
   const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Ilustração</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + productSvg(product, layered, { double: builder.sizeKey === 'duplo' }) + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '"></canvas><div class="drag-hint" aria-hidden="true"><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
   const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(product.baseCents + size.deltaCents))) + '</small></button>').join('');
   const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
-  let ingredientHtml = '';
-  for (const [group, items] of groupedIngredients(product.type)) {
+  const ingredientGroups = groupedIngredients(product.type);
+  let ingredientHtml = ingredientGroups.length ? '<div class="step-row"><b>03</b> Ingredientes e adicionais</div><p class="ingredient-help">Adicionais pagos são opcionais. Você pode continuar sem escolher nenhum.</p>' : '';
+  for (const [group, items] of ingredientGroups) {
     ingredientHtml += '<div class="step-row"><b>•</b> ' + esc(group) + '</div><div class="ingredient-list">' + items.map(item => {
       const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), price = item.cents ? '+ ' + money(item.cents) : 'incluído';
       return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + '" type="button" aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + (active && !item.included ? '<div class="ingredient-stepper" aria-label="Quantidade de ' + esc(item.name) + '"><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="-1" aria-label="Diminuir ' + esc(item.name) + '">−</button><span>' + entry.quantity + '×</span><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="1" aria-label="Aumentar ' + esc(item.name) + '">+</button></div>' : '') + '</div>';
@@ -1233,8 +1234,9 @@ async function renderIngredientsAdmin(){
     const catalog=await api('/api/admin/catalog');
     target.innerHTML=['pizza','burger'].map(type=>{
       const items=catalog.ingredients.filter(i=>i.type===type);
-      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes de pizza':'Adicionais de hambúrguer')+'</h2><small>'+items.length+' itens · preço por porção</small></div><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':'adicional')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':'adicionais')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':'Ingredientes e adicionais de hambúrguer')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':'Ex.: Cheddar extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':'adicional')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':'adicionais')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
     }).join('');
+    target.querySelectorAll('[data-new-ingredient-type]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();createIngredient(form.dataset.newIngredientType,form)}));
     target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
       const type=input.dataset.ingredientSearch,query=normalizeSearch(input.value);
       let visible=0;
@@ -1327,6 +1329,20 @@ async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
   const cents=Math.round(Number(row.querySelector('.product-price-input').value)*100),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked;
   try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available})});toast('Produto atualizado.')}catch(e){toast(e.message)}
+}
+async function createIngredient(type,form){
+  const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.'));
+  const priceInput=form.querySelector('[name="price"]');
+  if(!name||name.length<2){toast('Informe um nome com pelo menos 2 caracteres.');return}
+  if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
+  priceInput.removeAttribute('aria-invalid');
+  const button=form.querySelector('button[type="submit"]'),original=button.textContent;
+  button.disabled=true;button.textContent='Adicionando…';
+  try{
+    await api('/api/admin/ingredients',{method:'POST',body:JSON.stringify({name,type,groupName,cents:Math.round(price*100)})});
+    toast('Adicional cadastrado. Ele já aparece na personalização do cardápio e não é selecionado automaticamente.');
+    await renderIngredientsAdmin();
+  }catch(e){button.disabled=false;button.textContent=original;toast(e.message||'Não foi possível cadastrar o adicional.')}
 }
 async function saveIngredient(id){
   const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');if(!row)return;
