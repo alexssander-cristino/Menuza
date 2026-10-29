@@ -1314,3 +1314,10 @@ body{overscroll-behavior-y:contain}
 
 /* Upload real da identidade visual do restaurante */
 .logo-upload-control{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px}.logo-upload-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;padding:0 16px;border:1px solid var(--mz-line);border-radius:8px;background:var(--mz-surface);color:var(--mz-ink);font-size:12px;font-weight:700;cursor:pointer;transition:background .18s,border-color .18s}.logo-upload-button:hover{border-color:#7965d8;background:#f7f5ff}.logo-upload-button span{font-size:18px;color:#7965d8}.logo-upload-preview{display:flex;align-items:center;justify-content:center;width:64px;height:64px;overflow:hidden;border:1px dashed var(--mz-line);border-radius:12px;background:#f7f6fa;color:var(--mz-muted);font-size:11px}.logo-upload-preview img{display:block;width:100%;height:100%;object-fit:contain;padding:5px}.logo-remove-option{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--mz-muted);font-size:11px;cursor:pointer}.logo-remove-option input{accent-color:#7965d8}.logo-upload-field .field-hint{display:block;margin-top:8px}@media(max-width:420px){.logo-upload-control{align-items:flex-start}.logo-upload-button{flex:1}}
+
+
+/* Menuza: ações de relatório e QR geral */
+.analytics-period-actions{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.menu-general-qr-panel{margin-top:22px}
+.menu-general-qr-panel>p{max-width:760px;color:var(--mz-muted,#6e687a);line-height:1.65}
+@media(max-width:600px){.analytics-period-actions{width:100%;align-items:stretch}.analytics-period-actions .analytics-period{flex:1}.analytics-period-actions .button{width:100%}}
