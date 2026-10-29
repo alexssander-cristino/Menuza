@@ -1,8 +1,9 @@
 import { FoodScene } from './food-scene.js?v=7';
 import { formatOrderStatusTime } from './order-status-time.js?v=1';
+import QRCode from './qrcode.js?v=1';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
 
-const MENUZA_APP_BUILD = '58';
+const MENUZA_APP_BUILD = '59';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -30,7 +31,7 @@ const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
   rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
-  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login'
+  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
 const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-cart') || '[]'); } catch { return []; } })();
@@ -369,7 +370,9 @@ function checkoutForm(){
   const subtotal=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
   app.checkoutCoupon=null;
   root.getElementById('checkoutRoot').innerHTML='<div class="modal-backdrop" data-action="checkout-backdrop"><form class="checkout-modal" id="checkoutForm" role="dialog" aria-modal="true"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="modal-topline"><span>QUASE NA MESA</span><button type="button" class="icon-button" data-action="close-checkout" aria-label="Fechar">×</button></div><h2>Para onde vai o pedido?</h2><p>Seu pedido será enviado à cozinha quando você confirmar.</p><label class="form-field"><span>Seu nome</span><input required minlength="2" name="customerName" autocomplete="name" placeholder="Como podemos chamar você?"></label><label class="form-field"><span>Telefone</span><input required name="phone" autocomplete="tel" placeholder="(11) 99999-9999"></label><div class="form-field"><span>Como prefere receber?</span><div class="fulfillment-options"><button class="fulfillment-option active" type="button" data-fulfillment="pickup">Retirar</button><button class="fulfillment-option" type="button" data-fulfillment="table">Na mesa</button><button class="fulfillment-option" type="button" data-fulfillment="delivery">Entrega</button></div><input type="hidden" name="fulfillment" value="pickup"></div><label class="form-field hidden" id="tableField"><span>Escolha uma mesa livre</span><select name="tableLabel" aria-describedby="tableAvailabilityHint" disabled><option value="">Carregando mesas…</option></select><small id="tableAvailabilityHint" class="table-availability-hint">Somente mesas livres podem ser selecionadas.</small></label><label class="form-field hidden" id="addressField"><span>Endereço de entrega</span><textarea name="deliveryAddress" placeholder="Rua, número, bairro e complemento"></textarea></label><label class="form-field"><span>Observação para a cozinha (opcional)</span><textarea name="note" maxlength="500" placeholder="Algum detalhe importante?"></textarea></label><div class="coupon-checkout"><label class="form-field"><span>Cupom de desconto</span><div class="coupon-input-row"><input id="checkoutCouponCode" maxlength="32" placeholder="Digite seu cupom" autocomplete="off"><button class="button button-outline button-small" type="button" data-action="apply-coupon">Aplicar</button></div></label><p id="checkoutCouponMessage" class="coupon-message" aria-live="polite"></p></div><div class="payment-note">Pagamento: combinar diretamente com o restaurante. Esta demo não processa nem aprova pagamentos.</div><div class="checkout-safety-note"><strong>Tem alergia ou restrição alimentar?</strong> Confirme ingredientes e risco de contaminação cruzada diretamente com o restaurante antes de concluir o pedido.</div><label class="checkout-legal-consent"><input type="checkbox" name="termsAccepted" required><span>Confirmo que revisei os itens e li os <a href="/termos-de-uso.html" target="_blank" rel="noopener noreferrer">Termos de uso</a> e a <a href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer">Política de privacidade</a>.</span></label><div class="checkout-total"><span>Subtotal</span><span id="checkoutSubtotal">'+money(subtotal)+'</span></div><div class="checkout-total coupon-discount-row" id="checkoutDiscountRow" hidden><span>Desconto</span><span id="checkoutDiscount">−'+money(0)+'</span></div><div class="checkout-total checkout-grand-total"><strong>Total estimado</strong><strong id="checkoutTotal">'+money(subtotal)+'</strong></div><p class="error-text" id="checkoutError" aria-live="polite"></p><button class="button button-dark" type="submit" style="width:100%">Confirmar pedido <span>↗</span></button></form></div>';
-  root.getElementById('checkoutForm').addEventListener('submit',submitCheckout);
+  const checkoutFormNode=root.getElementById('checkoutForm');
+  checkoutFormNode.addEventListener('submit',submitCheckout);
+  if(app.tableQr)renderCheckoutMode(checkoutFormNode,'table');
   const couponInput = root.getElementById('checkoutCouponCode');
   couponInput?.addEventListener('input', () => {
     app.couponValidationVersion = (app.couponValidationVersion || 0) + 1;
@@ -387,7 +390,7 @@ function checkoutForm(){
 }
 async function submitCheckout(event){
   event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),error=root.getElementById('checkoutError');
-  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel'),deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>item.comboId?({comboId:item.comboId,quantity:item.quantity,notes:item.notes}):({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
+  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel')||(app.tableQr?String(app.tableQr.number):''),tableQrToken:app.tableQr?.token||'',deliveryAddress:data.get('deliveryAddress'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>item.comboId?({comboId:item.comboId,quantity:item.quantity,notes:item.notes}):({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
   if(payload.fulfillment==='table'&&!payload.tableLabel){error.textContent='Selecione uma mesa livre antes de confirmar.';form.querySelector('[name=tableLabel]')?.focus();return}
   button.disabled=true;button.textContent='Enviando para a cozinha…';error.textContent='';
   try{const result=await api('/api/orders',{method:'POST',body:JSON.stringify(payload)});app.cart=[];setCart();app.checkoutCoupon=null;rememberOrderToken(result.order.trackingToken);app.checkoutOpen=false;app.cartOpen=false;clearCheckoutKey();root.getElementById('checkoutRoot').innerHTML='';root.getElementById('cartRoot').innerHTML='';location.hash='pedido/'+result.order.trackingToken;toast('Pedido registrado pela cozinha.')}
@@ -746,6 +749,21 @@ async function renderPrivacyRequestsAdmin(){
   target.querySelectorAll('[data-privacy-request-status]').forEach(select=>select.addEventListener('change',async()=>{select.disabled=true;try{await api('/api/admin/privacy-requests/'+encodeURIComponent(select.dataset.privacyRequestStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status da solicitação atualizado.')}catch(error){toast(error.message);select.disabled=false}}));
  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
+function tableQrUrl(number,token){const url=new URL(location.pathname,location.origin);url.searchParams.set('mesa',String(number));url.searchParams.set('t',token);url.hash='menu';return url.href}
+function openTableQr(number,token){
+  if(!/^\\d{1,3}$/.test(String(number))||!/^[A-Za-z0-9_-]{32,64}$/.test(String(token)))return toast('Não foi possível abrir o QR Code desta mesa. Atualize o mapa.');
+  const url=tableQrUrl(number,token),target=root.getElementById('tableQrModalRoot');if(!target)return;
+  target.innerHTML='<div class="table-qr-backdrop" data-action="close-table-qr"><section class="table-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="tableQrTitle"><button class="icon-button table-qr-close" type="button" data-action="close-table-qr" aria-label="Fechar">×</button><div class="eyebrow">CARDÁPIO NA MESA</div><h2 id="tableQrTitle">QR Code · Mesa '+esc(number)+'</h2><p>O cliente escaneia este código para abrir o cardápio já vinculado à mesa '+esc(number)+'.</p><div class="table-qr-code" id="tableQrCode" aria-label="QR Code da mesa '+esc(number)+'"></div><label class="table-qr-url"><span>Link exclusivo desta mesa</span><input id="tableQrUrl" readonly value="'+esc(url)+'"></label><div class="table-qr-actions"><button class="button button-outline" type="button" data-action="copy-table-qr">Copiar link</button><button class="button button-outline" type="button" data-action="download-table-qr" data-table-number="'+esc(number)+'">Baixar PNG</button><button class="button button-dark" type="button" data-action="print-table-qr" data-table-number="'+esc(number)+'">Imprimir</button></div><p class="table-qr-footnote">Imprima em tamanho legível e teste o código com a câmera de um celular antes de fixá-lo na mesa.</p></section></div>';
+  try{new QRCode(root.getElementById('tableQrCode'),{text:url,width:280,height:280,colorDark:'#1b1530',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H})}
+  catch(error){root.getElementById('tableQrCode').innerHTML='<p class="error-text">Não foi possível gerar o QR Code neste navegador. Tente novamente.</p>';toast('Falha ao gerar o QR Code.')}
+}
+function closeTableQr(){const target=root.getElementById('tableQrModalRoot');if(target)target.innerHTML=''}
+function downloadTableQr(number){
+  const canvas=root.querySelector('#tableQrCode canvas');const image=root.querySelector('#tableQrCode img');let dataUrl='';
+  try{if(canvas)dataUrl=canvas.toDataURL('image/png');else if(image?.src?.startsWith('data:image/'))dataUrl=image.src}catch{}
+  if(!dataUrl)return toast('O QR Code ainda não está pronto para baixar.');
+  const link=root.createElement('a');link.href=dataUrl;link.download='menuza-mesa-'+String(number).padStart(2,'0')+'-qrcode.png';root.body.appendChild(link);link.click();link.remove();
+}
 async function renderTablesAdmin(){
   const target=root.getElementById('adminBody');
   if(!target)return;
@@ -777,12 +795,13 @@ async function renderTablesAdmin(){
       '<div class="table-status-label">'+labels[table.status]+'</div><div class="table-status-actions">'+
       '<button type="button" data-table-status="free" data-table-id="'+esc(table.id)+'" '+(table.status==='free'?'aria-pressed="true"':'')+'>Livre</button>'+
       '<button type="button" data-table-status="occupied" data-table-id="'+esc(table.id)+'" '+(table.status==='occupied'?'aria-pressed="true"':'')+'>Ocupada</button>'+
-      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div></article>';
+      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div>'+
+      '<button class="button button-outline button-small table-qr-button" type="button" data-action="show-table-qr" data-table-number="'+esc(table.number)+'" data-table-token="'+esc(table.qrToken)+'">QR Code da mesa</button></article>';
     }).join('');
     target.innerHTML='<section class="table-manager"><div class="table-manager-heading"><div><div class="eyebrow">MAPA DO SALÃO</div><h2>Gerenciamento de mesas</h2><p>Visualize o salão e atualize a situação de cada mesa.</p></div><div class="table-live"><span></span> Dados salvos no sistema</div></div>'+
       '<div class="table-stats"><div class="table-stat table-stat-free"><span>Livres</span><b>'+(counts.free||0)+'</b></div><div class="table-stat table-stat-occupied"><span>Ocupadas</span><b>'+(counts.occupied||0)+'</b></div><div class="table-stat table-stat-cleaning"><span>Precisam de limpeza</span><b>'+(counts.cleaning||0)+'</b></div></div>'+
       '<div class="table-map-shell"><div class="table-map-top"><span>PLANTA DO SALÃO</span><span>'+tables.length+' mesas · selecione o status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-counter"><span>ATENDIMENTO</span><i></i><i></i><i></i></div><div class="table-map-entry"><span>ENTRADA</span><i></i></div><div class="table-map-plant table-map-plant-a"><i></i></div><div class="table-map-plant table-map-plant-b"><i></i></div><div class="table-map-grid">'+cards+'</div></div></div>'+
-      '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section>';
+      '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados. Cada mesa tem um QR Code exclusivo.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section><div id="tableQrModalRoot"></div>';
   }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
 }
 
@@ -1004,6 +1023,11 @@ async function loadAvailableTables(select){
     const result=await api('/api/tables/available');
     if(!select.isConnected)return;
     const tables=Array.isArray(result.tables)?result.tables:[];
+    if(app.tableQr){
+      if(app.tableQr.status==='cleaning'){select.innerHTML='<option value="">Mesa '+String(app.tableQr.number).padStart(2,'0')+' aguardando limpeza</option>';select.disabled=true;if(hint)hint.textContent='Esta mesa está aguardando limpeza. Peça ajuda à equipe ou escolha outra modalidade.';return}
+      select.innerHTML='<option value="'+esc(app.tableQr.number)+'">Mesa '+String(app.tableQr.number).padStart(2,'0')+' · '+(app.tableQr.status==='occupied'?'mesa em uso':'sua mesa')+'</option>';
+      select.value=String(app.tableQr.number);select.disabled=false;if(hint)hint.textContent='Pedido vinculado à mesa '+String(app.tableQr.number).padStart(2,'0')+'. Você pode continuar pedindo enquanto estiver à mesa.';return;
+    }
     if(!tables.length){select.innerHTML='<option value="">Nenhuma mesa livre no momento</option>';select.disabled=true;if(hint)hint.textContent='Todas as mesas estão ocupadas ou aguardando limpeza. Peça ajuda à equipe.';return}
     select.innerHTML='<option value="">Selecione sua mesa</option>'+tables.map(table=>'<option value="'+esc(table.number)+'">Mesa '+String(table.number).padStart(2,'0')+' · '+table.seats+' lugares</option>').join('');
     if(tables.some(table=>String(table.number)===current))select.value=current;
@@ -1085,6 +1109,11 @@ function handleClick(event){
     return;
   }
   const action=target.dataset.action;
+  if(action==='show-table-qr'){openTableQr(target.dataset.tableNumber,target.dataset.tableToken);return}
+  if(action==='close-table-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeTableQr();return}
+  if(action==='copy-table-qr'){const input=root.getElementById('tableQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link exclusivo da mesa copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
+  if(action==='download-table-qr'){downloadTableQr(target.dataset.tableNumber);return}
+  if(action==='print-table-qr'){window.print();return}
   if(action==='refresh-tables'){renderTablesAdmin();return}
    if(action==='refresh-analytics'){renderAnalyticsAdmin();return}
    if(action==='add-combo'){addComboToCart(target.dataset.id);return}
@@ -1304,6 +1333,8 @@ async function start(){
   });
   root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
   syncFilters();updateCartCount();bindSpellCardInteractions();bindGetLayersHeroMotion();bindScrollStorytelling();
+  const query=new URLSearchParams(location.search),qrToken=query.get('t'),qrNumber=query.get('mesa');
+  if(qrToken&&qrNumber){try{const verified=await api('/api/tables/qr/'+encodeURIComponent(qrToken));if(String(verified.table.number)===qrNumber)app.tableQr={token:qrToken,number:verified.table.number,seats:verified.table.seats,status:verified.table.status};else toast('O QR Code não corresponde à mesa informada.')}catch{toast('Não foi possível validar o QR Code desta mesa. Confira se o link está correto.')}}
   window.addEventListener('hashchange',onRoute);
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
