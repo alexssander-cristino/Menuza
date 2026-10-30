@@ -429,9 +429,14 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/login') {
       const body=await bodyOf(req), retry=await limit(req,'admin-login',15,900000);
       if (retry) return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
-      const candidate=typeof body.password==='string'?createHmac('sha256',SECRET||'invalid').update(body.password).digest():Buffer.alloc(32);
-      const expected=createHmac('sha256',SECRET||'invalid').update(ADMIN_PASSWORD).digest();
-      if (!ADMIN_PASSWORD||!SECRET||!timingSafeEqual(candidate,expected)||(ADMIN_TOTP_SECRET&&!verifyTotp(ADMIN_TOTP_SECRET,body.otp))) return json(res,401,{error:'Não foi possível entrar. Confira os dados e tente novamente.'});
+      // Retorna falhas de configuração separadamente para que o painel local
+      // não esconda problemas de ambiente como se fossem senha incorreta.
+      if (!ADMIN_PASSWORD) return json(res,503,{error:'A senha administrativa (ADMIN_PASSWORD) não está configurada neste servidor.'});
+      if (SECRET.length < 32) return json(res,503,{error:'A chave de sessão (APP_SECRET) está ausente ou tem menos de 32 caracteres.'});
+      const candidate=typeof body.password==='string'?createHmac('sha256',SECRET).update(body.password).digest():Buffer.alloc(32);
+      const expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest();
+      if (!timingSafeEqual(candidate,expected)) return json(res,401,{error:'A senha enviada não corresponde à ADMIN_PASSWORD carregada pelo servidor local.'});
+      if (ADMIN_TOTP_SECRET&&!verifyTotp(ADMIN_TOTP_SECRET,body.otp)) return json(res,401,{error:'A verificação em duas etapas está ativada neste ambiente. Informe o código atual de 6 dígitos do autenticador.'});
       const token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:Date.now()+SESSION_MS});
       return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(SESSION_MS/1000))});
     }
