@@ -283,6 +283,7 @@ const CRUSTS = {
 };
 const TOPPINGS = {
   'queijo-generico': { r: .010, cover: [.08, .14, .2], kind: 'cheese-generic' },
+  catupiry: { r: .010, cover: [.1, .17, .24], kind: 'catupiry-drizzle' },
   'queijo-cheddar': { r: .010, cover: [.08, .14, .2], kind: 'cheddar-drizzle' },
   'queijo-parmesao': { r: .008, cover: [.1, .18, .26], kind: 'cheese-parmesan' },
   'queijo-gorgonzola': { r: .0085, cover: [.08, .14, .2], kind: 'cheese-gorgonzola' },
@@ -294,7 +295,7 @@ const TOPPINGS = {
   bacon: { r: .0085, cover: [.07, .12, .17], kind: 'bacon' },
   cebola: { r: .011, cover: [.08, .14, .2], kind: 'onion' },
   azeitona: { r: .0072, cover: [.05, .09, .13], kind: 'olive' },
-  requeijao: { r: .012, cover: [.1, .17, .24], kind: 'catupiry-drizzle' },
+  requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cheese-generic' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .003, cover: [.012, .022, .032], kind: 'herb', loose: true }
 };
@@ -529,11 +530,12 @@ function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
   }
 }
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
-  if (def?.kind === 'cheddar-drizzle' || def?.kind === 'catupiry-drizzle') {
+  const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
+  if (!def) return m.finish();
+  if (def.kind === 'cheddar-drizzle' || def.kind === 'catupiry-drizzle') {
     pizzaDrizzleInto(m, ctx, def.kind, hash(id + ctx.seed + qtyIdx), detail);
     return m.finish();
   }
-  const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
   const count = Math.max(1, Math.round(def.cover[qtyIdx] * A / (Math.PI * def.r * def.r)));
   const pool = poolFor(ctx);
   // posições já ocupadas por toppings de maior prioridade
@@ -767,7 +769,7 @@ function resolveVisualIngredient(type, ingredient) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
-    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
+    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela', catupiry: 'catupiry',
     cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
@@ -791,7 +793,8 @@ function resolveVisualIngredient(type, ingredient) {
   let visualId = '';
   if (type === 'pizza') {
     if (has('molho','sauce')) visualId = 'molho-tomate';
-    else if (has('catupiry','requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
+    else if (has('catupiry')) visualId = 'catupiry';
+    else if (has('requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
     else if (has('cheddar')) visualId = 'queijo-cheddar';
     else if (has('parmesao','parmesan','grana padano','pecorino')) visualId = 'queijo-parmesao';
     else if (has('gorgonzola','queijo azul','blue cheese','roquefort')) visualId = 'queijo-gorgonzola';
