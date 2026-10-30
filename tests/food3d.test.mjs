@@ -122,7 +122,8 @@ test('ingredientes cadastrados no painel recebem visuais específicos para cada 
   assert.equal(custom('Parmesão ralado'), 'parmesan');
   assert.equal(custom('Gorgonzola'), 'gorgonzola');
   assert.equal(custom('Provolone'), 'provolone');
-  assert.equal(custom('Catupiry cremoso'), 'cream');
+  assert.equal(custom('Catupiry cremoso'), 'catupiry');
+  assert.equal(custom('Requeijão tradicional'), 'cheese');
   assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Gorgonzola', type: 'burger', groupName: 'Queijos' }), 'gorgonzola');
   assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Parmesão', type: 'burger', groupName: 'Queijos' }), 'parmesan');
   assert.equal(inferIngredientVisual({ id: 'ing-101', name: 'Molho especial da casa', type: 'pizza', groupName: 'Molhos' }), 'sauce');
@@ -136,6 +137,7 @@ test('pizza: somente cheddar e catupiry usam creme de bisnaga; outros queijos ma
   const cases = [
     ['Queijo artesanal', 'cheese'],
     ['Cheddar inglês', 'cheddar'],
+    ['Catupiry cremoso', 'catupiry'],
     ['Parmesão ralado', 'parmesan'],
     ['Gorgonzola', 'gorgonzola'],
     ['Provolone', 'provolone']
@@ -171,9 +173,21 @@ test('hambúrguer: o tipo do queijo personalizado preserva sua camada original s
 
 test('pizza: cheddar e catupiry usam coberturas contínuas em bisnaga e não alteram os lanches', () => {
   const cheddar = buildFoodLayout(pizza, [{ id: 'custom-cheddar', name: 'Cheddar', type: 'pizza', visual: 'cheddar' }], SIZE_OPTIONS.pizza[1]);
-  const catupiry = buildFoodLayout(pizza, [{ id: 'custom-catupiry', name: 'Catupiry', type: 'pizza', visual: 'cream' }], SIZE_OPTIONS.pizza[1]);
+  const catupiry = buildFoodLayout(pizza, [{ id: 'custom-catupiry', name: 'Catupiry', type: 'pizza', visual: 'catupiry' }], SIZE_OPTIONS.pizza[1]);
   assert.ok(cheddar.parts.some(part => part.kind === 'topping:queijo-cheddar'));
-  assert.ok(catupiry.parts.some(part => part.kind === 'topping:requeijao'));
+  assert.ok(catupiry.parts.some(part => part.kind === 'topping:catupiry'));
+  const requeijao = buildFoodLayout(pizza, [{ id: 'custom-requeijao', name: 'Requeijão', type: 'pizza', visual: 'cheese' }], SIZE_OPTIONS.pizza[1]);
+  assert.ok(requeijao.parts.some(part => part.kind === 'topping:queijo-generico'), 'requeijão genérico deve usar pedaços');
   const burgerLayout = buildFoodLayout(burger, [...ing(['carne']), { id: 'burger-cheddar', name: 'Cheddar', type: 'burger', visual: 'cheddar' }], { key: 'classico' });
   assert.ok(burgerLayout.parts.some(part => part.kind === 'cheese'));
+});
+
+test('pizza: todos os ingredientes de cobertura continuam presentes e geram geometria', () => {
+  const ids = ['calabresa', 'bacon', 'frango', 'cebola', 'tomate', 'milho', 'azeitona', 'champignon', 'requeijao', 'oregano', 'queijo-generico', 'queijo-cheddar', 'catupiry', 'queijo-parmesao', 'queijo-gorgonzola', 'queijo-provolone'];
+  const ingredients = ids.map(id => ({ id, name: id, type: 'pizza', quantity: 1 }));
+  const layout = buildFoodLayout(pizza, ingredients, SIZE_OPTIONS.pizza[1]);
+  for (const id of ids) assert.ok(layout.parts.some(part => part.kind === 'topping:' + id), id + ' deve continuar visível no modelo');
+  const geometry = buildFoodGeometry(pizza, ingredients, SIZE_OPTIONS.pizza[1], { detail: .35 }).geometry;
+  assert.ok(geometry.positions.length > 0);
+  assert.ok(geometry.positions.every(Number.isFinite));
 });
