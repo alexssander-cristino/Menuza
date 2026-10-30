@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
 
-const MENUZA_APP_BUILD = '83';
+const MENUZA_APP_BUILD = '84';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -770,6 +770,7 @@ async function exportFiscalReport(format){
    openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,['Modalidade','Pedidos','Total'],(r.byFulfillment||[]).map(x=>[({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||x.type),x.orders,fiscalMoney(x.totalCents)]),win);return;
   }
   const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor'],['Vendas',month+'-01','Receita bruta registrada','','',(Number(r.sales.grossCents)/100).toFixed(2)],['Vendas',month+'-01','Descontos','','',(Number(r.sales.discountsCents)/100).toFixed(2)],['Vendas',month+'-01','Receita após descontos','','',(Number(r.sales.netCents)/100).toFixed(2)]];
+  for(const x of r.sales.records||[])rows.push(['Pedido',x.date,x.id+' · '+x.customer,({table:'Mesa',pickup:'Retirada',delivery:'Entrega'}[x.fulfillment]||x.fulfillment),x.status+' · desconto '+(Number(x.discountCents)/100).toFixed(2),(Number(x.netCents)/100).toFixed(2)]);
   for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
   for(const x of documents.documents)rows.push(['Documento '+(x.direction==='received'?'recebido':'emitido'),x.date||'',x.fileName,x.issuerName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
   const csv='\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
