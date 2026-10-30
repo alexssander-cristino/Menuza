@@ -274,6 +274,11 @@ const CRUSTS = {
   recheada: { rho: .0138, k: 1, deck: .0066, stuffed: true }
 };
 const TOPPINGS = {
+  'queijo-generico': { r: .010, cover: [.08, .14, .2], kind: 'cheese-generic' },
+  'queijo-cheddar': { r: .010, cover: [.08, .14, .2], kind: 'cheese-cheddar' },
+  'queijo-parmesao': { r: .008, cover: [.1, .18, .26], kind: 'cheese-parmesan' },
+  'queijo-gorgonzola': { r: .0085, cover: [.08, .14, .2], kind: 'cheese-gorgonzola' },
+  'queijo-provolone': { r: .010, cover: [.08, .14, .2], kind: 'cheese-provolone' },
   calabresa: { r: .0165, cover: [.2, .36, .5], kind: 'pep' },
   tomate: { r: .016, cover: [.16, .28, .4], kind: 'tom' },
   champignon: { r: .0165, cover: [.14, .24, .34], kind: 'mush' },
@@ -469,6 +474,31 @@ function herbInto(m, x, y, z, rnd) {
   m.grid(3, 2, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
 }
 
+function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
+  const baseXf = () => rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .28, roll: (rnd() - .5) * .28, t: [x, y, z] });
+  if (style === 'cheese-parmesan') {
+    for (let i = 0; i < 4; i++) {
+      const L = R * (1.1 + rnd() * .5), W = R * (.24 + rnd() * .18), H = .0007 + rnd() * .00045;
+      m.grid(5, 3, (u, v) => [(u - .5) * L, Math.sin(u * Math.PI) * H + Math.sin(v * Math.PI) * H * .3, (v - .5) * W], () => MAT(mix(lin('#e8d6a0'), lin('#fff0c7'), rnd() * .45), .5, .18, .25, .9), { wrapU: false, up: true, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .2, roll: (rnd() - .5) * .2, t: [x + (rnd() - .5) * R, y + i * .00035, z + (rnd() - .5) * R] }) });
+    }
+    return;
+  }
+  if (style === 'cheese-gorgonzola') {
+    for (let i = 0; i < 5; i++) {
+      const tint = rnd();
+      blobInto(m, { rx: R * (.45 + rnd() * .35), ry: .0012 + rnd() * .0009, rz: R * (.38 + rnd() * .3), seed: seed + i, amp: .32, nu: 10, nv: 7, xf: rigid({ yaw: rnd() * TAU, t: [x + (rnd() - .5) * R, y + i * .00015, z + (rnd() - .5) * R] }), shade: (u, v, p) => MAT(mix(lin('#eee4c9'), lin('#71866a'), sstep(.76, .96, nz(p, 90, seed + i)) * (.35 + tint * .4)), .42, .22, .2, .9) });
+    }
+    return;
+  }
+  const isCheddar = style === 'cheese-cheddar';
+  const isProvolone = style === 'cheese-provolone';
+  const count = isCheddar ? 3 : 4;
+  for (let i = 0; i < count; i++) {
+    const rr = R * (.34 + rnd() * .18), h = isCheddar ? .0022 : .0015;
+    const color = isCheddar ? lin('#e9a52d') : style === 'cheese-generic' ? lin('#f0dfb6') : lin('#f4e7c8');
+    m.revolve(superPuck(rr, h, isProvolone ? 2.2 : 3.4, 18), { nu: 28, nv: 10, detail: Math.min(detail, .8), xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x + (rnd() - .5) * R, y + i * .00022, z + (rnd() - .5) * R] }), shade: (u, v, p) => MAT(mix(color, lin('#fff0ce'), nz(p, 55, seed + i) * .18), .32, .35, .2, .95) });
+  }
+}
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
   const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
   const count = Math.max(1, Math.round(def.cover[qtyIdx] * A / (Math.PI * def.r * def.r)));
@@ -494,6 +524,12 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'cream': creamInto(m, s.x, y, s.z, r, sd, rnd, detail); break;
       case 'bacon': baconBitInto(m, s.x, y, s.z, sd, rnd, detail); break;
       case 'herb': herbInto(m, s.x, y, s.z, rnd); break;
+      case 'cheese-generic':
+      case 'cheese-cheddar':
+      case 'cheese-parmesan':
+      case 'cheese-gorgonzola':
+      case 'cheese-provolone':
+        cheesePieceInto(m, def.kind, s.x, y + .0004, s.z, r, sd, rnd, detail); break;
     }
   });
   return m.finish();
@@ -683,7 +719,9 @@ function resolveVisualIngredient(type, ingredient) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
-    cheese: 'mussarela', queijo: 'mussarela', mozzarella: 'mussarela',
+    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
+    cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
+    gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
     mushroom: 'champignon', cream: 'requeijao', herb: 'oregano'
@@ -703,7 +741,13 @@ function resolveVisualIngredient(type, ingredient) {
   let visualId = '';
   if (type === 'pizza') {
     if (has('molho','sauce')) visualId = 'molho-tomate';
-    else if (has('mussarela','mozzarella','mozzarela','queijo','cheddar','parmesao','gorgonzola','provolone','coalho')) visualId = has('extra','adicional','dobro','duplo','recheio') ? 'requeijao' : 'mussarela';
+    else if (has('catupiry','requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
+    else if (has('cheddar')) visualId = 'queijo-cheddar';
+    else if (has('parmesao','parmesan','grana padano','pecorino')) visualId = 'queijo-parmesao';
+    else if (has('gorgonzola','queijo azul','blue cheese','roquefort')) visualId = 'queijo-gorgonzola';
+    else if (has('provolone')) visualId = 'queijo-provolone';
+    else if (has('mussarela','mozzarella','mozzarela','bufala')) visualId = 'mussarela';
+    else if (has('queijo','cheese','coalho')) visualId = 'queijo-generico';
     else if (has('calabresa','pepperoni','salame')) visualId = 'calabresa';
     else if (has('champignon','cogumelo','fungo','shimeji','shitake','portobello')) visualId = 'champignon';
     else if (has('frango','frango desfiado','chicken')) visualId = 'frango';
@@ -741,7 +785,8 @@ function resolveVisualIngredient(type, ingredient) {
   if (!visualId) {
     const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     if (type === 'pizza') {
-      if (/queij|latic|molho|crem/.test(group)) visualId = 'requeijao';
+      if (/queij|latic/.test(group)) visualId = 'queijo-generico';
+      else if (/molho|crem/.test(group)) visualId = 'requeijao';
       else if (/carne|prote|frango/.test(group)) visualId = 'frango';
       else if (/tempero|erva|verde/.test(group)) visualId = 'oregano';
       else if (/veget|legum/.test(group)) visualId = 'cebola';
