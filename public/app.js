@@ -730,14 +730,14 @@ async function renderFiscalAdmin(){
  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message)+'</p><button class="button button-outline button-small" data-action="refresh-fiscal" type="button">Tentar novamente</button></section>'}
 }
 async function submitFiscalProfile(form){
- const d=new FormData(form),data={cnpj:String(d.get('cnpj')||'').replace(/\\D/g,''),legalName:d.get('legalName'),tradeName:d.get('tradeName'),taxRegime:d.get('taxRegime'),legalNature:d.get('legalNature'),stateRegistration:d.get('stateRegistration'),municipalRegistration:d.get('municipalRegistration'),openingDate:d.get('openingDate'),simplesStartDate:d.get('simplesStartDate'),capitalCents:Math.round(Number(d.get('capital'))*100)};
+ const d=new FormData(form),data={cnpj:String(d.get('cnpj')||'').replace(/\D/g,''),legalName:d.get('legalName'),tradeName:d.get('tradeName'),taxRegime:d.get('taxRegime'),legalNature:d.get('legalNature'),stateRegistration:d.get('stateRegistration'),municipalRegistration:d.get('municipalRegistration'),openingDate:d.get('openingDate'),simplesStartDate:d.get('simplesStartDate'),capitalCents:Math.round(Number(d.get('capital'))*100)};
  const button=form.querySelector('[type=submit]'),status=root.getElementById('fiscalProfileStatus');button.disabled=true;status.textContent='Salvando…';
  try{await api('/api/admin/fiscal/profile',{method:'PATCH',body:JSON.stringify(data)});status.textContent='Dados fiscais salvos.';toast('Cadastro fiscal atualizado.')}
  catch(e){status.textContent=e.message}
  finally{button.disabled=false}
 }
 async function submitFiscalExpense(form){
- const d=new FormData(form),data={date:d.get('date'),description:d.get('description'),category:d.get('category'),amountCents:Math.round(Number(d.get('amount'))*100),supplierName:d.get('supplierName'),supplierCnpj:String(d.get('supplierCnpj')||'').replace(/\\D/g,''),documentNumber:d.get('documentNumber'),paymentMethod:d.get('paymentMethod'),notes:d.get('notes')};
+ const d=new FormData(form),data={date:d.get('date'),description:d.get('description'),category:d.get('category'),amountCents:Math.round(Number(d.get('amount'))*100),supplierName:d.get('supplierName'),supplierCnpj:String(d.get('supplierCnpj')||'').replace(/\D/g,''),documentNumber:d.get('documentNumber'),paymentMethod:d.get('paymentMethod'),notes:d.get('notes')};
  const button=form.querySelector('[type=submit]');button.disabled=true;
  try{await api('/api/admin/fiscal/expenses',{method:'POST',body:JSON.stringify(data)});toast('Despesa registrada.');await renderFiscalAdmin()}
  catch(e){toast(e.message);button.disabled=false}
@@ -750,7 +750,7 @@ async function submitFiscalDocument(form){
  const button=form.querySelector('[type=submit]');button.disabled=true;
  try{
   const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file)});
-  const data={direction:d.get('direction'),documentType:file.name.toLowerCase().endsWith('.xml')?'xml':file.name.toLowerCase().endsWith('.pdf')?'pdf':'other',fileName:file.name,mimeType:mime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
+  const data={direction:d.get('direction'),documentType:file.name.toLowerCase().endsWith('.xml')?'xml':file.name.toLowerCase().endsWith('.pdf')?'pdf':'other',fileName:file.name,mimeType:mime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
   await api('/api/admin/fiscal/documents',{method:'POST',body:JSON.stringify(data)});toast('Documento armazenado.');await renderFiscalAdmin();
  }catch(e){toast(e.message);button.disabled=false}
 }
@@ -766,7 +766,7 @@ async function exportFiscalReport(format){
   if(format==='pdf'){
    const win=window.open('','_blank');if(!win)return toast('Permita pop-ups para gerar o PDF.');
    const rows=[['Vendas registradas',fiscalMoney(r.sales.grossCents)],['Descontos',fiscalMoney(r.sales.discountsCents)],['Receita após descontos',fiscalMoney(r.sales.netCents)],['Pedidos válidos',r.sales.orders],['Pedidos cancelados',r.sales.cancelled],['Despesas lançadas',fiscalMoney(r.expenses.totalCents)],['Documentos recebidos',r.documents.received],['Documentos emitidos',r.documents.issued]];
-   openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,[],[],win);return;
+   openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,['Modalidade','Pedidos','Total'],(r.byFulfillment||[]).map(x=>[({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||x.type),x.orders,fiscalMoney(x.totalCents)]),win);return;
   }
   const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor'],['Vendas',month+'-01','Receita bruta registrada','','',(Number(r.sales.grossCents)/100).toFixed(2)],['Vendas',month+'-01','Descontos','','',(Number(r.sales.discountsCents)/100).toFixed(2)],['Vendas',month+'-01','Receita após descontos','','',(Number(r.sales.netCents)/100).toFixed(2)]];
   for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
