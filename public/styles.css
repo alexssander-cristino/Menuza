@@ -1602,3 +1602,8 @@ body{overscroll-behavior-y:contain}
   .beverage-admin-fields{grid-template-columns:1fr}
   .beverage-admin-fields .wide,.beverage-status-row{grid-column:1}
 }
+
+
+/* Foto real no personalizador: proporção preservada e tamanho equilibrado */
+.food-art-view .food-art-photo{display:block;width:min(88%,390px);height:min(88%,390px);max-width:88%;max-height:88%;object-fit:contain;object-position:center;transform:none;border-radius:16px;filter:drop-shadow(0 18px 18px rgba(27,21,48,.18))}
+@media(max-width:700px){.food-art-view .food-art-photo{width:min(88%,230px);height:min(88%,230px);max-width:88%;max-height:88%}}
