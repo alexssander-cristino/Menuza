@@ -298,7 +298,7 @@ const TOPPINGS = {
   requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cheese-generic' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .0038, cover: [.018, .03, .045], kind: 'herb', loose: true },
-  manjericao: { r: .018, cover: [.035, .055, .075], kind: 'basil' }
+  manjericao: { r: .018, cover: [.10, .18, .26], kind: 'basil' }
 };
 const TOPPING_ORDER = Object.keys(TOPPINGS);
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI);
@@ -487,17 +487,17 @@ function basilInto(m, x, y, z, seed, rnd) {
   // Folhas de manjericão em escala real: largas, ovais e pontudas, com nervura central.
   // Cada ponto de cobertura é um pequeno ramo com folhas sobrepostas, não um pontinho verde.
   for (let leaf = 0; leaf < 3; leaf++) {
-    const length = .030 + rnd() * .008, width = .014 + rnd() * .006;
-    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .0032;
+    const length = .052 + rnd() * .016, width = .024 + rnd() * .008;
+    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .006;
     const pitch = (rnd() - .5) * .18, roll = (rnd() - .5) * .16;
     const leafX = x + Math.cos(yaw) * offset;
     const leafZ = z + Math.sin(yaw) * offset;
-    const leafY = y + .001 + leaf * .00018;
+    const leafY = y + .0015 + leaf * .00028;
     const surface = (u, v) => {
       const taper = Math.sin(Math.PI * u) ** .72;
       const across = (v - .5) * width * taper;
-      const arch = Math.sin(Math.PI * u) * (.0018 + .0007 * (1 - Math.abs(v - .5) * 2));
-      const edgeWave = Math.sin(u * Math.PI * 5 + seed * .13) * .00018 * Math.abs(v - .5) * 2;
+      const arch = Math.sin(Math.PI * u) * (.0032 + .0012 * (1 - Math.abs(v - .5) * 2));
+      const edgeWave = Math.sin(u * Math.PI * 5 + seed * .13) * .00032 * Math.abs(v - .5) * 2;
       return [(u - .5) * length, arch + edgeWave, across];
     };
     const leafColor = mix(C.basil, C.basilLight, clamp(.2 + tint * .3, 0, 1));
@@ -511,19 +511,19 @@ function basilInto(m, x, y, z, seed, rnd) {
     // Nervura central fina, ligeiramente elevada para continuar visível no ângulo superior.
     m.grid(18, 2, (u, v) => {
       const p = surface(u, v);
-      return [p[0], p[1] + .00022, (v - .5) * .00065 * Math.sin(Math.PI * u)];
+      return [p[0], p[1] + .00038, (v - .5) * .0011 * Math.sin(Math.PI * u)];
     }, () => MAT(mix(C.basilLight, lin('#b2cb79'), .28), .48, .3, .12, 1), {
       wrapU: false, up: true, xf
     });
   }
   // Pequeno pecíolo verde ligando visualmente as folhas do mesmo ramo.
   m.grid(8, 3, (u, v) => [
-    (u - .5) * .010,
+    (u - .5) * .016,
     .00045 + Math.sin(u * Math.PI) * .0003,
     (v - .5) * .0012
   ], () => MAT(C.basil, .5, .3, .1, 1), {
     wrapU: false, up: true,
-    xf: rigid({ yaw: rnd() * TAU, t: [x, y + .00065, z] })
+    xf: rigid({ yaw: rnd() * TAU, t: [x, y + .001, z] })
   });
 }
 

@@ -7,7 +7,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 // Initialize Vercel Speed Insights
 injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '85';
+const MENUZA_APP_BUILD = '86';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
