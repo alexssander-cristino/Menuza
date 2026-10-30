@@ -79,7 +79,7 @@ A suíte Node usa `node:test` e inicia uma instância temporária com outro SQLi
 
 A geometria procedural é uma visualização 3D própria para composição e escala; não é uma digitalização fotográfica de cada receita. O catálogo e as dimensões seed são dados de demonstração.
 
-Não há integração de pagamentos, cálculo de frete, impressão de cozinha, autenticação individual por funcionário, criação de categorias, upload de imagens/modelos ou infraestrutura multi-restaurante pronta para produção. O schema relaciona os registros ao restaurante, mas esta instalação é uma demonstração de um restaurante e usa uma senha compartilhada no painel. Configure políticas, backups, HTTPS, monitoramento, regras de entrega e credenciais reais antes de expor o serviço publicamente.
+Não há integração de pagamentos, cálculo de frete, autenticação individual por funcionário, criação de categorias, upload de modelos ou infraestrutura multi-restaurante pronta para produção. A impressão automática de comandas requer o agente local descrito em `print-agent/README.md`, instalado no computador do restaurante. O schema relaciona os registros ao restaurante, mas esta instalação é uma demonstração de um restaurante e usa uma senha compartilhada no painel. Configure políticas, backups, HTTPS, monitoramento, regras de entrega e credenciais reais antes de expor o serviço publicamente.
 
 Os preços de tamanhos são incrementos relativos ao preço-base cadastrado; adicionais são calculados pelo backend. A entrega não cobra taxa porque não há área ou tabela de frete configurada.
 ## Deploy
@@ -190,3 +190,8 @@ A saída acima está em Base64, não Base32; converta-a para Base32 usando um ge
 - Uma mesa em limpeza não aceita novos pedidos pelo QR até que a equipe a libere. Pedidos sem o token individual continuam usando a lista de mesas livres.
 - O QR contém o endereço público atual do Menuza. Gere/baixe novamente os códigos se o domínio público mudar. Teste cada impressão com um celular antes de colocar em uso.
 - O gerador QRCode.js é distribuído sob licença MIT; o aviso está em `public/QR-CODE-LICENSE.txt`.
+
+
+## Impressão automática de comandas
+
+O painel envia novos pedidos recebidos para o agente local em `print-agent/`. Instale e configure o agente no computador ligado à impressora; instruções para impressoras USB/instaladas no Windows e impressoras de rede ESC/POS estão em `print-agent/README.md`. A impressão só acontece para novos pedidos detectados enquanto o painel estiver aberto e autenticado. Pedidos existentes não são reimpressos ao abrir o painel. O agente registra IDs impressos localmente para evitar duplicidade.

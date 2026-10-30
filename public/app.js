@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
 
-const MENUZA_APP_BUILD = '78';
+const MENUZA_APP_BUILD = '79';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -672,12 +672,31 @@ function playOrderAlert(){
     });
   }catch{}
 }
+async function sendOrderToLocalPrinter(order){
+  if(!order||order.status!=='received')return;
+  try{
+    const response=await fetch('http://127.0.0.1:17891/print',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order}),
+      signal:AbortSignal.timeout(4500),mode:'cors'
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'Agente de impressão indisponível.');
+    toast('Comanda '+String(order.id)+' enviada para impressão.');
+  }catch(error){
+    if(!app.admin.printAgentWarningShown){
+      app.admin.printAgentWarningShown=true;
+      toast('Pedido recebido. Para imprimir automaticamente, instale e inicie o Agente de Impressão Menuza neste computador.');
+    }
+  }
+}
 function trackNewOrders(orders){
-  const ids=new Set((orders||[]).map(order=>String(order.id)));
+  const list=orders||[];
+  const ids=new Set(list.map(order=>String(order.id)));
   if(app.admin.lastOrderIds===null){app.admin.lastOrderIds=ids;return}
-  const hasNewReceived=(orders||[]).some(order=>!app.admin.lastOrderIds.has(String(order.id))&&order.status==='received');
+  const newOrders=list.filter(order=>!app.admin.lastOrderIds.has(String(order.id))&&order.status==='received');
   app.admin.lastOrderIds=ids;
-  if(hasNewReceived&&app.admin.soundEnabled)playOrderAlert();
+  if(newOrders.length&&app.admin.soundEnabled)playOrderAlert();
+  for(const order of newOrders)sendOrderToLocalPrinter(order);
 }
 function toggleOrderSound(){
   app.admin.soundEnabled=!app.admin.soundEnabled;
