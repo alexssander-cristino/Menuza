@@ -548,10 +548,10 @@ function basilInto(m, x, y, z, seed, rnd) {
     m.grid(26, 13, surface, (u, v) => {
       const edge = Math.abs(v - .5) * 2;
       const highlight = .10 + .13 * Math.sin(u * Math.PI) + .07 * (1 - edge);
-      // nervuras laterais
-      const lateral = sstep(.88, 1, Math.abs(Math.sin((u * 9 - edge * 3) * Math.PI))) * .12 * (1 - edge * .4);
-      return MAT(mix(mix(leafColor, C.basilLight, highlight), lin('#a9c778'), lateral), .42, .42, .18, 1);
+      return MAT(mix(leafColor, C.basilLight, highlight), .42, .42, .18, 1);
     }, { wrapU: false, up: true, xf });
+
+    // Nervura central mais legível, sem virar uma faixa grossa.
     m.grid(22, 2, (u, v) => {
       const p = surface(u, v);
       return [p[0], p[1] + .00048, (v - .5) * .00135 * Math.sin(Math.PI * u)];
@@ -559,6 +559,7 @@ function basilInto(m, x, y, z, seed, rnd) {
       wrapU: false, up: true, xf
     });
   }
+  // Pecíolo elevado junto à base do pequeno ramo.
   m.grid(10, 3, (u, v) => [
     (u - .5) * .018,
     .00055 + Math.sin(u * Math.PI) * .00045,
