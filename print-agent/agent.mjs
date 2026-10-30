@@ -33,12 +33,12 @@ const saveState = async () => {
   await fs.writeFile(STATE_FILE, JSON.stringify({ ids }, null, 2), 'utf8');
   printed = new Set(ids);
 };
-const clean = value => String(value ?? '').replace(/[\\r\\n\\t]+/g, ' ').replace(/\\s{2,}/g, ' ').trim();
-const ascii = value => clean(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^\\x20-\\x7E]/g, '?');
+const clean = value => String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+const ascii = value => clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '?');
 const profile = () => EPSON_PROFILES[EPSON_MODEL] || EPSON_PROFILES.auto;
 
 function wrap(value, width) {
-  const words = ascii(value).split(/\\s+/).filter(Boolean);
+  const words = ascii(value).split(/\s+/).filter(Boolean);
   const result = [];
   let line = '';
   for (const word of words) {
