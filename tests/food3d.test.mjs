@@ -143,5 +143,8 @@ test('pizza: cada tipo de queijo personalizado gera uma peça 3D distinta sem vi
     const layout = buildFoodLayout(pizza, [item], SIZE_OPTIONS.pizza[1]);
     assert.ok(layout.parts.some(part => part.kind.startsWith('topping:queijo-')), name + ' deve ter uma peça própria');
     assert.equal(layout.parts.some(part => part.kind === 'cheese'), false, name + ' não deve usar a camada de mussarela');
+    const geometry = buildFoodGeometry(pizza, [item], SIZE_OPTIONS.pizza[1], { detail: .45 }).geometry;
+    assert.ok(geometry.positions.length > 0, name + ' deve produzir geometria');
+    assert.ok(geometry.positions.every(Number.isFinite), name + ' não pode produzir coordenadas inválidas');
   }
 });
