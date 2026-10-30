@@ -109,37 +109,37 @@ function pattyMesh(R, H, seed, detail) {
 }
 
 function cheeseMesh(Rp, Hp, seed, detail, yaw = 0, style = 'cheddar') {
-  const m = new Mesh();
-  const palettes = {
-    cheddar: lin('#e9a12b'),
-    mozzarella: lin('#f4e8c8'),
-    parmesan: lin('#e7d39b'),
-    gorgonzola: lin('#eee5cf'),
-    provolone: lin('#f0e2b9'),
-    generic: lin('#f3e8d1')
+  const m = new Mesh(), t = .0026, S = Rp * 1.0;
+  const fold = (x, z) => {
+    const d = Math.hypot(x, z), a = Math.atan2(z, x), over = Math.max(0, d - Rp * .86);
+    const drop = Math.min(Hp * 1.05, (over / (Rp * .28)) ** 1.7 * Hp * .42);
+    const ripple = sstep(.9, 1.2, d / Rp) * .0017 * Math.sin(a * 9 + seed) * (.6 + noise3(x * 70, z * 70, seed));
+    return (1 - sstep(0, .9, d / Rp)) * .0006 - drop + ripple;
   };
-  const color = palettes[style] || palettes.generic;
-  const strands = style === 'parmesan' ? 4 : 3;
-  for (let i = 0; i < strands; i++) {
-    const phase = (seed % 17) * .31 + i * 1.7;
-    const offset = (i - (strands - 1) / 2) * Rp * .34;
-    const width = Rp * .17;
-    const thickness = Math.max(.0008, Hp * .13);
-    m.grid(48, 8, (u, v) => {
-      const x = (u - .5) * Rp * 1.72;
-      const z = Math.sin(u * TAU * 1.65 + phase) * width + offset + (v - .5) * thickness * 2;
-      const cross = (v - .5) * 2;
-      const y = Hp * .48 + thickness * Math.sqrt(Math.max(0, 1 - cross * cross));
-      return [x, y, z];
-    }, (u, v, p) => {
-      let c = mix(color, lin('#fff7e5'), .15 + .1 * Math.sin(u * Math.PI));
-      if (style === 'gorgonzola') c = mix(c, lin('#a5ad8b'), sstep(.72, .94, nz(p, 115, seed)) * .38);
-      return MAT(c, .2, .34, .12, 1);
-    }, { wrapU: false, up: true, xf: rigid({ yaw }) });
-  }
+  const Ptop = (u, v) => {
+    let x = (u - .5) * 2 * S, z = (v - .5) * 2 * S;
+    const d = Math.hypot(x, z) || 1e-9, k = 1 / (1 + (d / (1.2 * Rp)) ** 6) ** (1 / 6);
+    x *= k; z *= k;
+    x += (noise3(z * 90, 0, seed) - .5) * .0016; z += (noise3(x * 90, 5, seed) - .5) * .0016;
+    return [x, fold(x, z), z];
+  };
+  const sh = (u, v, p, n, part) => {
+    const d = Math.hypot(p[0], p[2]) / Rp, low = sstep(-.0015, -.009, p[1]), tv = 1 + (nz(p, 60, seed + 1) - .5) * .12;
+    const palettes = {
+      cheddar: [C.cheddar, C.cheddarLight, C.cheddarDeep],
+      mozzarella: [lin('#f4e8c8'), lin('#fff8e8'), lin('#ddcfad')],
+      parmesan: [lin('#d9c58f'), lin('#f4e4b7'), lin('#bba16b')],
+      gorgonzola: [lin('#e8dfc9'), lin('#f5eddc'), lin('#aeb69a')],
+      provolone: [lin('#ead9a8'), lin('#fff0c9'), lin('#c9b77f')],
+      generic: [lin('#eadfc7'), lin('#f7efdF'), lin('#cdbf9f')]
+    };
+    const [base, light, deep] = palettes[style] || palettes.cheddar;
+    const color = mix(mix(base, light, sstep(.2, .6, nz(p, 25, seed + 4)) * .5), deep, low * .5 + (part === 2 ? .25 : 0));
+    return MAT(mul(color, tv), .36, .55, .1, part === 1 ? .6 : lerp(1, .88, sstep(.8, 1.1, d)));
+  };
+  m.slab(44, 44, Ptop, t, sh, { xf: rigid({ yaw }), ref: () => [0, 0, 0] });
   return m.finish();
 }
-
 function lettuceMesh(R, kH, seed, detail, leaves) {
   const m = new Mesh(), rnd = randomFor(seed);
   for (let i = 0; i < leaves; i++) {
@@ -283,7 +283,7 @@ const CRUSTS = {
 };
 const TOPPINGS = {
   'queijo-generico': { r: .010, cover: [.08, .14, .2], kind: 'cheese-generic' },
-  'queijo-cheddar': { r: .010, cover: [.08, .14, .2], kind: 'cheese-cheddar' },
+  'queijo-cheddar': { r: .010, cover: [.08, .14, .2], kind: 'cheddar-drizzle' },
   'queijo-parmesao': { r: .008, cover: [.1, .18, .26], kind: 'cheese-parmesan' },
   'queijo-gorgonzola': { r: .0085, cover: [.08, .14, .2], kind: 'cheese-gorgonzola' },
   'queijo-provolone': { r: .010, cover: [.08, .14, .2], kind: 'cheese-provolone' },
@@ -294,7 +294,7 @@ const TOPPINGS = {
   bacon: { r: .0085, cover: [.07, .12, .17], kind: 'bacon' },
   cebola: { r: .011, cover: [.08, .14, .2], kind: 'onion' },
   azeitona: { r: .0072, cover: [.05, .09, .13], kind: 'olive' },
-  requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cream' },
+  requeijao: { r: .012, cover: [.1, .17, .24], kind: 'catupiry-drizzle' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .003, cover: [.012, .022, .032], kind: 'herb', loose: true }
 };
@@ -483,39 +483,56 @@ function herbInto(m, x, y, z, rnd) {
 }
 
 function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
-  const palettes = {
-    'cheese-cheddar': lin('#e9a12b'),
-    'cheese-parmesan': lin('#f0dfa9'),
-    'cheese-gorgonzola': lin('#eee5cf'),
-    'cheese-provolone': lin('#f2e5bd'),
-    'cheese-generic': lin('#f3e8d1')
-  };
-  const color = palettes[style] || lin('#f2e5bd');
-  // Filetes contínuos com seção arredondada: aparência de creme aplicado por bisnaga.
-  const strands = style === 'cheese-parmesan' ? 3 : 2;
-  for (let strand = 0; strand < strands; strand++) {
-    const phase = rnd() * TAU;
-    const length = R * (1.75 + rnd() * .3);
-    const width = R * (style === 'cheese-gorgonzola' ? .24 : .29);
-    const height = Math.max(.00065, R * .105);
-    const offset = (strand - (strands - 1) / 2) * R * .38;
-    m.grid(36, 8, (u, v) => {
-      const along = (u - .5) * length;
-      const wave = Math.sin(u * TAU * 2.2 + phase) * width;
-      const across = (v - .5) * height * 2;
-      const taper = .72 + .28 * Math.sin(Math.PI * u);
-      return [along, height * Math.sqrt(Math.max(0, 1 - ((v - .5) * 2) ** 2)) * taper, wave + offset + across];
-    }, (u, v, p) => {
-      let c = mix(color, lin('#fff7e5'), .16 + .12 * Math.sin(u * Math.PI));
-      if (style === 'cheese-gorgonzola') {
-        const marbling = sstep(.68, .92, nz(p, 115, seed + strand));
-        c = mix(c, lin('#a5ad8b'), marbling * .48);
-      }
-      return MAT(c, .2, .32, .12, 1);
-    }, { wrapU: false, up: true, xf: rigid({ yaw: rnd() * TAU, t: [x, y + .00035 + strand * .00012, z] }) });
+  if (style === 'cheese-parmesan') {
+    for (let i = 0; i < 4; i++) {
+      const L = R * (1.1 + rnd() * .5), W = R * (.24 + rnd() * .18), H = .0007 + rnd() * .00045;
+      m.grid(5, 3, (u, v) => [(u - .5) * L, Math.sin(u * Math.PI) * H + Math.sin(v * Math.PI) * H * .3, (v - .5) * W], () => MAT(mix(lin('#e8d6a0'), lin('#fff0c7'), rnd() * .45), .5, .18, .25, .9), { wrapU: false, up: true, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .2, roll: (rnd() - .5) * .2, t: [x + (rnd() - .5) * R, y + i * .00035, z + (rnd() - .5) * R] }) });
+    }
+    return;
+  }
+  if (style === 'cheese-gorgonzola') {
+    for (let i = 0; i < 5; i++) {
+      const tint = rnd();
+      blobInto(m, { rx: R * (.45 + rnd() * .35), ry: .0012 + rnd() * .0009, rz: R * (.38 + rnd() * .3), seed: seed + i, amp: .32, nu: 10, nv: 7, xf: rigid({ yaw: rnd() * TAU, t: [x + (rnd() - .5) * R, y + i * .00015, z + (rnd() - .5) * R] }), shade: (u, v, p) => MAT(mix(lin('#eee4c9'), lin('#71866a'), sstep(.76, .96, nz(p, 90, seed + i)) * (.35 + tint * .4)), .42, .22, .2, .9) });
+    }
+    return;
+  }
+  const isCheddar = style === 'cheese-cheddar';
+  const isProvolone = style === 'cheese-provolone';
+  const count = isCheddar ? 3 : 4;
+  for (let i = 0; i < count; i++) {
+    const rr = R * (.34 + rnd() * .18), h = isCheddar ? .0022 : .0015;
+    const color = isCheddar ? lin('#e9a52d') : style === 'cheese-generic' ? lin('#f0dfb6') : lin('#f4e7c8');
+    m.revolve(superPuck(rr, h, isProvolone ? 2.2 : 3.4, 18), { nu: 28, nv: 10, detail: Math.min(detail, .8), xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x + (rnd() - .5) * R, y + i * .00022, z + (rnd() - .5) * R] }), shade: (u, v, p) => MAT(mix(color, lin('#fff0ce'), nz(p, 55, seed + i) * .18), .32, .35, .2, .95) });
+  }
+}
+function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
+  const cheddar = kind === 'cheddar-drizzle';
+  const base = cheddar ? lin('#e9a12b') : lin('#f5ead2');
+  const light = cheddar ? lin('#ffc04a') : lin('#fff8e9');
+  const lanes = cheddar ? 10 : 9;
+  const radius = ctx.Rt * .965;
+  const width = ctx.Rt * (cheddar ? .052 : .058);
+  const thickness = cheddar ? .0019 : .0021;
+  const phase = (seed % 101) * .071;
+  for (let lane = 0; lane < lanes; lane++) {
+    const offset = (lane / (lanes - 1) - .5) * radius * 1.48;
+    m.grid(Math.round(100 * detail), 10, (u, v) => {
+      const x = (u - .5) * radius * 2;
+      const edge = Math.sqrt(Math.max(0, radius * radius - x * x));
+      const wave = Math.sin(u * TAU * 2.15 + phase + lane * .38) * width * .8;
+      const across = (v - .5) * width * .72;
+      const z = clamp(offset + wave + across, -edge * .96, edge * .96);
+      const crown = Math.sqrt(Math.max(0, 1 - ((v - .5) * 2) ** 2));
+      return [x, ctx.surf(x, z) + thickness * crown + .00018, z];
+    }, (u, v) => MAT(mix(base, light, .2 + .12 * Math.sin(u * Math.PI * 3 + lane)), .18, cheddar ? .32 : .48, .08, 1), { wrapU: false, up: true });
   }
 }
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
+  if (def?.kind === 'cheddar-drizzle' || def?.kind === 'catupiry-drizzle') {
+    pizzaDrizzleInto(m, ctx, def.kind, hash(id + ctx.seed + qtyIdx), detail);
+    return m.finish();
+  }
   const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
   const count = Math.max(1, Math.round(def.cover[qtyIdx] * A / (Math.PI * def.r * def.r)));
   const pool = poolFor(ctx);
