@@ -1565,6 +1565,7 @@ function connectAdminEvents(){
   app.admin.eventSource.onopen=()=>{
     setAdminConnectionState('connected');
     if(app.admin.tab==='orders')refreshAdmin();
+    else if(app.admin.tab==='fiscal')renderFiscalAdmin();
   };
   app.admin.eventSource.onerror=()=>{
     setAdminConnectionState(navigator.onLine?'reconnecting':'offline');
@@ -1584,7 +1585,13 @@ function connectAdminEvents(){
     else renderSettingsAdmin();
   });
   clearInterval(app.admin.refreshTimer);
-  app.admin.refreshTimer=setInterval(refreshAdmin,20000);
+  app.admin.refreshTimer=setInterval(()=>{
+    if(!app.admin.authenticated)return;
+    if(app.admin.tab==='fiscal'){
+      const body=root.getElementById('adminBody');
+      if(!body?.contains(document.activeElement))renderFiscalAdmin();
+    }else refreshAdmin();
+  },15000);
   if(!app.admin.networkListenersBound){
     window.addEventListener('online',handleAdminOnline);
     window.addEventListener('offline',()=>setAdminConnectionState('offline'));
