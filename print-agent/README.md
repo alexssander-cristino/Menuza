@@ -2,41 +2,43 @@
 
 O agente roda no computador do restaurante. Quando o painel Menuza detecta um pedido novo com status **Recebido**, envia a comanda para `127.0.0.1:17891`. O agente imprime sem abrir a janela do navegador e mantém um histórico local de IDs já impressos para impedir duplicidade após reconexões/recarregamentos.
 
-## Requisitos
+## Compatibilidade Epson
 
-- Windows 10/11 ou sistema com Node.js 22+.
-- Computador ligado, com o painel Menuza aberto e autenticado.
-- Impressora térmica instalada no sistema ou impressora de rede ESC/POS com porta TCP 9100 habilitada.
-- O navegador deve permitir acesso a localhost; o agente valida a origem do painel.
+O agente oferece dois caminhos:
 
-## Windows / USB
+- **USB / impressora instalada no Windows:** `PRINTER_TYPE=epson-usb`. Instale o driver oficial da Epson, selecione a impressora padrão ou informe o nome exato em `PRINTER_NAME`. O Windows encaminha o texto ao driver; a formatação e o corte dependem das opções do driver.
+- **Ethernet / Wi-Fi:** `PRINTER_TYPE=epson-network`. Envia comandos ESC/POS diretamente para a porta TCP configurada (normalmente 9100), incluindo inicialização, alinhamento, negrito, destaque de texto e corte.
 
-1. Instale a impressora e o driver no Windows. Faça uma página de teste pelas configurações do sistema.
-2. Abra PowerShell nesta pasta.
-3. Copie `.env.example` para `.env` e configure `PRINTER_TYPE=windows`. Se houver mais de uma impressora, informe o nome exato em `PRINTER_NAME`.
-4. Execute `npm start`.
-5. Deixe o agente e o painel Menuza abertos. Faça um pedido de teste.
+Perfis de largura disponíveis em `EPSON_MODEL`:
+- `auto`: 42 colunas, opção inicial recomendada enquanto o modelo é desconhecido.
+- `tm-t20`: 42 colunas (TM-T20, TM-T20II e TM-T20III).
+- `tm-t88`: 48 colunas.
+- `tm-m30`: 42 colunas.
+- `tm-u220`: 32 colunas (matricial).
 
-O agente encaminha texto ao spooler do Windows usando a impressora padrão ou o nome informado. A formatação final depende do driver instalado.
+A seleção de perfil ajusta a largura do texto. Não é uma detecção automática do modelo físico: confirme o modelo na etiqueta da impressora e ajuste o perfil. A compatibilidade ESC/POS, o corte e a porta de rede variam conforme a interface e configuração do equipamento.
 
-## Impressora Wi-Fi / Ethernet ESC/POS
+## Instalação no Windows
 
-1. Configure um IP fixo/reservado para a impressora.
-2. Copie `.env.example` para `.env`, defina `PRINTER_TYPE=network`, `PRINTER_HOST=IP_DA_IMPRESSORA` e, se necessário, `PRINTER_PORT=9100`.
-3. Execute `npm start` e faça um pedido de teste.
+1. Instale o Node.js 22 ou superior.
+2. Instale a impressora Epson e seu driver no Windows. Faça uma página de teste nas configurações do sistema.
+3. Abra PowerShell nesta pasta e copie `.env.example` para `.env`.
+4. Para USB, configure `PRINTER_TYPE=epson-usb`, `EPSON_MODEL=auto` e, se necessário, `PRINTER_NAME` com o nome exibido pelo Windows.
+5. Para rede, configure `PRINTER_TYPE=epson-network`, `PRINTER_HOST` com o IP da impressora e `PRINTER_PORT=9100`.
+6. Execute `npm start`.
+7. Deixe o agente e o painel Menuza abertos no computador conectado à impressora.
 
-Este modo envia comandos ESC/POS básicos diretamente à porta TCP. A impressora precisa aceitar ESC/POS e impressão RAW nessa porta.
+## Operação e limitações
 
-## Segurança e operação
-
-- O servidor escuta somente em loopback (127.0.0.1), não fica exposto na rede.
+- O servidor escuta somente em loopback (`127.0.0.1`).
 - Requisições do navegador são limitadas às origens Menuza configuradas.
 - O agente aceita apenas pedidos recebidos, valida os dados básicos e guarda os últimos 2.000 IDs impressos em `%USERPROFILE%/.menuza-print-agent/printed-orders.json`.
 - Pedidos antigos já existentes quando o painel abre não são impressos; somente novos pedidos detectados depois da inicialização do painel.
-- Se o agente ou impressora estiver offline no momento da chegada, o pedido continua no Menuza, mas esta primeira versão não faz reenvio automático após a falha. Use o botão de impressão manual até reativar o agente.
+- Se o agente ou a impressora estiver offline na chegada do pedido, esta versão não faz reenvio automático. Use a impressão manual até reativar o agente.
 - O painel consulta os pedidos periodicamente; o tempo até impressão depende da atualização do painel e da conexão.
 - A impressão automática só funciona enquanto o painel estiver aberto e autenticado no computador conectado à impressora.
+- A impressão física deve ser testada no modelo real antes de colocar em operação.
 
 ## Diagnóstico
 
-Abra `http://127.0.0.1:17891/health` no mesmo computador. Deve retornar JSON com `ok: true`. Se não imprimir, confira o nome da impressora, driver, fila do Windows ou IP/porta da impressora.
+Abra `http://127.0.0.1:17891/health` no mesmo computador. A resposta informa o tipo e perfil configurados. Se não imprimir, confira o driver, o nome da fila do Windows ou o IP/porta da impressora.
