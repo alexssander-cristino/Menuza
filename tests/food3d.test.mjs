@@ -114,11 +114,57 @@ test('pizza: ingredientes personalizados usam o campo visual e preenchem a base 
 });
 
 
-test('ingredientes cadastrados no painel recebem visuais coerentes no cardápio público', () => {
+test('ingredientes cadastrados no painel recebem visuais específicos para cada queijo', () => {
+  const custom = (name, groupName = 'Queijos') => inferIngredientVisual({ id: 'ing-custom', name, type: 'pizza', groupName });
+  assert.equal(custom('Queijo artesanal'), 'cheese');
+  assert.equal(custom('Mussarela'), 'mozzarella');
+  assert.equal(custom('Cheddar inglês'), 'cheddar');
+  assert.equal(custom('Parmesão ralado'), 'parmesan');
+  assert.equal(custom('Gorgonzola'), 'gorgonzola');
+  assert.equal(custom('Provolone'), 'provolone');
+  assert.equal(custom('Catupiry cremoso'), 'cream');
+  assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Gorgonzola', type: 'burger', groupName: 'Queijos' }), 'gorgonzola');
+  assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Parmesão', type: 'burger', groupName: 'Queijos' }), 'parmesan');
   assert.equal(inferIngredientVisual({ id: 'ing-101', name: 'Molho especial da casa', type: 'pizza', groupName: 'Molhos' }), 'sauce');
-  assert.equal(inferIngredientVisual({ id: 'ing-102', name: 'Queijo artesanal', type: 'pizza', groupName: 'Queijos' }), 'cheese');
   assert.equal(inferIngredientVisual({ id: 'ing-103', name: 'Calabresa premium', type: 'pizza', groupName: 'Carnes' }), 'pepperoni');
   assert.equal(inferIngredientVisual({ id: 'ing-104', name: 'Orégano fresco', type: 'pizza', groupName: 'Temperos' }), 'herb');
   assert.equal(inferIngredientVisual({ id: 'ing-201', name: 'Blend bovino', type: 'burger', groupName: 'Carnes' }), 'patty');
   assert.equal(inferIngredientVisual({ id: 'ing-202', name: 'Alface americana', type: 'burger', groupName: 'Vegetais' }), 'lettuce');
+});
+
+test('pizza: cada tipo de queijo personalizado gera uma peça 3D distinta sem virar mussarela', () => {
+  const cases = [
+    ['Queijo artesanal', 'cheese'],
+    ['Cheddar inglês', 'cheddar'],
+    ['Parmesão ralado', 'parmesan'],
+    ['Gorgonzola', 'gorgonzola'],
+    ['Provolone', 'provolone']
+  ];
+  for (const [name, visual] of cases) {
+    const item = { id: 'custom-' + visual, name, type: 'pizza', visual, quantity: 1 };
+    const layout = buildFoodLayout(pizza, [item], SIZE_OPTIONS.pizza[1]);
+    assert.ok(layout.parts.some(part => part.kind.startsWith('topping:queijo-')), name + ' deve ter uma peça própria');
+    assert.equal(layout.parts.some(part => part.kind === 'cheese'), false, name + ' não deve usar a camada de mussarela');
+    const geometry = buildFoodGeometry(pizza, [item], SIZE_OPTIONS.pizza[1], { detail: .45 }).geometry;
+    assert.ok(geometry.positions.length > 0, name + ' deve produzir geometria');
+    assert.ok(geometry.positions.every(Number.isFinite), name + ' não pode produzir coordenadas inválidas');
+  }
+});
+
+
+test('hambúrguer: o tipo do queijo personalizado altera a camada 3D', () => {
+  for (const [name, visual, expected] of [
+    ['Mussarela', 'mozzarella', 'mozzarella'],
+    ['Cheddar', 'cheddar', 'cheddar'],
+    ['Parmesão', 'parmesan', 'parmesan'],
+    ['Gorgonzola', 'gorgonzola', 'gorgonzola'],
+    ['Provolone', 'provolone', 'provolone'],
+    ['Queijo artesanal', 'cheese', 'generic']
+  ]) {
+    const item = { id: 'burger-' + visual, name, type: 'burger', visual, quantity: 1 };
+    const layout = buildFoodLayout(burger, [...ing(['carne']), item], { key: 'classico' });
+    const cheese = layout.parts.find(part => part.kind === 'cheese');
+    assert.ok(cheese, name + ' deve gerar uma camada de queijo');
+    assert.ok(cheese.key.includes(expected), name + ' deve preservar o tipo do queijo');
+  }
 });
