@@ -132,7 +132,7 @@ test('ingredientes cadastrados no painel recebem visuais específicos para cada 
   assert.equal(inferIngredientVisual({ id: 'ing-202', name: 'Alface americana', type: 'burger', groupName: 'Vegetais' }), 'lettuce');
 });
 
-test('pizza: cada tipo de queijo personalizado gera uma peça 3D distinta sem virar mussarela', () => {
+test('pizza: cada tipo de queijo personalizado gera creme aplicado por bisnaga sem virar mussarela', () => {
   const cases = [
     ['Queijo artesanal', 'cheese'],
     ['Cheddar inglês', 'cheddar'],
@@ -143,7 +143,7 @@ test('pizza: cada tipo de queijo personalizado gera uma peça 3D distinta sem vi
   for (const [name, visual] of cases) {
     const item = { id: 'custom-' + visual, name, type: 'pizza', visual, quantity: 1 };
     const layout = buildFoodLayout(pizza, [item], SIZE_OPTIONS.pizza[1]);
-    assert.ok(layout.parts.some(part => part.kind.startsWith('topping:queijo-')), name + ' deve ter uma peça própria');
+    assert.ok(layout.parts.some(part => part.kind.startsWith('topping:queijo-')), name + ' deve gerar o creme próprio');
     assert.equal(layout.parts.some(part => part.kind === 'cheese'), false, name + ' não deve usar a camada de mussarela');
     const geometry = buildFoodGeometry(pizza, [item], SIZE_OPTIONS.pizza[1], { detail: .45 }).geometry;
     assert.ok(geometry.positions.length > 0, name + ' deve produzir geometria');
@@ -152,7 +152,7 @@ test('pizza: cada tipo de queijo personalizado gera uma peça 3D distinta sem vi
 });
 
 
-test('hambúrguer: o tipo do queijo personalizado altera a camada 3D', () => {
+test('hambúrguer: o tipo do queijo personalizado altera o creme aplicado sobre a carne', () => {
   for (const [name, visual, expected] of [
     ['Mussarela', 'mozzarella', 'mozzarella'],
     ['Cheddar', 'cheddar', 'cheddar'],
