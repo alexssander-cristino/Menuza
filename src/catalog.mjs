@@ -16,7 +16,8 @@ export function inferIngredientVisual(ingredient) {
   const has = (...words) => words.some(word => text.includes(word));
   if (type === 'pizza' || type === 'burger') {
     if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
-    if (has('catupiry')) return 'catupiry';
+    if (type === 'pizza' && has('catupiry')) return 'catupiry';
+    if (type === 'burger' && has('catupiry')) return 'cheese';
     if (has('cheddar')) return 'cheddar';
     if (has('requeijao', 'cream cheese', 'creme de queijo')) return 'cheese';
     if (has('parmesao', 'parmesan', 'grana padano', 'pecorino')) return 'parmesan';
