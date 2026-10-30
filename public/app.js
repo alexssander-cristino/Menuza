@@ -733,7 +733,7 @@ async function exportSalesReport(){
     toast('Relatório de vendas pronto para salvar em PDF.');
   }catch(error){reportWindow.close();toast(error.message||'Não foi possível gerar o relatório.')}
 }
-function printOrderTicket(orderId){function printOrderTicket(orderId){
+function printOrderTicket(orderId){
   const order=(app.admin.orders||[]).find(item=>String(item.id)===String(orderId));
   if(!order)return toast('Pedido não encontrado. Atualize a lista e tente novamente.');
   const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};
@@ -790,7 +790,7 @@ function exportVisibleOrders(){
   ],['Pedido','Data','Cliente','Telefone','Tipo','Mesa','Endereço','Status','Itens','Observações','Total'],reportRows);
   toast('Relatório de pedidos pronto para salvar em PDF.');
 }
-function updateOrderElapsedTimes(){function updateOrderElapsedTimes(){
+function updateOrderElapsedTimes(){
   const now=Date.now();
   for(const node of root.querySelectorAll('[data-order-elapsed]')){
     const createdAt=Number(node.dataset.createdAt),limit=Math.max(1,Number(node.dataset.prepMinutes)||30);
@@ -995,7 +995,7 @@ function exportCouponsCsv(){
   openPdfReport('Relatório de cupons','Lista conforme a busca e os filtros exibidos',[['Cupons listados',rows.length]],['Código','Tipo','Desconto','Pedido mínimo','Início','Validade','Limite de usos','Utilizações','Status'],rows);
   toast('Relatório de cupons pronto para salvar em PDF.');
 }
-function dateTimeLocalValue(value){function dateTimeLocalValue(value){
+function dateTimeLocalValue(value){
   if(!value)return '';
   const date=new Date(value);
   if(!Number.isFinite(date.getTime()))return '';
