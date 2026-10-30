@@ -1,18 +1,55 @@
 import { Pool } from '@neondatabase/serverless';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Vercel Dev executa as funções localmente, mas nem toda configuração do
-// ambiente é propagada para os módulos. Carrega o .env.local da raiz antes
-// de ler DATABASE_URL, ADMIN_PASSWORD e APP_SECRET. Nunca faz isso em
-// produção ou em deployments Preview.
-const isLocalVercel = process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'development';
-if (isLocalVercel && typeof process.loadEnvFile === 'function') {
-  try {
-    process.loadEnvFile(resolve(process.cwd(), '.env.local'));
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
+// Vercel Dev nem sempre propaga as variáveis do .env.local para as funções.
+// Tenta primeiro a raiz do projeto e usa o caminho do módulo como fallback.
+// O carregamento acontece antes que a API capture DATABASE_URL, ADMIN_PASSWORD
+// e APP_SECRET, e nunca ocorre em Production ou Preview.
+const isLocalRuntime = process.env.NODE_ENV !== 'production'
+  && process.env.VERCEL_ENV !== 'production'
+  && process.env.VERCEL_ENV !== 'preview';
+
+function loadLocalEnvFile() {
+  const candidates = [
+    resolve(process.cwd(), '.env.local'),
+    fileURLToPath(new URL('../../.env.local', import.meta.url))
+  ];
+
+  for (const localEnvPath of new Set(candidates)) {
+    let contents;
+    try {
+      contents = readFileSync(localEnvPath, 'utf8').replace(/^\uFEFF/, '');
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      throw error;
+    }
+
+    for (const line of contents.split(/\r?\n/)) {
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (!match) continue;
+
+      const [, key] = match;
+      let value = match[2];
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1).replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+      } else {
+        value = value.replace(/\s+#.*$/, '').trim();
+      }
+
+      // Variáveis já definidas no terminal/Vercel têm prioridade. Valores
+      // vazios são tratados como ausentes para não bloquear o .env.local.
+      if (process.env[key] === undefined || process.env[key] === '') {
+        process.env[key] = value;
+      }
+    }
+
+    return;
   }
 }
+
+if (isLocalRuntime) loadLocalEnvFile();
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

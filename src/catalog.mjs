@@ -3,7 +3,8 @@ export const STATUS_FLOW = Object.freeze(['received', 'confirmed', 'preparing', 
 export const SIZE_OPTIONS = Object.freeze({
   pizza: [{ key: 'individual', label: 'Individual', deltaCents: -1300, diameterCm: 20 }, { key: 'media', label: 'Média', deltaCents: 0, diameterCm: 30 }, { key: 'grande', label: 'Grande', deltaCents: 1000, diameterCm: 35 }, { key: 'familia', label: 'Família', deltaCents: 3000, diameterCm: 40 }],
   burger: [{ key: 'classico', label: 'Clássico', deltaCents: 0 }, { key: 'duplo', label: 'Duplo', deltaCents: 900 }],
-  plate: [{ key: 'unico', label: 'Porção', deltaCents: 0 }]
+  plate: [{ key: 'unico', label: 'Porção', deltaCents: 0 }],
+  drink: [{ key: 'unico', label: 'Unidade', deltaCents: 0 }]
 });
 export const CRUST_OPTIONS = Object.freeze([{ key: 'tradicional', label: 'Tradicional', priceCents: 0 }, { key: 'fina', label: 'Massa fina', priceCents: 0 }, { key: 'recheada', label: 'Borda de requeijão', priceCents: 850 }]);
 // Determina a peça 3D de ingredientes cadastrados livremente no painel.
