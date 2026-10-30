@@ -108,7 +108,7 @@ function pattyMesh(R, H, seed, detail) {
   return m.finish();
 }
 
-function cheeseMesh(Rp, Hp, seed, detail, yaw = 0) {
+function cheeseMesh(Rp, Hp, seed, detail, yaw = 0, style = 'cheddar') {
   const m = new Mesh(), t = .0026, S = Rp * 1.0;
   const fold = (x, z) => {
     const d = Math.hypot(x, z), a = Math.atan2(z, x), over = Math.max(0, d - Rp * .86);
@@ -125,7 +125,16 @@ function cheeseMesh(Rp, Hp, seed, detail, yaw = 0) {
   };
   const sh = (u, v, p, n, part) => {
     const d = Math.hypot(p[0], p[2]) / Rp, low = sstep(-.0015, -.009, p[1]), tv = 1 + (nz(p, 60, seed + 1) - .5) * .12;
-    const c = mix(mix(C.cheddar, C.cheddarLight, sstep(.2, .6, nz(p, 25, seed + 4)) * .5), C.cheddarDeep, low * .5 + (part === 2 ? .25 : 0));
+    const palettes = {
+      cheddar: [C.cheddar, C.cheddarLight, C.cheddarDeep],
+      mozzarella: [lin('#f4e8c8'), lin('#fff8e8'), lin('#ddcfad')],
+      parmesan: [lin('#d9c58f'), lin('#f4e4b7'), lin('#bba16b')],
+      gorgonzola: [lin('#e8dfc9'), lin('#f5eddc'), lin('#aeb69a')],
+      provolone: [lin('#ead9a8'), lin('#fff0c9'), lin('#c9b77f')],
+      generic: [lin('#eadfc7'), lin('#f7efdF'), lin('#cdbf9f')]
+    };
+    const [base, light, deep] = palettes[style] || palettes.cheddar;
+    const c = mix(mix(base, light, sstep(.2, .6, nz(p, 25, seed + 4)) * .5), deep, low * .5 + (part === 2 ? .25 : 0));
     return MAT(mul(c, tv), .36, .55, .1, part === 1 ? .6 : lerp(1, .88, sstep(.8, 1.1, d)));
   };
   m.slab(44, 44, Ptop, t, sh, { xf: rigid({ yaw }), ref: () => [0, 0, 0] });
@@ -640,13 +649,26 @@ function burgerLayout(product, ings, size, o, kH) {
   if (has('picles')) { const n = qty('picles'); add('pickles', n, () => pickleMesh(R, kH, seed + 5, detail, n), .0034 * n * kH); }
   if (has('cebola-burger')) { const n = qty('cebola-burger'); add('onion', n, () => onionMesh(R, kH, seed + 6, detail, n), .0046 * n * kH); }
   const patties = has('carne') ? Math.min(3, Math.max(size?.key === 'duplo' ? 2 : 1, qty('carne'))) : 0;
-  let slices = clamp((has('queijo-cheddar') ? 1 : 0) + qty('queijo-extra'), 0, 4);
+  const cheeseStyleById = {
+    'queijo-cheddar': 'cheddar', 'queijo-extra': 'generic',
+    'queijo-mussarela-burger': 'mozzarella', 'queijo-parmesao-burger': 'parmesan',
+    'queijo-gorgonzola-burger': 'gorgonzola', 'queijo-provolone-burger': 'provolone'
+  };
+  const cheeseStyles = [];
+  for (const [id, count] of q) {
+    const style = cheeseStyleById[id];
+    if (style) for (let i = 0; i < count; i++) cheeseStyles.push(style);
+  }
+  const slices = Math.min(4, cheeseStyles.length);
   const Hp = .017 * (patties === 2 ? .88 : 1) * kH, Rpat = R * .92;
   for (let p = 0; p < patties; p++) {
     add('patty', p, () => pattyMesh(Rpat, Hp, seed + 7 + p * 3, detail), Hp - .0006);
     const last = p === patties - 1, n = last ? slices : (slices >= 2 ? 1 : 0);
-    if (!last && n) slices -= 1;
-    for (let s = 0; s < n; s++) add('cheese', `${p}.${s}`, () => cheeseMesh(Rpat, Hp, seed + 11 + p * 5 + s * 3, detail, s * Math.PI / 4 + p * .4), .0028 * kH + (s ? .0004 : 0), .0006);
+    for (let s = 0; s < n; s++) {
+      const styleIndex = last ? s : p;
+      const style = cheeseStyles[styleIndex] || 'cheddar';
+      add('cheese', `${p}.${s}.${style}`, () => cheeseMesh(Rpat, Hp, seed + 11 + p * 5 + s * 3, detail, s * Math.PI / 4 + p * .4, style), .0028 * kH + (s ? .0004 : 0), .0006);
+    }
   }
   if (has('bacon-burger')) { const n = qty('bacon-burger'); add('bacon', n, () => baconMesh(R, kH, seed + 20, detail, n), (.0042 + .0028 * (n - 1)) * kH); }
   if (has('ovo')) add('egg', '', () => eggMesh(R, kH, seed + 21, detail), .0085 * kH);
@@ -727,7 +749,9 @@ function resolveVisualIngredient(type, ingredient) {
     mushroom: 'champignon', cream: 'requeijao', herb: 'oregano'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
-    cheddar: 'queijo-extra', cheese: 'queijo-extra', lettuce: 'alface',
+    cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
+    parmesan: 'queijo-parmesao-burger', gorgonzola: 'queijo-gorgonzola-burger',
+    provolone: 'queijo-provolone-burger', lettuce: 'alface',
     tomato: 'tomate-burger', sauce: 'molho-especial', onion: 'cebola-burger',
     bacon: 'bacon-burger', egg: 'ovo', pickle: 'picles'
   } : {};
@@ -736,7 +760,7 @@ function resolveVisualIngredient(type, ingredient) {
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
   const has = (...terms) => terms.some(term => text.includes(term));
   const knownPizza = new Set(['molho-tomate','mussarela',...Object.keys(TOPPINGS)]);
-  const knownBurger = new Set(['pao-brioche','carne','queijo-cheddar','alface','tomate-burger','molho-especial','picles','cebola-burger','queijo-extra','bacon-burger','ovo']);
+  const knownBurger = new Set(['pao-brioche','carne','queijo-cheddar','queijo-extra','queijo-mussarela-burger','queijo-parmesao-burger','queijo-gorgonzola-burger','queijo-provolone-burger','alface','tomate-burger','molho-especial','picles','cebola-burger','bacon-burger','ovo']);
   if ((type === 'pizza' && knownPizza.has(id)) || (type === 'burger' && knownBurger.has(id))) return { ...ingredient };
   let visualId = '';
   if (type === 'pizza') {
@@ -762,7 +786,12 @@ function resolveVisualIngredient(type, ingredient) {
   } else if (type === 'burger') {
     if (has('pao','brioche','bun')) visualId = 'pao-brioche';
     else if (has('carne','hamburguer','burger','patty','bovina')) visualId = 'carne';
-    else if (has('cheddar','queijo','mussarela','mozzarella','prato','provolone','gorgonzola')) visualId = 'queijo-extra';
+    else if (has('cheddar')) visualId = 'queijo-cheddar';
+    else if (has('mussarela','mozzarella','mozzarela','bufala')) visualId = 'queijo-mussarela-burger';
+    else if (has('parmesao','parmesan')) visualId = 'queijo-parmesao-burger';
+    else if (has('gorgonzola','queijo azul','roquefort')) visualId = 'queijo-gorgonzola-burger';
+    else if (has('provolone')) visualId = 'queijo-provolone-burger';
+    else if (has('queijo','cheese','prato')) visualId = 'queijo-extra';
     else if (has('alface','lettuce','rucula')) visualId = 'alface';
     else if (has('tomate','tomato')) visualId = 'tomate-burger';
     else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','aioli')) visualId = 'molho-especial';
