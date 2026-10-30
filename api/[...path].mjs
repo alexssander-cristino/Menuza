@@ -1,6 +1,6 @@
 import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
 import { query, withTransaction } from '../src/db/postgres.mjs';
-import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
+import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
 import { verifyTotp } from '../src/auth-totp.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
@@ -130,7 +130,7 @@ async function catalogFor(admin = false) {
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1
     };
   });
-  const ingredientsOut = ingredients.rows.map(i => ({ ...i, included: Number(i.included) === 1 || i.included === true, visual: INGREDIENTS.find(x => x.id === i.id)?.visual || 'herb' }));
+  const ingredientsOut = ingredients.rows.map(i => ({ ...i, included: Number(i.included) === 1 || i.included === true, visual: inferIngredientVisual(i) }));
   const combos = comboRows.rows.map(row => {
     let entries = [];
     try { entries = JSON.parse(row.itemsJson); } catch {}
