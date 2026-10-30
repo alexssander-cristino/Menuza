@@ -548,7 +548,7 @@ export default async function handler(req,res) {
     }
     if(method==='PATCH'&&path==='/api/admin/fiscal/profile'){
       const b=await bodyOf(req),current=(await query('SELECT * FROM fiscal_profiles WHERE restaurant_id=$1',[RESTAURANT_ID])).rows[0];
-      const cnpj=clean(b.cnpj??current.cnpj,14).replace(/\\D/g,'');
+      const cnpj=clean(b.cnpj??current.cnpj,14).replace(/\D/g,'');
       const legalName=clean(b.legalName??current.legal_name,160),tradeName=clean(b.tradeName??current.trade_name,160);
       const stateRegistration=clean(b.stateRegistration??current.state_registration,40),municipalRegistration=clean(b.municipalRegistration??current.municipal_registration,40);
       const legalNature=clean(b.legalNature??current.legal_nature,120),taxRegime=clean(b.taxRegime??current.tax_regime,40);
@@ -573,7 +573,7 @@ export default async function handler(req,res) {
     }
     if(method==='POST'&&path==='/api/admin/fiscal/expenses'){
       const b=await bodyOf(req),date=clean(b.date,10),description=clean(b.description,180),category=clean(b.category,40)||'outros';
-      const amountCents=Number(b.amountCents),supplierName=clean(b.supplierName,160),supplierCnpj=clean(b.supplierCnpj,14).replace(/\\D/g,'');
+      const amountCents=Number(b.amountCents),supplierName=clean(b.supplierName,160),supplierCnpj=clean(b.supplierCnpj,14).replace(/\D/g,'');
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||description.length<2||!Number.isInteger(amountCents)||amountCents<1||amountCents>999999999)throw fail('Informe data, descrição e valor válido para a despesa.',422);
       if(supplierCnpj&&!/^\d{14}$/.test(supplierCnpj))throw fail('O CNPJ do fornecedor deve conter 14 números.',422);
       const id='fex_'+randomBytes(12).toString('hex');
@@ -598,7 +598,7 @@ export default async function handler(req,res) {
     if(method==='POST'&&path==='/api/admin/fiscal/documents'){
       const b=await bodyOf(req,2200000),direction=clean(b.direction,10),documentType=clean(b.documentType,20);
       const fileName=clean(b.fileName,180),mimeType=clean(b.mimeType,100),contentBase64=String(b.contentBase64||'');
-      const date=clean(b.date,10),amountCents=Number(b.amountCents||0),issuerCnpj=clean(b.issuerCnpj,14).replace(/\\D/g,'');
+      const date=clean(b.date,10),amountCents=Number(b.amountCents||0),issuerCnpj=clean(b.issuerCnpj,14).replace(/\D/g,'');
       if(!['received','issued'].includes(direction)||!['xml','pdf','other'].includes(documentType)||!fileName||!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mimeType)||!contentBase64||contentBase64.length>1800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64))throw fail('Arquivo inválido. Envie XML ou PDF de até 1,3 MB.',422);
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw fail('Data do documento inválida.',422);
       if(!Number.isInteger(amountCents)||amountCents<0||amountCents>999999999)throw fail('Valor do documento inválido.',422);
