@@ -319,7 +319,60 @@ async function saveCombo(body,id=null) {
   return (await catalogFor(true)).combos.find(c=>c.id===result.rows[0].id);
 }
 
-export default async function handler(req,res) {
+
+async function ensureFiscalSchema(){
+  await query(`CREATE TABLE IF NOT EXISTS fiscal_profiles (
+    restaurant_id TEXT PRIMARY KEY, cnpj TEXT NOT NULL DEFAULT '', legal_name TEXT NOT NULL DEFAULT '',
+    trade_name TEXT NOT NULL DEFAULT '', state_registration TEXT NOT NULL DEFAULT '',
+    municipal_registration TEXT NOT NULL DEFAULT '', tax_regime TEXT NOT NULL DEFAULT 'simples_nacional',
+    company_size TEXT NOT NULL DEFAULT 'ME', legal_nature TEXT NOT NULL DEFAULT '',
+    opening_date DATE, simples_start_date DATE, capital_cents BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query(`CREATE TABLE IF NOT EXISTS fiscal_expenses (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, expense_date DATE NOT NULL,
+    description TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'outros',
+    supplier_name TEXT NOT NULL DEFAULT '', supplier_cnpj TEXT NOT NULL DEFAULT '',
+    document_number TEXT NOT NULL DEFAULT '', amount_cents BIGINT NOT NULL CHECK(amount_cents>0),
+    payment_method TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query(`CREATE TABLE IF NOT EXISTS fiscal_documents (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('received','issued')),
+    document_type TEXT NOT NULL, document_number TEXT NOT NULL DEFAULT '', issuer_name TEXT NOT NULL DEFAULT '',
+    issuer_cnpj TEXT NOT NULL DEFAULT '', document_date DATE, amount_cents BIGINT NOT NULL DEFAULT 0,
+    file_name TEXT NOT NULL, mime_type TEXT NOT NULL, content_base64 TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query(`INSERT INTO fiscal_profiles
+    (restaurant_id,cnpj,legal_name,trade_name,tax_regime,company_size,legal_nature,opening_date,simples_start_date,capital_cents)
+    VALUES ($1,$2,$3,$4,'simples_nacional','ME',$5,$6,$6,3000000)
+    ON CONFLICT (restaurant_id) DO NOTHING`,
+    [RESTAURANT_ID,'60908509000169','Galileu Pizzas e Lanches LTDA','Galileu Pizzas e Lanches','Sociedade Empresária Limitada','2025-05-20']);
+}
+function fiscalMonth(value){
+  const month=String(value||'').trim();
+  if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('Informe uma competência válida (AAAA-MM).',422);
+  return {month,start:month+'-01',end:new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),1).toISOString().slice(0,10)};
+}
+async function fiscalReport(monthValue){
+  const {month,start,end}=fiscalMonth(monthValue);
+  const [sales,byFulfillment,expenses,documents]=await Promise.all([
+    query(`SELECT COUNT(*) FILTER (WHERE status<>'cancelled')::int AS orders,
+      COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled,
+      COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::bigint AS gross_cents,
+      COALESCE(SUM(discount_cents) FILTER (WHERE status<>'cancelled'),0)::bigint AS discounts_cents
+      FROM orders WHERE restaurant_id=$1 AND created_at >= $2::date AND created_at < $3::date`,[RESTAURANT_ID,start,end]),
+    query(`SELECT fulfillment,COUNT(*)::int AS orders,COALESCE(SUM(total_cents),0)::bigint AS total_cents
+      FROM orders WHERE restaurant_id=$1 AND status<>'cancelled' AND created_at >= $2::date AND created_at < $3::date
+      GROUP BY fulfillment ORDER BY fulfillment`,[RESTAURANT_ID,start,end]),
+    query('SELECT COALESCE(SUM(amount_cents),0)::bigint AS total_cents,COUNT(*)::int AS count FROM fiscal_expenses WHERE restaurant_id=$1 AND expense_date >= $2::date AND expense_date < $3::date',[RESTAURANT_ID,start,end]),
+    query('SELECT direction,COUNT(*)::int AS count FROM fiscal_documents WHERE restaurant_id=$1 AND document_date >= $2::date AND document_date < $3::date GROUP BY direction',[RESTAURANT_ID,start,end])
+  ]);
+  const s=sales.rows[0], gross=Number(s.gross_cents||0), discounts=Number(s.discounts_cents||0);
+  return {month,period:{start,end},sales:{orders:Number(s.orders),cancelled:Number(s.cancelled),grossCents:gross,discountsCents:discounts,netCents:gross-discounts},byFulfillment:byFulfillment.rows.map(r=>({type:r.fulfillment,orders:Number(r.orders),totalCents:Number(r.total_cents)})),expenses:{count:Number(expenses.rows[0].count),totalCents:Number(expenses.rows[0].total_cents)},documents:{received:Number(documents.rows.find(r=>r.direction==='received')?.count||0),issued:Number(documents.rows.find(r=>r.direction==='issued')?.count||0)},notice:'Resumo gerencial baseado nos pedidos registrados no Menuza. Não substitui escrituração contábil, apuração tributária ou documento fiscal autorizado.'};
+}
+\nexport default async function handler(req,res) {
   const path='/api/'+(Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')).replace(/^\/+|\/+$/g,'');
   const method=req.method||'GET';
   const allowed=new Set(['GET','POST','PATCH','PUT','DELETE','OPTIONS']);
@@ -475,6 +528,83 @@ export default async function handler(req,res) {
       if(logo.startsWith('data:')&&logo.length>1400000) throw fail('A logo ficou grande demais.',413);
       await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3 WHERE id=$4',[name,prep,logo,RESTAURANT_ID]);
       return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
+    }
+
+    if(path.startsWith('/api/admin/fiscal/')) await ensureFiscalSchema();
+    if(method==='GET'&&path==='/api/admin/fiscal/profile'){
+      const profile=(await query(`SELECT cnpj,"legal_name" AS "legalName","trade_name" AS "tradeName",
+        state_registration AS "stateRegistration",municipal_registration AS "municipalRegistration",
+        tax_regime AS "taxRegime",company_size AS "companySize",legal_nature AS "legalNature",
+        opening_date::text AS "openingDate",simples_start_date::text AS "simplesStartDate",
+        capital_cents::bigint AS "capitalCents" FROM fiscal_profiles WHERE restaurant_id=$1`,[RESTAURANT_ID])).rows[0];
+      return json(res,200,{profile});
+    }
+    if(method==='PATCH'&&path==='/api/admin/fiscal/profile'){
+      const b=await bodyOf(req),current=(await query('SELECT * FROM fiscal_profiles WHERE restaurant_id=$1',[RESTAURANT_ID])).rows[0];
+      const cnpj=clean(b.cnpj??current.cnpj,14).replace(/\\D/g,'');
+      const legalName=clean(b.legalName??current.legal_name,160),tradeName=clean(b.tradeName??current.trade_name,160);
+      const stateRegistration=clean(b.stateRegistration??current.state_registration,40),municipalRegistration=clean(b.municipalRegistration??current.municipal_registration,40);
+      const legalNature=clean(b.legalNature??current.legal_nature,120),taxRegime=clean(b.taxRegime??current.tax_regime,40);
+      const openingDate=clean(b.openingDate??current.opening_date,10),simplesStartDate=clean(b.simplesStartDate??current.simples_start_date,10);
+      const capitalCents=Number(b.capitalCents??current.capital_cents);
+      if(!/^\\d{14}$/.test(cnpj)||legalName.length<2||tradeName.length<2||!['simples_nacional','lucro_presumido','lucro_real','mei','outro'].includes(taxRegime)||!Number.isInteger(capitalCents)||capitalCents<0||capitalCents>999999999999)throw fail('Confira CNPJ, razão social, regime tributário e capital social.',422);
+      for(const date of [openingDate,simplesStartDate])if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw fail('Informe as datas no formato válido.',422);
+      await query(`UPDATE fiscal_profiles SET cnpj=$1,legal_name=$2,trade_name=$3,state_registration=$4,municipal_registration=$5,
+        legal_nature=$6,tax_regime=$7,opening_date=$8::date,simples_start_date=$9::date,capital_cents=$10,updated_at=NOW()
+        WHERE restaurant_id=$11`,[cnpj,legalName,tradeName,stateRegistration,municipalRegistration,legalNature,taxRegime,openingDate||null,simplesStartDate||null,capitalCents,RESTAURANT_ID]);
+      return json(res,200,{ok:true});
+    }
+    if(method==='GET'&&path==='/api/admin/fiscal/report'){
+      return json(res,200,{report:await fiscalReport(req.query?.month)});
+    }
+    if(method==='GET'&&path==='/api/admin/fiscal/expenses'){
+      const {start,end}=fiscalMonth(req.query?.month);
+      const rows=await query(`SELECT id,expense_date::text AS date,description,category,supplier_name AS "supplierName",
+        supplier_cnpj AS "supplierCnpj",document_number AS "documentNumber",amount_cents::bigint AS "amountCents",
+        payment_method AS "paymentMethod",notes FROM fiscal_expenses WHERE restaurant_id=$1 AND expense_date >= $2::date AND expense_date < $3::date ORDER BY expense_date DESC,created_at DESC`,[RESTAURANT_ID,start,end]);
+      return json(res,200,{expenses:rows.rows});
+    }
+    if(method==='POST'&&path==='/api/admin/fiscal/expenses'){
+      const b=await bodyOf(req),date=clean(b.date,10),description=clean(b.description,180),category=clean(b.category,40)||'outros';
+      const amountCents=Number(b.amountCents),supplierName=clean(b.supplierName,160),supplierCnpj=clean(b.supplierCnpj,14).replace(/\\D/g,'');
+      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||description.length<2||!Number.isInteger(amountCents)||amountCents<1||amountCents>999999999)throw fail('Informe data, descrição e valor válido para a despesa.',422);
+      if(supplierCnpj&&!/^\\d{14}$/.test(supplierCnpj))throw fail('O CNPJ do fornecedor deve conter 14 números.',422);
+      const id='fex_'+randomBytes(12).toString('hex');
+      await query(`INSERT INTO fiscal_expenses(id,restaurant_id,expense_date,description,category,supplier_name,supplier_cnpj,document_number,amount_cents,payment_method,notes)
+        VALUES($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11)`,[id,RESTAURANT_ID,date,description,category,supplierName,supplierCnpj,clean(b.documentNumber,60),amountCents,clean(b.paymentMethod,40),clean(b.notes,500)]);
+      return json(res,201,{ok:true,id});
+    }
+    if(method==='DELETE'&&path.startsWith('/api/admin/fiscal/expenses/')){
+      const result=await query('DELETE FROM fiscal_expenses WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
+      if(!result.rowCount)throw fail('Despesa não encontrada.',404);
+      return json(res,200,{ok:true});
+    }
+    if(method==='GET'&&path==='/api/admin/fiscal/documents'){
+      const {start,end}=fiscalMonth(req.query?.month);
+      const rows=await query(`SELECT id,direction,document_type AS "documentType",document_number AS "documentNumber",
+        issuer_name AS "issuerName",issuer_cnpj AS "issuerCnpj",document_date::text AS date,
+        amount_cents::bigint AS "amountCents",file_name AS "fileName",mime_type AS "mimeType",notes
+        FROM fiscal_documents WHERE restaurant_id=$1 AND (document_date IS NULL OR (document_date >= $2::date AND document_date < $3::date))
+        ORDER BY document_date DESC NULLS LAST,created_at DESC`,[RESTAURANT_ID,start,end]);
+      return json(res,200,{documents:rows.rows});
+    }
+    if(method==='POST'&&path==='/api/admin/fiscal/documents'){
+      const b=await bodyOf(req,2200000),direction=clean(b.direction,10),documentType=clean(b.documentType,20);
+      const fileName=clean(b.fileName,180),mimeType=clean(b.mimeType,100),contentBase64=String(b.contentBase64||'');
+      const date=clean(b.date,10),amountCents=Number(b.amountCents||0),issuerCnpj=clean(b.issuerCnpj,14).replace(/\\D/g,'');
+      if(!['received','issued'].includes(direction)||!['xml','pdf','other'].includes(documentType)||!fileName||!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mimeType)||!contentBase64||contentBase64.length>1800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64))throw fail('Arquivo inválido. Envie XML ou PDF de até 1,3 MB.',422);
+      if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw fail('Data do documento inválida.',422);
+      if(!Number.isInteger(amountCents)||amountCents<0||amountCents>999999999)throw fail('Valor do documento inválido.',422);
+      if(issuerCnpj&&!/^\\d{14}$/.test(issuerCnpj))throw fail('CNPJ do emitente inválido.',422);
+      const id='fdoc_'+randomBytes(12).toString('hex');
+      await query(`INSERT INTO fiscal_documents(id,restaurant_id,direction,document_type,document_number,issuer_name,issuer_cnpj,document_date,amount_cents,file_name,mime_type,content_base64,notes)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12,$13)`,[id,RESTAURANT_ID,direction,documentType,clean(b.documentNumber,60),clean(b.issuerName,160),issuerCnpj,date||null,amountCents,fileName,mimeType,contentBase64,clean(b.notes,500)]);
+      return json(res,201,{ok:true,id});
+    }
+    if(method==='GET'&&path.startsWith('/api/admin/fiscal/documents/')){
+      const row=(await query('SELECT file_name AS "fileName",mime_type AS "mimeType",content_base64 AS "contentBase64" FROM fiscal_documents WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(!row)throw fail('Documento não encontrado.',404);
+      return json(res,200,row);
     }
     if (method==='GET'&&path==='/api/admin/orders') {
       const rows=await query("SELECT id,customer_name AS \"customerName\",phone,fulfillment,table_label AS \"tableLabel\",delivery_address AS \"deliveryAddress\",note,status,total_cents AS \"totalCents\",coupon_code AS \"couponCode\",discount_cents AS \"discountCents\",created_at AS \"createdAt\" FROM orders WHERE restaurant_id=$1 ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100",[RESTAURANT_ID]);
