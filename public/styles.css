@@ -1579,4 +1579,4 @@ body{overscroll-behavior-y:contain}
 
 
 /* Ação de salvar produto posicionada após a visualização da receita/modelo. */
-.product-admin-entry .product-save-action{display:flex;align-items:center;justify-content:center;width:100%;min-height:40px;margin:12px 0 2px;border-radius:10px;}
+.product-admin-entry .product-save-action{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:104px;min-height:34px;margin:10px 0 2px auto;padding:7px 14px;border-radius:9px;font-size:12px;}
