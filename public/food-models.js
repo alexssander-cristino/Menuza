@@ -661,12 +661,12 @@ function burgerLayout(product, ings, size, o, kH) {
   }
   const slices = Math.min(4, cheeseStyles.length);
   const Hp = .017 * (patties === 2 ? .88 : 1) * kH, Rpat = R * .92;
+  let cheeseCursor = 0;
   for (let p = 0; p < patties; p++) {
     add('patty', p, () => pattyMesh(Rpat, Hp, seed + 7 + p * 3, detail), Hp - .0006);
     const last = p === patties - 1, n = last ? slices : (slices >= 2 ? 1 : 0);
     for (let s = 0; s < n; s++) {
-      const styleIndex = last ? s : p;
-      const style = cheeseStyles[styleIndex] || 'cheddar';
+      const style = cheeseStyles[cheeseCursor++] || 'cheddar';
       add('cheese', `${p}.${s}.${style}`, () => cheeseMesh(Rpat, Hp, seed + 11 + p * 5 + s * 3, detail, s * Math.PI / 4 + p * .4, style), .0028 * kH + (s ? .0004 : 0), .0006);
     }
   }
