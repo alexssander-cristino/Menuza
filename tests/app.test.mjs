@@ -129,6 +129,12 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
   const customerCookie = registration.headers.get('set-cookie').split(';')[0];
+  const customerSqlInjectionEmail = await fetch(base + '/api/customer/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ email: "' OR '1'='1' --", password: 'senha-teste-123' }) });
+  assert.equal(customerSqlInjectionEmail.status, 401, 'SQL injection in the email field must not authenticate a customer');
+  assert.equal(customerSqlInjectionEmail.headers.get('set-cookie'), null, 'failed SQL injection attempts must not receive a session cookie');
+  const customerSqlInjectionPassword = await fetch(base + '/api/customer/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ email: 'joana@example.test', password: "' OR '1'='1' --" }) });
+  assert.equal(customerSqlInjectionPassword.status, 401, 'SQL injection payload in the password field must not authenticate a customer');
+  assert.equal(customerSqlInjectionPassword.headers.get('set-cookie'), null, 'invalid customer credentials must not receive a session cookie');
   const catalogResponse = await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } });
   const catalog = await catalogResponse.json();
   assert.equal(catalog.products.length, 6);
@@ -151,6 +157,9 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(created.items[0].ingredients.length, 4);
   assert.equal(created.items[0].snapshot.size.diameterCm, 35);
 
+  const adminSqlInjection = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: "' OR '1'='1' --" }) });
+  assert.equal(adminSqlInjection.status, 401, 'SQL injection payload must not authenticate the administrator');
+  assert.equal(adminSqlInjection.headers.get('set-cookie'), null, 'failed admin authentication must not issue a session cookie');
   const loginResponse = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: 'test-pass' }) });
   assert.equal(loginResponse.status, 200);
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
