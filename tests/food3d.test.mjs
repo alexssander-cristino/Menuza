@@ -173,9 +173,9 @@ test('hambúrguer: o tipo do queijo personalizado preserva sua camada original s
 
 test('pizza: cheddar e catupiry usam coberturas contínuas em bisnaga e não alteram os lanches', () => {
   const cheddar = buildFoodLayout(pizza, [{ id: 'custom-cheddar', name: 'Cheddar', type: 'pizza', visual: 'cheddar' }], SIZE_OPTIONS.pizza[1]);
-  const catupiry = buildFoodLayout(pizza, [{ id: 'custom-catupiry', name: 'Catupiry', type: 'pizza', visual: 'cream' }], SIZE_OPTIONS.pizza[1]);
+  const catupiry = buildFoodLayout(pizza, [{ id: 'custom-catupiry', name: 'Catupiry', type: 'pizza', visual: 'catupiry' }], SIZE_OPTIONS.pizza[1]);
   assert.ok(cheddar.parts.some(part => part.kind === 'topping:queijo-cheddar'));
-  assert.ok(catupiry.parts.some(part => part.kind === 'topping:requeijao'));
+  assert.ok(catupiry.parts.some(part => part.kind === 'topping:catupiry'));
   const burgerLayout = buildFoodLayout(burger, [...ing(['carne']), { id: 'burger-cheddar', name: 'Cheddar', type: 'burger', visual: 'cheddar' }], { key: 'classico' });
   assert.ok(burgerLayout.parts.some(part => part.kind === 'cheese'));
 });
