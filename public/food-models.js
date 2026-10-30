@@ -41,7 +41,12 @@ function bunBottomMesh(R, H, seed, detail) {
     disp: (a, r, y) => { const d = (fbm(Math.cos(a) * r * 55, y * 55, Math.sin(a) * r * 55, seed, 3) - .5) * .0026; return [d * .6, d]; },
     shade: (u, v, p, n, [r, y]) => {
       const tv = 1 + (nz(p, 70, seed + 5) - .5) * .34, rn = r / (R * .97);
-      if (n[1] > .5 && y > H * .5) { const toast = mix(C.bunToast, C.bunCrumb, .3 * (1 - rn) + .1), patch = sstep(.55, .7, nz(p, 38, seed + 9)); return MAT(mul(mix(toast, C.bunDeep, patch * .55), tv), .8, .1, 1.1, .9); }
+      if (n[1] > .5 && y > H * .5) {
+        // miolo tostado com poros
+        const pore = sstep(.6, .78, nz(p, 120, seed + 21));
+        const toast = mix(C.bunToast, C.bunCrumb, .3 * (1 - rn) + .1 + pore * .12), patch = sstep(.55, .7, nz(p, 38, seed + 9));
+        return MAT(mul(mix(toast, C.bunDeep, patch * .55), tv), .8, .1, 1.1, .9);
+      }
       if (n[1] < -.5) return MAT(mul(C.bunUnder, tv), .72, .05, .6, .7);
       return MAT(mul(mix(C.bunCrumb, C.bunSide, sstep(0, .5, y / H)), tv), .5, .1, .6, y < H * .22 ? .72 : 1);
     }
@@ -62,17 +67,19 @@ function bunTopMesh(R, H, seed, detail) {
   const dispf = (a, r, y) => { const x = Math.cos(a) * r, z = Math.sin(a) * r, d = (fbm(x * 40, y * 40, z * 40, seed, 3) - .5) * .0042 * clamp(y / H + .1, 0, 1); return [d * .5, d]; };
   const surf = (a, v) => { const [r0, y0] = prof.at(v); const r = r0 * Rf(a); const d = dispf(a, r, y0); return [Math.cos(a) * (r + d[0]), y0 + d[1], Math.sin(a) * (r + d[0])]; };
   m.revolve(prof, {
-    nu: 120, nv: 60, detail, R: Rf, disp: dispf,
+    nu: 144, nv: 72, detail, R: Rf, disp: dispf,
     shade: (u, v, p, n, [r, y]) => {
       const tv = 1 + (nz(p, 60, seed + 5) - .5) * .3, hy = y / H;
       if (hy < .1 && n[1] < -.25) return MAT(mul(mix(C.bunToast, C.bunCrumb, .35), tv), .8, .1, 1, .75);
-      const glaze = mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy)), blotch = sstep(.55, .72, nz(p, 36, seed + 11));
-      return MAT(mul(mix(glaze, C.bunDeep, blotch * .5), tv), .34, .12, .45, hy < .18 ? .8 : 1);
+      // brilho de ovo: faixas suaves radiais sobre o degradê da casca
+      const streak = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 6 + hy * 8 + seed);
+      const glaze = mix(mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy)), C.bunToast, streak * .12), blotch = sstep(.55, .72, nz(p, 36, seed + 11));
+      return MAT(mul(mix(glaze, C.bunDeep, blotch * .5), tv), .26, .14, .45, hy < .18 ? .8 : 1);
     }
   });
   // sementes de gergelim: pequenos elipsoides pousados sobre a cúpula
-  const rnd = randomFor(seed + 31), placed = [], target = Math.round(38 * (R / .06) ** 2), minD = .0105 * (R / .06);
-  for (let t = 0; t < 900 && placed.length < target; t++) {
+  const rnd = randomFor(seed + 31), placed = [], target = Math.round(54 * (R / .06) ** 2), minD = .0105 * (R / .06);
+  for (let t = 0; t < 1200 && placed.length < target; t++) {
     const a = rnd() * TAU, v = lerp(.5, .985, Math.sqrt(rnd())), p = surf(a, v), e = .004 / TAU;
     const nrm = norm(cross(sub(surf(a, Math.min(1, v + .004)), surf(a, Math.max(0, v - .004))), sub(surf(a + e, v), surf(a - e, v))));
     const n = nrm[1] < 0 ? [-nrm[0], -nrm[1], -nrm[2]] : nrm;
@@ -91,15 +98,17 @@ function pattyMesh(R, H, seed, detail) {
     nu: 112, nv: 48, detail,
     R: a => 1 + .05 * (fbm(Math.cos(a) * 2.2 + 3, Math.sin(a) * 2.2, seed, 2) - .5) * 2 + .018 * Math.sin(a * 11 + ph) + .01 * Math.sin(a * 23 + ph * 2),
     disp: (a, r, y) => {
-      const x = Math.cos(a) * r, z = Math.sin(a) * r, d = (fbm(x * 120, y * 80, z * 120, seed, 3) - .5) * H * .13;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r, d = (fbm(x * 120, y * 80, z * 120, seed, 3) - .5) * H * .18;
       return [d * .8, y > H * .5 ? d : d * .3];
     },
     shade: (u, v, p, n, [r, y]) => {
       const rn = r / R, tv = 1 + (nz(p, 90, seed + 3) - .5) * .4;
       if (n[1] > .5 && y > H * .5) {
-        const s = p[0] * Math.cos(dir) + p[2] * Math.sin(dir), d = Math.abs(s / .024 - Math.round(s / .024)), mark = 1 - sstep(.1, .19, d);
+        // marcas de grelha levemente onduladas
+        const s = p[0] * Math.cos(dir) + p[2] * Math.sin(dir) + .0018 * Math.sin(p[2] * 38 + seed);
+        const d = Math.abs(s / .024 - Math.round(s / .024)), mark = 1 - sstep(.1, .19, d);
         const base = mix(C.patty, C.pattyFat, sstep(.55, .75, nz(p, 55, seed + 7)) * .5);
-        return MAT(mul(mix(base, C.pattySear, mark * .85), tv), mark > .5 ? .72 : .6, .08, 1.5, lerp(1, .85, sstep(.7, 1, rn)));
+        return MAT(mul(mix(base, C.pattySear, mark * .85), tv), mark > .5 ? .72 : .5, .08, 1.5, lerp(1, .85, sstep(.7, 1, rn)));
       }
       if (n[1] < -.5) return MAT(mul(C.patty, .8 * tv), .7, .05, 1, .6);
       return MAT(mul(mix(C.pattySide, C.pattyFat, sstep(.6, .78, nz(p, 70, seed + 2)) * .5), tv), .55, .08, 1.3, y < H * .25 ? .7 : .95);
@@ -112,7 +121,8 @@ function cheeseMesh(Rp, Hp, seed, detail, yaw = 0, style = 'cheddar') {
   const m = new Mesh(), t = .0026, S = Rp * 1.0;
   const fold = (x, z) => {
     const d = Math.hypot(x, z), a = Math.atan2(z, x), over = Math.max(0, d - Rp * .86);
-    const drop = Math.min(Hp * 1.05, (over / (Rp * .28)) ** 1.7 * Hp * .42);
+    // cai mais nas pontas, como queijo derretido
+    const drop = Math.min(Hp * 1.15, (over / (Rp * .26)) ** 1.6 * Hp * .5);
     const ripple = sstep(.9, 1.2, d / Rp) * .0017 * Math.sin(a * 9 + seed) * (.6 + noise3(x * 70, z * 70, seed));
     return (1 - sstep(0, .9, d / Rp)) * .0006 - drop + ripple;
   };
@@ -135,7 +145,7 @@ function cheeseMesh(Rp, Hp, seed, detail, yaw = 0, style = 'cheddar') {
     };
     const [base, light, deep] = palettes[style] || palettes.cheddar;
     const color = mix(mix(base, light, sstep(.2, .6, nz(p, 25, seed + 4)) * .5), deep, low * .5 + (part === 2 ? .25 : 0));
-    return MAT(mul(color, tv), .36, .55, .1, part === 1 ? .6 : lerp(1, .88, sstep(.8, 1.1, d)));
+    return MAT(mul(color, tv), .28, .6, .1, part === 1 ? .6 : lerp(1, .88, sstep(.8, 1.1, d)));
   };
   m.slab(44, 44, Ptop, t, sh, { xf: rigid({ yaw }), ref: () => [0, 0, 0] });
   return m.finish();
@@ -147,14 +157,18 @@ function lettuceMesh(R, kH, seed, detail, leaves) {
     const edge = a => 1 + .07 * Math.sin(a * 3 + ph) + .045 * Math.sin(a * 7 + ph * 2) + .07 * (noise3(Math.cos(a) * 2 + i, Math.sin(a) * 2, s2) - .5);
     const P = (u, v) => {
       const a = u * TAU, rr = v * Rl * edge(a);
-      const wave = Math.sin(a * k1 + ph * 2) * .55 + Math.sin(a * (k1 + 6) + ph * 3) * .3 + (noise3(Math.cos(a) * 3 * v + 1, Math.sin(a) * 3 * v, s2) - .5) * 1.2;
-      const y = v ** 1.6 * .0044 * kH * wave - .0058 * kH * sstep(.7, 1, v) ** 2 + .0014 * (1 - v) * kH;
+      // folha mais crespa: ondulação extra concentrada na borda
+      const wave = Math.sin(a * k1 + ph * 2) * .55 + Math.sin(a * (k1 + 6) + ph * 3) * .3
+        + Math.sin(a * (k1 + 13) + ph * 5) * .18 * sstep(.6, 1, v)
+        + (noise3(Math.cos(a) * 3 * v + 1, Math.sin(a) * 3 * v, s2) - .5) * 1.2;
+      const y = v ** 1.6 * .0058 * kH * wave - .0058 * kH * sstep(.7, 1, v) ** 2 + .0014 * (1 - v) * kH;
       return [Math.cos(a) * rr, y, Math.sin(a) * rr];
     };
     m.grid(120 * detail, 26 * detail, P, (u, v, p) => {
       const a = u * TAU, crest = .5 + .5 * Math.sin(a * k1 + ph * 2), vein = Math.abs(Math.cos(a * 7 + ph)) ** 24 * sstep(.1, .9, v);
       let c = mix(mix(C.lettuceA, C.lettuceB, sstep(.08, .55, v)), C.lettuceC, sstep(.55, 1, v));
       c = mix(c, C.lettuceVein, vein * .3 + crest * .14);
+      c = mix(c, C.lettuceA, sstep(.93, 1, v) * .35); // borda mais clara
       return MAT(c, .46, .85, .45, .6 + .4 * crest);
     }, { up: true, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .07, roll: (rnd() - .5) * .07, t: [(rnd() - .5) * .006, i * .0026 * kH, (rnd() - .5) * .006] }) });
   }
@@ -172,7 +186,10 @@ function tomatoSliceInto(m, { R, t, seed, xf, detail = 1, cup = 0 }) {
       if (Math.abs(n[1]) > .45) {
         const wedge = .5 + .5 * Math.cos(a * ch + ph), chamber = sstep(.12, .4, wedge) * sstep(.86, .72, rn) * sstep(.12, .2, rn);
         let c = mix(C.tomWall, C.tomJelly, chamber); c = mix(c, C.tomCore, sstep(.17, .08, rn) * .8); c = mix(c, C.tomSkin, sstep(.84, .95, rn));
-        return MAT(c, lerp(.4, .16, chamber), .5, .2, lerp(1, .85, sstep(.8, 1, rn)));
+        // sementes no gel
+        const seedSpeck = sstep(.78, .86, noise3(p[0] * 420, p[2] * 420, seed + 3)) * chamber;
+        c = mix(c, lin('#f4e2a0'), seedSpeck * .85);
+        return MAT(c, lerp(.36, .12, chamber), .5, .2, lerp(1, .85, sstep(.8, 1, rn)));
       }
       return MAT(C.tomSkin, .24, .35, .15, .85);
     }
@@ -199,7 +216,16 @@ function pickleMesh(R, kH, seed, detail, layers) {
       m.revolve(superPuck(1, t, 5, 24), {
         nu: 64, nv: 10, detail, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .08, t: [Math.cos(a) * rr, l * t, Math.sin(a) * rr] }),
         R: ang => Rs * (1 + .045 * Math.sin(ang * 17 + ph) + .02 * (noise3(Math.cos(ang), Math.sin(ang), sd) - .5)),
-        shade: (u, v, p, n2, [rn]) => MAT(mix(mix(C.pickleFlesh, C.pickleSkin, sstep(.8, .96, rn)), C.pickleSkin, Math.abs(n2[1]) < .4 ? 1 : 0), .3, .6, .3, .9)
+        shade: (u, v, p, n2, [rn]) => {
+          // pele rugosa, miolo claro e anel de sementes
+          const bump = sstep(.62, .8, noise3(p[0] * 320, p[2] * 320, sd));
+          const ring = sstep(.1, 0, Math.abs(rn - .42) - .06);
+          let c = mix(C.pickleFlesh, lin('#c5d681'), sstep(.3, 0, rn) * .6);
+          c = mix(c, lin('#e6edb0'), ring * .7);
+          c = mix(c, C.pickleSkin, sstep(.8, .96, rn));
+          c = mix(c, C.pickleSkin, Math.abs(n2[1]) < .4 ? 1 : 0);
+          return MAT(mul(c, 1 - bump * .1), .28, .6, .3, .9);
+        }
       });
     }
   }
@@ -212,7 +238,7 @@ function onionMesh(R, kH, seed, detail, layers) {
     m.ringTube({
       R: R * f, y: .0022 * kH + l * .0042 * kH, rw: .0042 * kH, rh: .0025 * kH, seed: seed + l * 5 + Math.round(f * 10), wob: .05, nu: 72 * detail, nv: 14,
       xf: rigid({ yaw: rnd() * TAU, t: [(rnd() - .5) * .006, 0, (rnd() - .5) * .006] }),
-      shade: (u, v, p) => MAT(mul(mix(C.onionGold, C.onionBrown, sstep(.35, .7, nz(p, 45, seed))), .95 + rnd() * .1), .3, .55, .35, .9)
+      shade: (u, v, p) => MAT(mul(mix(mix(C.onionGold, C.onionPale, .25), C.onionBrown, sstep(.4, .75, nz(p, 45, seed)) * .8), .95 + rnd() * .1), .3, .55, .35, .9)
     });
   }
   return m.finish();
@@ -221,11 +247,12 @@ function onionMesh(R, kH, seed, detail, layers) {
 function baconStripInto(m, { L, W, t, seed, xf, curl = .003, detail = 1 }) {
   const ph = (seed % 31) / 31 * TAU;
   const P = (u, v) => {
-    const x = (u - .5) * L, zw = (v - .5) * W, wave = Math.sin(u * Math.PI * 3 + ph) * .0036;
+    const x = (u - .5) * L, zw = (v - .5) * W, wave = Math.sin(u * Math.PI * 3 + ph) * .0042 + Math.sin(u * Math.PI * 7 + ph * 2) * .0009;
     return [x + Math.sin(v * 3 + ph) * .0005, Math.sin(u * Math.PI * 2.2 + ph) * .0022 + (Math.abs(v - .5) * 2) ** 2 * curl, zw + wave];
   };
-  m.slab(28 * detail, 8, P, t, (u, v, p, n, part) => {
-    const band = .5 + .5 * Math.sin(v * Math.PI * 4 + ph + (u - .5) * 2), fat = sstep(.5, .7, band), edge = sstep(.08, 0, Math.min(u, 1 - u)) * .8;
+  m.slab(40 * detail, 10, P, t, (u, v, p, n, part) => {
+    const band = .5 + .5 * Math.sin(v * Math.PI * 4 + ph + (u - .5) * 2) + (noise3(u * 9, v * 9, 0, seed) - .5) * .35;
+    const fat = sstep(.5, .7, band), edge = sstep(.08, 0, Math.min(u, 1 - u)) * .8;
     let c = mix(C.baconLean, C.baconFat, fat); c = mix(c, C.baconCrisp, edge + (part === 1 ? .4 : 0));
     return MAT(c, .38, .35, .6, part === 1 ? .6 : 1);
   }, { xf, ref: () => [0, 0, 0] });
@@ -240,15 +267,15 @@ function baconMesh(R, kH, seed, detail, q) {
 }
 
 function eggMesh(R, kH, seed, detail) {
-  const m = new Mesh(), Re = R * .62, ph = (seed % 37) / 37 * TAU, Rw = a => 1 + .2 * (fbm(Math.cos(a) * 1.6 + 2, Math.sin(a) * 1.6, seed, 2) - .5) * 2 + .06 * Math.sin(a * 3 + ph);
+  const m = new Mesh(), Re = R * .62, ph = (seed % 37) / 37 * TAU, Rw = a => 1 + .28 * (fbm(Math.cos(a) * 1.6 + 2, Math.sin(a) * 1.6, seed, 2) - .5) * 2 + .06 * Math.sin(a * 3 + ph);
   m.revolve(superPuck(Re, .0042 * kH, 3, 40), {
     nu: 96, nv: 28, detail, R: Rw,
     shade: (u, v, p, n, [r]) => MAT(mix(C.eggWhite, C.eggCrisp, sstep(.88, 1, r / Re) * .8), .17, .35, .1, lerp(1, .85, sstep(.85, 1, r / Re)))
   });
-  const Ry = Re * .33, Hy = .0075 * kH, pts = [[0, .002 * kH], [Ry * .96, .002 * kH]];
+  const Ry = Re * .33, Hy = .0092 * kH, pts = [[0, .002 * kH], [Ry * .96, .002 * kH]];
   for (let i = 1; i <= 28; i++) { const th = (Math.PI / 2) * i / 28; pts.push([i === 28 ? 0 : Ry * Math.cos(th), .002 * kH + Hy * Math.sin(th) ** 1.05]); }
   m.revolve(profile(pts), {
-    nu: 48, nv: 28, detail, xf: rigid({ t: [Re * .12, .0012 * kH, Re * .08] }),
+    nu: 48, nv: 36, detail, xf: rigid({ t: [Re * .12, .0012 * kH, Re * .08] }),
     shade: (u, v, p, n, [r, y]) => MAT(mix(C.yolkB, C.yolkA, sstep(.2, 1, y / (Hy + .002 * kH))), .1, .5, 0, 1)
   });
   return m.finish();
@@ -258,9 +285,9 @@ function sauceMesh(R, kH, seed, detail) {
   const m = new Mesh(), ph = (seed % 29) / 29 * TAU, t = .0032 * kH;
   m.revolve(superPuck(R, t, 3, 32), {
     nu: 80, nv: 20, detail,
-    R: a => 1 + .12 * Math.sin(a * 5 + ph) + .07 * Math.sin(a * 9 + ph * 2) + .1 * (noise3(Math.cos(a) * 2, Math.sin(a) * 2, seed) - .5),
+    R: a => 1 + .16 * Math.sin(a * 5 + ph) + .09 * Math.sin(a * 9 + ph * 2) + .1 * (noise3(Math.cos(a) * 2, Math.sin(a) * 2, seed) - .5),
     disp: (a, r, y) => [0, (fbm(Math.cos(a) * r * 120, 0, Math.sin(a) * r * 120, seed, 2) - .5) * .0009 * (y / t)],
-    shade: (u, v, p, n, [r, y]) => MAT(mix(C.sauce, C.sauceDeep, sstep(.4, .85, nz(p, 50, seed))), .2, .4, .12, 1)
+    shade: (u, v, p, n, [r, y]) => MAT(mix(C.sauce, C.sauceDeep, sstep(.4, .85, nz(p, 50, seed))), .14, .45, .12, 1)
   });
   return m.finish();
 }
@@ -270,7 +297,12 @@ function boardMesh(R, T, seed, detail) {
   const m = new Mesh();
   m.revolve(superPuck(R, T, 7, 40, 0), {
     nu: 120, nv: 20, detail, R: a => 1 + .006 * Math.sin(a * 3 + seed),
-    shade: (u, v, p, n) => MAT(C.wood, .55, 0, .6, n[1] > .5 ? 1 : .8)
+    shade: (u, v, p, n) => {
+      // veio da madeira
+      const grain = .5 + .5 * Math.sin(p[0] * 150 + nz(p, 7, seed) * 9 + nz(p, 40, seed + 3) * 2);
+      const c = mix(C.wood, lin('#6b4528'), grain * .55);
+      return MAT(mul(c, 1 + (nz(p, 60, seed + 1) - .5) * .14), .5, 0, .6, n[1] > .5 ? 1 : .8);
+    }
   });
   return m.finish();
 }
@@ -360,7 +392,10 @@ function doughMesh(ctx, detail) {
         let c = mix(C.doughRim, C.doughBrown, clamp(blister * .75 + sstep(.45, .8, nz(p, 30, seed + 14)) * .35, 0, 1));
         c = mix(c, C.doughChar, char * blister * .8);
         if (cr.stuffed) c = mix(c, C.doughCream, sstep(.72, .86, noise3(x * 35, z * 35, seed + 20)) * .6);
-        return MAT(mul(c, tv), .76, .08, 1.2, 1);
+        // farinha na borda
+        const flour = sstep(.8, .9, noise3(x * 220, z * 220, seed + 30)) * rim;
+        c = mix(c, C.doughCream, flour * .45);
+        return MAT(mul(c, tv), .78, .08, 1.2, 1);
       }
       if (n[1] < -.4) return MAT(mul(C.doughPale, .92 * tv), .8, .05, .8, .75);
       return MAT(mul(mix(C.doughPale, C.doughRim, rim * .65), tv), .78, .08, 1, y < .003 ? .75 : (rim ? .95 : .85));
@@ -379,15 +414,14 @@ function veneerMesh(R, hFn, shade, nu, nv, up = true) {
 }
 function sauceMeshPizza(ctx, detail) {
   const { sauceR, sauceH, edgeF, deck, seed, cutGroove } = ctx;
-  return veneerMesh(sauceR, (x, z, v) => deck - .0004 + (sauceH(x, z) * edgeF(v) - cutGroove(x, z) * .0007) + .0004 * (1 - edgeF(v)) * 0, (u, v, p) => {
+  return veneerMesh(sauceR, (x, z, v) => deck - .0004 + (sauceH(x, z) * edgeF(v) - cutGroove(x, z) * .0007), (u, v, p) => {
     const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 3 + Math.hypot(p[0], p[2]) * 120 + ctx.seed);
     const c = mix(C.tomSauce, C.tomSauceDeep, swirl * .35 + sstep(.55, .8, nz(p, 50, ctx.seed + 2)) * .3);
     return MAT(mul(c, 1 + (nz(p, 90, ctx.seed + 4) - .5) * .2), .34, .3, .5, 1);
   }, Math.round(160 * detail), Math.round(32 * detail));
 }
 function cheeseMeshPizza(ctx, detail) {
-  const { cheeseR, cheeseH, edgeF, seed, cutGroove } = ctx, base = (x, z) => ctx.surf(0, 0) * 0;
-  const hasSauce = ctx.hasSauce;
+  const { cheeseR, cheeseH, edgeF, seed, cutGroove } = ctx;
   return veneerMesh(cheeseR, (x, z, v) => {
     const s = ctx.sauceTop(x, z);
     return s + cheeseH(x, z) * edgeF(v);
@@ -395,7 +429,10 @@ function cheeseMeshPizza(ctx, detail) {
     const spots = sstep(.58, .72, nz(p, 32, seed + 6)), deep = sstep(.7, .82, nz(p, 70, seed + 13)), g = cutGroove(p[0], p[2]);
     let c = mix(C.mozz, C.mozzGold, spots * .75); c = mix(c, C.mozzBrown, deep * .55);
     c = mix(c, C.doughPale, g * .45); c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .14);
-    return MAT(c, .38, .5, .65, lerp(1, .82, sstep(.82, 1, v)));
+    // poças de óleo: mais brilho e tom dourado
+    const oil = sstep(.76, .9, nz(p, 45, seed + 17));
+    c = mix(c, lin('#f2c46a'), oil * .35);
+    return MAT(c, lerp(.38, .22, oil), .5, .65, lerp(1, .82, sstep(.82, 1, v)));
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -412,7 +449,7 @@ function pepperoniInto(m, x, y, z, R, seed, rnd, detail) {
       const rn = r / R, fat = sstep(.68, .78, noise3(p[0] * 520 + sd, p[1] * 520, p[2] * 520, 4));
       let c = mix(C.pep, C.pepDeep, nz(p, 90, sd) * .7); c = mix(c, C.pepFat, fat * .7); c = mix(c, C.pepChar, sstep(.84, .98, rn) * .65);
       if (n[1] < .3) c = mul(C.pepDeep, .85);
-      return MAT(c, .34, .3, .55, lerp(1, .8, sstep(.7, 1, rn)));
+      return MAT(c, lerp(.36, .2, fat), .3, .55, lerp(1, .8, sstep(.7, 1, rn)));
     }
   });
 }
@@ -431,7 +468,10 @@ function mushroomInto(m, x, y, z, RM, seed, rnd, detail) {
     xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .1, roll: (rnd() - .5) * .1, t: [x, y - .0006, z] }),
     shade: (u, v, p, n, [rn]) => {
       const a = u * TAU, cap = Math.sin(a) > -.2 ? 1 : 0;
-      return MAT(mix(mul(C.mush, 1 + (nz(p, 120, seed) - .5) * .12), C.mushSkin, sstep(.86, .99, rn) * cap * .9), .42, .3, .3, lerp(1, .85, sstep(.8, 1, rn)));
+      // lamelas radiais perto do centro
+      const gill = (.5 + .5 * Math.sin(a * 34)) * sstep(.75, .2, rn) * .22;
+      const base = mix(mul(C.mush, 1 + (nz(p, 120, seed) - .5) * .12), lin('#cdbd9b'), gill);
+      return MAT(mix(base, C.mushSkin, sstep(.86, .99, rn) * cap * .9), .42, .3, .3, lerp(1, .85, sstep(.8, 1, rn)));
     }
   });
 }
@@ -440,7 +480,7 @@ function oliveInto(m, x, y, z, R, seed, rnd, detail) {
   m.revolve(loopProfile((rin + rout) / 2, t / 2, (rout - rin) / 2, t / 2, 3, 32), {
     nu: 48, nv: 18, detail, wrapV: true,
     xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .16, roll: (rnd() - .5) * .16, t: [x, y - .0006, z] }),
-    shade: (u, v, p, n) => (Math.cos(v * TAU) < -.35 ? MAT(C.oliveIn, .4, .3, .3, .7) : MAT(mix(C.olive, lin('#3a2d38'), nz(p, 80, seed)), .27, .15, .3, 1)),
+    shade: (u, v, p, n) => (Math.cos(v * TAU) < -.35 ? MAT(C.oliveIn, .4, .3, .3, .7) : MAT(mix(C.olive, lin('#3a2d38'), nz(p, 80, seed)), .16, .2, .3, 1)),
     ref: p => [0, p[1], 0]
   });
 }
@@ -508,7 +548,9 @@ function basilInto(m, x, y, z, seed, rnd) {
     m.grid(26, 13, surface, (u, v) => {
       const edge = Math.abs(v - .5) * 2;
       const highlight = .10 + .13 * Math.sin(u * Math.PI) + .07 * (1 - edge);
-      return MAT(mix(leafColor, C.basilLight, highlight), .42, .42, .18, 1);
+      // nervuras laterais
+      const lateral = sstep(.88, 1, Math.abs(Math.sin((u * 9 - edge * 3) * Math.PI))) * .12 * (1 - edge * .4);
+      return MAT(mix(mix(leafColor, C.basilLight, highlight), lin('#a9c778'), lateral), .42, .42, .18, 1);
     }, { wrapU: false, up: true, xf });
     m.grid(22, 2, (u, v) => {
       const p = surface(u, v);
@@ -572,6 +614,8 @@ function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
     }, (u, v) => MAT(mix(base, light, .2 + .12 * Math.sin(u * Math.PI * 3 + lane)), .18, cheddar ? .32 : .48, .08, 1), { wrapU: false, up: true });
   }
 }
+
+const siteCache = new Map();
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
   const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
   if (!def) return m.finish();
@@ -580,13 +624,20 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
     return m.finish();
   }
   const count = Math.max(1, Math.round(def.cover[qtyIdx] * A / (Math.PI * def.r * def.r)));
-  const pool = poolFor(ctx);
-  // posições já ocupadas por toppings de maior prioridade
+  // posições já ocupadas por toppings de maior prioridade (com cache: o resultado depende só da sequência anterior)
   const placed = [];
+  let sig = ctx.Rt.toFixed(4) + '|' + ctx.seed + '|';
   for (const e of earlier) {
     const d2 = TOPPINGS[e.id]; if (d2.loose) continue;
+    sig += e.id + e.qtyIdx + ',';
     const c2 = Math.max(1, Math.round(d2.cover[e.qtyIdx] * A / (Math.PI * d2.r * d2.r)));
-    placed.push(...pickSites(ctx, e.id, e.qtyIdx, c2, placed, d2.r));
+    let got = siteCache.get(sig);
+    if (!got) {
+      got = pickSites(ctx, e.id, e.qtyIdx, c2, placed, d2.r);
+      siteCache.set(sig, got);
+      if (siteCache.size > 200) siteCache.delete(siteCache.keys().next().value);
+    }
+    placed.push(...got);
   }
   const sites = def.loose ? looseSites(ctx, id, count) : pickSites(ctx, id, qtyIdx, count, placed, def.r);
   sites.forEach((s, i) => {
@@ -659,14 +710,14 @@ function plateMesh(R, seed, detail) {
   const m = new Mesh();
   m.revolve(profile(smoothPoly(pts.flatMap((p, i) => i ? [[(pts[i - 1][0] + p[0]) / 2, (pts[i - 1][1] + p[1]) / 2], p] : [p]), 2)), {
     nu: 128, nv: 70, detail,
-    shade: (u, v, p, n, [r, y]) => MAT(mix(C.ceramic, C.ceramicLine, Math.abs(r - .885 * R) < .0016 && n[1] > .3 ? .85 : 0), .16, .1, 0, y < .003 ? .7 : 1)
+    shade: (u, v, p, n, [r, y]) => MAT(mix(C.ceramic, C.ceramicLine, Math.abs(r - .885 * R) < .0016 && n[1] > .3 ? .85 : 0), .12, .12, 0, y < .003 ? .7 : 1)
   });
   return m.finish();
 }
 function friesMesh(R, seed, detail) {
   const m = new Mesh(), rnd = randomFor(seed), cell = .006, N = Math.ceil(R * 2 / cell), hm = new Float32Array(N * N).fill(.0072);
   const hAt = (x, z) => { const i = clamp(Math.floor((x + R) / cell), 0, N - 1), j = clamp(Math.floor((z + R) / cell), 0, N - 1); return hm[j * N + i]; };
-  const count = Math.round(24 * (R / .115) ** 2), cx = R * .14, cz = -R * .06;
+  const count = Math.round(30 * (R / .115) ** 2), cx = R * .14, cz = -R * .06;
   for (let i = 0; i < count; i++) {
     const L = .062 + rnd() * .028, r = .0072 + rnd() * .0022, yaw = rnd() * TAU, ph = rnd() * TAU, bend = (rnd() - .5) * .006;
     let gx = 0, gz = 0, ytop = 1e9, samples = [];
@@ -814,8 +865,8 @@ function plateLayout(product, ings, size, o) {
 }
 
 // Converte nomes personalizados do painel em peças procedurais conhecidas.
- // Assim, "Catupiry extra", "Pepperoni", "Cheddar adicional" etc. alteram o modelo
- // sem exigir que o ID cadastrado seja igual ao nome interno do modelo.
+// Assim, "Catupiry extra", "Pepperoni", "Cheddar adicional" etc. alteram o modelo
+// sem exigir que o ID cadastrado seja igual ao nome interno do modelo.
 function resolveVisualIngredient(type, ingredient) {
   const id = String(ingredient?.id || '').toLowerCase();
   const raw = String(ingredient?.name || ingredient?.label || ingredient?.groupName || id);
@@ -843,57 +894,57 @@ function resolveVisualIngredient(type, ingredient) {
   const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
   const has = (...terms) => terms.some(term => text.includes(term));
-  const knownPizza = new Set(['molho-tomate','mussarela',...Object.keys(TOPPINGS)]);
-  const knownBurger = new Set(['pao-brioche','carne','queijo-cheddar','queijo-extra','queijo-mussarela-burger','queijo-parmesao-burger','queijo-gorgonzola-burger','queijo-provolone-burger','alface','tomate-burger','molho-especial','picles','cebola-burger','bacon-burger','ovo']);
+  const knownPizza = new Set(['molho-tomate', 'mussarela', ...Object.keys(TOPPINGS)]);
+  const knownBurger = new Set(['pao-brioche', 'carne', 'queijo-cheddar', 'queijo-extra', 'queijo-mussarela-burger', 'queijo-parmesao-burger', 'queijo-gorgonzola-burger', 'queijo-provolone-burger', 'alface', 'tomate-burger', 'molho-especial', 'picles', 'cebola-burger', 'bacon-burger', 'ovo']);
   if ((type === 'pizza' && knownPizza.has(id)) || (type === 'burger' && knownBurger.has(id))) return { ...ingredient };
   let visualId = '';
   if (type === 'pizza') {
-    if (has('molho','sauce')) visualId = 'molho-tomate';
+    if (has('molho', 'sauce')) visualId = 'molho-tomate';
     else if (has('catupiry')) visualId = 'catupiry';
-    else if (has('requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
+    else if (has('requeijao', 'cream cheese', 'creme de queijo', 'cream')) visualId = 'requeijao';
     else if (has('cheddar')) visualId = 'queijo-cheddar';
-    else if (has('parmesao','parmesan','grana padano','pecorino')) visualId = 'queijo-parmesao';
-    else if (has('gorgonzola','queijo azul','blue cheese','roquefort')) visualId = 'queijo-gorgonzola';
+    else if (has('parmesao', 'parmesan', 'grana padano', 'pecorino')) visualId = 'queijo-parmesao';
+    else if (has('gorgonzola', 'queijo azul', 'blue cheese', 'roquefort')) visualId = 'queijo-gorgonzola';
     else if (has('provolone')) visualId = 'queijo-provolone';
-    else if (has('mussarela','mozzarella','mozzarela','bufala')) visualId = 'mussarela';
-    else if (has('queijo','cheese','coalho')) visualId = 'queijo-generico';
-    else if (has('calabresa','pepperoni','salame')) visualId = 'calabresa';
-    else if (has('champignon','cogumelo','fungo','shimeji','shitake','portobello')) visualId = 'champignon';
-    else if (has('frango','frango desfiado','chicken')) visualId = 'frango';
-    else if (has('bacon','panceta','linguica')) visualId = 'bacon';
-    else if (has('cebola','onion','alho','alho poro')) visualId = 'cebola';
-    else if (has('azeitona','oliva','olive')) visualId = 'azeitona';
-    else if (has('milho','corn')) visualId = 'milho';
-    else if (has('manjericao','basil','basilico')) visualId = 'manjericao';
-    else if (has('oregano','salsinha','cebolinha','rucula','erva','herb')) visualId = 'oregano';
-    else if (has('tomate','tomato','pimentao','pepper')) visualId = 'tomate';
-    else if (has('alho frito','cebola crispy','crispy')) visualId = 'cebola';
+    else if (has('mussarela', 'mozzarella', 'mozzarela', 'bufala')) visualId = 'mussarela';
+    else if (has('queijo', 'cheese', 'coalho')) visualId = 'queijo-generico';
+    else if (has('calabresa', 'pepperoni', 'salame')) visualId = 'calabresa';
+    else if (has('champignon', 'cogumelo', 'fungo', 'shimeji', 'shitake', 'portobello')) visualId = 'champignon';
+    else if (has('frango', 'frango desfiado', 'chicken')) visualId = 'frango';
+    else if (has('bacon', 'panceta', 'linguica')) visualId = 'bacon';
+    else if (has('cebola', 'onion', 'alho', 'alho poro')) visualId = 'cebola';
+    else if (has('azeitona', 'oliva', 'olive')) visualId = 'azeitona';
+    else if (has('milho', 'corn')) visualId = 'milho';
+    else if (has('manjericao', 'basil', 'basilico')) visualId = 'manjericao';
+    else if (has('oregano', 'salsinha', 'cebolinha', 'rucula', 'erva', 'herb')) visualId = 'oregano';
+    else if (has('tomate', 'tomato', 'pimentao', 'pepper')) visualId = 'tomate';
+    else if (has('alho frito', 'cebola crispy', 'crispy')) visualId = 'cebola';
   } else if (type === 'burger') {
-    if (has('pao','brioche','bun')) visualId = 'pao-brioche';
-    else if (has('carne','hamburguer','burger','patty','bovina')) visualId = 'carne';
+    if (has('pao', 'brioche', 'bun')) visualId = 'pao-brioche';
+    else if (has('carne', 'hamburguer', 'burger', 'patty', 'bovina')) visualId = 'carne';
     else if (has('cheddar')) visualId = 'queijo-cheddar';
-    else if (has('mussarela','mozzarella','mozzarela','bufala')) visualId = 'queijo-mussarela-burger';
-    else if (has('parmesao','parmesan')) visualId = 'queijo-parmesao-burger';
-    else if (has('gorgonzola','queijo azul','roquefort')) visualId = 'queijo-gorgonzola-burger';
+    else if (has('mussarela', 'mozzarella', 'mozzarela', 'bufala')) visualId = 'queijo-mussarela-burger';
+    else if (has('parmesao', 'parmesan')) visualId = 'queijo-parmesao-burger';
+    else if (has('gorgonzola', 'queijo azul', 'roquefort')) visualId = 'queijo-gorgonzola-burger';
     else if (has('provolone')) visualId = 'queijo-provolone-burger';
-    else if (has('queijo','cheese','prato')) visualId = 'queijo-extra';
-    else if (has('alface','lettuce','rucula')) visualId = 'alface';
-    else if (has('tomate','tomato')) visualId = 'tomate-burger';
-    else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','aioli')) visualId = 'molho-especial';
-    else if (has('picles','pickle','pepino')) visualId = 'picles';
-    else if (has('cebola','onion','alho')) visualId = 'cebola-burger';
-    else if (has('bacon','panceta')) visualId = 'bacon-burger';
-    else if (has('ovo','egg')) visualId = 'ovo';
-    else if (has('frango','crispy chicken')) visualId = 'carne';
+    else if (has('queijo', 'cheese', 'prato')) visualId = 'queijo-extra';
+    else if (has('alface', 'lettuce', 'rucula')) visualId = 'alface';
+    else if (has('tomate', 'tomato')) visualId = 'tomate-burger';
+    else if (has('molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'bbq', 'aioli')) visualId = 'molho-especial';
+    else if (has('picles', 'pickle', 'pepino')) visualId = 'picles';
+    else if (has('cebola', 'onion', 'alho')) visualId = 'cebola-burger';
+    else if (has('bacon', 'panceta')) visualId = 'bacon-burger';
+    else if (has('ovo', 'egg')) visualId = 'ovo';
+    else if (has('frango', 'crispy chicken')) visualId = 'carne';
   } else if (type === 'plate') {
-    if (has('queijo','cheddar','mussarela','catupiry','cream')) visualId = 'plate-cheese';
-    else if (has('tomate','tomato','pimentao','pimenta')) visualId = 'plate-tomato';
-    else if (has('bacon','calabresa','linguica','salame')) visualId = 'plate-bacon';
-    else if (has('alface','rucula','salada','salsinha','cebolinha','oregano','erva','verde')) visualId = 'plate-greens';
-    else if (has('molho','maionese','ketchup','mostarda','barbecue','bbq','sauce')) visualId = 'plate-sauce';
-    else if (has('carne','hamburguer','frango','chicken','proteina')) visualId = 'plate-protein';
-    else if (has('ovo','egg')) visualId = 'plate-egg';
-    else if (has('cebola','picles','pepino','azeitona','cogumelo','champignon')) visualId = 'plate-vegetable';
+    if (has('queijo', 'cheddar', 'mussarela', 'catupiry', 'cream')) visualId = 'plate-cheese';
+    else if (has('tomate', 'tomato', 'pimentao', 'pimenta')) visualId = 'plate-tomato';
+    else if (has('bacon', 'calabresa', 'linguica', 'salame')) visualId = 'plate-bacon';
+    else if (has('alface', 'rucula', 'salada', 'salsinha', 'cebolinha', 'oregano', 'erva', 'verde')) visualId = 'plate-greens';
+    else if (has('molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'bbq', 'sauce')) visualId = 'plate-sauce';
+    else if (has('carne', 'hamburguer', 'frango', 'chicken', 'proteina')) visualId = 'plate-protein';
+    else if (has('ovo', 'egg')) visualId = 'plate-egg';
+    else if (has('cebola', 'picles', 'pepino', 'azeitona', 'cogumelo', 'champignon')) visualId = 'plate-vegetable';
     else visualId = 'plate-piece';
   }
   if (!visualId) {
