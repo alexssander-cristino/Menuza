@@ -4,3 +4,5 @@ data/*.sqlite-shm
 data/*.sqlite-wal
 .env
 backups/
+.vercel
+.env*

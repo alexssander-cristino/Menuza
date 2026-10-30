@@ -1,3 +1,4 @@
+
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "public",
@@ -6,11 +7,5 @@
       "maxDuration": 15
     }
   },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/dispatch?path=:path*"
-    }
-  ],
   "cleanUrls": false
 }
