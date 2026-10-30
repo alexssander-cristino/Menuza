@@ -1551,3 +1551,10 @@ body{overscroll-behavior-y:contain}
  .fiscal-record-list article>b{font-size:12px}
  .fiscal-notice{font-size:12px;flex-direction:column;gap:4px}
 }
+
+
+/* Fotos reais dos produtos em todas as visualizações 2D */
+.product-image .product-photo-card{position:absolute;inset:0;z-index:1;display:block;border-radius:inherit;transition:transform .35s ease;}
+.product-card:hover .product-image .product-photo-card{transform:scale(1.035);}
+.food-art-view .food-art-photo{display:block;object-fit:contain;object-position:center;}
+.recipe-live-preview .recipe-preview-photo{display:block;width:min(100%,420px);height:220px;object-fit:contain;object-position:center;margin:8px auto;border-radius:14px;background:#f4f1fa;}
