@@ -1,0 +1,9 @@
+{
+  "name": "menuza-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agente local para impressão automática de comandas Menuza",
+  "scripts": { "start": "node agent.mjs" },
+  "engines": { "node": ">=22" }
+}
