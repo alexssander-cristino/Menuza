@@ -25,7 +25,7 @@ const C = {
   mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
   corn: lin('#f2b72a'), chicken: lin('#e1c08f'), chickenBrown: lin('#a97a42'),
-  cream: lin('#f8f1df'), herb: lin('#506027'), herbLight: lin('#7d923b'),
+  cream: lin('#f8f1df'), herb: lin('#506027'), herbLight: lin('#7d923b'), basil: lin('#2f7b3f'), basilLight: lin('#75ad58'),
   ceramic: lin('#f1ede3'), ceramicLine: lin('#a9b6bb'),
   potato: lin('#eebf68'), potatoSkin: lin('#a8662a'), potatoDark: lin('#7a4519'), rosemary: lin('#4f6a2e'), aioli: lin('#f4e9ca'),
   wood: lin('#4a2f1d')
@@ -297,7 +297,8 @@ const TOPPINGS = {
   azeitona: { r: .0072, cover: [.05, .09, .13], kind: 'olive' },
   requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cheese-generic' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
-  oregano: { r: .003, cover: [.012, .022, .032], kind: 'herb', loose: true }
+  oregano: { r: .0038, cover: [.018, .03, .045], kind: 'herb', loose: true },
+  manjericao: { r: .0062, cover: [.035, .07, .11], kind: 'basil' }
 };
 const TOPPING_ORDER = Object.keys(TOPPINGS);
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI);
@@ -479,8 +480,24 @@ function baconBitInto(m, x, y, z, seed, rnd, detail) {
   baconStripInto(m, { L: .0185, W: .0075, t: .0022, seed, detail: .6, curl: .0016, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .1, t: [x, y + .0003, z] }) });
 }
 function herbInto(m, x, y, z, rnd) {
-  const L = .0042 + rnd() * .0018, W = .0018 + rnd() * .0008, yaw = rnd() * TAU, curl = .0008 + rnd() * .0008, c = mix(C.herb, C.herbLight, rnd());
-  m.grid(3, 2, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
+  const L = .0048 + rnd() * .0018, W = .0021 + rnd() * .0009, yaw = rnd() * TAU, curl = .0008 + rnd() * .0008, c = mix(C.herb, C.herbLight, rnd());
+  m.grid(5, 3, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
+}
+function basilInto(m, x, y, z, seed, rnd) {
+  // Cachos de folhas largas e verdes, visualmente distintos do pontilhado do orégano.
+  for (let leaf = 0; leaf < 3; leaf++) {
+    const length = .010 + rnd() * .004, width = .0042 + rnd() * .0018;
+    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .0018;
+    m.grid(12, 7, (u, v) => {
+      const taper = Math.sin(Math.PI * u) ** .72;
+      const across = (v - .5) * width * taper;
+      const arch = Math.sin(Math.PI * u) * .0015 + Math.sin(Math.PI * v) * .00035;
+      return [(u - .5) * length, arch + Math.abs(v - .5) * .00035, across];
+    }, (u) => MAT(mix(C.basil, C.basilLight, clamp(.18 + tint * .28 + Math.sin(u * Math.PI) * .18, 0, 1)), .42, .42, .18, 1), {
+      wrapU: false, up: true,
+      xf: rigid({ yaw, pitch: (rnd() - .5) * .24, roll: (rnd() - .5) * .18, t: [x + Math.cos(yaw) * offset, y + .0008 + leaf * .00012, z + Math.sin(yaw) * offset] })
+    });
+  }
 }
 
 function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
@@ -559,6 +576,7 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'cream': creamInto(m, s.x, y, s.z, r, sd, rnd, detail); break;
       case 'bacon': baconBitInto(m, s.x, y, s.z, sd, rnd, detail); break;
       case 'herb': herbInto(m, s.x, y, s.z, rnd); break;
+      case 'basil': basilInto(m, s.x, y, s.z, sd, rnd); break;
       case 'cheese-generic':
       case 'cheese-cheddar':
       case 'cheese-parmesan':
@@ -576,16 +594,28 @@ function poolFor(ctx) {
   return poolCache.get(key);
 }
 function pickSites(ctx, id, qtyIdx, count, placed, r) {
-  const pool = poolFor(ctx), rnd = randomFor(hash(id + ctx.seed)), order = pool.map((_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const pool = poolFor(ctx), rnd = randomFor(hash(id + ctx.seed)), candidates = pool.slice();
+  // Começa em um ponto pseudoaleatório e depois escolhe sempre a região mais vazia.
+  // Assim as fatias não ficam concentradas em um único canto da pizza.
+  for (let i = candidates.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [candidates[i], candidates[j]] = [candidates[j], candidates[i]]; }
   const out = [], own = [...placed];
-  // 1ª passada: sem sobreposição; 2ª e 3ª: tolerância crescente quando a pizza está muito cheia
-  for (const tol of [.86, .62, .4]) {
-    for (const idx of order) {
-      if (out.length >= count) break;
-      const [x, z] = pool[idx];
-      if (Math.hypot(x, z) > ctx.Rt - r * .6 || own.some(q => q.x === x && q.z === z)) continue;
-      if (own.every(q => Math.hypot(q.x - x, q.z - z) >= (r + (q.r || r)) * tol)) { const s = { x, z, r }; own.push(s); out.push(s); }
+  for (const tol of [.86, .66, .48]) {
+    while (out.length < count && candidates.length) {
+      let best = -1, bestScore = -Infinity;
+      for (let i = 0; i < candidates.length; i++) {
+        const [x, z] = candidates[i];
+        if (Math.hypot(x, z) > ctx.Rt - r * .6) continue;
+        let score = Infinity, valid = true;
+        for (const q of own) {
+          const distance = Math.hypot(q.x - x, q.z - z);
+          if (distance < (r + (q.r || r)) * tol) { valid = false; break; }
+          score = Math.min(score, distance);
+        }
+        if (valid && (score > bestScore || (score === bestScore && rnd() > .5))) { best = i; bestScore = score; }
+      }
+      if (best < 0) break;
+      const [x, z] = candidates.splice(best, 1)[0];
+      const site = { x, z, r }; own.push(site); out.push(site);
     }
     if (out.length >= count) break;
   }
@@ -774,7 +804,7 @@ function resolveVisualIngredient(type, ingredient) {
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
-    mushroom: 'champignon', herb: 'oregano'
+    mushroom: 'champignon', herb: 'oregano', manjericao: 'manjericao', basil: 'manjericao', basilico: 'manjericao'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
     cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
@@ -808,7 +838,8 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('cebola','onion','alho','alho poro')) visualId = 'cebola';
     else if (has('azeitona','oliva','olive')) visualId = 'azeitona';
     else if (has('milho','corn')) visualId = 'milho';
-    else if (has('oregano','manjericao','salsinha','cebolinha','rucula','erva','herb')) visualId = 'oregano';
+    else if (has('manjericao','basil','basilico')) visualId = 'manjericao';
+    else if (has('oregano','salsinha','cebolinha','rucula','erva','herb')) visualId = 'oregano';
     else if (has('tomate','tomato','pimentao','pepper')) visualId = 'tomate';
     else if (has('alho frito','cebola crispy','crispy')) visualId = 'cebola';
   } else if (type === 'burger') {
