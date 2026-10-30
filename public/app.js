@@ -1867,6 +1867,4 @@ async function start(){
 }
 setInterval(updateOrderElapsedTimes,30000);
 start();
-
-
-
+}}}
