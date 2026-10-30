@@ -18,7 +18,7 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
   throw new Error('Em produção, configure APP_SECRET e ADMIN_PASSWORD antes de iniciar.');
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'AdminRestaura1!';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
 const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -676,7 +676,8 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password) || (ADMIN_TOTP_SECRET && !verifyTotp(ADMIN_TOTP_SECRET, body.otp))) {
+        if (!ADMIN_PASSWORD) return send(response, 503, { error: 'A autenticação administrativa não está configurada neste servidor.' });
+        if (typeof body.password !== 'string' || body.password.length > 128 || !verifyPassword(body.password) || (ADMIN_TOTP_SECRET && !verifyTotp(ADMIN_TOTP_SECRET, body.otp))) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
         const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, iat: Date.now(), exp: Date.now() + ADMIN_SESSION_TTL_MS });
@@ -859,6 +860,5 @@ server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 1_000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Mesa Studio disponível em http://localhost:' + PORT);
-  if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha AdminRestaura1! (configure ADMIN_PASSWORD para alterar).');
 });
 for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => { server.close(() => { db.close(); process.exit(0); }); server.closeAllConnections(); });
