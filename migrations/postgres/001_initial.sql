@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS products (
   ingredient_ids_json TEXT NOT NULL DEFAULT '[]',
   default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]',
   ingredients_configured INTEGER NOT NULL DEFAULT 0,
+  image_url TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
