@@ -298,7 +298,7 @@ const TOPPINGS = {
   requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cheese-generic' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .0038, cover: [.018, .03, .045], kind: 'herb', loose: true },
-  manjericao: { r: .0062, cover: [.035, .07, .11], kind: 'basil' }
+  manjericao: { r: .018, cover: [.035, .055, .075], kind: 'basil' }
 };
 const TOPPING_ORDER = Object.keys(TOPPINGS);
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI);
@@ -484,20 +484,47 @@ function herbInto(m, x, y, z, rnd) {
   m.grid(5, 3, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
 }
 function basilInto(m, x, y, z, seed, rnd) {
-  // Cachos de folhas largas e verdes, visualmente distintos do pontilhado do orégano.
+  // Folhas de manjericão em escala real: largas, ovais e pontudas, com nervura central.
+  // Cada ponto de cobertura é um pequeno ramo com folhas sobrepostas, não um pontinho verde.
   for (let leaf = 0; leaf < 3; leaf++) {
-    const length = .010 + rnd() * .004, width = .0042 + rnd() * .0018;
-    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .0018;
-    m.grid(12, 7, (u, v) => {
+    const length = .030 + rnd() * .008, width = .014 + rnd() * .006;
+    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .0032;
+    const pitch = (rnd() - .5) * .18, roll = (rnd() - .5) * .16;
+    const leafX = x + Math.cos(yaw) * offset;
+    const leafZ = z + Math.sin(yaw) * offset;
+    const leafY = y + .001 + leaf * .00018;
+    const surface = (u, v) => {
       const taper = Math.sin(Math.PI * u) ** .72;
       const across = (v - .5) * width * taper;
-      const arch = Math.sin(Math.PI * u) * .0015 + Math.sin(Math.PI * v) * .00035;
-      return [(u - .5) * length, arch + Math.abs(v - .5) * .00035, across];
-    }, (u) => MAT(mix(C.basil, C.basilLight, clamp(.18 + tint * .28 + Math.sin(u * Math.PI) * .18, 0, 1)), .42, .42, .18, 1), {
-      wrapU: false, up: true,
-      xf: rigid({ yaw, pitch: (rnd() - .5) * .24, roll: (rnd() - .5) * .18, t: [x + Math.cos(yaw) * offset, y + .0008 + leaf * .00012, z + Math.sin(yaw) * offset] })
+      const arch = Math.sin(Math.PI * u) * (.0018 + .0007 * (1 - Math.abs(v - .5) * 2));
+      const edgeWave = Math.sin(u * Math.PI * 5 + seed * .13) * .00018 * Math.abs(v - .5) * 2;
+      return [(u - .5) * length, arch + edgeWave, across];
+    };
+    const leafColor = mix(C.basil, C.basilLight, clamp(.2 + tint * .3, 0, 1));
+    const xf = rigid({ yaw, pitch, roll, t: [leafX, leafY, leafZ] });
+    m.grid(22, 11, surface, (u, v) => {
+      const edge = Math.abs(v - .5) * 2;
+      const highlight = .12 + .12 * Math.sin(u * Math.PI) + .08 * (1 - edge);
+      return MAT(mix(leafColor, C.basilLight, highlight), .38, .48, .16, 1);
+    }, { wrapU: false, up: true, xf });
+
+    // Nervura central fina, ligeiramente elevada para continuar visível no ângulo superior.
+    m.grid(18, 2, (u, v) => {
+      const p = surface(u, v);
+      return [p[0], p[1] + .00022, (v - .5) * .00065 * Math.sin(Math.PI * u)];
+    }, () => MAT(mix(C.basilLight, lin('#b2cb79'), .28), .48, .3, .12, 1), {
+      wrapU: false, up: true, xf
     });
   }
+  // Pequeno pecíolo verde ligando visualmente as folhas do mesmo ramo.
+  m.grid(8, 3, (u, v) => [
+    (u - .5) * .010,
+    .00045 + Math.sin(u * Math.PI) * .0003,
+    (v - .5) * .0012
+  ], () => MAT(C.basil, .5, .3, .1, 1), {
+    wrapU: false, up: true,
+    xf: rigid({ yaw: rnd() * TAU, t: [x, y + .00065, z] })
+  });
 }
 
 function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
