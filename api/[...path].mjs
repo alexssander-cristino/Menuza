@@ -356,23 +356,23 @@ function fiscalMonth(value){
   return {month,start:month+'-01',end:new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),1).toISOString().slice(0,10)};
 }
 async function fiscalReport(monthValue){
-  const {month,start,end}=fiscalMonth(monthValue);
+  const {month,start,end,startUtc,endUtc}=fiscalMonth(monthValue);
   const [sales,byFulfillment,expenses,documents,orderRows]=await Promise.all([
     query(`SELECT COUNT(*) FILTER (WHERE status<>'cancelled')::int AS orders,
       COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled,
       COALESCE(SUM(total_cents + COALESCE(discount_cents,0)) FILTER (WHERE status<>'cancelled'),0)::bigint AS gross_cents,
       COALESCE(SUM(discount_cents) FILTER (WHERE status<>'cancelled'),0)::bigint AS discounts_cents
-      FROM orders WHERE restaurant_id=$1 AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') >= $2::date AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') < $3::date`,[RESTAURANT_ID,start,end]),
+      FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND created_at < $3`,[RESTAURANT_ID,startUtc,endUtc]),
     query(`SELECT fulfillment,COUNT(*)::int AS orders,COALESCE(SUM(total_cents),0)::bigint AS total_cents
-      FROM orders WHERE restaurant_id=$1 AND status<>'cancelled' AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') >= $2::date AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') < $3::date
-      GROUP BY fulfillment ORDER BY fulfillment`,[RESTAURANT_ID,start,end]),
-    query('SELECT COALESCE(SUM(amount_cents),0)::bigint AS total_cents,COUNT(*)::int AS count FROM fiscal_expenses WHERE restaurant_id=$1 AND expense_date >= $2::date AND expense_date < $3::date',[RESTAURANT_ID,start,end]),
-    query('SELECT direction,COUNT(*)::int AS count FROM fiscal_documents WHERE restaurant_id=$1 AND document_date >= $2::date AND document_date < $3::date GROUP BY direction',[RESTAURANT_ID,start,end]),
+      FROM orders WHERE restaurant_id=$1 AND status<>'cancelled' AND created_at >= $2 AND created_at < $3
+      GROUP BY fulfillment ORDER BY fulfillment`,[RESTAURANT_ID,startUtc,endUtc]),
+    query('SELECT COALESCE(SUM(amount_cents),0)::bigint AS total_cents,COUNT(*)::int AS count FROM fiscal_expenses WHERE restaurant_id=$1 AND expense_date >= $2::date AND expense_date < $3::date',[RESTAURANT_ID,startUtc,endUtc]),
+    query('SELECT direction,COUNT(*)::int AS count FROM fiscal_documents WHERE restaurant_id=$1 AND document_date >= $2::date AND document_date < $3::date GROUP BY direction',[RESTAURANT_ID,startUtc,endUtc]),
     query(`SELECT id,TO_CHAR(created_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD HH24:MI:SS') AS date,
       customer_name AS customer,fulfillment,status,total_cents::bigint AS net_cents,
       COALESCE(discount_cents,0)::bigint AS discount_cents,
       (total_cents+COALESCE(discount_cents,0))::bigint AS gross_cents
-      FROM orders WHERE restaurant_id=$1 AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') >= $2::date AND (created_at::timestamptz AT TIME ZONE 'America/Sao_Paulo') < $3::date
+      FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND created_at < $3
       ORDER BY created_at,id LIMIT 10000`,[RESTAURANT_ID,start,end])
   ]);
   const s=sales.rows[0], gross=Number(s.gross_cents||0), discounts=Number(s.discounts_cents||0);
