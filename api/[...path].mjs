@@ -527,7 +527,7 @@ export default async function handler(req,res) {
     if (method==='POST'&&path==='/api/admin/products') {
       const b=await bodyOf(req,400000), name=clean(b.name,80), description=clean(b.description,300), type=b.type, categoryId=clean(b.categoryId,50), price=Number(b.baseCents);
       const imageUrl=b.imageUrl===undefined?'':String(b.imageUrl);
-      if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(price)||price<500||price>1000000) throw fail('Preencha nome, tipo e preço-base válidos.',422);
       const cat=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[categoryId,RESTAURANT_ID])).rows[0]; if(!cat) throw fail('Escolha uma categoria válida.',422);
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
@@ -540,7 +540,7 @@ export default async function handler(req,res) {
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
       const b=await bodyOf(req,400000), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
       const imageUrl=b.imageUrl===undefined?null:String(b.imageUrl);
-      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
