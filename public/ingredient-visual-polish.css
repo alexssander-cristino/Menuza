@@ -303,3 +303,75 @@
 @media(prefers-reduced-motion:reduce){
   .ingredient-option,.visual-controls button{transition:none}
 }
+
+
+/* Cadastro e edição de produtos: alinhamento dos nomes dentro das opções de adicionais. */
+.ingredient-checkbox-list{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:8px;
+  padding:3px;
+}
+.ingredient-choice{
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:center;
+  justify-items:stretch;
+  gap:8px;
+  min-width:0;
+  min-height:42px;
+  margin:0;
+  padding:9px 11px;
+  text-align:left;
+  text-indent:0;
+  line-height:1.4;
+}
+.ingredient-choice input[type="checkbox"]{
+  display:block;
+  grid-column:1;
+  grid-row:1;
+  align-self:center;
+  justify-self:start;
+  width:17px;
+  height:17px;
+  min-width:17px;
+  margin:0;
+}
+.ingredient-choice span{
+  display:block;
+  grid-column:2;
+  grid-row:1;
+  min-width:0;
+  width:100%;
+  margin:0;
+  padding:0;
+  text-align:left;
+  text-indent:0;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+  line-height:1.4;
+}
+.ingredient-choice small{
+  grid-column:3;
+  grid-row:1;
+  justify-self:end;
+  align-self:center;
+  max-width:88px;
+  min-width:max-content;
+  margin:0;
+  padding:0;
+  text-align:right;
+  white-space:nowrap;
+  line-height:1.3;
+}
+.ingredient-choice:focus-within{outline-offset:1px}
+@media(max-width:700px){
+  .ingredient-checkbox-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .ingredient-choice{gap:7px;padding:9px 8px}
+}
+@media(max-width:420px){
+  .ingredient-checkbox-list{grid-template-columns:minmax(0,1fr)}
+  .ingredient-choice{grid-template-columns:18px minmax(0,1fr) auto;padding:10px}
+  .ingredient-choice small{max-width:100px}
+}
