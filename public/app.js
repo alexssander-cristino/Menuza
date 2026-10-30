@@ -1365,7 +1365,7 @@ function openAdminRecipe3D(productId){
   const overlay=root.createElement('div');
   overlay.id='adminRecipe3dPreview';
   overlay.className='modal-backdrop admin-recipe-3d-backdrop';
-  overlay.innerHTML='<section class="admin-recipe-3d-modal" role="dialog" aria-modal="true" aria-label="Prévia 3D da receita"><header><div><strong>Modelo 3D em tempo real</strong><small>Altere as caixas de seleção da receita para atualizar o prato.</small></div><button type="button" data-action="close-admin-recipe-3d" aria-label="Fechar prévia 3D">×</button></header><div class="admin-recipe-3d-stage"><canvas id="adminRecipe3dCanvas" aria-label="Modelo 3D da receita"></canvas><div id="adminRecipe3dHud" aria-live="polite"></div></div><p>O modelo acompanha os ingredientes marcados na receita padrão.</p></section>';
+  overlay.innerHTML='<section class="admin-recipe-3d-modal" role="dialog" aria-modal="true" aria-label="Prévia 3D da receita"><header><div><strong>Modelo 3D em tempo real</strong><small>Altere a receita padrão e os adicionais permitidos para atualizar o prato.</small></div><button type="button" data-action="close-admin-recipe-3d" aria-label="Fechar prévia 3D">×</button></header><div class="admin-recipe-3d-stage"><canvas id="adminRecipe3dCanvas" aria-label="Modelo 3D da receita"></canvas><div id="adminRecipe3dHud" aria-live="polite"></div></div><p>O modelo acompanha os ingredientes marcados na receita padrão.</p></section>';
   root.body.append(overlay);
   const ingredients=adminPreviewIngredients(row,catalog);
   const sizes=catalog.sizes?.[product.type]||[];
