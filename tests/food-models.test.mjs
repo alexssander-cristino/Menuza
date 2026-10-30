@@ -4,12 +4,20 @@ import { buildFoodLayout } from '../public/food-models.js';
 
 const pizza = { id: 'pizza-teste', type: 'pizza', widthCm: 35, heightCm: 2 };
 
+function assertToppingBuilds(layout, kind) {
+  const topping = layout.parts.find(part => part.kind === kind);
+  assert.ok(topping, `cobertura ${kind} deve existir`);
+  const geometry = topping.build();
+  assert.ok(geometry.positions.length > 0, `cobertura ${kind} deve gerar geometria`);
+  assert.ok(geometry.positions.every(Number.isFinite), `cobertura ${kind} não pode gerar coordenadas inválidas`);
+}
+
 test('manjericão possui uma cobertura 3D própria e reconhece o nome em português', () => {
   const layout = buildFoodLayout(pizza, [
     { id: 'manjericao', name: 'Manjericão', quantity: 1 }
   ], { diameterCm: 35 }, { detail: 0.45 });
 
-  assert.ok(layout.parts.some(part => part.kind === 'topping:manjericao'));
+  assertToppingBuilds(layout, 'topping:manjericao');
   assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'));
 });
 
@@ -26,5 +34,5 @@ test('calabresa continua sendo montada como uma cobertura única com quantidade 
     { id: 'calabresa', name: 'Calabresa', quantity: 3 }
   ], { diameterCm: 35 }, { detail: 0.45 });
 
-  assert.ok(layout.parts.some(part => part.kind === 'topping:calabresa'));
+  assertToppingBuilds(layout, 'topping:calabresa');
 });
