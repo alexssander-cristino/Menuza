@@ -3,7 +3,7 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
 
-const MENUZA_APP_BUILD = '80';
+const MENUZA_APP_BUILD = '81';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -1867,4 +1867,5 @@ async function start(){
 }
 setInterval(updateOrderElapsedTimes,30000);
 start();
+}}}
 }}}
