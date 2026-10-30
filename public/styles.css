@@ -1576,3 +1576,7 @@ body{overscroll-behavior-y:contain}
   .food-art-view .food-art-photo{width:150px;height:150px;max-width:68%;max-height:68%;}
   .recipe-live-preview .recipe-preview-photo{width:150px;height:150px;max-height:150px;}
 }
+
+
+/* Ação de salvar produto posicionada após a visualização da receita/modelo. */
+.product-admin-entry .product-save-action{display:flex;align-items:center;justify-content:center;width:100%;min-height:40px;margin:12px 0 2px;border-radius:10px;}
