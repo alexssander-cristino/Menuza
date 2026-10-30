@@ -779,7 +779,8 @@ async function deleteFiscalExpense(id){
  if(!window.confirm('Excluir este lançamento de despesa?'))return;
  try{await api('/api/admin/fiscal/expenses/'+encodeURIComponent(id),{method:'DELETE'});toast('Despesa excluída.');await renderFiscalAdmin()}catch(e){toast(e.message)}
 }
-\nfunction renderAdmin(){
+
+function renderAdmin(){
   const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['categories','Categorias'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['fiscal','Centro Fiscal'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
   if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
