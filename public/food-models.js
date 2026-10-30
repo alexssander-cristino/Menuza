@@ -771,7 +771,7 @@ function resolveVisualIngredient(type, ingredient) {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
     cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
     catupiry: 'catupiry', cream: 'queijo-generico', cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
-    gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone', catupiry: 'catupiry',
+    gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
     mushroom: 'champignon', herb: 'oregano'
