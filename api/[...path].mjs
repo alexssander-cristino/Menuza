@@ -396,7 +396,7 @@ export default async function handler(req, res) {
     : typeof queryPath === 'string' && queryPath.trim()
       ? queryPath
       : requestUrl.pathname.replace(/^\/api\/?/, '');
-  const normalizedRoute = String(routePath || '').replace(/^\\/+|\\/+$/g, '');
+  const normalizedRoute = String(routePath || '').replace(/^\/+|\/+$/g, '');
   const path = normalizedRoute.startsWith('api/')
     ? `/${normalizedRoute}`
     : `/api/${normalizedRoute}`;
