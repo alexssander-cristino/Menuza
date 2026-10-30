@@ -725,6 +725,7 @@ export default async function handler(req, res) {
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
+      if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
       await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,imageUrl,new Date().toISOString(),id,RESTAURANT_ID]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
