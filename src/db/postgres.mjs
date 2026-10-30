@@ -1,14 +1,36 @@
 import { Pool } from '@neondatabase/serverless';
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-// Vercel Dev executa as funções localmente, mas nem toda configuração do
-// ambiente é propagada para os módulos. Carrega o .env.local da raiz antes
-// de ler DATABASE_URL, ADMIN_PASSWORD e APP_SECRET. Nunca faz isso em
-// produção ou em deployments Preview.
-const isLocalVercel = process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'development';
-if (isLocalVercel && typeof process.loadEnvFile === 'function') {
+// Vercel Dev nem sempre propaga as variáveis do .env.local para as funções.
+// Resolve o arquivo a partir deste módulo (src/db), não do process.cwd(),
+// e carrega antes que a API capture DATABASE_URL, ADMIN_PASSWORD e APP_SECRET.
+const isLocalRuntime = process.env.NODE_ENV !== 'production'
+  && process.env.VERCEL_ENV !== 'production'
+  && process.env.VERCEL_ENV !== 'preview';
+
+if (isLocalRuntime) {
+  const localEnvPath = fileURLToPath(new URL('../../.env.local', import.meta.url));
   try {
-    process.loadEnvFile(resolve(process.cwd(), '.env.local'));
+    const contents = readFileSync(localEnvPath, 'utf8').replace(/^\uFEFF/, '');
+    for (const line of contents.split(/\r?\n/)) {
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (!match) continue;
+
+      const [, key] = match;
+      let value = match[2];
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1).replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+      } else {
+        value = value.replace(/\s+#.*$/, '').trim();
+      }
+
+      // Variáveis já definidas no terminal/Vercel têm prioridade. Valores
+      // vazios são tratados como ausentes para não bloquear o .env.local.
+      if (process.env[key] === undefined || process.env[key] === '') {
+        process.env[key] = value;
+      }
+    }
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
