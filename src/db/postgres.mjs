@@ -1,14 +1,20 @@
 import { Pool } from '@neondatabase/serverless';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Vercel Dev executa as funções localmente, mas nem toda configuração do
-// ambiente é propagada para os módulos. Carrega o .env.local da raiz antes
-// de ler DATABASE_URL, ADMIN_PASSWORD e APP_SECRET. Nunca faz isso em
-// produção ou em deployments Preview.
-const isLocalVercel = process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'development';
-if (isLocalVercel && typeof process.loadEnvFile === 'function') {
+// Load the root .env.local before API modules capture configuration values.
+// Resolve relative to this file instead of process.cwd(): Vercel Dev may run
+// functions with a working directory different from the repository root.
+// Never load local secrets in production or Preview deployments.
+const isProductionDeployment =
+  process.env.NODE_ENV === 'production' ||
+  process.env.VERCEL_ENV === 'production' ||
+  process.env.VERCEL_ENV === 'preview';
+
+if (!isProductionDeployment && typeof process.loadEnvFile === 'function') {
+  const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
   try {
-    process.loadEnvFile(resolve(process.cwd(), '.env.local'));
+    process.loadEnvFile(resolve(projectRoot, '.env.local'));
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
