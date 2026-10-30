@@ -652,10 +652,136 @@ function renderAdminLogin(errorText=''){
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Bela Mesa para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador (se 2FA estiver ativado)</span><input type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>↗</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
   root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),otp=String(formData.get('otp')||'').trim();try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,otp})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
-function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['categories','Categorias'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
+
+function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function fiscalMoney(value){return money(Number(value)||0)}
+async function renderFiscalAdmin(){
+ const target=root.getElementById('adminBody');if(!target)return;
+ const month=fiscalCurrentMonth();target.innerHTML='<div class="loading-line">Carregando centro fiscal…</div>';
+ try{
+  const selected=app.admin.fiscalMonth||month;app.admin.fiscalMonth=selected;
+  const [profileResult,reportResult,expenseResult,documentResult]=await Promise.all([
+   api('/api/admin/fiscal/profile'),api('/api/admin/fiscal/report?month='+encodeURIComponent(selected)),
+   api('/api/admin/fiscal/expenses?month='+encodeURIComponent(selected)),api('/api/admin/fiscal/documents?month='+encodeURIComponent(selected))
+  ]);
+  const p=profileResult.profile||{},r=reportResult.report||{},expenses=expenseResult.expenses||[],documents=documentResult.documents||[];
+  const dateValue=v=>v?String(v).slice(0,10):'';
+  target.innerHTML=`
+   <section class="fiscal-hero"><div><span class="eyebrow">GESTÃO E CONTABILIDADE</span><h2>Centro Fiscal</h2><p>Organize as informações do restaurante e prepare o fechamento mensal para a contabilidade.</p></div><label class="fiscal-month-picker"><span>Competência</span><input id="fiscalMonth" type="month" value="${esc(selected)}"></label></section>
+   <div class="fiscal-notice"><strong>Importante</strong><span>Este módulo é um organizador gerencial. Os relatórios não são notas fiscais, não calculam tributos e não substituem a escrituração ou a declaração do contador.</span></div>
+   <section class="fiscal-kpis">
+    <article><span>Vendas registradas</span><b>${fiscalMoney(r.sales?.grossCents)}</b><small>${Number(r.sales?.orders||0)} pedidos não cancelados</small></article>
+    <article><span>Descontos</span><b>${fiscalMoney(r.sales?.discountsCents)}</b><small>Descontos registrados nos pedidos</small></article>
+    <article><span>Despesas lançadas</span><b>${fiscalMoney(r.expenses?.totalCents)}</b><small>${Number(r.expenses?.count||0)} lançamentos</small></article>
+    <article><span>Vendas canceladas</span><b>${Number(r.sales?.cancelled||0)}</b><small>Pedidos excluídos do faturamento</small></article>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Resumo da competência</h3><small>Dados consolidados a partir dos pedidos do Menuza.</small></div><div class="fiscal-actions"><button class="button button-outline button-small" type="button" data-action="fiscal-export-csv">Exportar CSV</button><button class="button button-dark button-small" type="button" data-action="fiscal-export-pdf">Relatório PDF</button></div></div>
+    <div class="fiscal-summary-grid"><div><span>Receita bruta registrada</span><b>${fiscalMoney(r.sales?.grossCents)}</b></div><div><span>Descontos</span><b>${fiscalMoney(r.sales?.discountsCents)}</b></div><div><span>Receita após descontos</span><b>${fiscalMoney(r.sales?.netCents)}</b></div><div><span>Despesas cadastradas</span><b>${fiscalMoney(r.expenses?.totalCents)}</b></div></div>
+    <div class="fiscal-breakdown"><strong>Vendas por modalidade</strong>${(r.byFulfillment||[]).length?(r.byFulfillment||[]).map(x=>'<div><span>'+({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||esc(x.type))+' · '+Number(x.orders)+' pedidos</span><b>'+fiscalMoney(x.totalCents)+'</b></div>').join(''):'<p class="admin-empty">Sem vendas nesta competência.</p>'}</div>
+    <p class="fiscal-footnote">${esc(r.notice||'')}</p>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Dados fiscais da empresa</h3><small>Cadastro informado para Galileu Pizzas e Lanches LTDA. Confira com a contabilidade.</small></div></div>
+    <form id="fiscalProfileForm" class="fiscal-form-grid">
+     <label class="form-field"><span>CNPJ</span><input name="cnpj" inputmode="numeric" maxlength="18" value="${esc(p.cnpj||'60908509000169')}" required></label>
+     <label class="form-field"><span>Razão social</span><input name="legalName" maxlength="160" value="${esc(p.legalName||'Galileu Pizzas e Lanches LTDA')}" required></label>
+     <label class="form-field"><span>Nome fantasia</span><input name="tradeName" maxlength="160" value="${esc(p.tradeName||'Galileu Pizzas e Lanches')}" required></label>
+     <label class="form-field"><span>Regime tributário</span><select name="taxRegime"><option value="simples_nacional" ${(p.taxRegime||'simples_nacional')==='simples_nacional'?'selected':''}>Simples Nacional</option><option value="lucro_presumido" ${p.taxRegime==='lucro_presumido'?'selected':''}>Lucro Presumido</option><option value="lucro_real" ${p.taxRegime==='lucro_real'?'selected':''}>Lucro Real</option><option value="mei" ${p.taxRegime==='mei'?'selected':''}>MEI</option><option value="outro" ${p.taxRegime==='outro'?'selected':''}>Outro</option></select></label>
+     <label class="form-field"><span>Porte</span><input name="companySize" value="${esc(p.companySize||'ME')}" readonly></label>
+     <label class="form-field"><span>Natureza jurídica</span><input name="legalNature" value="${esc(p.legalNature||'Sociedade Empresária Limitada')}"></label>
+     <label class="form-field"><span>Inscrição estadual</span><input name="stateRegistration" value="${esc(p.stateRegistration||'')}" placeholder="Se aplicável"></label>
+     <label class="form-field"><span>Inscrição municipal</span><input name="municipalRegistration" value="${esc(p.municipalRegistration||'')}" placeholder="Se aplicável"></label>
+     <label class="form-field"><span>Data de abertura</span><input type="date" name="openingDate" value="${dateValue(p.openingDate)||'2025-05-20'}"></label>
+     <label class="form-field"><span>Opção pelo Simples</span><input type="date" name="simplesStartDate" value="${dateValue(p.simplesStartDate)||'2025-05-20'}"></label>
+     <label class="form-field"><span>Capital social (R$)</span><input type="number" name="capital" min="0" step="0.01" value="${(Number(p.capitalCents??3000000)/100).toFixed(2)}"></label>
+     <div class="wide fiscal-form-actions"><span id="fiscalProfileStatus" role="status"></span><button class="button button-dark button-small" type="submit">Salvar dados fiscais</button></div>
+    </form>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Despesas e compras</h3><small>Registre gastos e vincule os dados do comprovante ou fornecedor.</small></div></div>
+    <form id="fiscalExpenseForm" class="fiscal-form-grid">
+     <label class="form-field"><span>Data</span><input type="date" name="date" value="${selected}-01" required></label>
+     <label class="form-field"><span>Descrição</span><input name="description" maxlength="180" required placeholder="Ex.: compra de ingredientes"></label>
+     <label class="form-field"><span>Categoria</span><select name="category"><option value="insumos">Insumos e alimentos</option><option value="bebidas">Bebidas</option><option value="embalagens">Embalagens</option><option value="aluguel">Aluguel</option><option value="energia">Energia e água</option><option value="servicos">Serviços</option><option value="equipamentos">Equipamentos</option><option value="impostos">Impostos e taxas</option><option value="folha">Folha e pessoal</option><option value="outros">Outros</option></select></label>
+     <label class="form-field"><span>Valor (R$)</span><input type="number" name="amount" min="0.01" max="9999999" step="0.01" required></label>
+     <label class="form-field"><span>Fornecedor</span><input name="supplierName" maxlength="160"></label>
+     <label class="form-field"><span>CNPJ do fornecedor</span><input name="supplierCnpj" inputmode="numeric" maxlength="18"></label>
+     <label class="form-field"><span>Número do documento</span><input name="documentNumber" maxlength="60"></label>
+     <label class="form-field"><span>Forma de pagamento</span><select name="paymentMethod"><option value="">Não informado</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Boleto</option><option>Transferência</option><option>Outro</option></select></label>
+     <label class="form-field fiscal-wide"><span>Observações</span><input name="notes" maxlength="500"></label>
+     <div class="wide fiscal-form-actions"><span></span><button class="button button-dark button-small" type="submit">Adicionar despesa</button></div>
+    </form>
+    <div class="fiscal-record-list">${expenses.length?expenses.map(x=>'<article><div><strong>'+esc(x.description)+'</strong><small>'+new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR')+' · '+esc(x.supplierName||'Fornecedor não informado')+' · '+esc(x.category)+'</small></div><b>'+fiscalMoney(x.amountCents)+'</b><button class="tiny-link" data-action="fiscal-delete-expense" data-id="'+esc(x.id)+'" type="button">Excluir</button></article>').join(''):'<p class="admin-empty">Nenhuma despesa lançada nesta competência.</p>'}</div>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Documentos fiscais</h3><small>Guarde XML e PDF de notas recebidas ou emitidas. Os arquivos ficam associados ao restaurante.</small></div></div>
+    <form id="fiscalDocumentForm" class="fiscal-form-grid">
+     <label class="form-field"><span>Movimentação</span><select name="direction"><option value="received">Documento recebido</option><option value="issued">Documento emitido</option></select></label>
+     <label class="form-field"><span>Tipo</span><select name="documentType"><option value="xml">XML</option><option value="pdf">PDF</option><option value="other">Outro arquivo</option></select></label>
+     <label class="form-field"><span>Data do documento</span><input type="date" name="date"></label>
+     <label class="form-field"><span>Número</span><input name="documentNumber" maxlength="60"></label>
+     <label class="form-field"><span>Emitente / fornecedor</span><input name="issuerName" maxlength="160"></label>
+     <label class="form-field"><span>CNPJ do emitente</span><input name="issuerCnpj" maxlength="18" inputmode="numeric"></label>
+     <label class="form-field"><span>Valor (R$)</span><input name="amount" type="number" min="0" step="0.01" value="0"></label>
+     <label class="form-field"><span>Arquivo XML ou PDF (máx. 1,3 MB)</span><input type="file" name="file" accept=".xml,.pdf,application/xml,text/xml,application/pdf" required></label>
+     <label class="form-field fiscal-wide"><span>Observações</span><input name="notes" maxlength="500"></label>
+     <div class="wide fiscal-form-actions"><span></span><button class="button button-dark button-small" type="submit">Salvar documento</button></div>
+    </form>
+    <div class="fiscal-record-list">${documents.length?documents.map(x=>'<article><div><strong>'+esc(x.fileName)+'</strong><small>'+ (x.direction==='received'?'Recebido':'Emitido')+' · '+esc(x.documentNumber||'Sem número')+' · '+(x.date?new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR'):'Sem data')+'</small></div><b>'+fiscalMoney(x.amountCents)+'</b><button class="tiny-link" type="button" data-action="fiscal-download-document" data-id="'+esc(x.id)+'">Baixar</button></article>').join(''):'<p class="admin-empty">Nenhum documento armazenado nesta competência.</p>'}</div>
+   </section>
+   <p class="fiscal-accountant-note"><strong>Para enviar ao contador:</strong> exporte o relatório da competência, o CSV de vendas/despesas e baixe os XML/PDF armazenados. O contador deve conferir notas, enquadramento, classificação fiscal e apuração antes de declarar.</p>`;
+ }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message)+'</p><button class="button button-outline button-small" data-action="refresh-fiscal" type="button">Tentar novamente</button></section>'}
+}
+async function submitFiscalProfile(form){
+ const d=new FormData(form),data={cnpj:String(d.get('cnpj')||'').replace(/\\D/g,''),legalName:d.get('legalName'),tradeName:d.get('tradeName'),taxRegime:d.get('taxRegime'),legalNature:d.get('legalNature'),stateRegistration:d.get('stateRegistration'),municipalRegistration:d.get('municipalRegistration'),openingDate:d.get('openingDate'),simplesStartDate:d.get('simplesStartDate'),capitalCents:Math.round(Number(d.get('capital'))*100)};
+ const button=form.querySelector('[type=submit]'),status=root.getElementById('fiscalProfileStatus');button.disabled=true;status.textContent='Salvando…';
+ try{await api('/api/admin/fiscal/profile',{method:'PATCH',body:JSON.stringify(data)});status.textContent='Dados fiscais salvos.';toast('Cadastro fiscal atualizado.')}
+ catch(e){status.textContent=e.message}
+ finally{button.disabled=false}
+}
+async function submitFiscalExpense(form){
+ const d=new FormData(form),data={date:d.get('date'),description:d.get('description'),category:d.get('category'),amountCents:Math.round(Number(d.get('amount'))*100),supplierName:d.get('supplierName'),supplierCnpj:String(d.get('supplierCnpj')||'').replace(/\\D/g,''),documentNumber:d.get('documentNumber'),paymentMethod:d.get('paymentMethod'),notes:d.get('notes')};
+ const button=form.querySelector('[type=submit]');button.disabled=true;
+ try{await api('/api/admin/fiscal/expenses',{method:'POST',body:JSON.stringify(data)});toast('Despesa registrada.');await renderFiscalAdmin()}
+ catch(e){toast(e.message);button.disabled=false}
+}
+async function submitFiscalDocument(form){
+ const d=new FormData(form),file=d.get('file');if(!(file instanceof File)||!file.size)return toast('Selecione um arquivo XML ou PDF.');
+ if(file.size>1300000)return toast('O arquivo deve ter no máximo 1,3 MB.');
+ const mime=file.type||(file.name.toLowerCase().endsWith('.xml')?'application/xml':'application/pdf');
+ if(!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mime))return toast('Formato não permitido. Envie XML ou PDF.');
+ const button=form.querySelector('[type=submit]');button.disabled=true;
+ try{
+  const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file)});
+  const data={direction:d.get('direction'),documentType:file.name.toLowerCase().endsWith('.xml')?'xml':file.name.toLowerCase().endsWith('.pdf')?'pdf':'other',fileName:file.name,mimeType:mime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
+  await api('/api/admin/fiscal/documents',{method:'POST',body:JSON.stringify(data)});toast('Documento armazenado.');await renderFiscalAdmin();
+ }catch(e){toast(e.message);button.disabled=false}
+}
+async function downloadFiscalDocument(id){
+ try{const d=await api('/api/admin/fiscal/documents/'+encodeURIComponent(id)),bytes=atob(d.contentBase64),array=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)array[i]=bytes.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([array],{type:d.mimeType})),link=root.createElement('a');link.href=url;link.download=d.fileName;root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+ }catch(e){toast(e.message)}
+}
+async function exportFiscalReport(format){
+ try{
+  const month=app.admin.fiscalMonth||fiscalCurrentMonth(),[report,expenses,documents]=await Promise.all([api('/api/admin/fiscal/report?month='+month),api('/api/admin/fiscal/expenses?month='+month),api('/api/admin/fiscal/documents?month='+month)]);
+  const r=report.report;
+  if(format==='pdf'){
+   const win=window.open('','_blank');if(!win)return toast('Permita pop-ups para gerar o PDF.');
+   const rows=[['Vendas registradas',fiscalMoney(r.sales.grossCents)],['Descontos',fiscalMoney(r.sales.discountsCents)],['Receita após descontos',fiscalMoney(r.sales.netCents)],['Pedidos válidos',r.sales.orders],['Pedidos cancelados',r.sales.cancelled],['Despesas lançadas',fiscalMoney(r.expenses.totalCents)],['Documentos recebidos',r.documents.received],['Documentos emitidos',r.documents.issued]];
+   openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,[],[],win);return;
+  }
+  const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor']];
+  for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
+  const csv='\\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\\r\\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=root.createElement('a');a.href=url;a.download='menuza-contabilidade-'+month+'.csv';root.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV de despesas exportado. Baixe também os documentos XML/PDF da lista.');
+ }catch(e){toast(e.message||'Não foi possível exportar a competência.')}
+}
+async function deleteFiscalExpense(id){
+ if(!window.confirm('Excluir este lançamento de despesa?'))return;
+ try{await api('/api/admin/fiscal/expenses/'+encodeURIComponent(id),{method:'DELETE'});toast('Despesa excluída.');await renderFiscalAdmin()}catch(e){toast(e.message)}
+}
+\nfunction renderAdmin(){
+  const tabs=[['orders','Pedidos'],['analytics','Vendas'],['combos','Combos'],['tables','Mesas 3D'],['catalog','Cardápio'],['categories','Categorias'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['fiscal','Centro Fiscal'],['settings','Configurações']];
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
 }
 let orderAlertAudioContext=null;
 function playOrderAlert(){
@@ -1593,6 +1719,11 @@ function handleClick(event){
     return;
   }
   const action=target.dataset.action;
+  if(action==='refresh-fiscal'){renderFiscalAdmin();return}
+  if(action==='fiscal-export-pdf'){exportFiscalReport('pdf');return}
+  if(action==='fiscal-export-csv'){exportFiscalReport('csv');return}
+  if(action==='fiscal-download-document'){downloadFiscalDocument(target.dataset.id);return}
+  if(action==='fiscal-delete-expense'){deleteFiscalExpense(target.dataset.id);return}
   if(action==='show-menu-qr'){openMenuQr();return}
   if(action==='close-menu-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeMenuQr();return}
   if(action==='copy-menu-qr'){const input=root.getElementById('menuQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link público do cardápio copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
@@ -1824,6 +1955,9 @@ function bindScrollStorytelling(){
 async function start(){
  root.body.addEventListener('click',handleClick);
  root.addEventListener('submit',async event=>{
+  if(event.target.id==='fiscalProfileForm'){event.preventDefault();await submitFiscalProfile(event.target);return}
+  if(event.target.id==='fiscalExpenseForm'){event.preventDefault();await submitFiscalExpense(event.target);return}
+  if(event.target.id==='fiscalDocumentForm'){event.preventDefault();await submitFiscalDocument(event.target);return}
   if(event.target.id!=='deleteCustomerAccountForm')return;
   event.preventDefault();
   const form=event.target,button=form.querySelector('[type="submit"]'),errorNode=root.getElementById('deleteAccountError');
@@ -1840,7 +1974,7 @@ async function start(){
  
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
-    if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
+    if(event.target.id==='fiscalMonth'){app.admin.fiscalMonth=event.target.value;renderFiscalAdmin();return}\n    if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
     if(event.target.id==='ordersFulfillmentFilter'){app.admin.orderFulfillment=event.target.value;applyOrderFilters();return}
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
