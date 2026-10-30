@@ -118,6 +118,7 @@ body{font-feature-settings:"ss01","cv11";letter-spacing:-.005em}
 .food-stage{width:min(92%,520px);height:min(460px,56vh);background:none}
 .food-art-view{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;transition:opacity var(--mz-med) var(--mz-ease),transform var(--mz-med) var(--mz-ease)}
 .food-art-view svg{width:100%;height:100%;max-height:100%;transform:scale(var(--size-scale,1));transition:transform var(--mz-med) var(--mz-ease);filter:drop-shadow(0 24px 18px rgba(27,21,48,.16))}
+.food-art-view .food-art-photo{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;object-position:center;transform:scale(var(--size-scale,1));border-radius:18px;filter:drop-shadow(0 24px 18px rgba(27,21,48,.16));transition:transform var(--mz-med) var(--mz-ease)}
 .food-stage.view-art .food-canvas{visibility:hidden;position:absolute;inset:0}
 .food-stage.view-3d .food-art-view{opacity:0;transform:scale(.96)}
 .food-stage.view-3d .food-canvas{visibility:visible}
