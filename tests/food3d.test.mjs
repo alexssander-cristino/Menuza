@@ -97,3 +97,18 @@ test('geometria é determinística: o mesmo pedido gera o mesmo modelo', () => {
   assert.equal(a.geometry.positions.length, b.geometry.positions.length);
   assert.deepEqual(a.geometry.positions.slice(0, 300), b.geometry.positions.slice(0, 300));
 });
+
+
+test('pizza: ingredientes personalizados usam o campo visual e preenchem a base no modelo 3D', () => {
+  const custom = [
+    { id: 'base-da-casa-01', name: 'Molho especial da casa', type: 'pizza', visual: 'sauce', quantity: 1 },
+    { id: 'queijo-da-casa-02', name: 'Queijo artesanal', type: 'pizza', visual: 'cheese', quantity: 1 },
+    { id: 'cobertura-da-casa-03', name: 'Calabresa premium', type: 'pizza', visual: 'pepperoni', quantity: 1 }
+  ];
+  const layout = buildFoodLayout(pizza, custom, SIZE_OPTIONS.pizza[1]);
+  const kinds = layout.parts.map(part => part.kind);
+  assert.ok(kinds.includes('dough'), 'a massa deve existir mesmo sem ingrediente adicional');
+  assert.ok(kinds.includes('sauce'), 'o molho personalizado deve preencher a massa');
+  assert.ok(kinds.includes('cheese'), 'o queijo personalizado deve cobrir a base');
+  assert.ok(kinds.includes('topping:calabresa'), 'a cobertura personalizada deve aparecer');
+});
