@@ -1551,24 +1551,3 @@ body{overscroll-behavior-y:contain}
  .fiscal-record-list article>b{font-size:12px}
  .fiscal-notice{font-size:12px;flex-direction:column;gap:4px}
 }
-
-
-/* Product photo preview inside the customization modal */
-.food-stage.has-product-photo{width:min(88%,480px);height:350px;isolation:isolate}
-.food-stage.has-product-photo .food-art-view{inset:28px 0 52px;overflow:hidden;border-radius:22px}
-.food-stage.has-product-photo .food-art-photo{display:block;width:100%;height:100%;max-width:390px;max-height:270px;margin:auto;object-fit:contain;object-position:center;border-radius:0;transform:none;filter:drop-shadow(0 18px 18px rgba(35,27,54,.14))}
-.food-stage.has-product-photo .view-toggle{top:0;left:50%;transform:translateX(-50%);padding:4px;background:rgba(255,255,255,.94);border:1px solid rgba(112,101,145,.14);box-shadow:0 8px 24px rgba(39,31,62,.08)}
-.food-stage.has-product-photo .visual-controls{bottom:2px}
-.food-stage.has-product-photo .drag-hint{display:none}
-.food-stage.has-product-photo.view-3d .food-art-view{pointer-events:none}
-@media(max-width:760px){
-  .food-stage.has-product-photo{width:min(94%,420px);height:300px}
-  .food-stage.has-product-photo .food-art-view{inset:34px 0 42px}
-  .food-stage.has-product-photo .food-art-photo{max-width:100%;max-height:225px}
-  .food-stage.has-product-photo .visual-controls{bottom:0}
-}
-@media(max-width:420px){
-  .food-stage.has-product-photo{width:100%;height:270px}
-  .food-stage.has-product-photo .food-art-photo{max-height:205px}
-  .food-stage.has-product-photo .view-toggle button{padding:6px 13px;min-height:32px}
-}
