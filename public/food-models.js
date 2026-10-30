@@ -769,12 +769,12 @@ function resolveVisualIngredient(type, ingredient) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
-    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela', catupiry: 'catupiry',
-    cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
+    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
+    catupiry: 'catupiry', cream: 'queijo-generico', cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
-    mushroom: 'champignon', cream: 'requeijao', herb: 'oregano'
+    mushroom: 'champignon', herb: 'oregano'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
     cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
@@ -807,7 +807,6 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('bacon','panceta','linguica')) visualId = 'bacon';
     else if (has('cebola','onion','alho','alho poro')) visualId = 'cebola';
     else if (has('azeitona','oliva','olive')) visualId = 'azeitona';
-    else if (has('catupiry','requeijao','cream cheese','creme de queijo','cream')) visualId = 'requeijao';
     else if (has('milho','corn')) visualId = 'milho';
     else if (has('oregano','manjericao','salsinha','cebolinha','rucula','erva','herb')) visualId = 'oregano';
     else if (has('tomate','tomato','pimentao','pepper')) visualId = 'tomate';
