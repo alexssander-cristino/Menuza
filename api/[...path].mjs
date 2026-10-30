@@ -360,7 +360,7 @@ async function fiscalReport(monthValue){
   const [sales,byFulfillment,expenses,documents]=await Promise.all([
     query(`SELECT COUNT(*) FILTER (WHERE status<>'cancelled')::int AS orders,
       COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled,
-      COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::bigint AS gross_cents,
+      COALESCE(SUM(total_cents + COALESCE(discount_cents,0)) FILTER (WHERE status<>'cancelled'),0)::bigint AS gross_cents,
       COALESCE(SUM(discount_cents) FILTER (WHERE status<>'cancelled'),0)::bigint AS discounts_cents
       FROM orders WHERE restaurant_id=$1 AND created_at >= $2::date AND created_at < $3::date`,[RESTAURANT_ID,start,end]),
     query(`SELECT fulfillment,COUNT(*)::int AS orders,COALESCE(SUM(total_cents),0)::bigint AS total_cents
