@@ -288,7 +288,7 @@ const TOPPINGS = {
   'queijo-parmesao': { r: .008, cover: [.1, .18, .26], kind: 'cheese-parmesan' },
   'queijo-gorgonzola': { r: .0085, cover: [.08, .14, .2], kind: 'cheese-gorgonzola' },
   'queijo-provolone': { r: .010, cover: [.08, .14, .2], kind: 'cheese-provolone' },
-  calabresa: { r: .0165, cover: [.2, .36, .5], kind: 'pep' },
+  calabresa: { r: .0165, cover: [.28, .48, .68], kind: 'pep' },
   tomate: { r: .016, cover: [.16, .28, .4], kind: 'tom' },
   champignon: { r: .0165, cover: [.14, .24, .34], kind: 'mush' },
   frango: { r: .0095, cover: [.12, .2, .3], kind: 'chicken' },
