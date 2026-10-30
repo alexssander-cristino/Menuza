@@ -760,18 +760,19 @@ async function downloadFiscalDocument(id){
  }catch(e){toast(e.message)}
 }
 async function exportFiscalReport(format){
+ const reportWindow=format==='pdf'?window.open('','_blank'):null;if(format==='pdf'&&!reportWindow)return toast('Permita pop-ups para gerar o PDF.');
  try{
   const month=app.admin.fiscalMonth||fiscalCurrentMonth(),[report,expenses,documents]=await Promise.all([api('/api/admin/fiscal/report?month='+month),api('/api/admin/fiscal/expenses?month='+month),api('/api/admin/fiscal/documents?month='+month)]);
   const r=report.report;
   if(format==='pdf'){
-   const win=window.open('','_blank');if(!win)return toast('Permita pop-ups para gerar o PDF.');
+   const win=reportWindow;
    const rows=[['Vendas registradas',fiscalMoney(r.sales.grossCents)],['Descontos',fiscalMoney(r.sales.discountsCents)],['Receita após descontos',fiscalMoney(r.sales.netCents)],['Pedidos válidos',r.sales.orders],['Pedidos cancelados',r.sales.cancelled],['Despesas lançadas',fiscalMoney(r.expenses.totalCents)],['Documentos recebidos',r.documents.received],['Documentos emitidos',r.documents.issued]];
    openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,['Modalidade','Pedidos','Total'],(r.byFulfillment||[]).map(x=>[({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||x.type),x.orders,fiscalMoney(x.totalCents)]),win);return;
   }
   const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor'],['Vendas',month+'-01','Receita bruta registrada','','',(Number(r.sales.grossCents)/100).toFixed(2)],['Vendas',month+'-01','Descontos','','',(Number(r.sales.discountsCents)/100).toFixed(2)],['Vendas',month+'-01','Receita após descontos','','',(Number(r.sales.netCents)/100).toFixed(2)]];
   for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
   for(const x of documents.documents)rows.push(['Documento '+(x.direction==='received'?'recebido':'emitido'),x.date||'',x.fileName,x.issuerName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
-  const csv='\\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\\r\\n');
+  const csv='\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=root.createElement('a');a.href=url;a.download='menuza-contabilidade-'+month+'.csv';root.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV de despesas exportado. Baixe também os documentos XML/PDF da lista.');
  }catch(e){toast(e.message||'Não foi possível exportar a competência.')}
 }
@@ -1578,6 +1579,7 @@ function connectAdminEvents(){
     else if(app.admin.tab==='ingredients')renderIngredientsAdmin();
     else if(app.admin.tab==='coupons')renderCouponsAdmin();
     else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();
+    else if(app.admin.tab==='fiscal')renderFiscalAdmin();
     else renderSettingsAdmin();
   });
   clearInterval(app.admin.refreshTimer);
