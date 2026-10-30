@@ -57,51 +57,86 @@ function wrap(value, width) {
 }
 
 function ticketLines(order, width) {
-  const line = '-'.repeat(width);
-  const rows = [
-    { text: 'MENUZA', align: 'center', bold: true, double: true },
-    { text: 'COMANDA DE COZINHA', align: 'center', bold: true },
-    { text: line },
-    { text: 'PEDIDO: ' + ascii(order.id), bold: true },
-    { text: 'DATA: ' + ascii(order.createdAt ? new Date(order.createdAt).toLocaleString('pt-BR') : '') },
-    ...wrap('CLIENTE: ' + (order.customerName || 'Nao informado'), width).map(text => ({ text })),
-    ...wrap('TIPO: ' + (order.fulfillment === 'table' ? 'MESA ' + (order.tableLabel || '') : order.fulfillment === 'delivery' ? 'ENTREGA' : 'RETIRADA'), width).map(text => ({ text }))
-  ];
-  if (order.phone) rows.push(...wrap('TELEFONE: ' + order.phone, width).map(text => ({ text })));
-  rows.push({ text: line }, { text: 'ITENS', bold: true });
-  for (const item of order.items || []) {
-    rows.push(...wrap((item.quantity || 1) + 'x ' + item.name, width).map(text => ({ text, bold: true })));
-    const size = item.snapshot?.size?.label || item.sizeLabel;
-    if (size) rows.push(...wrap('  Tamanho: ' + size, width).map(text => ({ text })));
-    const ingredients = (item.ingredients || []).map(i => i.name).filter(Boolean);
-    if (ingredients.length) rows.push(...wrap('  Adicionais: ' + ingredients.join(', '), width).map(text => ({ text })));
-    if (item.notes) rows.push(...wrap('  OBS: ' + item.notes, width).map(text => ({ text, bold: true })));
+  const divider = '='.repeat(width);
+  const lightDivider = '-'.repeat(width);
+  const rows = [];
+  const add = (text, options = {}) => {
+    for (const part of wrap(text, options.width || width)) rows.push({ text: part, ...options });
+  };
+  const center = (text, options = {}) => rows.push({ text: ascii(text), align: 'center', ...options });
+  const section = title => {
+    rows.push({ text: lightDivider });
+    add(title.toUpperCase(), { bold: true });
+  };
+  const fulfillment = order.fulfillment === 'table'
+    ? 'CONSUMO NO LOCAL'
+    : order.fulfillment === 'delivery' ? 'ENTREGA' : 'RETIRADA';
+  const orderNumber = String(order.displayId || order.number || order.id);
+
+  center('MENUZA', { bold: true, double: true });
+  center('COMANDA DE PRODUCAO', { bold: true });
+  rows.push({ text: divider });
+  center('PEDIDO', { bold: true });
+  center('#' + orderNumber, { bold: true, double: true });
+  rows.push({ text: divider });
+
+  add('RECEBIDO: ' + (order.createdAt
+    ? new Date(order.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+    : 'Horario nao informado'));
+  add('ATENDIMENTO: ' + fulfillment, { bold: true });
+  if (order.fulfillment === 'table' && order.tableLabel) add('MESA: ' + order.tableLabel, { bold: true });
+  if (order.customerName) add('CLIENTE: ' + order.customerName);
+  if (order.phone) add('TELEFONE: ' + order.phone);
+  if (order.fulfillment === 'delivery' && order.deliveryAddress) {
+    add('ENDERECO: ' + order.deliveryAddress);
   }
-  if (order.note) rows.push({ text: line }, ...wrap('OBSERVACAO: ' + order.note, width).map(text => ({ text, bold: true })));
-  if (order.fulfillment === 'delivery' && order.deliveryAddress) rows.push(...wrap('ENDERECO: ' + order.deliveryAddress, width).map(text => ({ text })));
-  const total = (Number(order.totalCents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  rows.push({ text: line }, { text: 'TOTAL: ' + ascii(total), bold: true, double: true }, { text: line }, { text: '' }, { text: '' });
+
+  section('Itens do pedido');
+  for (const item of order.items || []) {
+    const quantity = Math.max(1, Number(item.quantity) || 1);
+    rows.push({ text: lightDivider });
+    add(quantity + 'x  ' + (item.name || 'Item'), { bold: true });
+    const size = item.snapshot?.size?.label || item.sizeLabel || item.size?.label;
+    if (size) add('   Tamanho: ' + size);
+    const ingredients = (item.ingredients || item.addons || item.additions || [])
+      .map(option => typeof option === 'string' ? option : option?.name || option?.label)
+      .filter(Boolean);
+    if (ingredients.length) {
+      add('   ADICIONAIS:', { bold: true });
+      for (const ingredient of ingredients) add('   + ' + ingredient);
+    }
+    const removed = (item.removedIngredients || item.withoutIngredients || [])
+      .map(option => typeof option === 'string' ? option : option?.name || option?.label)
+      .filter(Boolean);
+    if (removed.length) add('   SEM: ' + removed.join(', '));
+    if (item.notes || item.note) add('   OBS: ' + (item.notes || item.note), { bold: true });
+  }
+
+  if (order.note || order.notes) {
+    section('Observacao geral');
+    add(order.note || order.notes, { bold: true });
+  }
+
+  rows.push({ text: divider });
+  center('FIM DA COMANDA', { bold: true });
+  rows.push({ text: '' }, { text: '' });
   return rows;
 }
-
 function epsonEscPos(order) {
-  const { columns } = profile();
-  const chunks = [Buffer.from([0x1b, 0x40])]; // Initialize printer
-  for (const row of ticketLines(order, columns)) {
-    if (row.align === 'center') chunks.push(Buffer.from([0x1b, 0x61, 0x01]));
-    else chunks.push(Buffer.from([0x1b, 0x61, 0x00]));
+  const chunks = [Buffer.from([0x1b, 0x40])];
+  for (const row of ticketLines(order, profile().columns)) {
+    chunks.push(Buffer.from([0x1b, 0x61, row.align === 'center' ? 1 : 0]));
     chunks.push(Buffer.from([0x1b, 0x45, row.bold ? 1 : 0]));
     chunks.push(Buffer.from([0x1d, 0x21, row.double ? 0x11 : 0x00]));
-    chunks.push(Buffer.from(ascii(row.text) + '\\n', 'ascii'));
+    chunks.push(Buffer.from(ascii(row.text) + '\n', 'ascii'));
   }
   chunks.push(Buffer.from([0x1b, 0x45, 0, 0x1d, 0x21, 0, 0x1b, 0x61, 0]));
-  if (EPSON_CUT) chunks.push(Buffer.from([0x1d, 0x56, 0x00])); // Full cut
+  if (EPSON_CUT) chunks.push(Buffer.from([0x1d, 0x56, 0x00]));
   return Buffer.concat(chunks);
 }
-
 async function printWindows(order) {
   const file = path.join(os.tmpdir(), 'menuza-' + Date.now() + '.txt');
-  const text = ticketLines(order, profile().columns).map(row => row.text).join('\\r\\n');
+  const text = ticketLines(order, profile().columns).map(row => row.text).join('\r\n');
   await fs.writeFile(file, '\\uFEFF' + text, 'utf8');
   try {
     // Pass values through the child environment; avoids PowerShell -Command argument parsing issues.
