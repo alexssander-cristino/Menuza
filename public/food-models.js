@@ -680,7 +680,7 @@ function resolveVisualIngredient(type, ingredient) {
   // Ingredientes cadastrados pelo restaurante podem ter IDs próprios. O campo
   // visual (ou visual_key da API) é a referência mais confiável para o modelo.
   const visual = String(ingredient?.visual || ingredient?.visual_key || ingredient?.visualKey || '')
-    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
     cheese: 'mussarela', queijo: 'mussarela', mozzarella: 'mussarela',
