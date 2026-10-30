@@ -372,7 +372,8 @@ async function fiscalReport(monthValue){
   const s=sales.rows[0], gross=Number(s.gross_cents||0), discounts=Number(s.discounts_cents||0);
   return {month,period:{start,end},sales:{orders:Number(s.orders),cancelled:Number(s.cancelled),grossCents:gross,discountsCents:discounts,netCents:gross-discounts},byFulfillment:byFulfillment.rows.map(r=>({type:r.fulfillment,orders:Number(r.orders),totalCents:Number(r.total_cents)})),expenses:{count:Number(expenses.rows[0].count),totalCents:Number(expenses.rows[0].total_cents)},documents:{received:Number(documents.rows.find(r=>r.direction==='received')?.count||0),issued:Number(documents.rows.find(r=>r.direction==='issued')?.count||0)},notice:'Resumo gerencial baseado nos pedidos registrados no Menuza. Não substitui escrituração contábil, apuração tributária ou documento fiscal autorizado.'};
 }
-\nexport default async function handler(req,res) {
+
+export default async function handler(req,res) {
   const path='/api/'+(Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')).replace(/^\/+|\/+$/g,'');
   const method=req.method||'GET';
   const allowed=new Set(['GET','POST','PATCH','PUT','DELETE','OPTIONS']);
