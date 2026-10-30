@@ -383,8 +383,23 @@ async function fiscalReport(monthValue){
   return {month,period:{start,end},sales:{orders:Number(s.orders),cancelled:Number(s.cancelled),grossCents:gross,discountsCents:discounts,netCents:gross-discounts,records:orderRows.rows.map(r=>({id:r.id,date:r.date,customer:r.customer,fulfillment:r.fulfillment,status:r.status,grossCents:Number(r.gross_cents),discountCents:Number(r.discount_cents),netCents:Number(r.net_cents)}))},byFulfillment:byFulfillment.rows.map(r=>({type:r.fulfillment,orders:Number(r.orders),totalCents:Number(r.total_cents)})),expenses:{count:Number(expenses.rows[0].count),totalCents:Number(expenses.rows[0].total_cents)},documents:{received:Number(documents.rows.find(r=>r.direction==='received')?.count||0),issued:Number(documents.rows.find(r=>r.direction==='issued')?.count||0)},notice:'Resumo gerencial baseado nos pedidos registrados no Menuza. Pedidos não significam necessariamente recebimentos conciliados; a base atual não registra forma de pagamento. Não substitui escrituração contábil, apuração tributária ou documento fiscal autorizado.'};
 }
 
-export default async function handler(req,res) {
-  const path='/api/'+(Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')).replace(/^\/+|\/+$/g,'');
+export default async function handler(req, res) {
+  // Vercel preenche req.query.path em produção; no Vercel Dev, o catch-all
+  // pode entregar apenas req.url. Use ambos para manter as rotas consistentes.
+  const requestUrl = new URL(
+    req.url || '/',
+    `http://${req.headers.host || 'localhost'}`
+  );
+  const queryPath = req.query?.path;
+  const routePath = Array.isArray(queryPath)
+    ? queryPath.filter(Boolean).join('/')
+    : typeof queryPath === 'string' && queryPath.trim()
+      ? queryPath
+      : requestUrl.pathname.replace(/^\\/api\\/?/, '');
+  const normalizedRoute = String(routePath || '').replace(/^\\/+|\\/+$/g, '');
+  const path = normalizedRoute.startsWith('api/')
+    ? `/${normalizedRoute}`
+    : `/api/${normalizedRoute}`;
   const method=req.method||'GET';
   const allowed=new Set(['GET','POST','PATCH','PUT','DELETE','OPTIONS']);
   if (!allowed.has(method)) return json(res,405,{error:'Método não permitido.'},{Allow:'GET, POST, PATCH, PUT, DELETE, OPTIONS'});
