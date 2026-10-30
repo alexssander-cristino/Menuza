@@ -121,7 +121,6 @@ async function ensureBeverageSchema() {
   await beverageSchemaPromise;
 }
 async function catalogFor(admin = false) {
-  await ensureBeverageSchema();
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
@@ -709,6 +708,7 @@ export default async function handler(req, res) {
       if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       if(name.length<2||!['pizza','burger','plate','drink'].includes(type)||!Number.isInteger(price)||price<(type==='drink'?1:500)||price>1000000) throw fail('Preencha nome, tipo e preço-base válidos.',422);
       if(type==='drink'&&!imageUrl) throw fail('Cadastre uma foto para a bebida.',422);
+      if(type==='drink') await ensureBeverageSchema();
       const cat=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[categoryId,RESTAURANT_ID])).rows[0]; if(!cat) throw fail('Escolha uma categoria válida.',422);
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
