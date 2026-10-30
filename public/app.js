@@ -121,7 +121,17 @@ function toast(message) {
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
 }
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
+  let requestPath = path;
+  if (typeof path === 'string' && path.startsWith('/api/')) {
+    const requestUrl = new URL(path, location.origin);
+    const route = requestUrl.pathname.slice('/api/'.length);
+    if (!['health', 'catalog', 'dispatch'].includes(route)) {
+      requestUrl.pathname = '/api/dispatch';
+      requestUrl.searchParams.set('path', route);
+      requestPath = requestUrl.pathname + requestUrl.search;
+    }
+  }
+  const response = await fetch(requestPath, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
   let data = {}; try { data = await response.json(); } catch {}
   if (response.status === 429) {
     const retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || 900);
