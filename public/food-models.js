@@ -484,49 +484,48 @@ function herbInto(m, x, y, z, rnd) {
   m.grid(5, 3, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
 }
 function basilInto(m, x, y, z, seed, rnd) {
-  // Folhas de manjericão em escala real: largas, ovais e pontudas, com nervura central.
-  // Cada ponto de cobertura é um pequeno ramo com folhas sobrepostas, não um pontinho verde.
-  for (let leaf = 0; leaf < 3; leaf++) {
-    const length = .052 + rnd() * .016, width = .024 + rnd() * .008;
-    const yaw = rnd() * TAU, tint = rnd(), offset = (leaf - 1) * .006;
-    const pitch = (rnd() - .5) * .18, roll = (rnd() - .5) * .16;
-    const leafX = x + Math.cos(yaw) * offset;
-    const leafZ = z + Math.sin(yaw) * offset;
-    const leafY = y + .0015 + leaf * .00028;
+  // Folha de manjericão comum de folha larga: proporção de referência 6,5 x 2,8 cm.
+  // As folhas ficam acima do queijo/molho para não desaparecerem dentro da cobertura.
+  const branchYaw = rnd() * TAU;
+  const leafAngles = [-.52, 0, .52];
+  for (let leaf = 0; leaf < leafAngles.length; leaf++) {
+    const length = .065, width = .028;
+    const yaw = branchYaw + leafAngles[leaf] + (rnd() - .5) * .08;
+    const tint = rnd(), offset = (leaf - 1) * .009;
+    const pitch = (rnd() - .5) * .12, roll = (rnd() - .5) * .10;
+    const leafX = x + Math.cos(branchYaw + Math.PI / 2) * offset;
+    const leafZ = z + Math.sin(branchYaw + Math.PI / 2) * offset;
+    const leafY = y + .0034 + leaf * .00035;
     const surface = (u, v) => {
       const taper = Math.sin(Math.PI * u) ** .72;
       const across = (v - .5) * width * taper;
-      const arch = Math.sin(Math.PI * u) * (.0032 + .0012 * (1 - Math.abs(v - .5) * 2));
-      const edgeWave = Math.sin(u * Math.PI * 5 + seed * .13) * .00032 * Math.abs(v - .5) * 2;
+      const arch = Math.sin(Math.PI * u) * (.0038 + .0014 * (1 - Math.abs(v - .5) * 2));
+      const edgeWave = Math.sin(u * Math.PI * 5 + seed * .13) * .00038 * Math.abs(v - .5) * 2;
       return [(u - .5) * length, arch + edgeWave, across];
     };
-    const leafColor = mix(C.basil, C.basilLight, clamp(.2 + tint * .3, 0, 1));
+    const leafColor = mix(C.basil, C.basilLight, clamp(.16 + tint * .24, 0, 1));
     const xf = rigid({ yaw, pitch, roll, t: [leafX, leafY, leafZ] });
-    m.grid(22, 11, surface, (u, v) => {
+    m.grid(26, 13, surface, (u, v) => {
       const edge = Math.abs(v - .5) * 2;
-      const highlight = .12 + .12 * Math.sin(u * Math.PI) + .08 * (1 - edge);
-      return MAT(mix(leafColor, C.basilLight, highlight), .38, .48, .16, 1);
+      const highlight = .10 + .13 * Math.sin(u * Math.PI) + .07 * (1 - edge);
+      return MAT(mix(leafColor, C.basilLight, highlight), .42, .42, .18, 1);
     }, { wrapU: false, up: true, xf });
-
-    // Nervura central fina, ligeiramente elevada para continuar visível no ângulo superior.
-    m.grid(18, 2, (u, v) => {
+    m.grid(22, 2, (u, v) => {
       const p = surface(u, v);
-      return [p[0], p[1] + .00038, (v - .5) * .0011 * Math.sin(Math.PI * u)];
-    }, () => MAT(mix(C.basilLight, lin('#b2cb79'), .28), .48, .3, .12, 1), {
+      return [p[0], p[1] + .00048, (v - .5) * .00135 * Math.sin(Math.PI * u)];
+    }, () => MAT(mix(C.basilLight, lin('#b2cb79'), .34), .5, .28, .12, 1), {
       wrapU: false, up: true, xf
     });
   }
-  // Pequeno pecíolo verde ligando visualmente as folhas do mesmo ramo.
-  m.grid(8, 3, (u, v) => [
-    (u - .5) * .016,
-    .00045 + Math.sin(u * Math.PI) * .0003,
-    (v - .5) * .0012
+  m.grid(10, 3, (u, v) => [
+    (u - .5) * .018,
+    .00055 + Math.sin(u * Math.PI) * .00045,
+    (v - .5) * .0015
   ], () => MAT(C.basil, .5, .3, .1, 1), {
     wrapU: false, up: true,
-    xf: rigid({ yaw: rnd() * TAU, t: [x, y + .001, z] })
+    xf: rigid({ yaw: branchYaw, t: [x, y + .0031, z] })
   });
 }
-
 function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
   if (style === 'cheese-parmesan') {
     for (let i = 0; i < 4; i++) {

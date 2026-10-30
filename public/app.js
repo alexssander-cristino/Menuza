@@ -1,5 +1,5 @@
 import { injectSpeedInsights } from './speed-insights.js';
-import { FoodScene } from './food-scene.js?v=75';
+import { FoodScene } from './food-scene.js?v=76';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
@@ -7,7 +7,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 // Initialize Vercel Speed Insights
 injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '86';
+const MENUZA_APP_BUILD = '87';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
