@@ -6,6 +6,54 @@ export const SIZE_OPTIONS = Object.freeze({
   plate: [{ key: 'unico', label: 'Porção', deltaCents: 0 }]
 });
 export const CRUST_OPTIONS = Object.freeze([{ key: 'tradicional', label: 'Tradicional', priceCents: 0 }, { key: 'fina', label: 'Massa fina', priceCents: 0 }, { key: 'recheada', label: 'Borda de requeijão', priceCents: 850 }]);
+// Determina a peça 3D de ingredientes cadastrados livremente no painel.
+ // A informação é calculada no servidor para que o painel e o cardápio público
+ // recebam exatamente o mesmo visual, sem depender de IDs pré-definidos.
+export function inferIngredientVisual(ingredient) {
+  const type = String(ingredient?.type || '').toLowerCase();
+  const text = [ingredient?.id, ingredient?.name, ingredient?.groupName, ingredient?.group]
+    .filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+  const has = (...words) => words.some(word => text.includes(word));
+  if (type === 'pizza') {
+    if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
+    if (has('mussarela', 'mozzarella', 'queijo', 'cheddar', 'parmesao', 'gorgonzola', 'provolone', 'catupiry', 'requeijao', 'cream cheese')) return 'cheese';
+    if (has('calabresa', 'pepperoni', 'salame')) return 'pepperoni';
+    if (has('bacon', 'panceta', 'linguica')) return 'bacon';
+    if (has('frango', 'chicken')) return 'chicken';
+    if (has('cebola', 'alho', 'onion')) return 'onion';
+    if (has('tomate', 'tomato', 'pimentao')) return 'tomato';
+    if (has('milho', 'corn')) return 'corn';
+    if (has('azeitona', 'oliva', 'olive')) return 'olive';
+    if (has('champignon', 'cogumelo', 'shimeji', 'shitake', 'fungo')) return 'mushroom';
+    if (has('oregano', 'manjericao', 'salsinha', 'cebolinha', 'rucula', 'erva', 'herb')) return 'herb';
+    if (has('vegetal', 'legume', 'verdura')) return 'tomato';
+    if (has('carne', 'proteina')) return 'chicken';
+    return 'cheese';
+  }
+  if (type === 'burger') {
+    if (has('pao', 'brioche', 'bun')) return 'bun';
+    if (has('carne', 'hamburguer', 'burger', 'patty', 'bovina')) return 'patty';
+    if (has('queijo', 'cheddar', 'mussarela', 'mozzarella', 'provolone')) return 'cheddar';
+    if (has('alface', 'rucula', 'lettuce', 'folha')) return 'lettuce';
+    if (has('tomate', 'tomato')) return 'tomato';
+    if (has('molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'aioli')) return 'sauce';
+    if (has('bacon', 'panceta')) return 'bacon';
+    if (has('ovo', 'egg')) return 'egg';
+    if (has('cebola', 'onion')) return 'onion';
+    if (has('picles', 'pepino', 'pickle')) return 'pickle';
+    return 'cheddar';
+  }
+  if (type === 'plate') {
+    if (has('batata', 'frita', 'rustica', 'potato')) return 'potato';
+    if (has('molho', 'maionese', 'aioli', 'creme')) return 'sauce';
+    if (has('carne', 'frango', 'proteina', 'hamburguer')) return 'patty';
+    if (has('ovo', 'egg')) return 'egg';
+    if (has('cebola', 'picles', 'pepino', 'azeitona', 'cogumelo', 'champignon')) return 'vegetable';
+    return 'potato';
+  }
+  return 'cheese';
+}
+
 export const INGREDIENTS = Object.freeze([
   { id: 'molho-tomate', name: 'Molho da casa', type: 'pizza', group: 'Base', cents: 0, included: true, visual: 'sauce' },
   { id: 'mussarela', name: 'Mussarela', type: 'pizza', group: 'Queijos', cents: 0, included: true, visual: 'cheese' },

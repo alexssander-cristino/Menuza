@@ -1,4 +1,4 @@
-import { FoodScene } from './food-scene.js?v=73';
+import { FoodScene } from './food-scene.js?v=74';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
