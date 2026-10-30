@@ -484,7 +484,6 @@ function herbInto(m, x, y, z, rnd) {
 }
 
 function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
-  const baseXf = () => rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .28, roll: (rnd() - .5) * .28, t: [x, y, z] });
   if (style === 'cheese-parmesan') {
     for (let i = 0; i < 4; i++) {
       const L = R * (1.1 + rnd() * .5), W = R * (.24 + rnd() * .18), H = .0007 + rnd() * .00045;
@@ -660,11 +659,13 @@ function burgerLayout(product, ings, size, o, kH) {
     if (style) for (let i = 0; i < count; i++) cheeseStyles.push(style);
   }
   const slices = Math.min(4, cheeseStyles.length);
+  let remainingCheese = slices;
   const Hp = .017 * (patties === 2 ? .88 : 1) * kH, Rpat = R * .92;
   let cheeseCursor = 0;
   for (let p = 0; p < patties; p++) {
     add('patty', p, () => pattyMesh(Rpat, Hp, seed + 7 + p * 3, detail), Hp - .0006);
-    const last = p === patties - 1, n = last ? slices : (slices >= 2 ? 1 : 0);
+    const last = p === patties - 1, n = last ? remainingCheese : (remainingCheese >= 2 ? 1 : 0);
+    remainingCheese -= n;
     for (let s = 0; s < n; s++) {
       const style = cheeseStyles[cheeseCursor++] || 'cheddar';
       add('cheese', `${p}.${s}.${style}`, () => cheeseMesh(Rpat, Hp, seed + 11 + p * 5 + s * 3, detail, s * Math.PI / 4 + p * .4, style), .0028 * kH + (s ? .0004 : 0), .0006);
