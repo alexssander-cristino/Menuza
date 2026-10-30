@@ -352,7 +352,7 @@ async function ensureFiscalSchema(){
 }
 function fiscalMonth(value){
   const month=String(value||'').trim();
-  if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('Informe uma competência válida (AAAA-MM).',422);
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('Informe uma competência válida (AAAA-MM).',422);
   return {month,start:month+'-01',end:new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),1).toISOString().slice(0,10)};
 }
 async function fiscalReport(monthValue){
@@ -547,8 +547,8 @@ async function fiscalReport(monthValue){
       const legalNature=clean(b.legalNature??current.legal_nature,120),taxRegime=clean(b.taxRegime??current.tax_regime,40);
       const openingDate=clean(b.openingDate??current.opening_date,10),simplesStartDate=clean(b.simplesStartDate??current.simples_start_date,10);
       const capitalCents=Number(b.capitalCents??current.capital_cents);
-      if(!/^\\d{14}$/.test(cnpj)||legalName.length<2||tradeName.length<2||!['simples_nacional','lucro_presumido','lucro_real','mei','outro'].includes(taxRegime)||!Number.isInteger(capitalCents)||capitalCents<0||capitalCents>999999999999)throw fail('Confira CNPJ, razão social, regime tributário e capital social.',422);
-      for(const date of [openingDate,simplesStartDate])if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw fail('Informe as datas no formato válido.',422);
+      if(!/^\d{14}$/.test(cnpj)||legalName.length<2||tradeName.length<2||!['simples_nacional','lucro_presumido','lucro_real','mei','outro'].includes(taxRegime)||!Number.isInteger(capitalCents)||capitalCents<0||capitalCents>999999999999)throw fail('Confira CNPJ, razão social, regime tributário e capital social.',422);
+      for(const date of [openingDate,simplesStartDate])if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw fail('Informe as datas no formato válido.',422);
       await query(`UPDATE fiscal_profiles SET cnpj=$1,legal_name=$2,trade_name=$3,state_registration=$4,municipal_registration=$5,
         legal_nature=$6,tax_regime=$7,opening_date=$8::date,simples_start_date=$9::date,capital_cents=$10,updated_at=NOW()
         WHERE restaurant_id=$11`,[cnpj,legalName,tradeName,stateRegistration,municipalRegistration,legalNature,taxRegime,openingDate||null,simplesStartDate||null,capitalCents,RESTAURANT_ID]);
@@ -567,8 +567,8 @@ async function fiscalReport(monthValue){
     if(method==='POST'&&path==='/api/admin/fiscal/expenses'){
       const b=await bodyOf(req),date=clean(b.date,10),description=clean(b.description,180),category=clean(b.category,40)||'outros';
       const amountCents=Number(b.amountCents),supplierName=clean(b.supplierName,160),supplierCnpj=clean(b.supplierCnpj,14).replace(/\\D/g,'');
-      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||description.length<2||!Number.isInteger(amountCents)||amountCents<1||amountCents>999999999)throw fail('Informe data, descrição e valor válido para a despesa.',422);
-      if(supplierCnpj&&!/^\\d{14}$/.test(supplierCnpj))throw fail('O CNPJ do fornecedor deve conter 14 números.',422);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||description.length<2||!Number.isInteger(amountCents)||amountCents<1||amountCents>999999999)throw fail('Informe data, descrição e valor válido para a despesa.',422);
+      if(supplierCnpj&&!/^\d{14}$/.test(supplierCnpj))throw fail('O CNPJ do fornecedor deve conter 14 números.',422);
       const id='fex_'+randomBytes(12).toString('hex');
       await query(`INSERT INTO fiscal_expenses(id,restaurant_id,expense_date,description,category,supplier_name,supplier_cnpj,document_number,amount_cents,payment_method,notes)
         VALUES($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11)`,[id,RESTAURANT_ID,date,description,category,supplierName,supplierCnpj,clean(b.documentNumber,60),amountCents,clean(b.paymentMethod,40),clean(b.notes,500)]);
@@ -593,9 +593,9 @@ async function fiscalReport(monthValue){
       const fileName=clean(b.fileName,180),mimeType=clean(b.mimeType,100),contentBase64=String(b.contentBase64||'');
       const date=clean(b.date,10),amountCents=Number(b.amountCents||0),issuerCnpj=clean(b.issuerCnpj,14).replace(/\\D/g,'');
       if(!['received','issued'].includes(direction)||!['xml','pdf','other'].includes(documentType)||!fileName||!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mimeType)||!contentBase64||contentBase64.length>1800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64))throw fail('Arquivo inválido. Envie XML ou PDF de até 1,3 MB.',422);
-      if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw fail('Data do documento inválida.',422);
+      if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw fail('Data do documento inválida.',422);
       if(!Number.isInteger(amountCents)||amountCents<0||amountCents>999999999)throw fail('Valor do documento inválido.',422);
-      if(issuerCnpj&&!/^\\d{14}$/.test(issuerCnpj))throw fail('CNPJ do emitente inválido.',422);
+      if(issuerCnpj&&!/^\d{14}$/.test(issuerCnpj))throw fail('CNPJ do emitente inválido.',422);
       const id='fdoc_'+randomBytes(12).toString('hex');
       await query(`INSERT INTO fiscal_documents(id,restaurant_id,direction,document_type,document_number,issuer_name,issuer_cnpj,document_date,amount_cents,file_name,mime_type,content_base64,notes)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12,$13)`,[id,RESTAURANT_ID,direction,documentType,clean(b.documentNumber,60),clean(b.issuerName,160),issuerCnpj,date||null,amountCents,fileName,mimeType,contentBase64,clean(b.notes,500)]);
