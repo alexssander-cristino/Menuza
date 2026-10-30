@@ -19,8 +19,8 @@ test('manjericão possui uma cobertura 3D própria e reconhece o nome em portugu
 
   assertToppingBuilds(layout, 'topping:manjericao');
   const basil = layout.parts.find(part => part.kind === 'topping:manjericao').build();
-  assert.ok(basil.box[3] - basil.box[0] > 0.025 || basil.box[5] - basil.box[2] > 0.025,
-    'as folhas de manjericão devem ter pelo menos 2,5 cm de comprimento visível');
+  assert.ok(basil.box[3] - basil.box[0] > 0.05 || basil.box[5] - basil.box[2] > 0.05,
+    'as folhas de manjericão devem ter pelo menos 5 cm de comprimento visível');
   assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'));
 });
 
