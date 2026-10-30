@@ -769,7 +769,7 @@ function resolveVisualIngredient(type, ingredient) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
-    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
+    cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela', catupiry: 'catupiry',
     cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
