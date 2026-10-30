@@ -16,8 +16,10 @@ export function inferIngredientVisual(ingredient) {
   const has = (...words) => words.some(word => text.includes(word));
   if (type === 'pizza' || type === 'burger') {
     if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
-    if (has('catupiry', 'requeijao', 'cream cheese', 'creme de queijo', 'cream')) return 'cream';
+    if (type === 'pizza' && has('catupiry')) return 'catupiry';
+    if (type === 'burger' && has('catupiry')) return 'cheese';
     if (has('cheddar')) return 'cheddar';
+    if (has('requeijao', 'cream cheese', 'creme de queijo')) return 'cheese';
     if (has('parmesao', 'parmesan', 'grana padano', 'pecorino')) return 'parmesan';
     if (has('gorgonzola', 'queijo azul', 'blue cheese', 'roquefort')) return 'gorgonzola';
     if (has('provolone')) return 'provolone';
@@ -59,6 +61,8 @@ export function inferIngredientVisual(ingredient) {
 export const INGREDIENTS = Object.freeze([
   { id: 'molho-tomate', name: 'Molho da casa', type: 'pizza', group: 'Base', cents: 0, included: true, visual: 'sauce' },
   { id: 'mussarela', name: 'Mussarela', type: 'pizza', group: 'Queijos', cents: 0, included: true, visual: 'cheese' },
+  { id: 'cheddar-pizza', name: 'Cheddar', type: 'pizza', group: 'Queijos', cents: 450, included: false, visual: 'cheddar' },
+  { id: 'catupiry-pizza', name: 'Catupiry', type: 'pizza', group: 'Queijos', cents: 450, included: false, visual: 'catupiry' },
   { id: 'calabresa', name: 'Calabresa artesanal', type: 'pizza', group: 'Favoritos', cents: 490, included: false, visual: 'pepperoni' },
   { id: 'bacon', name: 'Bacon crocante', type: 'pizza', group: 'Favoritos', cents: 590, included: false, visual: 'bacon' },
   { id: 'frango', name: 'Frango desfiado', type: 'pizza', group: 'Favoritos', cents: 550, included: false, visual: 'chicken' },
