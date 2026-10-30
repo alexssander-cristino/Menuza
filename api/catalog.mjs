@@ -1,5 +1,5 @@
 import { query } from '../src/db/postgres.mjs';
-import { CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS } from '../src/catalog.mjs';
+import { CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
 
@@ -22,7 +22,7 @@ export default async function handler(request, response) {
     const ingredients = ingredientResult.rows.map(row => ({
       ...row,
       included: row.included === 1 || row.included === true,
-      visual: INGREDIENTS.find(item => item.id === row.id)?.visual || 'herb'
+      visual: inferIngredientVisual(row)
     }));
 
     const combos = comboResult.rows.map(row => {
