@@ -1486,3 +1486,67 @@ body{overscroll-behavior-y:contain}
 .admin-recipe-3d-stage #adminRecipe3dHud{position:absolute;inset:auto 8px 8px;pointer-events:none}
 .recipe-preview-3d{justify-self:center;min-height:32px;padding:7px 12px;border:1px solid #d8cafa;border-radius:9px;background:#fff;color:#5b3be0;font-size:11px;font-weight:700;cursor:pointer}
 .recipe-preview-3d:hover{background:#f1ebff}
+
+
+/* Centro Fiscal Menuza */
+.fiscal-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:26px 28px;margin:0 0 16px;border:1px solid #e8e3f4;border-radius:20px;background:linear-gradient(125deg,#f8f6ff,#fff 68%);color:#241d39}
+.fiscal-hero h2{font-size:clamp(25px,4vw,36px);margin:8px 0 5px;letter-spacing:-1.2px}
+.fiscal-hero p{margin:0;color:#716b7e;max-width:620px;line-height:1.6}
+.fiscal-month-picker{display:grid;gap:7px;min-width:165px;font-size:12px;font-weight:700;color:#6f687d}
+.fiscal-month-picker input{min-height:42px;border:1px solid #ddd7eb;border-radius:10px;padding:8px 11px;background:#fff;color:#29213e}
+.fiscal-notice{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid #f0dfb8;border-radius:13px;background:#fffaf0;color:#70541c;font-size:13px;line-height:1.55;margin-bottom:16px}
+.fiscal-notice strong{white-space:nowrap}
+.fiscal-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.fiscal-kpis article{min-width:0;padding:18px;border:1px solid #e9e5f0;border-radius:15px;background:#fff;display:grid;gap:8px}
+.fiscal-kpis article span,.fiscal-summary-grid span{font-size:12px;color:#777184}
+.fiscal-kpis article b{font-size:clamp(19px,2.5vw,25px);letter-spacing:-.7px;color:#251d3a;overflow-wrap:anywhere}
+.fiscal-kpis article small{font-size:11px;color:#938da0}
+.fiscal-panel{margin-bottom:16px;padding:22px}
+.fiscal-panel .admin-panel-head{align-items:center;gap:12px}
+.fiscal-panel .admin-panel-head h3{margin:0;font-size:18px;color:#2b2340}
+.fiscal-panel .admin-panel-head small{display:block;margin-top:5px;color:#827b90;font-size:12px}
+.fiscal-actions{display:flex;gap:8px;flex-wrap:wrap}
+.fiscal-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.fiscal-summary-grid>div{padding:14px;border-radius:12px;background:#f8f7fb;display:grid;gap:8px}
+.fiscal-summary-grid b{font-size:18px;color:#33264f}
+.fiscal-breakdown{border-top:1px solid #eeeaf3;padding-top:16px;display:grid;gap:10px}
+.fiscal-breakdown>strong{font-size:13px;color:#40384f}
+.fiscal-breakdown>div{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#686174}
+.fiscal-breakdown>div b{color:#2c2440}
+.fiscal-footnote,.fiscal-accountant-note{font-size:11px;line-height:1.65;color:#817a8e;margin:14px 0 0}
+.fiscal-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.fiscal-form-grid .wide{grid-column:1/-1}
+.fiscal-form-grid .form-field{min-width:0}
+.fiscal-form-grid .form-field input,.fiscal-form-grid .form-field select{width:100%;min-width:0}
+.fiscal-form-grid .form-field input[readonly]{background:#f5f3f8;color:#777}
+.fiscal-form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.fiscal-form-actions span{font-size:12px;color:#6d5a9c}
+.fiscal-record-list{display:grid;margin-top:18px;border-top:1px solid #eeeaf3}
+.fiscal-record-list article{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:13px 2px;border-bottom:1px solid #eeeaf3}
+.fiscal-record-list article>div{min-width:0;display:grid;gap:5px}
+.fiscal-record-list article strong{font-size:13px;color:#302742;overflow-wrap:anywhere}
+.fiscal-record-list article small{font-size:11px;color:#817a8e}
+.fiscal-record-list article>b{font-size:13px;white-space:nowrap;color:#302742}
+.fiscal-accountant-note{padding:15px 17px;border:1px solid #e7e1f3;border-radius:12px;background:#faf9fd;color:#5e566e}
+.fiscal-accountant-note strong{color:#34274f}
+@media(max-width:760px){
+ .fiscal-hero{align-items:stretch;flex-direction:column;padding:20px}
+ .fiscal-month-picker{width:100%}
+ .fiscal-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fiscal-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fiscal-panel{padding:16px}
+ .fiscal-panel .admin-panel-head{align-items:flex-start;flex-direction:column}
+ .fiscal-actions{width:100%}
+ .fiscal-actions .button{flex:1}
+ .fiscal-record-list article{grid-template-columns:minmax(0,1fr) auto;gap:8px}
+ .fiscal-record-list article .tiny-link{grid-column:2}
+}
+@media(max-width:420px){
+ .fiscal-form-grid{grid-template-columns:minmax(0,1fr)}
+ .fiscal-form-grid .wide{grid-column:1}
+ .fiscal-kpis article{padding:13px}
+ .fiscal-kpis article b{font-size:19px}
+ .fiscal-summary-grid>div{padding:11px}
+ .fiscal-record-list article>b{font-size:12px}
+ .fiscal-notice{font-size:12px;flex-direction:column;gap:4px}
+}
