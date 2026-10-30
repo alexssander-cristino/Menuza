@@ -657,7 +657,11 @@ async function logoutCustomer(){try{await api('/api/customer/logout',{method:'PO
 
 async function showAdmin(){
   clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
-  try{await api('/api/admin/me');app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch{app.admin.authenticated=false;renderAdminLogin()}
+  try{
+    const session=await api('/api/admin/me');
+    if(!session.authenticated){app.admin.authenticated=false;renderAdminLogin();return}
+    app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents();
+  }catch{app.admin.authenticated=false;renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
   root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Bela Mesa para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador (se 2FA estiver ativado)</span><input type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>↗</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';

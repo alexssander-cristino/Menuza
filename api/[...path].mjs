@@ -462,7 +462,7 @@ export default async function handler(req, res) {
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
-    if (method==='GET'&&path==='/api/customer/me') return json(res,200,{customer:(await requireCustomer(req)).customer});
+    if (method==='GET'&&path==='/api/customer/me') { const current=await customer(req); return json(res,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
     if (method==='GET'&&path==='/api/customer/orders') {
       const c=await requireCustomer(req), rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC LIMIT 100',[c.customerId,RESTAURANT_ID]);
       return json(res,200,{orders:await Promise.all(rows.rows.map(r=>orderById(r.id)))});
@@ -482,8 +482,12 @@ export default async function handler(req, res) {
       await query('INSERT INTO privacy_requests (id,name,email,phone,request_type,details,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)',[id,name,email,phone,type,details,'open',now]);
       return json(res,201,{ok:true,id,message:'Solicitação registrada. Guarde este código para referência: '+id});
     }
+    if (method==='GET'&&path==='/api/admin/me') {
+      const current=session(req,ADMIN_COOKIE);
+      const authenticated=Boolean(current&&current.role==='admin'&&current.restaurantId===RESTAURANT_ID);
+      return json(res,200,{authenticated,...(authenticated?{restaurantId:RESTAURANT_ID}:{})});
+    }
     if (path.startsWith('/api/admin/')) requireAdmin(req);
-    if (method==='GET'&&path==='/api/admin/me') return json(res,200,{authenticated:true,restaurantId:RESTAURANT_ID});
     if (method==='GET'&&path==='/api/admin/security') return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET)});
     if (method==='GET'&&path==='/api/admin/events') {
       res.setHeader('Content-Type','text/event-stream; charset=utf-8');
