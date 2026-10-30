@@ -768,8 +768,8 @@ async function exportFiscalReport(format){
    const rows=[['Vendas registradas',fiscalMoney(r.sales.grossCents)],['Descontos',fiscalMoney(r.sales.discountsCents)],['Receita após descontos',fiscalMoney(r.sales.netCents)],['Pedidos válidos',r.sales.orders],['Pedidos cancelados',r.sales.cancelled],['Despesas lançadas',fiscalMoney(r.expenses.totalCents)],['Documentos recebidos',r.documents.received],['Documentos emitidos',r.documents.issued]];
    openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,[],[],win);return;
   }
-  const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor']];
-  for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
+  const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor'],['Vendas',month+'-01','Receita bruta registrada','','',(Number(r.sales.grossCents)/100).toFixed(2)],['Vendas',month+'-01','Descontos','','',(Number(r.sales.discountsCents)/100).toFixed(2)],['Vendas',month+'-01','Receita após descontos','','',(Number(r.sales.netCents)/100).toFixed(2)]];
+  for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);\n  for(const x of documents.documents)rows.push(['Documento '+(x.direction==='received'?'recebido':'emitido'),x.date||'',x.fileName,x.issuerName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
   const csv='\\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\\r\\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=root.createElement('a');a.href=url;a.download='menuza-contabilidade-'+month+'.csv';root.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV de despesas exportado. Baixe também os documentos XML/PDF da lista.');
  }catch(e){toast(e.message||'Não foi possível exportar a competência.')}
@@ -1974,7 +1974,8 @@ async function start(){
  
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
-    if(event.target.id==='fiscalMonth'){app.admin.fiscalMonth=event.target.value;renderFiscalAdmin();return}\n    if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
+    if(event.target.id==='fiscalMonth'){app.admin.fiscalMonth=event.target.value;renderFiscalAdmin();return}
+    if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
     if(event.target.id==='ordersFulfillmentFilter'){app.admin.orderFulfillment=event.target.value;applyOrderFilters();return}
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
