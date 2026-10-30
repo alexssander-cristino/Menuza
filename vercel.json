@@ -6,11 +6,5 @@
       "maxDuration": 15
     }
   },
-  "routes": [
-    {
-      "src": "^/api/(?!dispatch$|health$)(.*)$",
-      "dest": "/api/dispatch?path=$1"
-    }
-  ],
   "cleanUrls": false
 }
