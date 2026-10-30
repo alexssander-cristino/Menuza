@@ -677,6 +677,23 @@ function plateLayout(product, ings, size, o) {
 function resolveVisualIngredient(type, ingredient) {
   const id = String(ingredient?.id || '').toLowerCase();
   const raw = String(ingredient?.name || ingredient?.label || ingredient?.groupName || id);
+  // Ingredientes cadastrados pelo restaurante podem ter IDs próprios. O campo
+  // visual (ou visual_key da API) é a referência mais confiável para o modelo.
+  const visual = String(ingredient?.visual || ingredient?.visual_key || ingredient?.visualKey || '')
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const visualAliases = type === 'pizza' ? {
+    sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
+    cheese: 'mussarela', queijo: 'mussarela', mozzarella: 'mussarela',
+    pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
+    onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
+    mushroom: 'champignon', cream: 'requeijao', herb: 'oregano'
+  } : type === 'burger' ? {
+    bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
+    cheddar: 'queijo-extra', cheese: 'queijo-extra', lettuce: 'alface',
+    tomato: 'tomate-burger', sauce: 'molho-especial', onion: 'cebola-burger',
+    bacon: 'bacon-burger', egg: 'ovo', pickle: 'picles'
+  } : {};
+  if (visualAliases[visual]) return { ...ingredient, id: visualAliases[visual] };
   const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
   const has = (...terms) => terms.some(term => text.includes(term));
