@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { INGREDIENTS, SIZE_OPTIONS } from '../src/catalog.mjs';
+import { inferIngredientVisual, INGREDIENTS, SIZE_OPTIONS } from '../src/catalog.mjs';
 import { buildFoodLayout, buildFoodGeometry } from '../public/food-models.js';
 
 const ing = (ids, qty = {}) => ids.map(id => ({ ...INGREDIENTS.find(item => item.id === id), quantity: qty[id] || 1 }));
@@ -111,4 +111,14 @@ test('pizza: ingredientes personalizados usam o campo visual e preenchem a base 
   assert.ok(kinds.includes('sauce'), 'o molho personalizado deve preencher a massa');
   assert.ok(kinds.includes('cheese'), 'o queijo personalizado deve cobrir a base');
   assert.ok(kinds.includes('topping:calabresa'), 'a cobertura personalizada deve aparecer');
+});
+
+
+test('ingredientes cadastrados no painel recebem visuais coerentes no cardápio público', () => {
+  assert.equal(inferIngredientVisual({ id: 'ing-101', name: 'Molho especial da casa', type: 'pizza', groupName: 'Molhos' }), 'sauce');
+  assert.equal(inferIngredientVisual({ id: 'ing-102', name: 'Queijo artesanal', type: 'pizza', groupName: 'Queijos' }), 'cheese');
+  assert.equal(inferIngredientVisual({ id: 'ing-103', name: 'Calabresa premium', type: 'pizza', groupName: 'Carnes' }), 'pepperoni');
+  assert.equal(inferIngredientVisual({ id: 'ing-104', name: 'Orégano fresco', type: 'pizza', groupName: 'Temperos' }), 'herb');
+  assert.equal(inferIngredientVisual({ id: 'ing-201', name: 'Blend bovino', type: 'burger', groupName: 'Carnes' }), 'patty');
+  assert.equal(inferIngredientVisual({ id: 'ing-202', name: 'Alface americana', type: 'burger', groupName: 'Vegetais' }), 'lettuce');
 });
