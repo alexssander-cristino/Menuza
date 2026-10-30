@@ -1,3 +1,7 @@
+// Initialize Vercel Speed Insights
+import { injectSpeedInsights } from './speed-insights.js';
+injectSpeedInsights();
+
 const form = document.getElementById('privacyRequestForm');
 const statusNode = document.getElementById('contactFormStatus');
 if (form && statusNode) form.addEventListener('submit', async event => {
