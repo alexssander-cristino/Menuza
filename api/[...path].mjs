@@ -110,10 +110,15 @@ async function limit(req, key, maximum, windowMs) {
 let beverageSchemaPromise;
 async function ensureBeverageSchema() {
   if (!beverageSchemaPromise) {
-    beverageSchemaPromise = (async () => {
-      await query('ALTER TABLE products DROP CONSTRAINT IF EXISTS products_type_check');
-      await query("ALTER TABLE products ADD CONSTRAINT products_type_check CHECK (type IN ('pizza','burger','plate','drink'))");
-    })().catch(error => {
+    beverageSchemaPromise = withTransaction(async client => {
+      // Serializa a migração entre instâncias serverless que recebam o primeiro
+      // cadastro de bebida ao mesmo tempo.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ['menuza:products-type-check']);
+      const current = await client.query("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='products'::regclass AND conname='products_type_check'");
+      if (String(current.rows[0]?.definition || '').includes("'drink'")) return;
+      await client.query('ALTER TABLE products DROP CONSTRAINT IF EXISTS products_type_check');
+      await client.query("ALTER TABLE products ADD CONSTRAINT products_type_check CHECK (type IN ('pizza','burger','plate','drink'))");
+    }).catch(error => {
       beverageSchemaPromise = null;
       throw error;
     });
