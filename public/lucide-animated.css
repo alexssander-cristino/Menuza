@@ -1,0 +1,13 @@
+/* Ícones Lucide com microanimações, sem dependência React no app vanilla. */
+.ui-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0;color:currentColor}
+.ui-icon svg{display:block;width:1em;height:1em;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ui-icon--cart svg{transform-origin:50% 65%;transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.cart-button:hover .ui-icon--cart svg,.cart-button:focus-visible .ui-icon--cart svg{animation:lucide-cart-bounce .58s ease-in-out}
+@keyframes lucide-cart-bounce{0%,100%{transform:translateY(0) scale(1)}35%{transform:translateY(-4px) scale(1.08)}65%{transform:translateY(0) scale(1.02)}}
+.ui-icon--interactive svg{transition:transform .2s ease,stroke-width .2s ease}
+button:hover>.ui-icon--interactive svg,button:focus-visible>.ui-icon--interactive svg{transform:scale(1.1);stroke-width:2.15}
+.cart-icon{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px}
+.cart-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cart-button{gap:8px}.cart-button .cart-word{font-weight:650}
+.empty-icon .ui-icon{font-size:34px}
+.icon-button .ui-icon{font-size:18px}
