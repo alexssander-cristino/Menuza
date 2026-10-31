@@ -243,7 +243,7 @@ function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
   if(!data?.active||!data.image){existing?.remove();return}
   const html='<section id="promotionBanner" class="promotion-hero-wrap wrap"><button type="button" class="promotion-hero" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-banner-image:url(\''+esc(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-copy"><small>OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções')+'</span><b>Ver ofertas <i>↗</i></b></span></button></section>';
-  if(existing)existing.outerHTML=html;else root.getElementById('favoritos')?.insertAdjacentHTML('beforebegin',html);
+  if(existing)existing.outerHTML=html;else root.querySelector('.site-header')?.insertAdjacentHTML('afterend',html);
 }
 function renderRecentProducts(){
   const section=root.getElementById('recentProductsSection');
