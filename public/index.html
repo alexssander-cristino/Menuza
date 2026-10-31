@@ -14,12 +14,12 @@
   </script>
   <script defer src="/_vercel/speed-insights/script.js"></script>
   <link rel="stylesheet" href="/styles.css?v=77">
-  <link rel="stylesheet" href="/promotions-delivery.css?v=5">
+  <link rel="stylesheet" href="/promotions-delivery.css?v=6">
   <link rel="stylesheet" href="/mobile-refinement.css?v=8">
   <link rel="stylesheet" href="/ingredient-visual-polish.css?v=1">
   <link rel="stylesheet" href="/table-collision-fix.css?v=1">
   <link rel="stylesheet" href="/legal.css?v=4">
-  <script type="module" src="/app.js?v=101"></script>
+  <script type="module" src="/app.js?v=102"></script>
   <script type="module" src="/scroll.js?v=1"></script>
   <script defer src="/privacy-notice.js?v=2"></script>
   <script defer src="/micro-interactions.js?v=1"></script>
@@ -39,6 +39,11 @@
       <button class="mobile-menu-button" aria-label="Ir ao cardápio" data-scroll="#menu">☰</button>
     </div>
   </header>
+
+    <section class="section wrap promotions-page" id="ofertas">
+      <div class="section-heading"><div><div class="eyebrow">PROMOÇÕES DO RESTAURANTE</div><h2>Ofertas <em>especiais.</em></h2><p id="promotionsCount">Carregando ofertas…</p></div><a class="text-link" href="#menu">Voltar ao cardápio <span>↗</span></a></div>
+      <div class="featured-grid promotions-grid" id="promotionsGrid" aria-live="polite"></div>
+    </section>
 
   <main id="homeView">
     <section class="hero wrap">
@@ -68,10 +73,7 @@
       <div class="featured-grid recent-products-grid" id="recentProductsGrid" aria-live="polite"></div>
     </section>
 
-    <section class="section wrap promotions-page" id="ofertas">
-      <div class="section-heading"><div><div class="eyebrow">PROMOÇÕES DO RESTAURANTE</div><h2>Ofertas <em>especiais.</em></h2><p id="promotionsCount">Carregando ofertas…</p></div><a class="text-link" href="#menu">Voltar ao cardápio <span>↗</span></a></div>
-      <div class="featured-grid promotions-grid" id="promotionsGrid" aria-live="polite"></div>
-    </section>
+
 
     <section class="menu-section" id="menu">
       <div class="wrap">
