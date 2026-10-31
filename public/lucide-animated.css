@@ -53,3 +53,19 @@ button:hover>.ui-icon--interactive svg,button:focus-visible>.ui-icon--interactiv
   .cart-button:focus-visible .cart-icon svg.ui-icon--cart,
   .cart-button.is-cart-animating .cart-icon svg.ui-icon--cart{animation:none!important}
 }
+
+
+/* Coração dos favoritos: pulso suave inspirado no HeartIcon. */
+.favorite-toggle .favorite-heart-icon svg{transform-origin:50% 55%;transition:transform .22s ease,fill .22s ease,stroke .22s ease}
+.favorite-toggle.is-favorite .favorite-heart-icon svg{fill:currentColor;stroke:currentColor}
+.favorite-toggle:hover .favorite-heart-icon svg,
+.favorite-toggle:focus-visible .favorite-heart-icon svg{animation:menuza-heart-pulse .9s ease-in-out 2}
+.favorite-toggle:active .favorite-heart-icon svg{transform:scale(.88)}
+@keyframes menuza-heart-pulse{0%,100%{transform:scale(1)}35%{transform:scale(1.08)}70%{transform:scale(1)}}
+
+/* Compartilhar: o símbolo se abre, inclina e retorna ao lugar. */
+.share-product-button svg.share-icon-svg,.share-menu-button svg.share-icon-svg{transform-origin:50% 50%;transition:transform .22s ease}
+.share-product-button:hover svg.share-icon-svg,.share-product-button:focus-visible svg.share-icon-svg,
+.share-menu-button:hover svg.share-icon-svg,.share-menu-button:focus-visible svg.share-icon-svg{animation:menuza-share-pop .65s cubic-bezier(.2,.8,.2,1)}
+@keyframes menuza-share-pop{0%,100%{transform:scale(1) rotate(0)}35%{transform:scale(1.16) rotate(-8deg)}65%{transform:scale(1.08) rotate(5deg)}}
+@media(prefers-reduced-motion:reduce){.favorite-toggle:hover .favorite-heart-icon svg,.favorite-toggle:focus-visible .favorite-heart-icon svg,.share-product-button:hover svg.share-icon-svg,.share-product-button:focus-visible svg.share-icon-svg,.share-menu-button:hover svg.share-icon-svg,.share-menu-button:focus-visible svg.share-icon-svg{animation:none}}
