@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/ingredient-visual-polish.css?v=1">
   <link rel="stylesheet" href="/table-collision-fix.css?v=1">
   <link rel="stylesheet" href="/legal.css?v=4">
-  <script type="module" src="/app.js?v=104"></script>
+  <script type="module" src="/app.js?v=105"></script>
   <script type="module" src="/scroll.js?v=1"></script>
   <script defer src="/privacy-notice.js?v=2"></script>
   <script defer src="/micro-interactions.js?v=1"></script>
@@ -37,7 +37,7 @@
     <div class="header-actions">
       <button class="share-menu-button" type="button" data-action="share-menu" aria-label="Compartilhar cardápio" title="Compartilhar cardápio"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg><span>Compartilhar</span></button><button class="quiet-link" data-action="my-orders">Minha conta</button><button class="quiet-link" data-action="admin">Área do restaurante</button>
       <button class="cart-button" data-action="cart" aria-label="Abrir carrinho"><span class="cart-icon" aria-hidden="true"><svg class="ui-icon ui-icon--cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><span class="cart-word">Carrinho</span><span class="cart-count" id="cartCount">0</span></button>
-      <button class="mobile-menu-button" aria-label="Ir ao cardápio" data-scroll="#menu">☰</button>
+      <button class="mobile-menu-button" aria-label="Ir ao cardápio" data-scroll="#menu"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     </div>
   </header>
 
@@ -81,7 +81,7 @@
         <div class="section-heading menu-heading"><div><div class="eyebrow">CARDÁPIO COMPLETO</div><h2>Qual vai ser <em>hoje?</em></h2></div><p>Toque em um prato para montar<br>a sua versão e ver o resultado.</p></div>
         <div class="menu-tools">
           <div class="category-list" id="categoryList" role="tablist" aria-label="Categorias do cardápio"></div>
-          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar no cardápio" aria-label="Buscar produtos"><kbd>⌘ K</kbd></label>
+          <label class="search-box"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input id="searchInput" type="search" placeholder="Buscar no cardápio" aria-label="Buscar produtos"><kbd>⌘ K</kbd></label>
         </div>
         <div class="filter-line"><span id="resultCount">Carregando cardápio…</span><div class="catalog-filter-actions"><button class="filter-toggle" id="vegetarianFilter" aria-pressed="false">◉ Opções vegetarianas</button><button class="filter-toggle favorites-filter" id="favoritesFilter" aria-pressed="false">♡ Meus favoritos</button></div><button class="filter-toggle clear-catalog-filters" type="button" data-action="clear-catalog-filters">Limpar filtros</button><label class="sort-label">Ordenar por <select id="sortSelect"><option value="featured">Recomendados</option><option value="price">Menor preço</option><option value="name">Nome</option></select></label></div>
         <div class="menu-grid" id="menuGrid" aria-live="polite"></div>
