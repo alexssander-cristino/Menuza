@@ -58,3 +58,27 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',start,{once:true});
   else start();
 })();
+
+/* Anima o ícone do carrinho também ao tocar/clicar, não apenas no hover. */
+(() => {
+  const animateCart = button => {
+    const icon = button?.querySelector('.cart-icon svg');
+    if (!icon || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    button.classList.remove('is-cart-animating');
+    void icon.getBoundingClientRect();
+    button.classList.add('is-cart-animating');
+    icon.addEventListener('animationend', () => button.classList.remove('is-cart-animating'), {once:true});
+  };
+  document.addEventListener('pointerenter', event => {
+    const button = event.target.closest?.('.cart-button');
+    if (button) animateCart(button);
+  }, true);
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('.cart-button');
+    if (button) animateCart(button);
+  });
+  document.addEventListener('focusin', event => {
+    const button = event.target.closest?.('.cart-button');
+    if (button) animateCart(button);
+  });
+})();
