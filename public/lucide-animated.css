@@ -18,3 +18,38 @@ button:hover>.ui-icon--interactive svg,button:focus-visible>.ui-icon--interactiv
 .cart-button{gap:8px}.cart-button .cart-word{font-weight:650}
 .empty-icon .ui-icon{font-size:34px}
 .icon-button .ui-icon{font-size:18px}
+
+/* Correção: remove rotação herdada do ícone antigo de sacola e anima o carrinho em si. */
+.cart-icon{
+  transform:none!important;
+  width:22px!important;
+  height:22px!important;
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 22px;
+  overflow:visible;
+}
+.cart-icon svg.ui-icon--cart{
+  width:22px!important;
+  height:22px!important;
+  display:block;
+  transform-origin:50% 65%;
+  will-change:transform;
+}
+.cart-button:hover .cart-icon svg.ui-icon--cart,
+.cart-button:focus-visible .cart-icon svg.ui-icon--cart,
+.cart-button.is-cart-animating .cart-icon svg.ui-icon--cart{
+  animation:menuza-cart-bounce .62s cubic-bezier(.2,.75,.3,1) both!important;
+}
+@keyframes menuza-cart-bounce{
+  0%,100%{transform:translateY(0) rotate(0) scale(1)}
+  28%{transform:translateY(-5px) rotate(-7deg) scale(1.12)}
+  55%{transform:translateY(0) rotate(5deg) scale(1.04)}
+  78%{transform:translateY(-2px) rotate(-2deg) scale(1.02)}
+}
+@media(prefers-reduced-motion:reduce){
+  .cart-button:hover .cart-icon svg.ui-icon--cart,
+  .cart-button:focus-visible .cart-icon svg.ui-icon--cart,
+  .cart-button.is-cart-animating .cart-icon svg.ui-icon--cart{animation:none!important}
+}
