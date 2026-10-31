@@ -51,6 +51,8 @@ const app = {
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
+let promotionCarouselTimer = null;
+let promotionCarouselIndex = 0;
 const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-cart') || '[]'); } catch { return []; } })();
 app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
@@ -280,11 +282,71 @@ function renderPromotionsTab(){
     }
   }).join('');
 }
+function stopPromotionCarousel(){
+  if(promotionCarouselTimer){clearInterval(promotionCarouselTimer);promotionCarouselTimer=null}
+}
+function setPromotionSlide(index){
+  const carousel=root.getElementById('promotionBanner');
+  if(!carousel)return;
+  const slides=[...carousel.querySelectorAll('.promotion-hero-slide')];
+  if(!slides.length)return;
+  promotionCarouselIndex=(index+slides.length)%slides.length;
+  slides.forEach((slide,i)=>{
+    const active=i===promotionCarouselIndex;
+    slide.classList.toggle('is-active',active);
+    slide.setAttribute('aria-hidden',String(!active));
+    slide.tabIndex=active?0:-1;
+  });
+  carousel.querySelectorAll('[data-promo-index]').forEach((dot,i)=>{
+    const active=i===promotionCarouselIndex;
+    dot.classList.toggle('is-active',active);
+    dot.setAttribute('aria-current',active?'true':'false');
+  });
+  const current=carousel.querySelector('.promotion-hero-current');
+  if(current)current.textContent=String(promotionCarouselIndex+1).padStart(2,'0');
+  const fill=carousel.querySelector('.promotion-hero-progress-fill');
+  if(fill){fill.style.animation='none';void fill.offsetWidth;fill.style.animation=''}
+}
+function startPromotionCarousel(carousel){
+  stopPromotionCarousel();
+  if(!carousel)return;
+  const slides=carousel.querySelectorAll('.promotion-hero-slide');
+  if(slides.length<2||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const play=()=>{stopPromotionCarousel();promotionCarouselTimer=setInterval(()=>setPromotionSlide(promotionCarouselIndex+1),6500)};
+  carousel.addEventListener('mouseenter',stopPromotionCarousel);
+  carousel.addEventListener('mouseleave',play);
+  carousel.addEventListener('focusin',stopPromotionCarousel);
+  carousel.addEventListener('focusout',event=>{if(!carousel.contains(event.relatedTarget))play()});
+  carousel.addEventListener('touchstart',event=>{carousel.dataset.touchStartX=String(event.changedTouches[0]?.clientX||0)},{passive:true});
+  carousel.addEventListener('touchend',event=>{
+    const first=Number(carousel.dataset.touchStartX)||0,last=event.changedTouches[0]?.clientX||0,delta=last-first;
+    if(Math.abs(delta)>45){setPromotionSlide(promotionCarouselIndex+(delta<0?1:-1));play()}
+  },{passive:true});
+  play();
+}
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
-  if(!data?.active||!data.image){existing?.remove();return}
-  const html='<section id="promotionBanner" class="promotion-hero-wrap wrap"><button type="button" class="promotion-hero" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-banner-image:url(\''+esc(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-copy"><small>OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções')+'</span><b>Ver ofertas <i>↗</i></b></span></button></section>';
+  const bannerEnabled=Boolean(data?.active&&data.image);
+  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&(
+    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined||product.promotion?.active===true
+  ));
+  if(!bannerEnabled&&!offers.length){stopPromotionCarousel();existing?.remove();return}
+  const slides=[];
+  if(bannerEnabled){
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+esc(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+  }
+  offers.forEach((product,index)=>{
+    const regular=Number(product.baseCents)||0;
+    const promo=product.promotionalPriceCents!=null?Number(product.promotionalPriceCents):Math.round(regular*(1-(Number(product.promotion?.discountPercent)||0)/100));
+    const validPromo=promo>0&&promo<regular;
+    const discount=validPromo?Math.max(1,Math.round((1-promo/regular)*100)):0;
+    const visual=productPhotoOrArt(product,defaultIngredients(product,app.catalog),{},'promotion-slide-product-art','contain');
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-product" data-action="open-promotions" aria-label="Ver oferta de '+esc(product.name)+'" aria-hidden="true" tabindex="-1"><span class="promotion-hero-product-glow"></span><span class="promotion-hero-product-visual">'+visual+'</span><span class="promotion-hero-copy"><small><i></i> OFERTA '+String(index+1).padStart(2,'0')+'</small><strong>'+esc(product.name)+'</strong><span>'+esc(product.description||'Uma oferta especial esperando por você.')+'</span><span class="promotion-hero-price">'+(validPromo?'<del>'+money(regular)+'</del>':'')+'<b>'+money(validPromo?promo:regular)+'</b>'+(discount?'<em>−'+discount+'%</em>':'')+'</span><b class="promotion-hero-cta">Aproveitar oferta <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+  });
+  const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Carrossel de promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
+  stopPromotionCarousel();
   if(existing)existing.outerHTML=html;else root.querySelector('.site-header')?.insertAdjacentHTML('afterend',html);
+  startPromotionCarousel(root.getElementById('promotionBanner'));
 }
 function renderRecentProducts(){
   const section=root.getElementById('recentProductsSection');
@@ -1865,6 +1927,9 @@ async function repeatCustomerOrder(orderId){
 function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='open-promotions'){root.getElementById('promotionsPage')?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(target.dataset.action==='promo-prev'){setPromotionSlide(promotionCarouselIndex-1);return}
+  if(target.dataset.action==='promo-next'){setPromotionSlide(promotionCarouselIndex+1);return}
+  if(target.dataset.action==='promo-slide'){setPromotionSlide(Number(target.dataset.promoIndex)||0);return}
   if(target.dataset.category){app.category=target.dataset.category;renderCatalog();return}
   if(target.dataset.size&&app.builder){app.builder.sizeKey=target.dataset.size;renderBuilder();return}
   if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
