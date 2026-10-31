@@ -156,7 +156,7 @@ async function ensurePromoDeliverySchema() {
         VALUES ('zone-centro', $1, 'Centro', 'fixed', 800, 100, 1)
         ON CONFLICT (restaurant_id,name) DO NOTHING`, [RESTAURANT_ID]);
       await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-boavista',$1,'Boa Vista','fixed',800,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
-      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,0) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
       await query("UPDATE delivery_zones SET distance_km=1 WHERE restaurant_id=$1 AND id='zone-demais' AND distance_km=0",[RESTAURANT_ID]);
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url,address)
         VALUES ($1,'Galileu Pizzas e Lanches','galileu-pizzas-e-lanches','BRL',30,$2,'',
