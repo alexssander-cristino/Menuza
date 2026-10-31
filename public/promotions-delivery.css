@@ -17,3 +17,75 @@
 .promotion-fallback-card .product-card-body{padding:20px}
 .promotion-fallback-card h3{margin:12px 0}
 .promotion-fallback-card .promo-price{display:flex;gap:10px;align-items:center}
+
+
+/* Carrossel de promoções: visual editorial, camadas de luz e transições cinematográficas. */
+.promotion-hero-wrap{margin:16px auto 18px!important}
+.promotion-hero-carousel{position:relative;min-height:clamp(270px,31vw,390px);overflow:hidden;border-radius:26px;background:#190e17;isolation:isolate;box-shadow:0 24px 65px rgba(36,13,25,.2)}
+.promotion-hero-slide{position:absolute;inset:0;display:flex;width:100%;height:100%;min-height:inherit;align-items:center;overflow:hidden;border:0;padding:0;text-align:left;color:#fff;background:#24131b;cursor:pointer;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(5%) scale(1.025);transition:opacity .85s ease,transform 1s cubic-bezier(.2,.75,.25,1),visibility .85s;isolation:isolate}
+.promotion-hero-slide.is-active{position:relative;opacity:1;visibility:visible;pointer-events:auto;transform:translateX(0) scale(1);z-index:1}
+.promotion-hero-banner{background-image:var(--promotion-slide-image);background-size:cover;background-position:center 48%}
+.promotion-hero-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(100deg,rgba(19,8,15,.94) 0%,rgba(27,10,20,.78) 43%,rgba(20,9,16,.12) 100%)}
+.promotion-hero-copy{position:relative;z-index:3;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:13px;width:min(64%,700px);padding:clamp(30px,6vw,76px);max-width:760px}
+.promotion-hero-copy small{display:flex;align-items:center;gap:9px;font-size:.68rem;font-weight:900;letter-spacing:.2em;color:#ffd9ce}
+.promotion-hero-copy small i{width:7px;height:7px;border-radius:50%;background:#ff725e;box-shadow:0 0 0 5px rgba(255,114,94,.16),0 0 18px #ff725e}
+.promotion-hero-copy strong{font-size:clamp(2rem,5vw,4.5rem);font-weight:850;line-height:.98;letter-spacing:-.065em;text-wrap:balance;text-shadow:0 5px 24px rgba(0,0,0,.18)}
+.promotion-hero-copy>span:not(.promotion-hero-price){max-width:490px;font-size:clamp(.9rem,1.4vw,1.08rem);line-height:1.55;color:rgba(255,255,255,.82)}
+.promotion-hero-copy>b,.promotion-hero-cta{display:inline-flex;align-items:center;gap:16px;margin-top:8px;padding:13px 19px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:#fff;color:#9d2922;font-size:.82rem;font-weight:850;box-shadow:0 10px 30px rgba(0,0,0,.15);transition:transform .3s,box-shadow .3s}
+.promotion-hero-copy>b i,.promotion-hero-cta i{font-style:normal;font-size:1.1rem}
+.promotion-hero-slide:hover .promotion-hero-copy>b{transform:translateY(-3px);box-shadow:0 16px 35px rgba(0,0,0,.22)}
+.promotion-hero-corner{position:absolute;right:28px;top:25px;z-index:3;color:rgba(255,255,255,.65);font-size:.65rem;font-weight:900;letter-spacing:.22em}
+.promotion-hero-corner i{color:#ff9a82;font-style:normal}
+.promotion-hero-orbit{position:absolute;right:9%;top:14%;width:clamp(170px,25vw,330px);aspect-ratio:1;border:1px solid rgba(255,255,255,.2);border-radius:50%;box-shadow:0 0 0 24px rgba(255,255,255,.035),0 0 0 55px rgba(255,255,255,.025);z-index:0}
+.promotion-orbit-two{right:17%;top:25%;width:clamp(110px,16vw,210px);border-style:dashed;opacity:.65}
+.promotion-hero-product{background:radial-gradient(ellipse at 75% 48%,#753d35 0%,#3a1e2c 38%,#190e17 78%)}
+.promotion-hero-product:after{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,rgba(22,10,18,.97) 0%,rgba(34,14,24,.86) 43%,rgba(28,12,21,.08) 100%)}
+.promotion-hero-product-glow{position:absolute;right:12%;top:8%;width:clamp(210px,32vw,430px);aspect-ratio:1;border-radius:50%;background:rgba(255,178,126,.18);filter:blur(48px);z-index:0}
+.promotion-hero-product-visual{position:absolute;right:6%;top:4%;bottom:7%;width:48%;display:flex;align-items:center;justify-content:center;z-index:1;filter:drop-shadow(0 30px 32px rgba(0,0,0,.35))}
+.promotion-slide-product-art{width:100%;height:100%;max-height:340px;object-fit:contain;transform:rotate(-7deg) scale(.88);transition:transform 1.1s cubic-bezier(.2,.8,.2,1);filter:saturate(1.12)}
+.promotion-hero-product.is-active .promotion-slide-product-art{transform:rotate(0) scale(1)}
+.promotion-hero-price{display:flex;align-items:center;gap:12px;margin-top:3px}
+.promotion-hero-price del{font-size:.95rem;color:rgba(255,255,255,.58)}
+.promotion-hero-price b{font-size:clamp(1.55rem,3vw,2.25rem);font-weight:900;letter-spacing:-.04em;color:#fff}
+.promotion-hero-price em{padding:6px 9px;border-radius:7px;background:#ff725e;color:#fff;font-size:.72rem;font-style:normal;font-weight:900}
+.promotion-hero-controls{position:absolute;right:28px;bottom:24px;z-index:5;display:flex;align-items:center;gap:13px}
+.promotion-hero-arrow{display:grid;place-items:center;width:38px;height:38px;border:1px solid rgba(255,255,255,.3);border-radius:50%;background:rgba(20,10,16,.32);backdrop-filter:blur(12px);color:#fff;font-size:1.65rem;line-height:1;cursor:pointer;transition:background .2s,transform .2s}
+.promotion-hero-arrow:hover{background:rgba(255,255,255,.2);transform:scale(1.08)}
+.promotion-hero-dots{display:flex;align-items:center;gap:6px}
+.promotion-hero-dot{width:22px;height:22px;display:grid;place-items:center;border:0;background:transparent;cursor:pointer}
+.promotion-hero-dot span{width:6px;height:6px;border-radius:10px;background:rgba(255,255,255,.5);transition:width .35s,background .35s}
+.promotion-hero-dot.is-active span{width:22px;background:#fff}
+.promotion-hero-count{color:rgba(255,255,255,.65);font-size:.65rem;font-weight:800;letter-spacing:.12em}
+.promotion-hero-count b{color:#fff}
+.promotion-hero-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.15);z-index:6}
+.promotion-hero-progress-fill{display:block;width:100%;height:100%;background:linear-gradient(90deg,#ff725e,#ffd1a6);transform-origin:left;animation:promotion-progress 6.5s linear infinite}
+@keyframes promotion-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.promotion-hero-slide.is-active .promotion-hero-copy>*{animation:promotion-copy-in .72s both}
+.promotion-hero-slide.is-active .promotion-hero-copy>*:nth-child(2){animation-delay:.09s}
+.promotion-hero-slide.is-active .promotion-hero-copy>*:nth-child(3){animation-delay:.17s}
+.promotion-hero-slide.is-active .promotion-hero-copy>*:nth-child(4){animation-delay:.25s}
+@keyframes promotion-copy-in{from{opacity:0;transform:translateY(22px);filter:blur(5px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.promotion-hero-banner.is-active{animation:promotion-image-drift 8s ease both}
+@keyframes promotion-image-drift{from{background-size:110%}to{background-size:100%}}
+@media(max-width:680px){
+ .promotion-hero-wrap{padding-left:14px!important;padding-right:14px!important;margin:10px auto 14px!important}
+ .promotion-hero-carousel{min-height:390px;border-radius:20px}
+ .promotion-hero-slide{min-height:390px;align-items:flex-end}
+ .promotion-hero-banner{background-position:58% center}
+ .promotion-hero-banner .promotion-hero-shade{background:linear-gradient(0deg,rgba(18,8,14,.96) 0%,rgba(23,9,17,.72) 55%,rgba(22,10,17,.08) 100%)}
+ .promotion-hero-product{background:radial-gradient(ellipse at 70% 22%,#753d35 0%,#3a1e2c 42%,#190e17 90%)}
+ .promotion-hero-product:after{background:linear-gradient(0deg,rgba(22,10,18,.98) 0%,rgba(34,14,24,.78) 52%,rgba(28,12,21,.04) 100%)}
+ .promotion-hero-product-visual{top:2%;right:8%;bottom:auto;width:84%;height:53%;opacity:.92}
+ .promotion-slide-product-art{max-height:210px}
+ .promotion-hero-copy{width:100%;max-width:none;padding:22px 22px 72px;gap:9px}
+ .promotion-hero-copy strong{font-size:clamp(2rem,10vw,2.8rem)}
+ .promotion-hero-copy>span:not(.promotion-hero-price){font-size:.86rem;max-width:95%}
+ .promotion-hero-controls{right:16px;bottom:17px;gap:8px}
+ .promotion-hero-arrow{width:34px;height:34px}
+ .promotion-hero-corner{right:17px;top:16px;font-size:.58rem}
+ .promotion-hero-orbit{right:3%;top:8%;width:58vw}
+}
+@media(prefers-reduced-motion:reduce){
+ .promotion-hero-slide,.promotion-hero-copy>*{transition:none!important;animation:none!important}
+ .promotion-hero-progress-fill{animation:none!important}
+}
