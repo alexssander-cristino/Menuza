@@ -8,3 +8,12 @@
 .promotions-page[hidden]{display:none!important}
 .promotions-page .section-heading p{color:var(--muted);font-size:.85rem;margin-top:8px}
 .promotions-grid{margin-top:22px}
+
+.promotions-page{display:block!important;scroll-margin-top:18px;padding:28px 0 34px;margin-top:0;border-bottom:1px solid var(--line)}
+.promotions-page[hidden]{display:none!important}
+.promotions-page .section-heading{margin-bottom:18px}
+.promotions-empty{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding:22px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
+.promotions-empty strong{color:var(--ink)}
+.promotion-fallback-card .product-card-body{padding:20px}
+.promotion-fallback-card h3{margin:12px 0}
+.promotion-fallback-card .promo-price{display:flex;gap:10px;align-items:center}
