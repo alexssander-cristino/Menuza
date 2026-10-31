@@ -82,3 +82,25 @@
     if (button) animateCart(button);
   });
 })();
+
+
+/* Reproduz as microanimações dos ícones ao toque/clique, inclusive em telas touch. */
+(() => {
+  const replay = (element, selector) => {
+    const icon = element?.querySelector(selector);
+    if (!icon || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    icon.style.animation = 'none';
+    void icon.getBoundingClientRect();
+    icon.style.animation = '';
+  };
+  document.addEventListener('pointerenter', event => {
+    const favorite = event.target.closest?.('.favorite-toggle');
+    const share = event.target.closest?.('.share-product-button,.share-menu-button');
+    if (favorite) replay(favorite, '.favorite-heart-icon svg');
+    if (share) replay(share, 'svg.share-icon-svg');
+  }, true);
+  document.addEventListener('click', event => {
+    const share = event.target.closest?.('.share-product-button,.share-menu-button');
+    if (share) replay(share, 'svg.share-icon-svg');
+  });
+})();
