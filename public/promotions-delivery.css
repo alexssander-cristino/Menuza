@@ -89,3 +89,25 @@
  .promotion-hero-slide,.promotion-hero-copy>*{transition:none!important;animation:none!important}
  .promotion-hero-progress-fill{animation:none!important}
 }
+
+/* Corrige o preço do slide: não pode herdar o fundo branco do botão CTA. */
+.promotion-hero-copy .promotion-hero-price b{
+  display:inline;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#fff;
+  font-size:clamp(1.55rem,3vw,2.25rem);
+  line-height:1.1;
+  box-shadow:none;
+}
+.promotion-hero-copy .promotion-hero-price{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:3px;
+  padding:0;
+  background:transparent;
+}
