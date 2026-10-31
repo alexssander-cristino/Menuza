@@ -242,12 +242,30 @@ function renderCatalog() {
 function renderPromotionsTab(){
   const section=root.getElementById('promotionsPage');
   const grid=root.getElementById('promotionsGrid');
-  if(!section||!grid||!app.catalog)return;
-  const offers=app.catalog.products.filter(product=>Number(product.active)!==0&&(product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined||product.promotion?.active===true));
-  section.hidden=offers.length===0;
-  grid.innerHTML=offers.map(cardMarkup).join('');
   const count=root.getElementById('promotionsCount');
+  if(!section||!grid)return;
+  if(!app.catalog||!Array.isArray(app.catalog.products)){
+    if(count)count.textContent='Não foi possível carregar as ofertas.';
+    grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';
+    return;
+  }
+  const offers=app.catalog.products.filter(product=>Number(product.active)!==0&&(
+    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined ||
+    product.promotion?.active===true
+  ));
+  section.hidden=false;
   if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta cadastrada':'ofertas cadastradas');
+  if(!offers.length){
+    grid.innerHTML='<div class="promotions-empty"><strong>Nenhuma oferta disponível agora.</strong><span>As promoções cadastradas aparecerão aqui quando estiverem ativas.</span></div>';
+    return;
+  }
+  grid.innerHTML=offers.map(product=>{
+    try{return cardMarkup(product)}
+    catch(error){
+      const price=product.promotionalPriceCents!=null?'<del>'+money(product.baseCents)+'</del><strong>'+money(product.promotionalPriceCents)+'</strong>':'<strong>'+money(product.baseCents)+'</strong>';
+      return '<article class="product-card promotion-fallback-card"><div class="product-card-body"><span class="promotion-badge">OFERTA</span><h3>'+esc(product.name||'Produto')+'</h3><p>'+esc(product.description||'Oferta especial do restaurante')+'</p><div class="promo-price">'+price+'</div></div></article>';
+    }
+  }).join('');
 }
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
