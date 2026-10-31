@@ -154,6 +154,8 @@ async function ensurePromoDeliverySchema() {
       await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active)
         VALUES ('zone-centro', $1, 'Centro', 'fixed', 800, 100, 1)
         ON CONFLICT (restaurant_id,name) DO NOTHING`, [RESTAURANT_ID]);
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-boavista',$1,'Boa Vista','fixed',800,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url,address)
         VALUES ($1,'Galileu Pizzas e Lanches','galileu-pizzas-e-lanches','BRL',30,$2,'',
         'Rua Luiz Vendramin, 267 - Boa Vista, Pouso Redondo - SC, 89172-000')
