@@ -125,6 +125,119 @@ async function ensureBeverageSchema() {
   }
   await beverageSchemaPromise;
 }
+let promoDeliverySchemaPromise;
+async function ensurePromoDeliverySchema() {
+  if (!promoDeliverySchemaPromise) {
+    promoDeliverySchemaPromise = (async () => {
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION");
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION");
+      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee_cents INTEGER NOT NULL DEFAULT 0");
+      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_zone_name TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DOUBLE PRECISION");
+      await query(`CREATE TABLE IF NOT EXISTS product_promotions (
+        id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
+        discount_type TEXT NOT NULL CHECK(discount_type IN ('fixed','percent')),
+        promotional_price_cents INTEGER, discount_percent INTEGER,
+        weekdays_json TEXT NOT NULL DEFAULT '[1,2,3,4,5,6,7]',
+        active INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(restaurant_id,product_id)
+      )`);
+      await query(`CREATE TABLE IF NOT EXISTS delivery_zones (
+        id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, name TEXT NOT NULL,
+        fee_mode TEXT NOT NULL CHECK(fee_mode IN ('fixed','per_km')),
+        fee_cents INTEGER NOT NULL DEFAULT 0, per_km_cents INTEGER NOT NULL DEFAULT 100, distance_km DOUBLE PRECISION NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(restaurant_id,name)
+      )`);
+      await query('ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0');
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active)
+        VALUES ('zone-centro', $1, 'Centro', 'fixed', 800, 100, 1)
+        ON CONFLICT (restaurant_id,name) DO NOTHING`, [RESTAURANT_ID]);
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-boavista',$1,'Boa Vista','fixed',800,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,0) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await query("UPDATE delivery_zones SET distance_km=1 WHERE restaurant_id=$1 AND id='zone-demais' AND distance_km=0",[RESTAURANT_ID]);
+      await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url,address)
+        VALUES ($1,'Galileu Pizzas e Lanches','galileu-pizzas-e-lanches','BRL',30,$2,'',
+        'Rua Luiz Vendramin, 267 - Boa Vista, Pouso Redondo - SC, 89172-000')
+        ON CONFLICT (id) DO UPDATE SET name='Galileu Pizzas e Lanches',
+        address=CASE WHEN restaurants.address='' THEN EXCLUDED.address ELSE restaurants.address END`,
+        [RESTAURANT_ID,new Date().toISOString()]);
+    })().catch(error => { promoDeliverySchemaPromise = null; throw error; });
+  }
+  await promoDeliverySchemaPromise;
+}
+function saoPauloWeekday() {
+  const day = new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(new Date());
+  return ({Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7})[day] || 1;
+}
+function promotionPrice(product, promotion) {
+  if (!promotion || Number(promotion.active)!==1) return null;
+  let days=[]; try { days=JSON.parse(promotion.weekdays_json||'[]'); } catch {}
+  if (!Array.isArray(days) || !days.includes(saoPauloWeekday())) return null;
+  const base=Number(product.baseCents);
+  const price=promotion.discount_type==='percent'
+    ? Math.round(base*(100-Number(promotion.discount_percent))/100)
+    : Number(promotion.promotional_price_cents);
+  return Number.isInteger(price) && price>=0 && price<base ? price : null;
+}
+async function deliveryConfig() {
+  await ensurePromoDeliverySchema();
+  const [restaurant,zones]=await Promise.all([
+    query('SELECT address,latitude,longitude FROM restaurants WHERE id=$1',[RESTAURANT_ID]),
+    query('SELECT id,name,fee_mode AS "feeMode",fee_cents AS "feeCents",per_km_cents AS "perKmCents",distance_km AS "distanceKm",active FROM delivery_zones WHERE restaurant_id=$1 ORDER BY name',[RESTAURANT_ID])
+  ]);
+  return { restaurant:restaurant.rows[0]||{}, zones:zones.rows.map(z=>({...z,feeCents:Number(z.feeCents),perKmCents:Number(z.perKmCents),distanceKm:Number(z.distanceKm),active:Number(z.active)===1})) };
+}
+function distanceKm(aLat,aLon,bLat,bLon) {
+  const rad=v=>v*Math.PI/180, dLat=rad(bLat-aLat),dLon=rad(bLon-aLon);
+  const a=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLon/2)**2;
+  return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+async function calculateDelivery(body) {
+  if (body.fulfillment!=='delivery') return {feeCents:0,zoneName:'',distanceKm:null};
+  const config=await deliveryConfig();
+  const zone=config.zones.find(z=>z.id===clean(body.deliveryZoneId,100)&&z.active);
+  if (!zone) throw fail('Selecione uma região de entrega válida.',422);
+  if (zone.feeMode==='fixed') return {feeCents:zone.feeCents,zoneName:zone.name,distanceKm:null};
+  const km=Number(zone.distanceKm);
+  if (!Number.isFinite(km)||km<=0||km>100) throw fail('Configure a distância estimada desta região no painel do restaurante.',422);
+  return {feeCents:Math.round(km*zone.perKmCents),zoneName:zone.name,distanceKm:Math.round(km*10)/10};
+}
+async function savePromotion(body,id=null) {
+  const productId=clean(body.productId,100),type=body.discountType;
+  const product=(await query('SELECT id,base_price_cents AS "baseCents" FROM products WHERE id=$1 AND restaurant_id=$2',[productId,RESTAURANT_ID])).rows[0];
+  if(!product) throw fail('Produto não encontrado.',404);
+  const days=Array.isArray(body.weekdays)?[...new Set(body.weekdays.map(Number))]:[];
+  if(!days.length||days.some(d=>!Number.isInteger(d)||d<1||d>7)) throw fail('Selecione pelo menos um dia da semana.',422);
+  let price=null,percent=null;
+  if(type==='fixed') { price=Number(body.promotionalPriceCents); if(!Number.isInteger(price)||price<1||price>=Number(product.baseCents)) throw fail('O preço promocional deve ser menor que o preço normal.',422); }
+  else if(type==='percent') { percent=Number(body.discountPercent); if(!Number.isInteger(percent)||percent<1||percent>90) throw fail('O desconto deve ficar entre 1% e 90%.',422); }
+  else throw fail('Escolha um tipo de promoção válido.',422);
+  const now=new Date().toISOString(),promotionId=id||'prm_'+randomBytes(12).toString('hex');
+  const result=await query(`INSERT INTO product_promotions
+    (id,restaurant_id,product_id,discount_type,promotional_price_cents,discount_percent,weekdays_json,active,created_at,updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+    ON CONFLICT (restaurant_id,product_id) DO UPDATE SET discount_type=EXCLUDED.discount_type,
+    promotional_price_cents=EXCLUDED.promotional_price_cents,discount_percent=EXCLUDED.discount_percent,
+    weekdays_json=EXCLUDED.weekdays_json,active=EXCLUDED.active,updated_at=EXCLUDED.updated_at
+    RETURNING *`,[promotionId,RESTAURANT_ID,productId,type,price,percent,JSON.stringify(days),body.active===false?0:1,now]);
+  return result.rows[0];
+}
+async function saveDeliveryZone(body,id=null) {
+  const name=clean(body.name,70),mode=body.feeMode,fee=Number(body.feeCents),rate=Number(body.perKmCents??100),distance=Number(body.distanceKm??0);
+  if(name.length<2||!['fixed','per_km'].includes(mode)||!Number.isInteger(fee)||fee<0||fee>100000||!Number.isInteger(rate)||rate<1||rate>100000||!Number.isFinite(distance)||distance<0||distance>100||(mode==='per_km'&&distance<=0))
+    throw fail('Confira o nome da região e os valores da taxa.',422);
+  const zoneId=id||'zone_'+randomBytes(10).toString('hex'),now=new Date().toISOString();
+  const result=await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,distance_km,active,created_at,updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+    ON CONFLICT (restaurant_id,name) DO UPDATE SET fee_mode=EXCLUDED.fee_mode,fee_cents=EXCLUDED.fee_cents,
+    per_km_cents=EXCLUDED.per_km_cents,distance_km=EXCLUDED.distance_km,active=EXCLUDED.active,updated_at=EXCLUDED.updated_at
+    RETURNING id,name,fee_mode AS "feeMode",fee_cents AS "feeCents",per_km_cents AS "perKmCents",distance_km AS "distanceKm",active`,
+    [zoneId,RESTAURANT_ID,name,mode,fee,rate,distance,body.active===false?0:1,now]);
+  return result.rows[0];
+}
 async function catalogFor(admin = false) {
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
@@ -149,6 +262,14 @@ async function catalogFor(admin = false) {
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1
     };
   });
+  await ensurePromoDeliverySchema();
+  const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
+  for (const product of productRows) {
+    const promotion=promotionRows.find(p=>p.product_id===product.id);
+    const promoPrice=promotionPrice(product,promotion);
+    product.promotion=promotion?{id:promotion.id,discountType:promotion.discount_type,promotionalPriceCents:promotion.promotional_price_cents?Number(promotion.promotional_price_cents):null,discountPercent:promotion.discount_percent?Number(promotion.discount_percent):null,weekdays:(()=>{try{return JSON.parse(promotion.weekdays_json||'[]')}catch{return []}})(),active:Number(promotion.active)===1,promotionActive:promoPrice!==null}:null;
+    product.promotionalPriceCents=promoPrice;
+  }
   const ingredientsOut = ingredients.rows.map(i => ({ ...i, included: Number(i.included) === 1 || i.included === true, visual: inferIngredientVisual(i) }));
   const combos = comboRows.rows.map(row => {
     let entries = [];
@@ -168,7 +289,7 @@ async function validateProductIngredientIds(value, type) {
   return value;
 }
 async function orderById(id) {
-  const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
+  const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.delivery_fee_cents AS "deliveryFeeCents",o.delivery_zone_name AS "deliveryZoneName",o.delivery_distance_km AS "deliveryDistanceKm",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
     FROM orders o JOIN restaurants r ON r.id=o.restaurant_id WHERE o.id=$1 AND o.restaurant_id=$2`, [id, RESTAURANT_ID]);
   const order = result.rows[0];
   if (!order) return null;
@@ -221,7 +342,8 @@ async function priceItems(input) {
           included: (product.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    try { pricedItem = calculateItemPrice({ product, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog }); }
+    const effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{...product,baseCents:product.promotionalPriceCents}:product;
+    try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
     priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), priced:pricedItem });
@@ -243,7 +365,8 @@ async function createOrder(body, customerId) {
   const code=normalizeCoupon(body.couponCode);
   let discount=0, coupon=null;
   if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal); }
-  const total=Math.max(0,subtotal-discount);
+  const delivery=await calculateDelivery(body);
+  const total=Math.max(0,subtotal-discount)+delivery.feeCents;
   const id='BM-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+randomBytes(3).toString('hex').toUpperCase();
   const token=randomBytes(24).toString('base64url'), now=new Date().toISOString();
   await withTransaction(async client => {
@@ -265,6 +388,7 @@ async function createOrder(body, customerId) {
     await client.query(`INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'received',$9,$10,$11,$12,$12,$13,$14,$15)`,
       [id,RESTAURANT_ID,customerName,phone,fulfillment,tableLabel,deliveryAddress,clean(body.note,500),total,token,key,now,customerId||null,code,discount]);
+    await client.query('UPDATE orders SET delivery_fee_cents=$1,delivery_zone_name=$2,delivery_distance_km=$3 WHERE id=$4',[delivery.feeCents,delivery.zoneName,delivery.distanceKm,id]);
     if (coupon) {
       const used=await client.query(`UPDATE coupons SET used_count=used_count+1 WHERE id=$1 AND restaurant_id=$2 AND active=1 AND (max_uses IS NULL OR used_count<max_uses)`,[coupon.id,RESTAURANT_ID]);
       if (!used.rowCount) throw fail('Esse cupom atingiu o limite de utilizações.',422);
@@ -436,6 +560,15 @@ export default async function handler(req, res) {
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if (method==='GET'&&path==='/api/restaurant/branding') return json(res,200,{restaurant:(await query('SELECT name,logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null});
     if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
+    if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
+    if (method==='GET'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,promotions:c.products.filter(p=>p.promotion).map(p=>({productId:p.id,name:p.name,...p.promotion}))}); }
+    if (method==='POST'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='GET'&&path==='/api/admin/delivery') { requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
+    if (method==='POST'&&path==='/api/admin/delivery/zones') { requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{zone:await saveDeliveryZone(await bodyOf(req))}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/delivery/zones/')) { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM delivery_zones WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Região não encontrada.',404); return json(res,200,{zone:await saveDeliveryZone({...b,name:b.name??current.name,feeMode:b.feeMode??current.fee_mode,feeCents:b.feeCents??Number(current.fee_cents),perKmCents:b.perKmCents??Number(current.per_km_cents),distanceKm:b.distanceKm??Number(current.distance_km||0),active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='PATCH'&&path==='/api/admin/delivery/location') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req),lat=b.latitude===''||b.latitude==null?null:Number(b.latitude),lon=b.longitude===''||b.longitude==null?null:Number(b.longitude),address=clean(b.address,220); if(!address|| (lat!==null&&(!Number.isFinite(lat)||Math.abs(lat)>90)) || (lon!==null&&(!Number.isFinite(lon)||Math.abs(lon)>180)) || ((lat===null)!==(lon===null))) throw fail('Informe o endereço e, se usar cálculo por km, as duas coordenadas válidas.',422); await query('UPDATE restaurants SET address=$1,latitude=$2,longitude=$3 WHERE id=$4',[address,lat,lon,RESTAURANT_ID]); return json(res,200,{ok:true}); }
+
     if (method==='GET'&&path.startsWith('/api/tables/qr/')) {
       const token=path.slice('/api/tables/qr/'.length);
       if (!/^[A-Za-z0-9_-]{32,64}$/.test(token)) throw fail('QR Code de mesa inválido.',404);
