@@ -212,7 +212,7 @@ function cardMarkup(product) {
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
-    const matchesCategory = app.category === 'all' || (app.category==='promotions'?(product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined)||(product.promotion?.active===true):product.categoryId === app.category);
+    const matchesCategory = app.category === 'all' || product.categoryId === app.category;
     const query = normalizeSearch(app.search);
     const matchesSearch = !query || normalizeSearch(product.name+' '+product.description+' '+(product.categoryName||'')).includes(query);
     const vegetarian = product.type === 'pizza' || product.id === 'batatas';
@@ -227,10 +227,10 @@ function visibleProducts() {
 function renderCatalog() {
   if (!app.catalog) return;
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
-  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+'<button class="category-chip promotion-category-chip '+(app.category==='promotions'?'active':'')+'" role="tab" aria-selected="'+(app.category==='promotions')+'" data-category="promotions">Ofertas</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
+  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
   root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
   renderRecentProducts();
-  renderPromotionBanner();const products=visibleProducts();
+  renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
   const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
   root.getElementById('menuGrid').innerHTML=(comboCards+products.map(cardMarkup).join(''))||'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
   const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
@@ -238,6 +238,16 @@ function renderCatalog() {
   root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
   const favoritesToggle=root.getElementById('favoritesFilter');
   if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
+}
+function renderPromotionsTab(){
+  const section=root.getElementById('promotionsPage');
+  const grid=root.getElementById('promotionsGrid');
+  if(!section||!grid||!app.catalog)return;
+  const offers=app.catalog.products.filter(product=>Number(product.active)!==0&&(product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined||product.promotion?.active===true));
+  section.hidden=offers.length===0;
+  grid.innerHTML=offers.map(cardMarkup).join('');
+  const count=root.getElementById('promotionsCount');
+  if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta cadastrada':'ofertas cadastradas');
 }
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
@@ -1823,7 +1833,7 @@ async function repeatCustomerOrder(orderId){
 }
 function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
-  if(target.dataset.action==='open-promotions'){app.category='promotions';app.search='';app.favoritesOnly=false;app.vegetarianOnly=false;syncFilters();renderCatalog();root.getElementById('menu')?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(target.dataset.action==='open-promotions'){root.getElementById('promotionsPage')?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(target.dataset.category){app.category=target.dataset.category;renderCatalog();return}
   if(target.dataset.size&&app.builder){app.builder.sizeKey=target.dataset.size;renderBuilder();return}
   if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
