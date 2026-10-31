@@ -1716,7 +1716,7 @@ function handleAdminOnline(){
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   setAdminConnectionState(navigator.onLine?'connecting':'offline');
-  app.admin.eventSource=new EventSource('/api/admin/events');
+  app.admin.eventSource=new EventSource('/api/dispatch?path=admin%2Fevents');
   app.admin.eventSource.onopen=()=>{
     setAdminConnectionState('connected');
     if(app.admin.tab==='orders')refreshAdmin();
