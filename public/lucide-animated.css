@@ -1,3 +1,10 @@
+/* Lucide Animated glyph layer */
+.ui-icon--animated-glyph{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:0;color:currentColor}
+.ui-icon--animated-glyph svg{display:block;width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transform-origin:center;transition:transform .2s ease,stroke-width .2s ease}
+button:hover .ui-icon--animated-glyph svg,button:focus-visible .ui-icon--animated-glyph svg{transform:scale(1.12);stroke-width:2.2}
+.ui-icon--animated-glyph:active svg{transform:scale(.9)}
+@media(prefers-reduced-motion:no-preference){.cart-button:hover .ui-icon--cart svg,.cart-button:focus-visible .ui-icon--cart svg{animation:lucide-cart-bounce .58s ease-in-out}}
+
 /* Ícones Lucide com microanimações, sem dependência React no app vanilla. */
 .ui-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0;color:currentColor}
 .ui-icon svg{display:block;width:1em;height:1em;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
