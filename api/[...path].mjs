@@ -247,11 +247,19 @@ async function catalogFor(admin = false) {
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
+  await query(`CREATE TABLE IF NOT EXISTS product_3d_jobs (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
+    image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued',
+    error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
   const active = admin ? '' : ' AND active=1';
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
-    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",image_url AS "imageUrl",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
+    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",image_url AS "imageUrl",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
@@ -846,6 +854,59 @@ export default async function handler(req, res) {
       const values=b.note===undefined?[b.status,new Date().toISOString(),id,RESTAURANT_ID]:[b.status,clean(b.note,160),new Date().toISOString(),id,RESTAURANT_ID];
       const updated=b.note===undefined?await query('UPDATE restaurant_tables SET status=$1,updated_at=$2 WHERE id=$3 AND restaurant_id=$4 RETURNING id,table_number AS number,seats,status,note,qr_token AS "qrToken",updated_at AS "updatedAt"',values):await query('UPDATE restaurant_tables SET status=$1,note=$2,updated_at=$3 WHERE id=$4 AND restaurant_id=$5 RETURNING id,table_number AS number,seats,status,note,qr_token AS "qrToken",updated_at AS "updatedAt"',values);
       return json(res,200,{table:updated.rows[0]});
+    }
+    if (path.startsWith('/api/3d-worker/')) {
+      const workerToken=String(process.env.TRIPOSR_WORKER_TOKEN||'');
+      const auth=String(req.headers.authorization||'');
+      if(!workerToken||auth!=='Bearer '+workerToken) throw fail('Worker não autorizado.',401);
+      await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      if(method==='GET'&&path==='/api/3d-worker/next'){
+        const job=await withTransaction(async client=>{
+          const found=await client.query("SELECT id,product_id AS \"productId\",image_data AS \"imageData\" FROM product_3d_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
+          if(!found.rows[0]) return null;
+          await client.query("UPDATE product_3d_jobs SET status='processing',updated_at=NOW() WHERE id=$1",[found.rows[0].id]);
+          await client.query("UPDATE products SET model_3d_status='processing' WHERE id=$1 AND restaurant_id=$2",[found.rows[0].productId,RESTAURANT_ID]);
+          return found.rows[0];
+        });
+        return json(res,200,{job});
+      }
+      if(method==='POST'&&path.startsWith('/api/3d-worker/complete/')){
+        const jobId=decodeURIComponent(path.split('/').pop()),b=await bodyOf(req,12000),modelUrl=clean(b.modelUrl,1000);
+        if(!/^https:\/\//i.test(modelUrl)) throw fail('URL do modelo inválida.',422);
+        const updated=await query("UPDATE product_3d_jobs SET status='completed',image_data='',error_message='',updated_at=NOW() WHERE id=$1 AND restaurant_id=$2 RETURNING product_id",[jobId,RESTAURANT_ID]);
+        if(!updated.rows[0]) throw fail('Solicitação não encontrada.',404);
+        await query("UPDATE products SET model_3d_url=$1,model_3d_status='completed',updated_at=$2 WHERE id=$3 AND restaurant_id=$4",[modelUrl,new Date().toISOString(),updated.rows[0].product_id,RESTAURANT_ID]);
+        return json(res,200,{ok:true});
+      }
+      if(method==='POST'&&path.startsWith('/api/3d-worker/fail/')){
+        const jobId=decodeURIComponent(path.split('/').pop()),b=await bodyOf(req,12000),message=clean(b.error,300)||'Falha na geração 3D.';
+        const updated=await query("UPDATE product_3d_jobs SET status='failed',error_message=$1,image_data='',updated_at=NOW() WHERE id=$2 AND restaurant_id=$3 RETURNING product_id",[message,jobId,RESTAURANT_ID]);
+        if(!updated.rows[0]) throw fail('Solicitação não encontrada.',404);
+        await query("UPDATE products SET model_3d_status='failed',updated_at=$1 WHERE id=$2 AND restaurant_id=$3",[new Date().toISOString(),updated.rows[0].product_id,RESTAURANT_ID]);
+        return json(res,200,{ok:true});
+      }
+      throw fail('Rota do worker não encontrada.',404);
+    }
+    if(method==='POST'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
+      requireAdmin();
+      await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
+      const product=(await query("SELECT id,image_url FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
+      if(!product) throw fail('Produto não encontrado.',404);
+      if(!String(product.image_url||'').startsWith('data:image/jpeg;base64,')) throw fail('Adicione uma foto JPG ao produto antes de gerar o modelo 3D.',422);
+      const current=await query("SELECT id FROM product_3d_jobs WHERE product_id=$1 AND restaurant_id=$2 AND status IN ('queued','processing') LIMIT 1",[productId,RESTAURANT_ID]);
+      if(current.rows[0]) return json(res,200,{ok:true,jobId:current.rows[0].id,status:'queued',message:'A geração já está na fila.'});
+      const jobId='3d_'+randomBytes(16).toString('hex');
+      await query("INSERT INTO product_3d_jobs (id,restaurant_id,product_id,image_data,status) VALUES ($1,$2,$3,$4,'queued')",[jobId,RESTAURANT_ID,productId,product.image_url]);
+      await query("UPDATE products SET model_3d_status='queued' WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID]);
+      return json(res,202,{ok:true,jobId,status:'queued',message:'Solicitação adicionada à fila. O worker precisa estar ligado para processar.'});
+    }
+    if(method==='GET'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
+      requireAdmin();
+      const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
+      const product=(await query("SELECT model_3d_url AS \"modelUrl\",model_3d_status AS status FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
+      if(!product) throw fail('Produto não encontrado.',404);
+      return json(res,200,{...product,workerConfigured:Boolean(process.env.TRIPOSR_WORKER_TOKEN)});
     }
     if (method==='POST'&&path==='/api/admin/products') {
       const b=await bodyOf(req,400000), name=clean(b.name,80), description=clean(b.description,300), type=b.type, categoryId=clean(b.categoryId,50), price=Number(b.baseCents);
