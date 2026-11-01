@@ -1,5 +1,4 @@
 import { injectSpeedInsights } from './speed-insights.js';
-import { mountPhotoModel } from './photo-model.js';
 
 const UI_ICON_PATHS = {
  cart:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
@@ -441,11 +440,10 @@ function renderBuilder() {
   const diameter = selectedSize?.diameterCm || 0;
   const sizeScale = isPizza && diameter ? (0.72 + 0.28 * (diameter / 40)).toFixed(3) : (builder.sizeKey === 'duplo' ? '1' : '0.94');
   const artMode = app.viewMode === 'art';
-  const photo3dMode = app.viewMode === 'photo3d';
   const autoOn = app.scene ? app.scene.autoRotate : !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined };
   const artContent = productPhotoOrArt(product, layered, { double: builder.sizeKey === 'duplo' }, 'food-art-photo', 'contain');
-  const visual = '<div class="food-stage ' + (photo3dMode ? 'view-photo3d' : artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + (!artMode&&!photo3dMode) + '">3D original</button>' + (product.imageUrl ? '<button type="button" data-action="view-photo3d" aria-pressed="' + photo3dMode + '">3D da foto</button>' : '') + '</div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div><div class="photo3d-stage" id="photo3dStage" aria-label="Modelo 3D aproximado gerado a partir da foto" ' + (photo3dMode ? '' : 'hidden') + '></div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '" ' + (photo3dMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (photo3dMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
+  const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D interativo</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D interativo de ' + esc(product.name) + '" ' + (artMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (artMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
   const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(product.baseCents + size.deltaCents))) + '</small></button>').join('');
   const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
   const ingredientGroups = groupedIngredients(product.type, product);
@@ -483,8 +481,7 @@ function renderBuilder() {
       toast(error.message || 'O modelo 3D não pôde ser iniciado neste navegador.');
     }
   }
-  syncSceneUi(artMode || photo3dMode);
-  if (photo3dMode && product.imageUrl) mountPhotoModel(root.getElementById('photo3dStage'), product.imageUrl, product.name);
+  syncSceneUi(artMode);
   detectAR();
 }
 function setStageState(state, message) {
@@ -2026,7 +2023,6 @@ function handleClick(event){
   if(app.builder&&['rotate-left','rotate-right','zoom-in','zoom-out'].includes(action)&&app.viewMode!=='3d'){app.viewMode='3d';renderBuilder();}
   if(action==='view-art'&&app.builder){app.viewMode='art';renderBuilder();return}
   if(action==='view-3d'&&app.builder){app.viewMode='3d';renderBuilder();return}
-  if(action==='view-photo3d'&&app.builder){app.viewMode='photo3d';renderBuilder();return}
   if(action==='rotate-left'&&app.builder){app.scene?.rotateBy(-18);return}
   if(action==='rotate-right'&&app.builder){app.scene?.rotateBy(18);return}
   if(action==='reset-view'&&app.builder){app.scene?.resetView();return}
