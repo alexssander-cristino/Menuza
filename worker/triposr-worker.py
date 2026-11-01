@@ -16,8 +16,10 @@ HTTP = requests.Session()
 HTTP.headers.update(HEADERS)
 
 def generate(image: Path, output: Path) -> Path:
+    resolution = str(max(128, min(384, int(os.environ.get("TRIPOSR_MC_RESOLUTION", "192")))))
+    timeout = max(120, int(os.environ.get("GENERATION_TIMEOUT_SECONDS", "900")))
     subprocess.run(["python", "run.py", str(image), "--output-dir", str(output),
-                    "--mc-resolution", "256"], cwd=TRIPOSR, check=True)
+                    "--mc-resolution", resolution], cwd=TRIPOSR, check=True, timeout=timeout)
     candidates = list(output.rglob("mesh.obj")) or list(output.rglob("*.obj"))
     if not candidates:
         raise RuntimeError("TripoSR não produziu uma malha OBJ.")
@@ -31,7 +33,12 @@ def generate(image: Path, output: Path) -> Path:
 def process(job):
     jid = job["id"]
     try:
-        raw = base64.b64decode(job["imageData"].split(",", 1)[1])
+        image_data = str(job.get("imageData") or "")
+        if not image_data.startswith("data:image/") or "," not in image_data:
+            raise RuntimeError("A foto do produto está ausente ou em formato inválido.")
+        raw = base64.b64decode(image_data.split(",", 1)[1], validate=True)
+        if len(raw) > 12 * 1024 * 1024:
+            raise RuntimeError("A imagem excede o limite de 12 MB.")
         with tempfile.TemporaryDirectory(prefix="menuza-3d-") as tmp:
             root = Path(tmp)
             source = root / "source.jpg"
