@@ -1607,3 +1607,32 @@ body{overscroll-behavior-y:contain}
 /* Foto real no personalizador: proporção preservada e tamanho equilibrado */
 .food-art-view .food-art-photo{display:block;width:min(88%,390px);height:min(88%,390px);max-width:88%;max-height:88%;object-fit:contain;object-position:center;transform:none;border-radius:16px;filter:drop-shadow(0 18px 18px rgba(27,21,48,.18))}
 @media(max-width:700px){.food-art-view .food-art-photo{width:min(88%,230px);height:min(88%,230px);max-width:88%;max-height:88%}}
+
+
+/* Admin dashboard v2 — sidebar fixa, conteúdo com largura fluida e navegação responsiva */
+.admin-shell-v2{display:grid;grid-template-columns:248px minmax(0,1fr);gap:30px;max-width:1600px;margin:0 auto;padding:28px clamp(18px,3vw,46px) 64px;background:#f3f2f6;min-height:calc(100vh - 80px)}
+.admin-sidebar{position:sticky;top:18px;align-self:start;display:flex;flex-direction:column;min-height:calc(100vh - 116px);max-height:calc(100vh - 36px);padding:18px 13px 13px;border:1px solid #e8e5ee;border-radius:20px;background:#fff;box-shadow:0 12px 38px rgba(36,26,59,.055);overflow:auto}
+.admin-sidebar-brand{display:flex;align-items:center;gap:11px;padding:3px 8px 18px;color:#251d38;text-decoration:none;border-bottom:1px solid #efedf2}
+.admin-brand-mark{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#261c3b;color:#fff;font-weight:800;font-size:18px}
+.admin-sidebar-brand b,.admin-sidebar-brand small,.admin-sidebar-restaurant b,.admin-sidebar-restaurant small{display:block}
+.admin-sidebar-brand b{font-size:13px;letter-spacing:.13em}.admin-sidebar-brand small{margin-top:2px;font-size:8px;letter-spacing:.08em;color:#9690a2}
+.admin-sidebar-restaurant{display:flex;align-items:center;gap:9px;padding:15px 7px 13px;border-bottom:1px solid #efedf2}
+.admin-restaurant-avatar{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:#f6e9e5;color:#9b382b;font-weight:800}
+.admin-sidebar-restaurant span:nth-child(2){min-width:0;flex:1}.admin-sidebar-restaurant b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#332b43}.admin-sidebar-restaurant small{font-size:9px;color:#9690a2;margin-top:3px}
+.admin-online-dot,.admin-status-chip i{width:7px;height:7px;border-radius:50%;background:#25a56a;box-shadow:0 0 0 3px #e8f7ef}
+.admin-sidebar-nav{display:grid;gap:13px;padding:17px 0;flex:1}
+.admin-nav-group{display:grid;gap:3px}.admin-nav-label{padding:0 10px 6px;color:#aaa4b3;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.admin-shell-v2 .admin-tab{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:8px 10px;border:0;border-radius:10px;text-align:left;background:transparent;color:#716a7e;font-size:11px;font-weight:600;transition:background .18s,color .18s}
+.admin-shell-v2 .admin-tab:hover{background:#f7f5fa;color:#35284f}.admin-shell-v2 .admin-tab.active{background:#f0ecf8;color:#39275e;font-weight:750}
+.admin-nav-icon{width:19px;display:inline-grid;place-items:center;font-size:15px;color:#938aa5}.admin-tab.active .admin-nav-icon{color:#7555ae}
+.admin-shell-v2 .admin-tab>i{margin-left:auto;width:5px;height:5px;border-radius:50%;background:#8061b5}
+.admin-sidebar-footer{display:grid;gap:5px;padding-top:12px;border-top:1px solid #efedf2}
+.admin-sidebar-link{display:flex;align-items:center;gap:10px;width:100%;padding:10px;border:0;border-radius:9px;background:transparent;color:#70697b;text-decoration:none;text-align:left;font:600 11px inherit;cursor:pointer}
+.admin-sidebar-link:hover{background:#f7f5fa;color:#33234f}.admin-logout-link{color:#a64a43}
+.admin-main{min-width:0}.admin-main-top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 0 23px;padding:4px 2px 18px;border-bottom:1px solid #e4e1e9}
+.admin-main-top h1{margin:5px 0 4px;color:#2b2340;font-size:clamp(25px,2.5vw,33px);letter-spacing:-.04em}.admin-main-top p{margin:0;color:#898294;font-size:12px}
+.admin-status-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid #e7e4ec;border-radius:99px;background:#fff;color:#777083;font-size:10px;white-space:nowrap}
+.admin-shell-v2 #adminBody>.admin-panel{border-radius:15px;box-shadow:0 7px 25px rgba(38,28,58,.035)}
+@media(max-width:980px){.admin-shell-v2{grid-template-columns:210px minmax(0,1fr);gap:18px;padding-inline:16px}.admin-sidebar{padding-inline:10px}}
+@media(max-width:720px){.admin-shell-v2{display:block;padding:13px 12px 40px}.admin-sidebar{position:relative;top:auto;min-height:0;max-height:none;margin-bottom:18px;padding:12px;border-radius:15px;overflow:visible}.admin-sidebar-brand{padding-bottom:10px}.admin-sidebar-restaurant{padding:10px 5px}.admin-sidebar-nav{display:flex;gap:14px;overflow-x:auto;padding:12px 0 8px;scrollbar-width:thin}.admin-nav-group{display:flex;align-items:center;gap:5px;flex:0 0 auto}.admin-nav-label{display:none}.admin-shell-v2 .admin-tab{width:auto;min-height:36px;padding:8px 10px;white-space:nowrap;font-size:10px}.admin-nav-icon{width:auto}.admin-sidebar-footer{display:flex;justify-content:space-between;padding-top:8px}.admin-sidebar-link{width:auto;padding:7px 9px;font-size:10px}.admin-main-top{align-items:flex-start;margin-bottom:15px}.admin-main-top h1{font-size:25px}.admin-status-chip{display:none}}
+@media(max-width:420px){.admin-shell-v2{padding-inline:8px}.admin-sidebar{padding:9px}.admin-main-top .eyebrow{font-size:8px}.admin-main-top h1{font-size:22px}.admin-main-top p{font-size:10px}}
