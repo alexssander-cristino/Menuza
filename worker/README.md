@@ -1,20 +1,20 @@
 # Worker TripoSR do Menuza
 
-Este serviço consulta a fila do Menuza, gera um GLB usando TripoSR na GPU local e envia o arquivo ao Cloudflare R2. Se o notebook estiver desligado, as solicitações aguardam na fila.
+Este serviço consulta a fila do Menuza, gera um GLB usando TripoSR na GPU local e envia o arquivo ao armazenamento S3 compatível configurado. Se o notebook estiver desligado, as solicitações aguardam na fila.
 
 ## Requisitos
 
 - Windows 10/11, Python 3.10 ou 3.11 e Git.
 - NVIDIA RTX 3050 com driver atualizado.
-- Conta Cloudflare com R2 configurado.
-- A RTX 3050 de notebook pode ter 4 GB ou 6 GB de VRAM. A compatibilidade precisa ser testada; feche aplicativos que usam GPU.
+- Armazenamento S3 compatível configurado (a implementação atual usa Cloudflare R2).
+- A RTX 3050 de notebook com 6 GB deve começar com resolução 192. Feche aplicativos que usam GPU durante a geração.
 
 ## Instalação
 
 No PowerShell, a partir da raiz do repositório:
 
     cd worker
-    py -3.10 -m venv .venv
+    py -3.11 -m venv .venv
     .\.venv\Scripts\Activate.ps1
     python -m pip install --upgrade pip
     pip install -r requirements.txt
@@ -48,3 +48,15 @@ Mantenha o notebook ligado e na tomada durante a geração. Desligado, os pedido
 - TripoSR estima a geometria a partir de uma foto; não recupera a forma real nem combina múltiplas vistas.
 - A conversão OBJ para GLB pode exigir ajustes de materiais/texturas.
 - A integração ainda exige conectar a URL GLB ao visualizador 3D/AR do cardápio e testar em dispositivos reais.
+
+
+## Ajustes para RTX 3050 6 GB
+
+O worker usa `TRIPOSR_MC_RESOLUTION=192` por padrão para reduzir o consumo de VRAM. Se a geração funcionar com folga, teste 256. O limite padrão de execução por tarefa é 900 segundos (`GENERATION_TIMEOUT_SECONDS`).
+
+No Windows, se a instalação do TripoSR precisar compilar `torchmcubes`, instale o Visual Studio Build Tools com a carga **Desenvolvimento para desktop com C++**, MSVC v143 e Windows 11 SDK. Depois reabra o PowerShell, ative `.venv` e valide `where.exe cl` antes de instalar/compilar a dependência.
+
+Para validar a GPU no ambiente virtual:
+
+    python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'indisponível')"
+    python -c "import torchmcubes; print('torchmcubes: OK')"
