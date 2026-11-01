@@ -205,7 +205,6 @@ function productSvg(product, ingredients, opts = {}) {
   return plateArt(product.id, ingredients || defaultIngredients(product, app.catalog));
 }
 function productPhotoOrArt(product, ingredients, opts = {}, className = 'food-art-photo', fit = 'contain') {
-  if (product?.model3dUrl) return '<model-viewer class="menuza-product-model ' + esc(className) + '" src="' + esc(product.model3dUrl) + '" alt="Modelo 3D de ' + esc(product.name || 'produto') + '" camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="0.8" exposure="1" ar ar-modes="webxr scene-viewer quick-look" loading="lazy" style="width:100%;height:100%;background:transparent"></model-viewer>';
   if (product?.imageUrl) return '<img class="' + esc(className) + '" src="' + esc(product.imageUrl) + '" alt="Foto de ' + esc(product.name || 'produto') + '" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:' + fit + ';object-position:center">';
   return productSvg(product, ingredients, opts);
 }
