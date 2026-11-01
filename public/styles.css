@@ -1650,3 +1650,14 @@ body{overscroll-behavior-y:contain}
 .photo3d-spinner{width:28px;height:28px;border:3px solid #e8e2ef;border-top-color:#7957ad;border-radius:50%;animation:photo3d-spin .8s linear infinite}@keyframes photo3d-spin{to{transform:rotate(360deg)}}
 .food-stage .view-toggle button[aria-pressed=true]{background:#2c2140;color:#fff}
 @media(max-width:700px){.food-stage.view-photo3d .photo3d-stage{inset:48px 0 0}.photo3d-viewer{width:88%;height:75%}.photo3d-caption{font-size:8px;left:10px;bottom:12px}.photo3d-hint{right:10px;bottom:12px}}
+
+/* Modelos GLB gerados pelo worker TripoSR */
+.generated-food-model{z-index:1;width:min(88%,520px);height:310px;max-height:100%;background:transparent;--poster-color:transparent;}
+.generated-food-model[hidden]{display:none!important}
+.food-stage.view-generated .food-art-view,.food-stage.view-generated .food-canvas,.food-stage.view-generated .drag-hint{display:none!important}
+.food-stage.view-generated{perspective:none}
+.food-stage.view-generated .generated-food-model{display:block}
+.food-stage .view-toggle{z-index:4;position:absolute;top:12px;right:12px;display:flex;gap:4px;padding:4px;background:#f8f7f9e8;border:1px solid #dedbe5;border-radius:30px;max-width:calc(100% - 24px)}
+.food-stage .view-toggle button{border:0;border-radius:22px;background:transparent;padding:7px 10px;font-size:9px;white-space:nowrap;cursor:pointer;color:#655f72}
+.food-stage .view-toggle button[aria-pressed=true]{background:#241c38;color:#fff}
+@media(max-width:700px){.generated-food-model{width:100%;height:260px}.food-stage .view-toggle{top:8px;right:8px;left:8px;justify-content:center}.food-stage .view-toggle button{padding:7px 8px;font-size:8px}}
