@@ -1,8 +1,26 @@
+# Node.js
 node_modules/
+.vercel/
+
+# Banco de dados e backups
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
-.env
 backups/
-.vercel
+
+# Variáveis de ambiente
+.env
 .env*
+!.env.example
+.env.local
+
+# Ambiente Python do worker
+worker/.venv/
+worker/venv/
+worker/__pycache__/
+worker/.env
+worker/*.pyc
+
+# TripoSR e arquivos gerados
+worker/TripoSR/
+worker/output/
