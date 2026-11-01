@@ -8,10 +8,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'server_address.dart';
 
 const _defaultUrl = 'http://192.168.0.105:4173';
-const _purple = Color(0xFF6D4CF5);
-const _background = Color(0xFFF6F5F9);
-const _ink = Color(0xFF211B35);
-const _muted = Color(0xFF736F82);
+const _purple = Color(0xFFD21404);
+const _background = Color(0xFFFFFAF2);
+const _ink = Color(0xFF321B16);
+const _muted = Color(0xFF806B5F);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -425,8 +425,8 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE8E4F0))),
-            child: SelectableText(_serverUrl, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF5C43D6))),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFF0D9BD))),
+            child: SelectableText(_serverUrl, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFFD21404))),
           ),
           const SizedBox(height: 20),
           SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: const Text('Tentar novamente'))),
