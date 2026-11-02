@@ -1729,3 +1729,14 @@ body{background:var(--mz-background);color:var(--mz-text)}
 .product-image-carousel-slide[hidden]{display:block!important;}
 .product-image-carousel-track{overflow:hidden;}
 .product-image-carousel--modal .product-image-carousel-track{overflow:visible;}
+
+
+/* Menuza: ocultar somente os controles visuais do TripoSR.
+   A geração, os endpoints, os modelos e o 3D interativo com ingredientes permanecem intactos. */
+button[data-action="generate-product-3d"],
+button[data-action="admin-generated-3d"],
+button[data-action="customer-generated-3d"],
+button[data-action="view-generated-3d"],
+.product-model-3d-button {
+  display: none !important;
+}
