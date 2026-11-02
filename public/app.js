@@ -8,7 +8,8 @@ const UI_ICON_PATHS = {
  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
  plus:'<path d="M12 5v14M5 12h14"/>',
  sparkles:'<path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.2 2.8L23 18l-2.8 1.2L19 22l-1.2-2.8L15 18l2.8-1.2L19 14Z"/>',
- info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'
+ info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+ utensils:'<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M18 2v20M18 2a4 4 0 0 0-4 4v4h4"/>'
 };
 function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
 
@@ -20,7 +21,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 // Initialize Vercel Speed Insights
 injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '87';
+const MENUZA_APP_BUILD = '88';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -979,7 +980,7 @@ async function deleteFiscalExpense(id){
 function renderAdmin(){
   const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Configurações','⚙']] }];
   const tabs=groups.flatMap(group=>group.items);
-  const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+item[2]+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
+  const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+(item[0]==='ingredients'?uiIcon('utensils',18):item[2])+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
   root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></main></div>';
   if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='beverages')renderBeveragesAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='promotions')renderPromotionsAdmin();else if(app.admin.tab==='delivery')renderDeliveryAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
 }
