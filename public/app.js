@@ -18,8 +18,8 @@ import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
 
-// Initialize Vercel Speed Insights
-injectSpeedInsights();
+// Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
+if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
 const MENUZA_APP_BUILD = '90';
 try {
