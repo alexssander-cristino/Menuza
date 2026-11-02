@@ -1984,8 +1984,46 @@ async function repeatCustomerOrder(orderId){
     app.cart=rebuilt;invalidateCheckoutKey();setCart();showHome();renderCatalog();toast(rebuilt.length<(order.items||[]).length?'Pedido recuperado; alguns itens indisponíveis foram ignorados.':'Pedido anterior recuperado na carrinho.');openCart();
   }catch(error){toast(error.message||'Não foi possível repetir esse pedido.');}
 }
+function closeMobileSiteMenu(){
+  const menu=root.getElementById('mobileSiteMenu');
+  if(!menu)return;
+  menu.classList.remove('is-open');
+  menu.setAttribute('aria-hidden','true');
+  root.body.classList.remove('mobile-site-menu-open');
+  const toggle=root.querySelector('.mobile-menu-button');
+  toggle?.setAttribute('aria-expanded','false');
+  toggle?.setAttribute('aria-label','Abrir menu');
+}
+function openMobileSiteMenu(){
+  const menu=root.getElementById('mobileSiteMenu');
+  if(!menu)return;
+  menu.classList.add('is-open');
+  menu.setAttribute('aria-hidden','false');
+  root.body.classList.add('mobile-site-menu-open');
+  const toggle=root.querySelector('.mobile-menu-button');
+  toggle?.setAttribute('aria-expanded','true');
+  toggle?.setAttribute('aria-label','Fechar menu');
+  menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
+}
 function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
+  if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
+  if(target.dataset.action==='mobile-site-menu-go'){
+    const destination=target.dataset.destination;
+    closeMobileSiteMenu();
+    if(destination==='account'){location.hash='conta';showCustomerAccount();return}
+    if(destination==='restaurant'){location.hash='admin';showAdmin();return}
+    showHome();
+    if(destination==='popular'){
+      const recent=root.getElementById('recentProductsSection');
+      if(recent&&!recent.hidden){recent.scrollIntoView({behavior:'smooth',block:'start'});return}
+      app.favoritesOnly=false;app.category='all';renderCatalog();
+      root.getElementById('menu')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+    }
+    const targetId=destination==='promotions'?'promotionsPage':destination==='about'?'sobre':'menu';
+    if(destination==='menu')location.hash='menu';
+    root.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
   if(target.dataset.action==='open-promotions'){root.getElementById('promotionsPage')?.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(target.dataset.action==='promo-prev'){setPromotionSlide(promotionCarouselIndex-1);return}
   if(target.dataset.action==='promo-next'){setPromotionSlide(promotionCarouselIndex+1);return}
@@ -2004,7 +2042,7 @@ function handleClick(event){
     renderBuilder();return
   }
   if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
-  if(target.dataset.action==='mobile-header-menu'){if(!root.body.classList.contains('admin-route')){location.hash='menu';openMenu();return}const shell=root.querySelector('.admin-shell-v2');if(shell){const open=!shell.classList.contains('mobile-nav-open');shell.classList.toggle('mobile-nav-open',open);const toggle=root.querySelector('.mobile-menu-button');toggle?.setAttribute('aria-expanded',String(open));toggle?.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');}return}
+  if(target.dataset.action==='mobile-header-menu'){if(!root.body.classList.contains('admin-route')){const menu=root.getElementById('mobileSiteMenu');if(menu?.classList.contains('is-open'))closeMobileSiteMenu();else openMobileSiteMenu();return}const shell=root.querySelector('.admin-shell-v2');if(shell){const open=!shell.classList.contains('mobile-nav-open');shell.classList.toggle('mobile-nav-open',open);const toggle=root.querySelector('.mobile-menu-button');toggle?.setAttribute('aria-expanded',String(open));toggle?.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');}return}
   if(target.dataset.action==='mobile-nav-close'){const shell=target.closest('.admin-shell-v2');if(shell){shell.classList.remove('mobile-nav-open');const toggle=root.querySelector('.mobile-menu-button');toggle?.setAttribute('aria-expanded','false');toggle?.setAttribute('aria-label','Abrir menu');}return}
   if(target.dataset.adminTab){const shell=target.closest('.admin-shell-v2');shell?.classList.remove('mobile-nav-open');const toggle=root.querySelector('.mobile-menu-button');toggle?.setAttribute('aria-expanded','false');toggle?.setAttribute('aria-label','Abrir menu');app.admin.tab=target.dataset.adminTab;renderAdmin();return}
   if(target.dataset.tableStatus){
@@ -2299,7 +2337,7 @@ async function start(){
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
-  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
+  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(root.getElementById('mobileSiteMenu')?.classList.contains('is-open')){closeMobileSiteMenu();return}if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
   syncFilters();updateCartCount();bindSpellCardInteractions();bindGetLayersHeroMotion();bindScrollStorytelling();
   const query=new URLSearchParams(location.search),qrToken=query.get('t'),qrNumber=query.get('mesa');
   if(qrToken&&qrNumber){try{const verified=await api('/api/tables/qr/'+encodeURIComponent(qrToken));if(String(verified.table.number)===qrNumber)app.tableQr={token:qrToken,number:verified.table.number,seats:verified.table.seats,status:verified.table.status};else toast('O QR Code não corresponde à mesa informada.')}catch{toast('Não foi possível validar o QR Code desta mesa. Confira se o link está correto.')}}
