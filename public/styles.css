@@ -1661,3 +1661,33 @@ body{overscroll-behavior-y:contain}
 .food-stage .view-toggle button{border:0;border-radius:22px;background:transparent;padding:7px 10px;font-size:9px;white-space:nowrap;cursor:pointer;color:#655f72}
 .food-stage .view-toggle button[aria-pressed=true]{background:#241c38;color:#fff}
 @media(max-width:700px){.generated-food-model{width:100%;height:260px}.food-stage .view-toggle{top:8px;right:8px;left:8px;justify-content:center}.food-stage .view-toggle button{padding:7px 8px;font-size:8px}}
+
+
+/* Visualização do GLB TripoSR na área do restaurante */
+.admin-generated-3d-modal{width:min(760px,calc(100vw - 32px));max-height:min(820px,calc(100dvh - 32px));display:grid;grid-template-rows:auto minmax(300px,1fr) auto;overflow:hidden;border:1px solid #e9e4ef;border-radius:20px;background:#fff;box-shadow:0 24px 80px #17102040}
+.admin-generated-3d-modal>header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid #eeeaf2}
+.admin-generated-3d-modal>header>div{display:grid;gap:5px}.admin-generated-3d-modal>header strong{font-size:16px;color:#2b2340}.admin-generated-3d-modal>header small{font-size:11px;color:#81798d}
+.admin-generated-3d-modal>header button{width:36px;height:36px;border:0;border-radius:50%;background:#f3f0f6;color:#403650;font-size:23px;cursor:pointer}
+.admin-generated-3d-stage{min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#f5f1f8 0, #fff 70%)}
+.admin-generated-3d-viewer{width:100%;height:100%;min-height:300px;--poster-color:transparent;background:transparent;touch-action:pan-y}
+.admin-generated-3d-modal>p{margin:0;padding:12px 18px;text-align:center;color:#82798e;font-size:11px;border-top:1px solid #eeeaf2}
+.product-3d-admin{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.product-3d-admin .product-3d-status{flex:1 1 100%}
+@media(max-width:700px){
+ .food-stage{width:100%;max-width:100%;height:min(42dvh,310px);min-height:210px}
+ .food-stage .view-toggle{left:6px;right:6px;top:6px;max-width:calc(100% - 12px);gap:3px;padding:3px;overflow-x:auto;justify-content:flex-start}
+ .food-stage .view-toggle button{flex:1 1 auto;min-width:0;padding:9px 6px;font-size:9px;white-space:nowrap}
+ .generated-food-model{width:100%;height:100%;min-height:210px;max-height:none;touch-action:pan-y}
+ .builder-visual{min-height:230px;height:min(34dvh,290px)}
+ .builder-modal{grid-template-rows:minmax(220px,34dvh) minmax(0,1fr);max-height:100dvh;max-height:100svh}
+ .admin-generated-3d-modal{width:100%;height:100dvh;height:100svh;max-height:none;border-radius:0;grid-template-rows:auto minmax(0,1fr) auto}
+ .admin-generated-3d-modal>header{padding:13px 15px}
+ .admin-generated-3d-stage{min-height:0}
+ .admin-generated-3d-viewer{min-height:0;height:100%;width:100%}
+ .product-3d-admin{align-items:stretch}
+ .product-3d-admin button{flex:1 1 calc(50% - 6px);min-height:40px}
+}
+@media(max-width:380px){
+ .food-stage .view-toggle button{font-size:8px;padding:8px 4px}
+ .builder-visual{min-height:205px}
+}
