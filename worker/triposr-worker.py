@@ -39,7 +39,10 @@ def api_route(path: str) -> str:
 
 def generate(image: Path, output: Path) -> Path:
     resolution = str(max(128, min(384, int(os.environ.get("TRIPOSR_MC_RESOLUTION", "192")))))
-    timeout = max(120, int(os.environ.get("GENERATION_TIMEOUT_SECONDS", "900")))
+    # O primeiro uso baixa um checkpoint de ~1,68 GB. Em conexões lentas, isso
+    # pode levar mais de 15 minutos; não mate o download antes de concluir.
+    timeout = max(7200, int(os.environ.get("GENERATION_TIMEOUT_SECONDS", "7200")))
+    print(f"[INFO] Limite para download + geração: {timeout // 60} minutos.", flush=True)
     # Usa exatamente o mesmo interpretador que iniciou o worker (.venv), evitando
     # que o Windows resolva "python" para outra instalação sem as dependências.
     print("[DEBUG] Interpretador TripoSR:", sys.executable, flush=True)
@@ -96,6 +99,13 @@ def process(job):
                 timeout=30,
             ).raise_for_status()
             print("[OK] Modelo publicado no Neon Object Storage:", url)
+    except subprocess.TimeoutExpired as exc:
+        msg = f"TripoSR excedeu o limite de {int(exc.timeout)} segundos. O download do checkpoint pode ser retomado no próximo teste."
+        print("[ERRO]", jid, msg, flush=True)
+        try:
+            HTTP.post(api_route("3d-worker/fail/" + jid), json={"error": msg}, timeout=20).raise_for_status()
+        except Exception as callback:
+            print("[ERRO] Callback falhou:", callback)
     except Exception as exc:
         msg = str(exc)[:280] or "Falha desconhecida na geração."
         print("[ERRO]", jid, msg)
