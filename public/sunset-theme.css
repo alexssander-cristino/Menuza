@@ -443,3 +443,51 @@ body.admin-route #adminView .admin-main input[type="button"]:hover:not(:disabled
   color: #8f2028 !important;
   box-shadow: none !important;
 }
+
+
+/* MENUZA — aplicação definitiva das cores dos botões do painel do restaurante. */
+html body.admin-route #adminView .admin-shell .admin-main button.button.button-dark,
+html body.admin-route #adminView .admin-shell-v2 .admin-main button.button.button-dark,
+html body.admin-route #adminView .admin-main button.button-dark,
+html body.admin-route #adminView .admin-main a.button.button-dark,
+html body.admin-route #adminView .admin-login button.button.button-dark {
+  background: #f5d6d5 !important;
+  background-image: none !important;
+  border: 1px solid #f5d6d5 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+html body.admin-route #adminView .admin-shell .admin-main button.button.button-outline,
+html body.admin-route #adminView .admin-shell-v2 .admin-main button.button.button-outline,
+html body.admin-route #adminView .admin-main button.button-outline,
+html body.admin-route #adminView .admin-main a.button.button-outline,
+html body.admin-route #adminView .admin-login button.button.button-outline {
+  background: #f9ebc2 !important;
+  background-image: none !important;
+  border: 1px solid #f9ebc2 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+html body.admin-route #adminView .admin-main button:not(.button-dark):not(.button-outline):not(.admin-tab):not(.admin-nav-item):not(.admin-sidebar-link):not(.icon-button):not([role="switch"]),
+html body.admin-route #adminView .admin-main a.button:not(.button-dark):not(.button-outline),
+html body.admin-route #adminView .admin-main input[type="button"],
+html body.admin-route #adminView .admin-main input[type="submit"] {
+  background: #f5ede1 !important;
+  background-image: none !important;
+  border: 1px solid #f5ede1 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+html body.admin-route #adminView .admin-main button.button:hover:not(:disabled),
+html body.admin-route #adminView .admin-main button:hover:not(:disabled),
+html body.admin-route #adminView .admin-main a.button:hover,
+html body.admin-route #adminView .admin-main input[type="button"]:hover,
+html body.admin-route #adminView .admin-main input[type="submit"]:hover {
+  background: #efc1be !important;
+  background-image: none !important;
+  border-color: #efc1be !important;
+  color: #8f2028 !important;
+}
+html body.admin-route #adminView .admin-main button:disabled {
+  opacity: .55;
+}
