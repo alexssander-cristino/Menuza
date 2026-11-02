@@ -2134,7 +2134,7 @@ function syncFilters(){
   root.getElementById('sortSelect').addEventListener('change',event=>{app.sort=event.target.value;renderCatalog()});
   root.getElementById('vegetarianFilter').addEventListener('click',event=>{app.vegetarianOnly=!app.vegetarianOnly;event.currentTarget.setAttribute('aria-pressed',String(app.vegetarianOnly));renderCatalog()});
   root.getElementById('favoritesFilter')?.addEventListener('click',()=>{app.favoritesOnly=!app.favoritesOnly;renderCatalog()});
-  root.querySelector('[data-scroll="#menu"]').addEventListener('click',()=>root.getElementById('menu').scrollIntoView({behavior:'smooth'}));
+  // O antigo botão data-scroll foi substituído pelo menu Morph; sua ação é tratada no handler global.
   root.getElementById('searchInput').addEventListener('keydown',event=>{if(event.key==='Enter')root.getElementById('menu').scrollIntoView({behavior:'smooth'})});
 }
 async function openMenu(){
