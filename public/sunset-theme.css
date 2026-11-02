@@ -177,3 +177,33 @@ body.admin-route #homeView #promotionBanner,
 body.admin-route #homeView .promotion-hero-carousel,
 body.admin-route #adminView .promotion-hero-wrap,
 body.admin-route #adminView .promotion-hero-carousel { display:none!important; }
+
+
+/* Paleta exclusiva dos cards de produtos no cardápio do cliente. */
+#homeView .product-card {
+  background: #Fce4d6 !important;
+  border: 1px solid #e9c987 !important;
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+#homeView .product-card:hover {
+  background: #ffe4a8 !important;
+  border-color: #e9c987 !important;
+}
+#homeView .product-card .product-card-body {
+  background: transparent !important;
+}
+#homeView .product-card .add-button {
+  background: #b52b2b !important;
+  border-color: #b52b2b !important;
+  color: #fff !important;
+}
+#homeView .product-card .add-button:hover:not(:disabled) {
+  background: #761d25 !important;
+  border-color: #761d25 !important;
+}
+#homeView .product-card .product-price,
+#homeView .product-card .product-price strong,
+#homeView .product-card .product-price b,
+#homeView .product-card .price-tag {
+  color: #a66c12 !important;
+}
