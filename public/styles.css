@@ -2041,3 +2041,49 @@ button[data-action="view-generated-3d"],
   .admin-shell-v2 .admin-tab:hover{background:transparent}
   .admin-shell-v2 .admin-tab.active{background:#f8f2ec}
 }
+
+
+/* Cabeçalho do painel — alinhamento e espaçamento */
+.admin-shell-v2 .admin-main-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+}
+.admin-shell-v2 .admin-main-top>div:first-child{
+  flex:1 1 360px;
+  min-width:0;
+}
+.admin-shell-v2 .admin-main-top .eyebrow{
+  display:block;
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+.admin-shell-v2 .admin-top-actions{
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.admin-shell-v2 .admin-top-actions .admin-status-chip{
+  flex:0 0 auto;
+  min-height:34px;
+}
+.admin-shell-v2 .admin-top-actions>.button{
+  flex:0 0 auto;
+  min-height:36px;
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .admin-shell-v2 .admin-main-top{
+    align-items:stretch;
+    gap:12px;
+  }
+  .admin-shell-v2 .admin-main-top>div:first-child{flex:0 1 auto}
+  .admin-shell-v2 .admin-top-actions{
+    justify-content:flex-start;
+    gap:8px;
+  }
+}
