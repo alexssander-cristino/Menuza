@@ -491,3 +491,27 @@ html body.admin-route #adminView .admin-main input[type="submit"]:hover {
 html body.admin-route #adminView .admin-main button:disabled {
   opacity: .55;
 }
+
+
+/* MENUZA — cards e campos de pesquisa da área do restaurante */
+html body.admin-route #adminView .admin-main .admin-card,
+html body.admin-route #adminView .admin-main .stat-card,
+html body.admin-route #adminView .admin-main .metric-card,
+html body.admin-route #adminView .admin-main .panel-card,
+html body.admin-route #adminView .admin-main .dashboard-card,
+html body.admin-route #adminView .admin-main .order-card,
+html body.admin-route #adminView .admin-main .product-card,
+html body.admin-route #adminView .admin-main .customer-card,
+html body.admin-route #adminView .admin-main .settings-card,
+html body.admin-route #adminView .admin-main .card {
+  background-color: #F2F0EC !important;
+}
+html body.admin-route #adminView .admin-main input[type="search"],
+html body.admin-route #adminView .admin-main input[type="text"].search-input,
+html body.admin-route #adminView .admin-main .search-bar,
+html body.admin-route #adminView .admin-main .search-box,
+html body.admin-route #adminView .admin-main .search-field,
+html body.admin-route #adminView .admin-main [role="search"] input {
+  background-color: #F2F0EC !important;
+  border-color: #F2F0EC !important;
+}
