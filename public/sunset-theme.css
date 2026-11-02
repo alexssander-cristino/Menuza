@@ -207,3 +207,118 @@ body.admin-route #adminView .promotion-hero-carousel { display:none!important; }
 #homeView .product-card .price-tag {
   color: #a66c12 !important;
 }
+
+/* Paleta exclusiva da área do restaurante — não altera o cardápio público. */
+body.admin-route {
+  --admin-sidebar: #fff5e5;
+  --admin-selected: #8f2028;
+  --admin-primary: #b52b32;
+  --admin-indicator: #d6a747;
+  --admin-background: #f3ede3;
+  --admin-card: #ffffff;
+  --admin-text: #332722;
+}
+body.admin-route #adminView,
+body.admin-route .admin-shell,
+body.admin-route .admin-shell-v2 {
+  background: var(--admin-background) !important;
+  color: var(--admin-text) !important;
+}
+body.admin-route .admin-sidebar,
+body.admin-route .admin-sidebar-v2,
+body.admin-route .admin-sidebar-nav,
+body.admin-route .admin-sidebar-footer {
+  background: var(--admin-sidebar) !important;
+  color: var(--admin-text) !important;
+  border-color: #eadcc8 !important;
+}
+body.admin-route .admin-sidebar *,
+body.admin-route .admin-sidebar-v2 * {
+  color: inherit;
+}
+body.admin-route .admin-tab.active,
+body.admin-route .admin-tab[aria-current="page"],
+body.admin-route .admin-nav-item.active,
+body.admin-route .admin-sidebar-link.active {
+  background: var(--admin-selected) !important;
+  border-color: var(--admin-selected) !important;
+  color: #fff !important;
+}
+body.admin-route .admin-tab.active *,
+body.admin-route .admin-tab[aria-current="page"] *,
+body.admin-route .admin-nav-item.active *,
+body.admin-route .admin-sidebar-link.active * {
+  color: #fff !important;
+}
+body.admin-route #adminView .admin-card,
+body.admin-route #adminView .admin-panel,
+body.admin-route #adminView .admin-stat-card,
+body.admin-route #adminView .stat-card,
+body.admin-route #adminView .dashboard-card,
+body.admin-route #adminView .card,
+body.admin-route .admin-shell .admin-card,
+body.admin-route .admin-shell .admin-panel,
+body.admin-route .admin-shell-v2 .admin-card,
+body.admin-route .admin-shell-v2 .admin-panel {
+  background: var(--admin-card) !important;
+  color: var(--admin-text) !important;
+  border-color: #eadfd2 !important;
+}
+body.admin-route #adminView h1,
+body.admin-route #adminView h2,
+body.admin-route #adminView h3,
+body.admin-route #adminView p,
+body.admin-route #adminView label,
+body.admin-route #adminView .admin-main-top,
+body.admin-route #adminView .admin-main-top *,
+body.admin-route .admin-shell .admin-card *,
+body.admin-route .admin-shell-v2 .admin-card * {
+  color: var(--admin-text);
+}
+body.admin-route #adminView button.button-dark,
+body.admin-route #adminView button.primary,
+body.admin-route #adminView .btn-primary,
+body.admin-route #adminView .admin-primary-button,
+body.admin-route #adminView [data-variant="primary"],
+body.admin-route .admin-shell button.button-dark,
+body.admin-route .admin-shell-v2 button.button-dark {
+  background: var(--admin-primary) !important;
+  border-color: var(--admin-primary) !important;
+  color: #fff !important;
+}
+body.admin-route #adminView button.button-dark:hover,
+body.admin-route #adminView button.primary:hover,
+body.admin-route #adminView .btn-primary:hover,
+body.admin-route #adminView .admin-primary-button:hover {
+  background: var(--admin-selected) !important;
+  border-color: var(--admin-selected) !important;
+}
+body.admin-route #adminView .admin-stat-value,
+body.admin-route #adminView .stat-value,
+body.admin-route #adminView .metric-value,
+body.admin-route #adminView .admin-indicator,
+body.admin-route #adminView .important-indicator,
+body.admin-route #adminView .admin-badge,
+body.admin-route #adminView .status-indicator {
+  color: #9a711c !important;
+}
+body.admin-route #adminView .admin-stat-icon,
+body.admin-route #adminView .stat-icon,
+body.admin-route #adminView .metric-icon,
+body.admin-route #adminView .admin-indicator-icon,
+body.admin-route #adminView .important-indicator {
+  background: #f7edcf !important;
+  border-color: var(--admin-indicator) !important;
+}
+body.admin-route #adminView input,
+body.admin-route #adminView select,
+body.admin-route #adminView textarea {
+  background: #fff !important;
+  color: var(--admin-text) !important;
+  border-color: #e5d9ca !important;
+}
+body.admin-route .admin-login {
+  background: var(--admin-card) !important;
+  color: var(--admin-text) !important;
+  border-color: #eadfd2 !important;
+}
