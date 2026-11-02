@@ -2194,3 +2194,37 @@ button[data-action="view-generated-3d"],
 @media(prefers-reduced-motion:reduce){
   .admin-shell-v2 .admin-sidebar,.admin-shell-v2 .admin-mobile-nav-backdrop{transition:none}
 }
+
+/* Correção mobile: reaproveita o hambúrguer animado do cabeçalho e permite rolar toda a sidebar */
+@media(max-width:720px){
+  .admin-shell-v2 .admin-mobile-menu-toggle{
+    display:flex!important;position:fixed!important;z-index:1205!important;
+    top:10px!important;left:10px!important;width:42px!important;height:42px!important;
+    min-width:42px!important;padding:10px!important;margin:0!important;
+    align-items:center!important;justify-content:center!important;gap:4px!important;
+    flex-direction:column!important;border:1px solid #e9e1d9!important;
+    border-radius:10px!important;background:#fff!important;color:#382b1d!important;
+    box-shadow:0 5px 18px rgba(36,26,20,.10)!important;cursor:pointer
+  }
+  .admin-shell-v2 .admin-mobile-menu-toggle span{
+    display:block!important;width:19px!important;height:2px!important;
+    margin:0!important;border-radius:2px!important;background:currentColor!important;
+    transition:transform .22s ease,opacity .18s ease!important
+  }
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:first-child{transform:translateY(6px) rotate(45deg)}
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:nth-child(2){opacity:0}
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:last-child{transform:translateY(-6px) rotate(-45deg)}
+  .admin-shell-v2 .admin-sidebar{
+    box-sizing:border-box!important;display:flex!important;flex-direction:column!important;
+    align-items:stretch!important;height:100dvh!important;max-height:100dvh!important;
+    min-height:0!important;overflow-x:hidden!important;overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;
+    padding-bottom:calc(20px + env(safe-area-inset-bottom))!important
+  }
+  .admin-shell-v2 .admin-sidebar-nav{
+    display:flex!important;flex:0 0 auto!important;flex-direction:column!important;
+    min-height:max-content!important;max-height:none!important;overflow:visible!important
+  }
+  .admin-shell-v2 .admin-nav-group{display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important}
+  .admin-shell-v2 .admin-sidebar-footer{display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important;margin-top:16px!important}
+}
