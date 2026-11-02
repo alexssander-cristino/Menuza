@@ -1,4 +1,4 @@
-import base64, os, subprocess, tempfile, time
+import base64, os, subprocess, sys, tempfile, time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -40,8 +40,11 @@ def api_route(path: str) -> str:
 def generate(image: Path, output: Path) -> Path:
     resolution = str(max(128, min(384, int(os.environ.get("TRIPOSR_MC_RESOLUTION", "192")))))
     timeout = max(120, int(os.environ.get("GENERATION_TIMEOUT_SECONDS", "900")))
+    # Usa exatamente o mesmo interpretador que iniciou o worker (.venv), evitando
+    # que o Windows resolva "python" para outra instalação sem as dependências.
+    print("[DEBUG] Interpretador TripoSR:", sys.executable, flush=True)
     subprocess.run(
-        ["python", "run.py", str(image), "--output-dir", str(output), "--mc-resolution", resolution],
+        [sys.executable, "run.py", str(image), "--output-dir", str(output), "--mc-resolution", resolution],
         cwd=TRIPOSR,
         check=True,
         timeout=timeout,
