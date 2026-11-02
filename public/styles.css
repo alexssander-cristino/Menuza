@@ -2228,3 +2228,30 @@ button[data-action="view-generated-3d"],
   .admin-shell-v2 .admin-nav-group{display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important}
   .admin-shell-v2 .admin-sidebar-footer{display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important;margin-top:16px!important}
 }
+
+/* Mobile restaurant sidebar: one hamburger only (the existing global header control). */
+@media(max-width:720px){
+  .admin-shell-v2 .admin-sidebar{
+    box-sizing:border-box!important;display:flex!important;flex-direction:column!important;
+    align-items:stretch!important;position:fixed!important;top:0!important;bottom:0!important;left:0!important;
+    width:min(310px,86vw)!important;height:100vh!important;height:100dvh!important;
+    max-height:100vh!important;max-height:100dvh!important;min-height:0!important;
+    overflow-x:hidden!important;overflow-y:scroll!important;
+    -webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;
+    padding-bottom:calc(28px + env(safe-area-inset-bottom))!important
+  }
+  .admin-shell-v2 .admin-sidebar-nav{
+    display:flex!important;flex:0 0 auto!important;flex-direction:column!important;
+    min-height:max-content!important;height:auto!important;max-height:none!important;overflow:visible!important
+  }
+  .admin-shell-v2 .admin-nav-group{display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important}
+  .admin-shell-v2 .admin-sidebar-footer{
+    display:grid!important;grid-template-columns:1fr!important;flex:0 0 auto!important;
+    margin-top:18px!important;padding-bottom:10px!important
+  }
+  .admin-shell-v2 .admin-sidebar-link{width:100%!important;min-height:44px!important}
+  body.admin-route:has(.admin-shell-v2.mobile-nav-open) .mobile-menu-button span:first-child{transform:translateY(6px) rotate(45deg)}
+  body.admin-route:has(.admin-shell-v2.mobile-nav-open) .mobile-menu-button span:nth-child(2){opacity:0}
+  body.admin-route:has(.admin-shell-v2.mobile-nav-open) .mobile-menu-button span:last-child{transform:translateY(-6px) rotate(-45deg)}
+  body.admin-route .mobile-menu-button span{transition:transform .22s ease,opacity .18s ease}
+}
