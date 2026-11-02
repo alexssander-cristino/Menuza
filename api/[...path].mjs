@@ -538,6 +538,9 @@ async function fiscalReport(monthValue){
 }
 
 export default async function handler(req, res) {
+  if (!req || !res) throw new Error('Requisição ou resposta ausente no roteador da API.');
+  if (!req.headers || typeof req.headers !== 'object') req.headers = {};
+  if (!req.query || typeof req.query !== 'object') req.query = {};
   // Vercel preenche req.query.path em produção; no Vercel Dev, o catch-all
   // pode entregar apenas req.url. Use ambos para manter as rotas consistentes.
   const requestUrl = new URL(

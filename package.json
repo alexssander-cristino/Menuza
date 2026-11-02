@@ -11,7 +11,7 @@
     "backup": "node scripts/backup-menuza.mjs"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": "22.x"
   },
   "dependencies": {
     "@google/model-viewer": "^4.4.0",
