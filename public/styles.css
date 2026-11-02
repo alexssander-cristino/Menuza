@@ -2154,10 +2154,11 @@ button[data-action="view-generated-3d"],
 
 
 /* Sidebar do restaurante: drawer mobile isolado; desktop permanece inalterado */
+.admin-shell-v2 .admin-mobile-menu-toggle{display:none}
 @media(max-width:720px){
   .admin-shell-v2{padding-top:58px!important}
   .admin-shell-v2 .admin-mobile-menu-toggle{
-    position:fixed;z-index:1202;top:10px;left:10px;
+    display:inline-flex;position:fixed;z-index:1202;top:10px;left:10px;
     display:inline-flex;align-items:center;justify-content:center;gap:8px;
     min-width:92px;height:38px;padding:0 13px;
     border:1px solid #e9e1d9;border-radius:10px;
