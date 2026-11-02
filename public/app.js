@@ -1987,18 +1987,23 @@ async function repeatCustomerOrder(orderId){
 function closeMobileSiteMenu(){
   const menu=root.getElementById('mobileSiteMenu');
   if(!menu)return;
+  const toggle=root.querySelector('.mobile-menu-button');
+  // Move o foco para fora do drawer antes de ocultá-lo para tecnologias assistivas.
+  if(toggle)toggle.focus({preventScroll:true});
   menu.classList.remove('is-open');
+  menu.setAttribute('inert','');
   menu.setAttribute('aria-hidden','true');
   root.body.classList.remove('mobile-site-menu-open');
-  const toggle=root.querySelector('.mobile-menu-button');
   toggle?.setAttribute('aria-expanded','false');
   toggle?.setAttribute('aria-label','Abrir menu');
 }
 function openMobileSiteMenu(){
   const menu=root.getElementById('mobileSiteMenu');
   if(!menu)return;
-  menu.classList.add('is-open');
+  // Reabilita os controles antes de expor e focar o conteúdo do drawer.
+  menu.removeAttribute('inert');
   menu.setAttribute('aria-hidden','false');
+  menu.classList.add('is-open');
   root.body.classList.add('mobile-site-menu-open');
   const toggle=root.querySelector('.mobile-menu-button');
   toggle?.setAttribute('aria-expanded','true');
