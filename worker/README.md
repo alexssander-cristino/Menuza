@@ -59,7 +59,7 @@ Mantenha o notebook ligado e na tomada durante a geração. Desligado, os pedido
 
 ## Ajustes para RTX 3050 6 GB
 
-O worker usa `TRIPOSR_MC_RESOLUTION=192` por padrão para reduzir o consumo de VRAM. Se a geração funcionar com folga, teste 256. O limite padrão de execução por tarefa é 900 segundos (`GENERATION_TIMEOUT_SECONDS`).
+O worker usa `TRIPOSR_MC_RESOLUTION=192` por padrão para reduzir o consumo de VRAM. Se a geração funcionar com folga, teste 256. O limite padrão para download do checkpoint + geração é 7200 segundos (2 horas). O primeiro download pode levar bastante tempo em conexões lentas; o cache do Hugging Face permite retomar downloads interrompidos.
 
 No Windows, se a instalação do TripoSR precisar compilar `torchmcubes`, use Visual Studio 2022 com a carga **Desenvolvimento para desktop com C++**, MSVC v143 e Windows 11 SDK.
 
