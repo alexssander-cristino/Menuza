@@ -52,11 +52,28 @@ const app = {
 };
 const root = document;
 function playCartRunAnimation(){
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-  const layer=document.createElement('div');layer.className='cart-run-scene';layer.setAttribute('aria-hidden','true');
-  layer.innerHTML='<span class="cart-run-box"></span><span class="cart-run-cart"><i></i><b></b></span><span class="cart-run-label">ADICIONADO</span>';
-  document.body.appendChild(layer);layer.addEventListener('animationend',e=>{if(e.target===layer)layer.remove()});
-  window.setTimeout(()=>layer.remove(),1900);
+  const button=root.querySelector('.cart-button');
+  const icon=button?.querySelector('.cart-icon');
+  const count=root.getElementById('cartCount');
+  if(!button)return;
+  button.classList.remove('cart-added');
+  icon?.classList.remove('cart-icon-added');
+  count?.classList.remove('cart-count-added');
+  // Reinicia a animação mesmo em adições consecutivas.
+  void button.offsetWidth;
+  button.classList.add('cart-added');
+  icon?.classList.add('cart-icon-added');
+  count?.classList.add('cart-count-added');
+  const layer=document.createElement('div');
+  layer.className='cart-add-feedback';
+  layer.setAttribute('aria-hidden','true');
+  layer.innerHTML='<span class="cart-add-spark">✦</span><span class="cart-add-box"><i></i></span><span class="cart-add-label">Adicionado!</span>';
+  const rect=button.getBoundingClientRect();
+  layer.style.left=(rect.left+rect.width/2)+'px';
+  layer.style.top=(rect.top+rect.height/2)+'px';
+  document.body.appendChild(layer);
+  window.setTimeout(()=>layer.remove(),1050);
+  window.setTimeout(()=>{button.classList.remove('cart-added');icon?.classList.remove('cart-icon-added');count?.classList.remove('cart-count-added')},850);
 }
 let promotionCarouselTimer = null;
 let promotionCarouselIndex = 0;
