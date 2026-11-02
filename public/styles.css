@@ -2087,3 +2087,67 @@ button[data-action="view-generated-3d"],
     gap:8px;
   }
 }
+
+
+/* Mobile: keep dashboard heading and actions on the same row */
+@media(max-width:720px){
+  .admin-shell-v2 .admin-main-top{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;
+    column-gap:10px;
+    row-gap:0;
+  }
+  .admin-shell-v2 .admin-main-top>div:first-child{
+    grid-column:1;
+    grid-row:1;
+    min-width:0;
+  }
+  .admin-shell-v2 .admin-main-top .eyebrow{
+    font-size:7px;
+    letter-spacing:.12em;
+    line-height:1.35;
+    margin-bottom:4px;
+  }
+  .admin-shell-v2 .admin-main-top h1{
+    margin:3px 0 5px;
+    font-size:clamp(18px,5vw,23px);
+    line-height:1.08;
+    overflow-wrap:normal;
+  }
+  .admin-shell-v2 .admin-main-top p{
+    max-width:34ch;
+    font-size:10px;
+    line-height:1.35;
+  }
+  .admin-shell-v2 .admin-top-actions{
+    grid-column:2;
+    grid-row:1;
+    align-self:center;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:center;
+    gap:6px;
+    min-width:0;
+  }
+  .admin-shell-v2 .admin-top-actions .admin-status-chip{
+    justify-content:center;
+    min-height:30px;
+    padding:6px 7px;
+    font-size:8px;
+    white-space:nowrap;
+  }
+  .admin-shell-v2 .admin-top-actions>.button{
+    width:100%;
+    min-height:30px;
+    padding:0 10px;
+    font-size:10px;
+  }
+}
+@media(max-width:380px){
+  .admin-shell-v2 .admin-main-top{grid-template-columns:minmax(0,1fr) 104px;column-gap:7px}
+  .admin-shell-v2 .admin-main-top h1{font-size:18px}
+  .admin-shell-v2 .admin-main-top p{font-size:9px}
+  .admin-shell-v2 .admin-top-actions .admin-status-chip{font-size:7px;padding-inline:5px}
+}
