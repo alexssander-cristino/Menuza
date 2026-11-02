@@ -515,3 +515,22 @@ html body.admin-route #adminView .admin-main [role="search"] input {
   background-color: #F2F0EC !important;
   border-color: #F2F0EC !important;
 }
+
+
+/* Correção da busca: o fundo estava no LABEL/wrapper, não no input transparente. */
+html body.admin-route #adminView .admin-main .orders-search,
+html body.admin-route #adminView .admin-main .coupon-search,
+html body.admin-route #adminView .admin-main .ingredient-admin-search,
+html body.admin-route #adminView .admin-main .search-box,
+html body.admin-route #adminView .admin-main .search-field,
+html body.admin-route #adminView .admin-main .search-bar,
+html body.admin-route #adminView .admin-main label[ class*="search" i ] {
+  background-color: #F2F0EC !important;
+  background-image: none !important;
+  border-color: #F2F0EC !important;
+}
+html body.admin-route #adminView .admin-main .orders-search input,
+html body.admin-route #adminView .admin-main .coupon-search input,
+html body.admin-route #adminView .admin-main .ingredient-admin-search input {
+  background: transparent !important;
+}
