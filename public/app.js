@@ -352,7 +352,10 @@ function renderPromotionBanner(){
   });
   const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Carrossel de promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
   stopPromotionCarousel();
-  if(existing)existing.outerHTML=html;else root.querySelector('.site-header')?.insertAdjacentHTML('afterend',html);
+  const home=root.getElementById('homeView');
+  if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
+  if(existing&&home.contains(existing))existing.outerHTML=html;
+  else{existing?.remove();home.insertAdjacentHTML('afterbegin',html)}
   startPromotionCarousel(root.getElementById('promotionBanner'));
 }
 function renderRecentProducts(){
