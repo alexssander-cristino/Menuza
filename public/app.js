@@ -1780,6 +1780,17 @@ function closeAdminRecipe3D(){
   app.admin.recipePreview=null;
   root.getElementById('adminRecipe3dPreview')?.remove();
 }
+ function openAdminGenerated3D(productId){
+   const product=app.admin.recipePreviewCatalog?.products?.find(item=>item.id===productId);
+   if(!product?.model3dUrl){toast('Este produto ainda não possui um modelo TripoSR publicado.');return;}
+   root.getElementById('adminGenerated3dPreview')?.remove();
+   const overlay=root.createElement('div');
+   overlay.id='adminGenerated3dPreview';
+   overlay.className='modal-backdrop admin-generated-3d-backdrop';
+   overlay.innerHTML='<section class="admin-generated-3d-modal" role="dialog" aria-modal="true" aria-label="Modelo 3D real do produto"><header><div><strong>'+esc(product.name)+'</strong><small>Modelo gerado pelo TripoSR a partir da foto do produto</small></div><button type="button" data-action="close-admin-generated-3d" aria-label="Fechar modelo 3D">×</button></header><div class="admin-generated-3d-stage"><model-viewer class="admin-generated-3d-viewer" src="'+esc(product.model3dUrl)+'" alt="Modelo 3D de '+esc(product.name)+'" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ar></model-viewer></div><p>Arraste para girar e use os gestos para aproximar ou afastar</p></section>';
+   root.body.append(overlay);
+ }
+ function closeAdminGenerated3D(){root.getElementById('adminGenerated3dPreview')?.remove();}
 function setAdminConnectionState(state){
   app.admin.connectionState=state;
   const node=root.getElementById('adminConnectionStatus');
@@ -2258,17 +2269,7 @@ async function start(){
    location.hash='conta';showCustomerAccount();renderCustomerAuth();toast('Conta excluída com sucesso.');
   }catch(error){if(errorNode)errorNode.textContent=error.message;button.disabled=false}
  }
- function openAdminGenerated3D(productId){
-   const product=app.admin.recipePreviewCatalog?.products?.find(item=>item.id===productId);
-   if(!product?.model3dUrl){toast('Este produto ainda não possui um modelo TripoSR publicado.');return;}
-   root.getElementById('adminGenerated3dPreview')?.remove();
-   const overlay=root.createElement('div');
-   overlay.id='adminGenerated3dPreview';
-   overlay.className='modal-backdrop admin-generated-3d-backdrop';
-   overlay.innerHTML='<section class="admin-generated-3d-modal" role="dialog" aria-modal="true" aria-label="Modelo 3D real do produto"><header><div><strong>'+esc(product.name)+'</strong><small>Modelo gerado pelo TripoSR a partir da foto do produto</small></div><button type="button" data-action="close-admin-generated-3d" aria-label="Fechar modelo 3D">×</button></header><div class="admin-generated-3d-stage"><model-viewer class="admin-generated-3d-viewer" src="'+esc(product.model3dUrl)+'" alt="Modelo 3D de '+esc(product.name)+'" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ar></model-viewer></div><p>Arraste para girar e use os gestos para aproximar ou afastar</p></section>';
-   root.body.append(overlay);
- }
- function closeAdminGenerated3D(){root.getElementById('adminGenerated3dPreview')?.remove();}
+
 );
  
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
