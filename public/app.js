@@ -1949,7 +1949,7 @@ async function generateProduct3D(id,button){
     setTimeout(poll,10000);
   }catch(error){toast(error.message||'Não foi possível solicitar a geração.');button.disabled=false;button.textContent=original}
 }
-async function saveProduct(id){
+async async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
   const button=row.querySelector('[data-action="save-product"]');if(!button||button.disabled)return;
   const priceInput=row.querySelector('.product-price-input');
