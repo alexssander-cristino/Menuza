@@ -1453,3 +1453,24 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
   .admin-mobile-nav-backdrop,
   .admin-sidebar { transition:none !important; }
 }
+
+/* The existing round mobile shortcut becomes the restaurant morph-menu trigger. */
+@media(max-width:700px){
+  .mobile-menu-button{
+    display:flex!important;
+    width:42px!important;height:42px!important;flex:0 0 42px;
+    align-items:center;justify-content:center;flex-direction:column;gap:5px;
+    padding:0!important;border:1px solid rgba(118,29,37,.16)!important;
+    border-radius:12px!important;background:#fff!important;color:#761d25!important;
+    box-shadow:0 4px 14px rgba(47,24,27,.08);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mobile-menu-button span{display:block;width:19px;height:2px;border-radius:3px;background:currentColor;transform-origin:center;transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .2s ease,width .28s ease}
+  .mobile-menu-button span:nth-child(2){width:14px}
+  .mobile-menu-button:active{transform:scale(.96)}
+  .admin-shell-v2.mobile-nav-open~*{}
+  body.admin-route .mobile-menu-button[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  body.admin-route .mobile-menu-button[aria-expanded="true"] span:nth-child(2){width:19px;opacity:0;transform:scaleX(.25)}
+  body.admin-route .mobile-menu-button[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+}
+@media(prefers-reduced-motion:reduce){.mobile-menu-button span{transition:none!important}}
