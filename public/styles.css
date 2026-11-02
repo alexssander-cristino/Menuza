@@ -1691,3 +1691,10 @@ body{overscroll-behavior-y:contain}
  .food-stage .view-toggle button{font-size:8px;padding:8px 4px}
  .builder-visual{min-height:205px}
 }
+
+
+/* Acesso direto ao modelo TripoSR no cardápio do cliente */
+.product-model-3d-button{position:absolute;left:10px;bottom:10px;z-index:3;min-height:34px;padding:8px 12px;border:1px solid #ffffffb8;border-radius:999px;background:#241c38ed;color:#fff;font-size:11px;font-weight:700;letter-spacing:.01em;box-shadow:0 4px 14px #17102030;cursor:pointer;backdrop-filter:blur(8px)}
+.product-model-3d-button:active{transform:scale(.97)}
+.customer-generated-3d-modal{z-index:1002}
+@media(max-width:700px){.product-model-3d-button{left:7px;bottom:7px;min-height:38px;padding:9px 11px;font-size:11px}.customer-generated-3d-modal{width:100%;height:100svh;max-height:none;border-radius:0}}
