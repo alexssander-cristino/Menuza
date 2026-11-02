@@ -1763,3 +1763,16 @@ button[data-action="view-generated-3d"],
 @media(max-width:900px){.mz-skeleton-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.mz-skeleton-card,.mz-skeleton-panel{padding:12px}.mz-skeleton-row{grid-template-columns:30px minmax(0,1fr) 52px;gap:9px}.mz-skeleton-line.end{width:48px}}
 @media(prefers-reduced-motion:reduce){.mz-skeleton-line::after{animation:none;transform:none;opacity:.25}.loading-line::before{animation:none}}
+
+/* Skeletons específicos para o cardápio e páginas de conteúdo */
+.mz-skeleton-catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;width:100%}
+.mz-skeleton-product{overflow:hidden;border:1px solid #eee9e3;border-radius:16px;background:#fff}
+.mz-skeleton-product-image{display:block;position:relative;overflow:hidden;aspect-ratio:1.42;background:#eeeae5}
+.mz-skeleton-product-image::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);animation:mz-skeleton-shimmer 1.35s ease-in-out infinite}
+.mz-skeleton-product>div{display:grid;gap:11px;padding:15px}
+.mz-skeleton-product .metric{width:35%;height:17px}
+.customer-orders-list .mz-skeleton{padding:0}
+.customer-orders-list .mz-skeleton-panel{box-shadow:none}
+.admin-shell-v2 #adminBody>.mz-skeleton{width:100%}
+@media(max-width:850px){.mz-skeleton-catalog{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}}
+@media(max-width:480px){.mz-skeleton-catalog{gap:10px}.mz-skeleton-product>div{padding:11px;gap:9px}}
