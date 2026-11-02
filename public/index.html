@@ -45,6 +45,29 @@
     </div>
   </header>
 
+  <div class="mobile-site-menu" id="mobileSiteMenu" aria-hidden="true">
+    <button class="mobile-site-menu-backdrop" type="button" data-action="mobile-site-menu-close" aria-label="Fechar menu"></button>
+    <section class="mobile-site-menu-panel" role="dialog" aria-modal="true" aria-labelledby="mobileSiteMenuTitle" tabindex="-1">
+      <div class="mobile-site-menu-head">
+        <div class="mobile-site-menu-brand"><span class="mobile-site-menu-mark">M</span><span><strong id="mobileSiteMenuTitle">MENUZA</strong><small>Navegação</small></span></div>
+        <button class="mobile-site-menu-close" type="button" data-action="mobile-site-menu-close" aria-label="Fechar menu"><span></span><span></span></button>
+      </div>
+      <nav class="mobile-site-menu-links" aria-label="Menu principal">
+        <button type="button" data-action="mobile-site-menu-go" data-destination="menu"><span class="mobile-site-menu-icon">⌂</span><span><strong>Cardápio</strong><small>Explore os produtos</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="promotions"><span class="mobile-site-menu-icon">✦</span><span><strong>Ofertas</strong><small>Veja as promoções disponíveis</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="popular"><span class="mobile-site-menu-icon">↗</span><span><strong>Mais pedidos</strong><small>Descubra os destaques</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="about"><span class="mobile-site-menu-icon">◎</span><span><strong>Como funciona</strong><small>Conheça a experiência</small></span><span class="mobile-site-menu-arrow">›</span></button>
+      </nav>
+      <div class="mobile-site-menu-divider"></div>
+      <div class="mobile-site-menu-access-label">ACESSOS</div>
+      <div class="mobile-site-menu-access">
+        <button type="button" data-action="mobile-site-menu-go" data-destination="account"><span class="mobile-site-menu-access-icon">♙</span><span><strong>Minha conta</strong><small>Pedidos e dados pessoais</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="restaurant"><span class="mobile-site-menu-access-icon">▤</span><span><strong>Área do restaurante</strong><small>Acesso administrativo</small></span><span class="mobile-site-menu-arrow">›</span></button>
+      </div>
+      <div class="mobile-site-menu-foot"><span>MENUZA</span><span>Cardápio digital</span></div>
+    </section>
+  </div>
+
   <main id="homeView">
     <section class="hero wrap">
       <div class="hero-copy">
