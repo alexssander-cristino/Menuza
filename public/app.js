@@ -21,7 +21,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 // Initialize Vercel Speed Insights
 injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '88';
+const MENUZA_APP_BUILD = '89';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -977,11 +977,16 @@ async function deleteFiscalExpense(id){
  try{await api('/api/admin/fiscal/expenses/'+encodeURIComponent(id),{method:'DELETE'});toast('Despesa excluída.');await renderFiscalAdmin()}catch(e){toast(e.message)}
 }
 
+function skeletonMarkup(kind='content'){
+  const dashboard=kind==='dashboard';
+  const cards=dashboard?'<div class="mz-skeleton-metrics">'+Array.from({length:4},()=>'<div class="mz-skeleton-card"><i class="mz-skeleton-line short"></i><i class="mz-skeleton-line metric"></i><i class="mz-skeleton-line medium"></i></div>').join('')+'</div>':'';
+  return '<section class="mz-skeleton" role="status" aria-label="Carregando conteúdo"><span class="sr-only">Carregando conteúdo…</span>'+cards+'<div class="mz-skeleton-panel"><div class="mz-skeleton-heading"><i class="mz-skeleton-line title"></i><i class="mz-skeleton-line action"></i></div><div class="mz-skeleton-table">'+Array.from({length:dashboard?5:4},(_,index)=>'<div class="mz-skeleton-row"><i class="mz-skeleton-avatar"></i><span><i class="mz-skeleton-line medium"></i><i class="mz-skeleton-line short"></i></span><i class="mz-skeleton-line end"></i></div>').join('')+'</div></div></section>';
+}
 function renderAdmin(){
   const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Configurações','⚙']] }];
   const tabs=groups.flatMap(group=>group.items);
   const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+(item[0]==='ingredients'?uiIcon('utensils',18):item[2])+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></main></div>';
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody">'+skeletonMarkup('dashboard')+'</div></main></div>';
   if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='beverages')renderBeveragesAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='promotions')renderPromotionsAdmin();else if(app.admin.tab==='delivery')renderDeliveryAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
 }
 let orderAlertAudioContext=null;
@@ -1131,7 +1136,7 @@ function updateOrderElapsedTimes(){
 }
 function renderOrdersAdmin(metrics,orders){
   app.admin.orders=orders;
-  const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML='<div class="loading-line">Atualizando pedidos…</div>';return}
+  const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML=skeletonMarkup('dashboard');return}
   const cards=orders.map(order=>{
     const lines=order.items.map(item=>'<div><strong>'+item.quantity+'× '+esc(item.name)+'</strong> · '+esc(item.snapshot.size.label)+'<br><span>'+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</span></div>').join('');
     const fulfillment=order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):order.fulfillment==='delivery'?'Entrega · '+esc(order.deliveryAddress):'Retirada';
@@ -1184,7 +1189,7 @@ async function deleteCategory(id){
 }
 async function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');
-  target.innerHTML='<div class="loading-line">Carregando cardápio…</div>';
+  target.innerHTML=skeletonMarkup('content');
   try{
     const catalog=await api('/api/admin/catalog');
     const ingredientChoices=(type,selected=[],name='ingredientIds')=>catalog.ingredients.filter(item=>item.type===type&&item.active!==0).map(item=>'<label class="ingredient-choice"><input type="checkbox" name="'+name+'" value="'+esc(item.id)+'" '+(selected.includes(item.id)?'checked':'')+'><span>'+esc(item.name)+'</span>'+(item.cents?'<small>+'+money(item.cents)+'</small>':'')+'</label>').join('');
@@ -1441,7 +1446,7 @@ async function loadDeliveryOptions(){
 }
 async function renderPrivacyRequestsAdmin(){
  const target=root.getElementById('adminBody');if(!target)return;
- target.innerHTML='<div class="loading-line">Carregando solicitações…</div>';
+ target.innerHTML=skeletonMarkup('content');
  try{
   const result=await api('/api/admin/privacy-requests');
   const labels={access:'Acesso aos dados',correction:'Correção',deletion:'Exclusão de dados',question:'Dúvida sobre privacidade',support:'Suporte geral'};
