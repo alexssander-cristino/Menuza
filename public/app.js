@@ -2015,10 +2015,7 @@ function handleClick(event){
     if(destination==='restaurant'){location.hash='admin';showAdmin();return}
     showHome();
     if(destination==='popular'){
-      const recent=root.getElementById('recentProductsSection');
-      if(recent&&!recent.hidden){recent.scrollIntoView({behavior:'smooth',block:'start'});return}
-      app.favoritesOnly=false;app.category='all';renderCatalog();
-      root.getElementById('menu')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+      root.getElementById('favoritos')?.scrollIntoView({behavior:'smooth',block:'start'});return;
     }
     const targetId=destination==='promotions'?'promotionsPage':destination==='about'?'sobre':'menu';
     if(destination==='menu')location.hash='menu';
