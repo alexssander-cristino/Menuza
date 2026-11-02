@@ -396,3 +396,50 @@ body.admin-route .admin-shell-v2 button:disabled {
   opacity: .55;
   cursor: not-allowed;
 }
+
+/* Correção: seletores com maior especificidade para os botões REAIS do painel. */
+body.admin-route #adminView .admin-main button.button.button-dark,
+body.admin-route #adminView .admin-main a.button.button-dark,
+body.admin-route #adminView .admin-login button.button.button-dark {
+  background-color: #f5d6d5 !important;
+  background-image: none !important;
+  border: 1px solid #f5d6d5 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+body.admin-route #adminView .admin-main button.button.button-outline,
+body.admin-route #adminView .admin-main a.button.button-outline,
+body.admin-route #adminView .admin-login button.button.button-outline {
+  background-color: #f9ebc2 !important;
+  background-image: none !important;
+  border: 1px solid #f9ebc2 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+body.admin-route #adminView .admin-main button.button:not(.button-dark):not(.button-outline):not(.admin-tab):not(.admin-sidebar-link),
+body.admin-route #adminView .admin-main a.button:not(.button-dark):not(.button-outline),
+body.admin-route #adminView .admin-main button:not(.button):not(.admin-tab):not(.admin-sidebar-link):not([role="switch"]),
+body.admin-route #adminView .admin-main input[type="submit"],
+body.admin-route #adminView .admin-main input[type="button"] {
+  background-color: #f5ede1 !important;
+  background-image: none !important;
+  border-color: #f5ede1 !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
+body.admin-route #adminView .admin-main button.button.button-dark:hover:not(:disabled),
+body.admin-route #adminView .admin-main a.button.button-dark:hover,
+body.admin-route #adminView .admin-login button.button.button-dark:hover:not(:disabled),
+body.admin-route #adminView .admin-main button.button.button-outline:hover:not(:disabled),
+body.admin-route #adminView .admin-main a.button.button-outline:hover,
+body.admin-route #adminView .admin-main button.button:not(.button-dark):not(.button-outline):not(.admin-tab):not(.admin-sidebar-link):hover:not(:disabled),
+body.admin-route #adminView .admin-main a.button:not(.button-dark):not(.button-outline):hover,
+body.admin-route #adminView .admin-main button:not(.button):not(.admin-tab):not(.admin-sidebar-link):not([role="switch"]):hover:not(:disabled),
+body.admin-route #adminView .admin-main input[type="submit"]:hover:not(:disabled),
+body.admin-route #adminView .admin-main input[type="button"]:hover:not(:disabled) {
+  background-color: #efc1be !important;
+  background-image: none !important;
+  border-color: #efc1be !important;
+  color: #8f2028 !important;
+  box-shadow: none !important;
+}
