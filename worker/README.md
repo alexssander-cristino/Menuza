@@ -36,7 +36,7 @@ O bucket de modelos usa o Neon Object Storage da branch de produção. As creden
        neon env pull
 
 2. Abra o `.env.local` gerado na raiz e copie os valores de `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3` e `AWS_REGION`.
-3. Crie `worker/.env) a partir do exemplo e cole esses quatro valores. Mantenha `NEON_STORAGE_BUCKET=menuza-modelos-3d`.
+3. Crie `worker/.env` a partir do exemplo e cole esses quatro valores. Mantenha `NEON_STORAGE_BUCKET=menuza-modelos-3d`.
 4. Configure `TRIPOSR_WORKER_TOKEN` com o mesmo segredo definido na Vercel.
 
 O bucket é público somente para leitura dos modelos GLB. O worker usa as credenciais privadas do Neon para fazer uploads. Nunca envie `worker/.env` ou `.env.local` ao GitHub.
