@@ -219,12 +219,12 @@ function productImageCarouselMarkup(product,mode='card',fit='cover',ingredients=
   const images=productImages(product),classes=mode==='modal'?'product-image-carousel product-image-carousel--modal':'product-image-carousel product-image-carousel--card';
   if(!images.length)return productSvg(product,ingredients||defaultIngredients(product,app.catalog),{double:app.builder?.sizeKey==='duplo'});
   if(images.length===1)return '<img class="'+(mode==='modal'?'food-art-photo':'product-photo-card')+'" src="'+esc(images[0])+'" alt="Foto de '+esc(product.name||'produto')+'" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:'+fit+';object-position:center">';
-  return '<div class="'+classes+'" data-image-carousel data-image-index="0" aria-label="Galeria de '+esc(product.name||'produto')+'"><div class="product-image-carousel-track">'+images.map((url,index)=>'<img class="product-image-carousel-slide '+(index===0?'is-active':'')+'" data-image-slide="'+index+'" src="'+esc(url)+'" alt="Foto '+(index+1)+' de '+esc(product.name||'produto')+'" loading="'+(index===0?'eager':'lazy')+'" decoding="async" '+(index===0?'':'hidden')+' style="object-fit:'+fit+'">').join('')+'</div><button type="button" class="product-image-carousel-arrow is-prev" data-action="product-image-prev" aria-label="Foto anterior">‹</button><button type="button" class="product-image-carousel-arrow is-next" data-action="product-image-next" aria-label="Próxima foto">›</button><span class="product-image-carousel-count">1 / '+images.length+'</span><div class="product-image-carousel-dots">'+images.map((_,index)=>'<button type="button" class="product-image-carousel-dot '+(index===0?'is-active':'')+'" data-action="product-image-go" data-index="'+index+'" aria-label="Ver foto '+(index+1)+'" aria-pressed="'+(index===0)+'"></button>').join('')+'</div></div>';
+  return '<div class="'+classes+'" data-image-carousel data-image-index="0" aria-label="Galeria de '+esc(product.name||'produto')+'"><div class="product-image-carousel-track">'+images.map((url,index)=>'<img class="product-image-carousel-slide '+(index===0?'is-active':'')+'" data-image-slide="'+index+'" src="'+esc(url)+'" alt="Foto '+(index+1)+' de '+esc(product.name||'produto')+'" loading="'+(index===0?'eager':'lazy')+'" decoding="async" aria-hidden="'+(index!==0)+'" style="object-fit:'+fit+'">').join('')+'</div><button type="button" class="product-image-carousel-arrow is-prev" data-action="product-image-prev" aria-label="Foto anterior">‹</button><button type="button" class="product-image-carousel-arrow is-next" data-action="product-image-next" aria-label="Próxima foto">›</button><span class="product-image-carousel-count">1 / '+images.length+'</span><div class="product-image-carousel-dots">'+images.map((_,index)=>'<button type="button" class="product-image-carousel-dot '+(index===0?'is-active':'')+'" data-action="product-image-go" data-index="'+index+'" aria-label="Ver foto '+(index+1)+'" aria-pressed="'+(index===0)+'"></button>').join('')+'</div></div>';
 }
 function setProductImageSlide(carousel,index) {
   if(!carousel)return;const slides=[...carousel.querySelectorAll('[data-image-slide]')],count=slides.length;if(!count)return;
   const next=(index+count)%count;carousel.dataset.imageIndex=String(next);
-  slides.forEach((slide,i)=>{const active=i===next;slide.hidden=!active;slide.classList.toggle('is-active',active)});
+  slides.forEach((slide,i)=>{const active=i===next;slide.setAttribute('aria-hidden',String(!active));slide.classList.toggle('is-active',active)});
   carousel.querySelectorAll('.product-image-carousel-dot').forEach((dot,i)=>{dot.classList.toggle('is-active',i===next);dot.setAttribute('aria-pressed',String(i===next))});
   const counter=carousel.querySelector('.product-image-carousel-count');if(counter)counter.textContent=(next+1)+' / '+count;
 }
@@ -239,7 +239,7 @@ function startProductImageRotation(){
   productImageRotationTimer=window.setInterval(()=>{
     if(document.hidden||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     root.querySelectorAll('[data-image-carousel]').forEach(carousel=>{
-      if(carousel.matches(':hover,:focus-within')||carousel.closest('[hidden]'))return;
+      if(carousel.closest('[hidden]'))return;
       setProductImageSlide(carousel,(Number(carousel.dataset.imageIndex)||0)+1);
     });
   },3600);
