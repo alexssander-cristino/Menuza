@@ -17,7 +17,7 @@ export default async function dispatch(req, res) {
 
   req.query.path = Array.isArray(route)
     ? route.filter(Boolean).join('/')
-    : String(route || '').replace(/^\\/+|\\/+$/g, '');
+    : String(route || '').replace(/^\/+|\/+$/g, '');
 
   return handler(req, res);
 }
