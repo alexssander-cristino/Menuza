@@ -1204,3 +1204,98 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
   .builder-visual .visual-caption { display: none; }
   .builder-visual .visual-controls { bottom: 8px; }
 }
+
+
+/* Correção definitiva do seletor Foto/2D e 3D: centralização real, sem translate herdado. */
+.builder-visual { min-width: 0; }
+.food-stage {
+  position: relative;
+  width: min(92%, 520px);
+  max-width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+.food-stage .view-toggle {
+  position: absolute !important;
+  top: 10px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  width: max-content !important;
+  max-width: calc(100% - 20px) !important;
+  min-width: 0 !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  white-space: nowrap;
+}
+.food-stage .view-toggle button {
+  flex: 0 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 34px;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  line-height: 1.15;
+  font-size: clamp(9px, 1.05vw, 12px) !important;
+  text-align: center;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.food-stage .view-toggle button[aria-pressed="true"] {
+  transform: none !important;
+}
+.food-stage .food-art-view,
+.food-stage .food-canvas,
+.food-stage .generated-food-model,
+.food-stage .photo3d-stage {
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 760px) {
+  .builder-visual {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 8px;
+    box-sizing: border-box;
+  }
+  .food-stage {
+    width: 100% !important;
+    max-width: 520px !important;
+    min-width: 0 !important;
+    margin: 0 auto !important;
+    justify-self: center;
+    align-self: center;
+  }
+  .food-stage .view-toggle {
+    top: 7px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: max-content !important;
+    max-width: calc(100% - 16px) !important;
+    justify-content: center !important;
+    overflow: visible !important;
+  }
+  .food-stage .view-toggle button {
+    flex: 0 1 auto !important;
+    padding: 8px clamp(7px, 2.5vw, 12px) !important;
+    font-size: clamp(8px, 2.5vw, 10px) !important;
+  }
+}
+@media (max-width: 360px) {
+  .food-stage .view-toggle { gap: 2px !important; padding: 3px !important; }
+  .food-stage .view-toggle button { padding-inline: 5px !important; font-size: 8px !important; }
+}
