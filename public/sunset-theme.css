@@ -322,3 +322,77 @@ body.admin-route .admin-login {
   color: var(--admin-text) !important;
   border-color: #eadfd2 !important;
 }
+
+/* Cores dos botões da área do restaurante — escopo administrativo בלבד. */
+body.admin-route #adminView button,
+body.admin-route .admin-shell button,
+body.admin-route .admin-shell-v2 button,
+body.admin-route #adminView a.button,
+body.admin-route #adminView .btn {
+  color: #8f2028;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+body.admin-route #adminView button:not(.admin-tab):not(.admin-nav-item):not(.admin-sidebar-link):not(.button-dark):not(.btn-primary):not(.primary):not(.button-primary):not(.btn-secondary):not(.button-secondary):not(.secondary):not(.button-outline):not(.btn-neutral):not(.button-neutral),
+body.admin-route .admin-shell button:not(.admin-tab):not(.admin-nav-item):not(.admin-sidebar-link):not(.button-dark):not(.btn-primary):not(.primary):not(.button-primary):not(.btn-secondary):not(.button-secondary):not(.secondary):not(.button-outline):not(.btn-neutral):not(.button-neutral),
+body.admin-route .admin-shell-v2 button:not(.admin-tab):not(.admin-nav-item):not(.admin-sidebar-link):not(.button-dark):not(.btn-primary):not(.primary):not(.button-primary):not(.btn-secondary):not(.button-secondary):not(.secondary):not(.button-outline):not(.btn-neutral):not(.button-neutral) {
+  background: #f5ede1 !important;
+  border-color: #e8d9c7 !important;
+  color: #8f2028 !important;
+}
+body.admin-route #adminView .button-dark,
+body.admin-route #adminView .btn-primary,
+body.admin-route #adminView .button-primary,
+body.admin-route #adminView button.primary,
+body.admin-route .admin-shell .button-dark,
+body.admin-route .admin-shell .btn-primary,
+body.admin-route .admin-shell .button-primary,
+body.admin-route .admin-shell button.primary,
+body.admin-route .admin-shell-v2 .button-dark,
+body.admin-route .admin-shell-v2 .btn-primary,
+body.admin-route .admin-shell-v2 .button-primary,
+body.admin-route .admin-shell-v2 button.primary {
+  background: #f5d6d5 !important;
+  border-color: #f5d6d5 !important;
+  color: #8f2028 !important;
+}
+body.admin-route #adminView .button-outline,
+body.admin-route #adminView .btn-secondary,
+body.admin-route #adminView .button-secondary,
+body.admin-route #adminView button.secondary,
+body.admin-route .admin-shell .button-outline,
+body.admin-route .admin-shell .btn-secondary,
+body.admin-route .admin-shell .button-secondary,
+body.admin-route .admin-shell button.secondary,
+body.admin-route .admin-shell-v2 .button-outline,
+body.admin-route .admin-shell-v2 .btn-secondary,
+body.admin-route .admin-shell-v2 .button-secondary,
+body.admin-route .admin-shell-v2 button.secondary {
+  background: #f9ebc2 !important;
+  border-color: #f9ebc2 !important;
+  color: #8f2028 !important;
+}
+body.admin-route #adminView .btn-neutral,
+body.admin-route #adminView .button-neutral,
+body.admin-route .admin-shell .btn-neutral,
+body.admin-route .admin-shell .button-neutral,
+body.admin-route .admin-shell-v2 .btn-neutral,
+body.admin-route .admin-shell-v2 .button-neutral {
+  background: #f5ede1 !important;
+  border-color: #f5ede1 !important;
+  color: #8f2028 !important;
+}
+body.admin-route #adminView button:hover:not(:disabled),
+body.admin-route .admin-shell button:hover:not(:disabled),
+body.admin-route .admin-shell-v2 button:hover:not(:disabled),
+body.admin-route #adminView a.button:hover,
+body.admin-route #adminView .btn:hover {
+  background: #efc1be !important;
+  border-color: #efc1be !important;
+  color: #8f2028 !important;
+}
+body.admin-route #adminView button:disabled,
+body.admin-route .admin-shell button:disabled,
+body.admin-route .admin-shell-v2 button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
