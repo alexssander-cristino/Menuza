@@ -32,6 +32,11 @@ HTTP = requests.Session()
 HTTP.headers.update(HEADERS)
 
 
+def api_route(path: str) -> str:
+    """Usa o dispatcher publicado pela Vercel para encaminhar rotas internas da API."""
+    return API + "/api/dispatch?path=" + quote(path, safe="")
+
+
 def generate(image: Path, output: Path) -> Path:
     resolution = str(max(128, min(384, int(os.environ.get("TRIPOSR_MC_RESOLUTION", "192")))))
     timeout = max(120, int(os.environ.get("GENERATION_TIMEOUT_SECONDS", "900")))
@@ -83,7 +88,7 @@ def process(job):
             # O bucket Neon é public_read; esta URL pode ser consumida pelo viewer/AR.
             url = f"{ENDPOINT}/{quote(BUCKET, safe='')}/{quote(key, safe='/')}"
             HTTP.post(
-                API + "/api/3d-worker/complete/" + jid,
+                api_route("3d-worker/complete/" + jid),
                 json={"modelUrl": url},
                 timeout=30,
             ).raise_for_status()
@@ -93,7 +98,7 @@ def process(job):
         print("[ERRO]", jid, msg)
         try:
             HTTP.post(
-                API + "/api/3d-worker/fail/" + jid,
+                api_route("3d-worker/fail/" + jid),
                 json={"error": msg},
                 timeout=20,
             ).raise_for_status()
@@ -115,7 +120,7 @@ def main():
     print(f"Menuza TripoSR Worker iniciado. Neon bucket: {BUCKET}. Ctrl+C para encerrar.")
     while True:
         try:
-            response = HTTP.get(API + "/api/3d-worker/next", timeout=30)
+            response = HTTP.get(api_route("3d-worker/next"), timeout=30)
             response.raise_for_status()
             job = response.json().get("job")
             if job:
