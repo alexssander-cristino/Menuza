@@ -70,18 +70,23 @@ button:hover>.ui-icon--interactive svg,button:focus-visible>.ui-icon--interactiv
 @keyframes menuza-share-pop{0%,100%{transform:scale(1) rotate(0)}35%{transform:scale(1.16) rotate(-8deg)}65%{transform:scale(1.08) rotate(5deg)}}
 @media(prefers-reduced-motion:reduce){.favorite-toggle:hover .favorite-heart-icon svg,.favorite-toggle:focus-visible .favorite-heart-icon svg,.share-product-button:hover svg.share-icon-svg,.share-product-button:focus-visible svg.share-icon-svg,.share-menu-button:hover svg.share-icon-svg,.share-menu-button:focus-visible svg.share-icon-svg{animation:none}}
 
-/* Cart Run: carrinho entra, recebe a caixa e sai acelerando. */
-.cart-run-scene{position:fixed;z-index:99999;left:0;right:0;bottom:clamp(22px,8vh,72px);height:92px;pointer-events:none;overflow:hidden;animation:cart-run-scene-out 1.72s ease both}
-.cart-run-cart{position:absolute;left:-90px;bottom:9px;width:66px;height:36px;border:4px solid #d21404;border-top:0;border-radius:4px 4px 13px 13px;transform:skewX(-8deg);background:linear-gradient(180deg,#f88f22,#ea6113);box-shadow:0 8px 16px #321b1630;animation:cart-run-drive 1.62s cubic-bezier(.22,.75,.25,1) both}
-.cart-run-cart:before{content:"";position:absolute;left:-12px;top:-14px;width:17px;height:23px;border:4px solid #d21404;border-right:0;border-bottom:0;border-radius:10px 0 0}
-.cart-run-cart:after{content:"";position:absolute;left:8px;right:7px;top:8px;height:13px;background:#ffe3b3;border-radius:2px;opacity:.9}
-.cart-run-cart i,.cart-run-cart b{position:absolute;z-index:2;bottom:-11px;width:13px;height:13px;border:3px solid #321b16;border-radius:50%;background:#ffe3b3}
-.cart-run-cart i{left:8px}.cart-run-cart b{right:7px}
-.cart-run-box{position:absolute;left:50%;bottom:63px;width:22px;height:22px;margin-left:-11px;border:2px solid #9f4b18;border-radius:3px;background:linear-gradient(135deg,#ffe3b3 0 45%,#fbb931 46%);box-shadow:0 4px 10px #321b1625;animation:cart-run-catch .68s cubic-bezier(.2,.8,.25,1) .22s both}
-.cart-run-label{position:absolute;left:50%;bottom:3px;transform:translateX(-50%);font:800 10px/1 system-ui,sans-serif;letter-spacing:.14em;color:#d21404;background:#fffaf2;border:1px solid #fbb931;border-radius:999px;padding:6px 10px;opacity:0;animation:cart-run-label .5s ease .72s both}
-@keyframes cart-run-drive{0%{left:-90px;transform:skewX(-8deg) translateY(0)}28%{left:calc(50% - 30px);transform:skewX(-8deg) translateY(0)}48%{left:calc(50% - 30px);transform:skewX(-8deg) translateY(-3px)}100%{left:calc(100% + 90px);transform:skewX(-8deg) translateY(0)}}
-@keyframes cart-run-catch{0%{transform:translateY(-42px) rotate(-12deg);opacity:0}55%{transform:translateY(5px) rotate(8deg);opacity:1}72%{transform:translateY(-3px) rotate(-3deg)}100%{transform:translateY(11px) rotate(0);opacity:0}}
-@keyframes cart-run-label{0%{opacity:0;transform:translate(-50%,8px)}25%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-5px)}}
+/* Cart Run — carrinho de entrega redesenhado, captura a caixa e dispara. */
+.cart-run-scene{position:fixed;z-index:99999;left:0;right:0;bottom:clamp(24px,9vh,78px);height:112px;pointer-events:none;overflow:hidden;isolation:isolate}
+.cart-run-scene:before{content:"";position:absolute;left:0;right:0;bottom:12px;height:2px;background:linear-gradient(90deg,transparent,#8f202833 18%,#8f202855 50%,#8f202833 82%,transparent);transform:scaleX(.15);transform-origin:center;animation:cart-run-track 2.15s ease-out both}
+.cart-run-cart{position:absolute;z-index:2;left:-112px;bottom:21px;width:82px;height:39px;border:0;border-radius:8px 7px 5px 5px;background:linear-gradient(155deg,#b9343b 0%,#8f2028 70%);box-shadow:0 8px 15px #321b1630, inset 0 2px 0 #ffffff42;animation:cart-run-drive 2.15s cubic-bezier(.2,.75,.2,1) both}
+.cart-run-cart:before{content:"";position:absolute;left:-15px;top:-18px;width:17px;height:27px;border:4px solid #8f2028;border-right:0;border-bottom:0;border-radius:12px 0 0 0;transform:skewY(-8deg)}
+.cart-run-cart:after{content:"";position:absolute;left:8px;right:8px;top:7px;height:22px;border-radius:4px 4px 7px 7px;background:linear-gradient(180deg,#f9ebc2 0%,#f2dca6 100%);box-shadow:inset 0 2px 0 #fff9e8,0 2px 3px #50101626}
+.cart-run-cart i,.cart-run-cart b{position:absolute;z-index:3;bottom:-10px;width:17px;height:17px;border:4px solid #38231e;border-radius:50%;background:radial-gradient(circle at 50% 45%,#fff8e9 0 25%,#d7bfa0 28% 48%,#38231e 52%);box-shadow:0 2px 3px #321b1633}
+.cart-run-cart i{left:11px}.cart-run-cart b{right:10px}
+.cart-run-box{position:absolute;z-index:3;left:50%;bottom:78px;width:25px;height:25px;margin-left:-12px;border:1.5px solid #a66c12;border-radius:4px;background:linear-gradient(135deg,#fff0c7 0 44%,#e8b95e 45% 54%,#f5d6a0 55%);box-shadow:0 5px 12px #321b1630;transform-origin:50% 100%;animation:cart-run-catch 2.15s cubic-bezier(.2,.75,.2,1) both}
+.cart-run-box:before{content:"";position:absolute;left:9px;top:0;width:5px;height:100%;background:#fff8e6b8}
+.cart-run-box:after{content:"";position:absolute;left:0;right:0;top:6px;height:4px;background:#fff8e6b8}
+.cart-run-label{position:absolute;z-index:4;left:50%;bottom:0;transform:translateX(-50%);font:800 10px/1 system-ui,sans-serif;letter-spacing:.09em;color:#8f2028;background:#fffaf2;border:1px solid #e9c987;border-radius:999px;padding:7px 12px;box-shadow:0 4px 12px #321b1618;opacity:0;animation:cart-run-label 2.15s ease both}
+@keyframes cart-run-drive{0%{left:-112px;transform:translateY(0) rotate(-1deg)}17%{left:calc(50% - 41px);transform:translateY(-2px) rotate(0)}24%{left:calc(50% - 41px);transform:translateY(1px) rotate(1deg)}31%,58%{left:calc(50% - 41px);transform:translateY(0) rotate(0)}66%{left:calc(50% - 41px);transform:translateY(-5px) rotate(-2deg)}100%{left:calc(100% + 120px);transform:translateY(0) rotate(2deg)}}
+@keyframes cart-run-catch{0%,14%{opacity:0;transform:translate(-8px,-32px) rotate(-18deg) scale(.8)}25%{opacity:1;transform:translate(-5px,-14px) rotate(12deg) scale(1.05)}38%{opacity:1;transform:translate(0,5px) rotate(-7deg) scale(.94)}46%,60%{opacity:1;transform:translate(0,23px) rotate(0) scale(1)}68%{opacity:1;transform:translate(0,23px) rotate(0) scale(1)}100%{opacity:1;transform:translate(120vw,23px) rotate(0) scale(1)}}
+@keyframes cart-run-label{0%,22%{opacity:0;transform:translate(-50%,8px) scale(.9)}30%,61%{opacity:1;transform:translate(-50%,0) scale(1)}72%,100%{opacity:0;transform:translate(-50%,-7px) scale(.96)}}
+@keyframes cart-run-track{0%,12%{opacity:0;transform:scaleX(.1)}28%,64%{opacity:1;transform:scaleX(1)}100%{opacity:0;transform:scaleX(.15)}}
+@media(prefers-reduced-motion:reduce){.cart-run-scene{display:none}}
 .admin-brand-mark{display:grid;place-items:center;overflow:hidden;background:transparent!important;border:0!important}
 .admin-brand-mark img{display:block;width:32px;height:32px;object-fit:contain}
 @media(prefers-reduced-motion:reduce){.cart-run-scene{display:none}}
