@@ -891,7 +891,7 @@ export default async function handler(req, res) {
       throw fail('Rota do worker não encontrada.',404);
     }
     if(method==='POST'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
-      requireAdmin();
+      requireAdmin(req);
       await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT id,image_url FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
@@ -905,7 +905,7 @@ export default async function handler(req, res) {
       return json(res,202,{ok:true,jobId,status:'queued',message:'Solicitação adicionada à fila. O worker precisa estar ligado para processar.'});
     }
     if(method==='GET'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
-      requireAdmin();
+      requireAdmin(req);
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT model_3d_url AS \"modelUrl\",model_3d_status AS status FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
       if(!product) throw fail('Produto não encontrado.',404);
