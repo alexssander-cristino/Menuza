@@ -2011,8 +2011,8 @@ function handleClick(event){
   if(target.dataset.action==='mobile-site-menu-go'){
     const destination=target.dataset.destination;
     closeMobileSiteMenu();
-    if(destination==='account'){location.hash='conta';showCustomerAccount();return}
-    if(destination==='restaurant'){location.hash='admin';showAdmin();return}
+    if(destination==='account'){if(location.hash==='#conta')showCustomerAccount();else location.hash='conta';return}
+    if(destination==='restaurant'){if(location.hash==='#admin')showAdmin();else location.hash='admin';return}
     showHome();
     if(destination==='popular'){
       root.getElementById('favoritos')?.scrollIntoView({behavior:'smooth',block:'start'});return;
