@@ -230,7 +230,7 @@ function cardMarkup(product) {
   const promotion=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined;
   const scheduledPromotion=!promotion&&product.promotion?.active===true;
   const footerLabel = isDrink ? 'Bebida' : '<span>'+uiIcon('clock',14)+'</span> '+Number(product.prepMinutes||25)+' min';
-  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productPhotoOrArt(product,defaultIngredients(product,app.catalog),{},'product-photo-card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':scheduledPromotion?'<span class="promotion-badge promotion-scheduled-badge">PROGRAMADA</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
+  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productPhotoOrArt(product,defaultIngredients(product,app.catalog),{},'product-photo-card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':scheduledPromotion?'<span class="promotion-badge promotion-scheduled-badge">PROGRAMADA</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+(product.model3dUrl?'<button class="product-model-3d-button" type="button" data-action="customer-generated-3d" data-product="\'+esc(product.id)+'" aria-label="Visualizar modelo 3D de \'+esc(product.name)+'">Ver modelo 3D</button>':'')+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -1780,7 +1780,18 @@ function closeAdminRecipe3D(){
   app.admin.recipePreview=null;
   root.getElementById('adminRecipe3dPreview')?.remove();
 }
- function openAdminGenerated3D(productId){
+ function openCustomerGenerated3D(productId){
+  const product=app.catalog?.products?.find(item=>item.id===productId);
+  if(!product?.model3dUrl){toast('O modelo 3D deste produto ainda não está disponível.');return;}
+  root.getElementById('customerGenerated3dPreview')?.remove();
+  const overlay=root.createElement('div');
+  overlay.id='customerGenerated3dPreview';
+  overlay.className='modal-backdrop customer-generated-3d-backdrop';
+  overlay.innerHTML='<section class="admin-generated-3d-modal customer-generated-3d-modal" role="dialog" aria-modal="true" aria-label="Modelo 3D de '+esc(product.name)+'"><header><div><strong>'+esc(product.name)+'</strong><small>Visualize o produto em 3D antes de fazer seu pedido</small></div><button type="button" data-action="close-customer-generated-3d" aria-label="Fechar modelo 3D">×</button></header><div class="admin-generated-3d-stage"><model-viewer class="admin-generated-3d-viewer" src="'+esc(product.model3dUrl)+'" alt="Modelo 3D de '+esc(product.name)+'" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ar></model-viewer></div><p>Arraste para girar, aproxime com os dedos ou abra em realidade aumentada</p></section>';
+  root.body.append(overlay);
+}
+function closeCustomerGenerated3D(){root.getElementById('customerGenerated3dPreview')?.remove();}
+function openAdminGenerated3D(productId){
    const product=app.admin.recipePreviewCatalog?.products?.find(item=>item.id===productId);
    if(!product?.model3dUrl){toast('Este produto ainda não possui um modelo TripoSR publicado.');return;}
    root.getElementById('adminGenerated3dPreview')?.remove();
@@ -2057,6 +2068,8 @@ function handleClick(event){
   }
   if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
   if(action==='admin-recipe-3d'){openAdminRecipe3D(target.dataset.productId);return}
+   if(action==='customer-generated-3d'){openCustomerGenerated3D(target.dataset.product);return}
+   if(action==='close-customer-generated-3d'){closeCustomerGenerated3D();return}
    if(action==='admin-generated-3d'){openAdminGenerated3D(target.dataset.id);return}
    if(action==='close-admin-generated-3d'){closeAdminGenerated3D();return}
   if(action==='close-admin-recipe-3d'){closeAdminRecipe3D();return}
