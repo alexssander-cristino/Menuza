@@ -267,7 +267,7 @@ function cardMarkup(product) {
   const promotion=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined;
   const scheduledPromotion=!promotion&&product.promotion?.active===true;
   const footerLabel = isDrink ? 'Bebida' : '<span>'+uiIcon('clock',14)+'</span> '+Number(product.prepMinutes||25)+' min';
-  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':scheduledPromotion?'<span class="promotion-badge promotion-scheduled-badge">PROGRAMADA</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
+  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -308,10 +308,10 @@ function renderPromotionsTab(){
     grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';
     return;
   }
-  const offers=app.catalog.products.filter(product=>Number(product.active)!==0&&(
-    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined ||
-    product.promotion?.active===true
-  ));
+  // Só considera ofertas cujo preço promocional está válido hoje (fuso de Brasília).
+  const offers=app.catalog.products.filter(product=>Number(product.active)!==0&&
+    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined
+  );
   section.hidden=false;
   if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta cadastrada':'ofertas cadastradas');
   if(!offers.length){
@@ -370,11 +370,12 @@ function startPromotionCarousel(carousel){
 }
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
-  const bannerEnabled=Boolean(data?.active&&data.image);
-  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&(
-    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined||product.promotion?.active===true
-  ));
-  if(!bannerEnabled&&!offers.length){stopPromotionCarousel();existing?.remove();return}
+  // Promoções programadas só entram no banner no dia selecionado.
+  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&
+    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined
+  );
+  const bannerEnabled=Boolean(data?.active&&data.image&&offers.length);
+  if(!offers.length){stopPromotionCarousel();existing?.remove();return}
   const slides=[];
   if(bannerEnabled){
     slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+esc(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
@@ -393,7 +394,7 @@ function renderPromotionBanner(){
   if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
   if(existing&&home.contains(existing))existing.outerHTML=html;
   else{existing?.remove();home.insertAdjacentHTML('afterbegin',html)}
-  startPromotionCarousel(root.getElementById('promotionBanner'));
+  // O banner permanece estático; a navegação manual continua disponível quando há várias ofertas.
 }
 function renderRecentProducts(){
   const section=root.getElementById('recentProductsSection');
