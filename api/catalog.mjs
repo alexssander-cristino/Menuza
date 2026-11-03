@@ -69,7 +69,7 @@ export default async function handler(request, response) {
         ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
-        images: images.filter(url => typeof url === 'string' && url.startsWith('data:image/jpeg;base64,')).slice(0, 8),
+        images: images.filter(url => typeof url === 'string' && /^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0, 8),
         promotion: promotion ? {
           id: promotion.id,
           discountType: promotion.discount_type,
