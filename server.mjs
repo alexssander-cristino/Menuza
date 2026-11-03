@@ -576,7 +576,10 @@ function patchProduct(productId, patch) {
   const imageUrl = images === null ? (patch.imageUrl === undefined ? product.image_url : String(patch.imageUrl||'')) : (images[0]||'');
   if (imageUrl && !/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, imageUrl, JSON.stringify(images===null?(product.product_images_json?JSON.parse(product.product_images_json):imageUrl?[imageUrl]:[]):images), new Date().toISOString(), productId, RESTAURANT_ID);
+  let currentImages=[];try{currentImages=JSON.parse(product.product_images_json||'[]')}catch{}
+  if(!Array.isArray(currentImages))currentImages=[];
+  const savedImages=images===null?(currentImages.length?currentImages:(imageUrl?[imageUrl]:[])):images;
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, imageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
