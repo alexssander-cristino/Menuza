@@ -1,5 +1,6 @@
 import { query } from '../src/db/postgres.mjs';
 import { CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
+import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
 
@@ -54,7 +55,7 @@ export default async function handler(request, response) {
       query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID])
     ]);
 
-    const products = productResult.rows.map(product => {
+    const products = await Promise.all(productResult.rows.map(async product => {
       let ingredientIds = [];
       let defaultIngredientIds = [];
       let images = [];
@@ -62,14 +63,19 @@ export default async function handler(request, response) {
       try { defaultIngredientIds = JSON.parse(product.defaultIngredientIdsJson || '[]'); } catch {}
       try { images = JSON.parse(product.productImagesJson || '[]'); } catch {}
       if (!Array.isArray(images) || !images.length) images = product.imageUrl ? [product.imageUrl] : [];
+      images = images.filter(value => isImageDataUrl(value) || isStoredImageUrl(value)).slice(0, 8);
+      const storedImages = await migrateImageReferences(images, 'products/' + product.id);
+      const imageUrl = storedImages[0] || '';
+      if (imageUrl !== product.imageUrl || JSON.stringify(storedImages) !== JSON.stringify(images)) await query('UPDATE products SET image_url=$1,product_images_json=$2 WHERE id=$3 AND restaurant_id=$4',[imageUrl,JSON.stringify(storedImages),product.id,RESTAURANT_ID]);
       const promotion = promotionResult.rows.find(item => item.product_id === product.id) || null;
       const promotionalPriceCents = promotionPrice(product, promotion);
       return {
         ...product,
+        imageUrl,
+        images: storedImages,
         ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
-        images: images.filter(url => typeof url === 'string' && /^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0, 8),
         promotion: promotion ? {
           id: promotion.id,
           discountType: promotion.discount_type,
@@ -81,7 +87,13 @@ export default async function handler(request, response) {
         } : null,
         promotionalPriceCents
       };
-    });
+    }));
+
+    const restaurant = restaurantResult.rows[0] || null;
+    if (restaurant && isImageDataUrl(restaurant.logoUrl)) {
+      restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos');
+      await query('UPDATE restaurants SET logo_url=$1 WHERE id=$2',[restaurant.logoUrl,RESTAURANT_ID]);
+    }
 
     const ingredients = ingredientResult.rows.map(row => ({
       ...row,
@@ -114,7 +126,7 @@ export default async function handler(request, response) {
     });
 
     return response.status(200).json({
-      restaurant: restaurantResult.rows[0] || null,
+      restaurant,
       categories: categoryResult.rows,
       products,
       ingredients,
