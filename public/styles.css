@@ -2255,3 +2255,15 @@ button[data-action="view-generated-3d"],
   body.admin-route:has(.admin-shell-v2.mobile-nav-open) .mobile-menu-button span:last-child{transform:translateY(-6px) rotate(-45deg)}
   body.admin-route .mobile-menu-button span{transition:transform .22s ease,opacity .18s ease}
 }
+
+
+/* Ícone animado do alerta sonoro de novos pedidos */
+.order-sound-toggle{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.order-sound-icon{display:block;flex:0 0 20px;overflow:visible}
+.order-sound-icon .sound-wave{opacity:0;stroke-dasharray:24;stroke-dashoffset:24;transition:opacity .22s ease,stroke-dashoffset .32s ease}
+.order-sound-toggle[aria-pressed="true"] .sound-wave{opacity:1;stroke-dashoffset:0}
+.order-sound-icon .sound-wave-two{transition-delay:.08s}
+.order-sound-icon .sound-mute{opacity:1;stroke-dasharray:20;stroke-dashoffset:0;transition:opacity .2s ease,stroke-dashoffset .28s ease}
+.order-sound-toggle[aria-pressed="true"] .sound-mute{opacity:0;stroke-dashoffset:20}
+.order-sound-toggle[aria-pressed="false"] .sound-wave{opacity:0;stroke-dashoffset:24}
+@media(prefers-reduced-motion:reduce){.order-sound-icon *{transition:none!important}}
