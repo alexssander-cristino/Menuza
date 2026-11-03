@@ -21,7 +21,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '90';
+const MENUZA_APP_BUILD = '91';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -196,16 +196,23 @@ function ingredientDescription(product, ids = product.defaultIngredientIds || []
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
 const plateArt = (seed, ingredients) => plateArtSvg(seed, ingredients || []);
-async function productPhotoData(file) {
-  if (!file) return '';
-  if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Escolha uma foto PNG, JPG ou WebP de até 8 MB.');
-  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Não foi possível ler a foto.'));reader.readAsDataURL(file)});
-  const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('A foto selecionada não é válida.'));img.src=source});
-  const scale=Math.min(1,900/Math.max(image.naturalWidth,image.naturalHeight));
+async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
+  if(!file)return '';
+  if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
+  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file)});
+  const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('A imagem selecionada não é válida.'));img.src=source});
+  const scale=Math.min(1,maxDimension/Math.max(image.naturalWidth,image.naturalHeight));
   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-  const context=canvas.getContext('2d');if(!context)throw new Error('Não foi possível preparar a foto.');
-  context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
-  const result=canvas.toDataURL('image/jpeg',0.62);if(result.length>240000)throw new Error('A foto ficou muito grande mesmo após a compressão. Escolha outra imagem.');return result;
+  const context=canvas.getContext('2d');if(!context)throw new Error('Não foi possível preparar a imagem.');
+  if(background){context.fillStyle=background;context.fillRect(0,0,canvas.width,canvas.height)}
+  context.drawImage(image,0,0,canvas.width,canvas.height);
+  const result=canvas.toDataURL('image/webp',quality);
+  if(!result.startsWith('data:image/webp;base64,'))throw new Error('Este navegador não conseguiu converter a imagem para WebP. Atualize o navegador e tente novamente.');
+  if(result.length>maxBytes)throw new Error('A imagem ficou grande mesmo após a compressão WebP. Escolha uma imagem menor.');
+  return result;
+}
+async function productPhotoData(file){
+  return imageFileToWebp(file,{maxDimension:1200,quality:0.82,maxBytes:240000,background:'#fff'});
 }
 function productSvg(product, ingredients, opts = {}) {
   if (product.type === 'pizza') return pizzaArt(ingredients || defaultIngredients(product, app.catalog), product.id);
@@ -1576,7 +1583,7 @@ async function renderSettingsAdmin(){
           <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('sparkles',20)}</span></div>
           <form id="restaurantSettingsForm" class="settings-form">
             <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
-            <div class="form-field logo-upload-field"><span>Logo do restaurante</span><div class="logo-upload-control"><label class="logo-upload-button" for="restaurantLogoFile"><span aria-hidden="true">${uiIcon('arrow',16)}</span> Escolher imagem</label><input id="restaurantLogoFile" name="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="logo-upload-preview" id="restaurantLogoPreview">${initialLogoUrl ? `<img src="${esc(initialLogoUrl)}" alt="Prévia da logo atual">` : '<span>Logo</span>'}</div></div><small class="field-hint">Envie PNG, JPG ou WebP de até 1 MB. A logo será salva no sistema, sem precisar de link externo.</small><label class="logo-remove-option"><input type="checkbox" name="removeLogo" id="restaurantLogoRemove"><span>Remover logo e usar as iniciais do restaurante</span></label></div>
+            <div class="form-field logo-upload-field"><span>Logo do restaurante</span><div class="logo-upload-control"><label class="logo-upload-button" for="restaurantLogoFile"><span aria-hidden="true">${uiIcon('arrow',16)}</span> Escolher imagem</label><input id="restaurantLogoFile" name="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="logo-upload-preview" id="restaurantLogoPreview">${initialLogoUrl ? `<img src="${esc(initialLogoUrl)}" alt="Prévia da logo atual">` : '<span>Logo</span>'}</div></div><small class="field-hint">Envie PNG, JPG ou WebP de até 8 MB. A imagem será comprimida e salva automaticamente em WebP, preservando a transparência.</small><label class="logo-remove-option"><input type="checkbox" name="removeLogo" id="restaurantLogoRemove"><span>Remover logo e usar as iniciais do restaurante</span></label></div>
             <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
             <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
             <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
@@ -1685,25 +1692,23 @@ async function renderSettingsAdmin(){
       root.getElementById('settingsError').textContent='';
     };
     form.addEventListener('input',setDirty);
-    logoFileInput.addEventListener('change',()=>{
+    logoFileInput.addEventListener('change',async()=>{
       selectedLogoData='';
-      const file=logoFileInput.files?.[0];
+      const file=logoFileInput.files?.[0],error=root.getElementById('settingsError');
       if(!file){logoPreview.innerHTML=initialLogoUrl?'<img src="'+esc(initialLogoUrl)+'" alt="Prévia da logo atual">':'<span>Logo</span>';setDirty();return}
-      if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1024*1024){
-        root.getElementById('settingsError').textContent='Escolha PNG, JPG ou WebP com até 1 MB.';
-        logoFileInput.value='';
-        return;
-      }
-      const reader=new FileReader();
-      reader.onload=()=>{
-        selectedLogoData=String(reader.result||'');
+      try{
+        error.textContent='Comprimindo logo em WebP…';
+        selectedLogoData=await imageFileToWebp(file,{maxDimension:1000,quality:0.84,maxBytes:900*1024,background:null});
         logoPreview.innerHTML='<img alt="Prévia da nova logo">';
         logoPreview.querySelector('img').src=selectedLogoData;
         removeLogoInput.checked=false;
+        error.textContent='';
         setDirty();
-      };
-      reader.onerror=()=>{root.getElementById('settingsError').textContent='Não foi possível ler essa imagem. Tente outro arquivo.'};
-      reader.readAsDataURL(file);
+      }catch(e){
+        error.textContent=e.message||'Não foi possível preparar a logo.';
+        logoFileInput.value='';
+        selectedLogoData='';
+      }
     });
     removeLogoInput.addEventListener('change',()=>{
       if(removeLogoInput.checked){logoFileInput.value='';selectedLogoData='';logoPreview.innerHTML='<span>Logo</span>'}
