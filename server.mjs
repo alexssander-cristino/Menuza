@@ -38,7 +38,14 @@ await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
-try { db.exec("ALTER TABLE restaurants ADD COLUMN logo_url TEXT NOT NULL DEFAULT ''"); }
+for (const [table, column, definition] of [
+  ['restaurants','logo_url',"TEXT NOT NULL DEFAULT ''"],
+  ['products','image_url',"TEXT NOT NULL DEFAULT ''"],
+  ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"]
+]) {
+  try { db.exec('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition); }
+  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+}
 catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
@@ -104,7 +111,11 @@ function seedDatabase() {
 const statement = sql => db.prepare(sql);
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId);
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
+    let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
+    if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
+    return {...product,images:images.filter(url=>typeof url==='string'&&/^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0,8)};
+  });
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
   const ingredients = ingredientRows.map(row => ({ ...row, included: row.included === 1, visual: INGREDIENTS.find(i => i.id === row.id)?.visual || 'herb' }));
@@ -547,6 +558,12 @@ function dashboard() {
 function listOrders() {
   return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
 }
+function validateProductImages(images) {
+  if (!Array.isArray(images) || images.length > 8 || images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) || images.reduce((sum,url)=>sum+url.length,0)>1950000) {
+    throw Object.assign(new Error('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.'), { status: 422 });
+  }
+  return images;
+}
 function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
@@ -555,8 +572,11 @@ function patchProduct(productId, patch) {
   const price = patch.baseCents === undefined ? product.base_price_cents : Number(patch.baseCents);
   const active = patch.active === undefined ? product.active : (patch.active ? 1 : 0);
   const available = patch.available === undefined ? product.available : (patch.available ? 1 : 0);
+  const images = patch.images === undefined ? null : validateProductImages(patch.images);
+  const imageUrl = images === null ? (patch.imageUrl === undefined ? product.image_url : String(patch.imageUrl||'')) : (images[0]||'');
+  if (imageUrl && !/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, new Date().toISOString(), productId, RESTAURANT_ID);
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, imageUrl, JSON.stringify(images===null?(product.product_images_json?JSON.parse(product.product_images_json):imageUrl?[imageUrl]:[]):images), new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
@@ -592,13 +612,16 @@ function createProduct(payload) {
   const type = payload.type;
   const categoryId = cleanText(payload.categoryId, 50);
   const baseCents = Number(payload.baseCents);
+  const images = payload.images === undefined ? (payload.imageUrl ? [String(payload.imageUrl)] : []) : validateProductImages(payload.images);
+  const imageUrl = images[0] || '';
+  if (imageUrl && !/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
   if (name.length < 2 || !['pizza','burger','plate'].includes(type) || !Number.isInteger(baseCents) || baseCents < 500 || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
   const category = statement('SELECT id FROM categories WHERE id=? AND restaurant_id=?').get(categoryId, RESTAURANT_ID);
   if (!category) throw Object.assign(new Error('Escolha uma categoria válida.'), { status: 422 });
   const now = new Date().toISOString();
   const id = slugify(name) + '-' + randomBytes(3).toString('hex');
-  statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?, ?,?)')
-    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, now, now);
+  statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?, ?,?)')
+    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, imageUrl, JSON.stringify(images), now, now);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
@@ -835,9 +858,9 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/products/')) {
         const id = path.slice('/api/admin/products/'.length);
-        return send(response, 200, { product: patchProduct(id, await bodyOf(request)) });
+        return send(response, 200, { product: patchProduct(id, await bodyOf(request, 2_100_000)) });
       }
-      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: createProduct(await bodyOf(request)) });
+      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: createProduct(await bodyOf(request, 2_100_000)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/ingredients/')) {
         const id = path.slice('/api/admin/ingredients/'.length);
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
