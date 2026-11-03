@@ -115,7 +115,8 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
     let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
     if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
-    return {...product,images:images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8)};
+    images=images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8);
+    return {...product,productImagesJson:JSON.stringify(images),images};
   });
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
