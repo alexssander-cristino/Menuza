@@ -2,6 +2,7 @@ import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypt
 import { query, withTransaction } from '../src/db/postgres.mjs';
 import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
 import { verifyTotp } from '../src/auth-totp.mjs';
+import { imageReferenceToDataUrl, isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl, storeImageList } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -242,6 +243,15 @@ async function saveDeliveryZone(body,id=null) {
     [zoneId,RESTAURANT_ID,name,mode,fee,rate,distance,body.active===false?0:1,now]);
   return result.rows[0];
 }
+async function migrateRestaurantImageFields(restaurant) {
+  if (!restaurant) return restaurant;
+  let changed = false;
+  if (isImageDataUrl(restaurant.logoUrl)) { restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos'); changed = true; }
+  if (isImageDataUrl(restaurant.promoBannerImage)) { restaurant.promoBannerImage = await storeImageDataUrl(restaurant.promoBannerImage, 'restaurants/banners'); changed = true; }
+  if (changed) await query('UPDATE restaurants SET logo_url=$1,promo_banner_image=$2 WHERE id=$3',[restaurant.logoUrl || '',restaurant.promoBannerImage || '',RESTAURANT_ID]);
+  return restaurant;
+}
+
 async function catalogFor(admin = false) {
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
@@ -264,21 +274,29 @@ async function catalogFor(admin = false) {
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
-  const productRows = products.rows.map(product => {
+  const productRows = await Promise.all(products.rows.map(async product => {
     let ingredientIds = [], defaultIngredientIds = [], images = [];
     try { ingredientIds = JSON.parse(product.ingredientIdsJson || '[]'); } catch {}
     try { defaultIngredientIds = JSON.parse(product.defaultIngredientIdsJson || '[]'); } catch {}
     try { images = JSON.parse(product.productImagesJson || '[]'); } catch {}
     if (!Array.isArray(images) || !images.length) images = product.imageUrl ? [product.imageUrl] : [];
+    images = images.filter(value => isImageDataUrl(value) || isStoredImageUrl(value)).slice(0, 8);
+    const storedImages = await migrateImageReferences(images, 'products/' + product.id);
+    const imageUrl = storedImages[0] || '';
+    if (imageUrl !== product.imageUrl || JSON.stringify(storedImages) !== JSON.stringify(images)) {
+      await query('UPDATE products SET image_url=$1,product_images_json=$2 WHERE id=$3 AND restaurant_id=$4',[imageUrl,JSON.stringify(storedImages),product.id,RESTAURANT_ID]);
+    }
     return {
       ...product,
-      images: images.filter(url => typeof url === 'string' && /^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0, 8),
+      imageUrl,
+      images: storedImages,
       ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1
     };
-  });
+  }));
   await ensurePromoDeliverySchema();
+  const restaurantRow = await migrateRestaurantImageFields(restaurant.rows[0] || null);
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
     const promotion=promotionRows.find(p=>p.product_id===product.id);
@@ -293,7 +311,7 @@ async function catalogFor(admin = false) {
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: Number(row.active), createdAt: row.createdAt, updatedAt: row.updatedAt,
       items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents } : null; }).filter(Boolean) };
   });
-  return { restaurant: restaurant.rows[0] || null, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
+  return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
 async function validateProductIngredientIds(value, type) {
   if (!Array.isArray(value) || value.length > 40 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
@@ -577,9 +595,9 @@ export default async function handler(req, res) {
       if(orderRetry) return json(res,429,{error:'Muitos pedidos foram enviados deste endereço. Aguarde antes de tentar novamente.'},{'Retry-After':String(orderRetry)});
     }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
-    if (method==='GET'&&path==='/api/restaurant/branding') { await ensurePromoDeliverySchema(); return json(res,200,{restaurant:(await query('SELECT name,logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage",promo_banner_title AS "promoBannerTitle",promo_banner_text AS "promoBannerText",promo_banner_active AS "promoBannerActive" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null}); }
+    if (method==='GET'&&path==='/api/restaurant/branding') { await ensurePromoDeliverySchema(); const restaurant=(await query('SELECT name,logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage",promo_banner_title AS "promoBannerTitle",promo_banner_text AS "promoBannerText",promo_banner_active AS "promoBannerActive" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null; return json(res,200,{restaurant:await migrateRestaurantImageFields(restaurant)}); }
     if (method==='GET'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
-    if (method==='PATCH'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!/^https:\/\/[^\s<>"']+$/i.test(image)&&!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[image,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image,title,text:bannerText,active}}); }
+    if (method==='PATCH'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
     if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
     if (method==='GET'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,promotions:c.products.filter(p=>p.promotion).map(p=>({productId:p.id,name:p.name,...p.promotion}))}); }
@@ -720,7 +738,7 @@ export default async function handler(req, res) {
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
-      const restaurant=(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
+      const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
       if (!restaurant) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       return json(res,200,{restaurant});
     }
@@ -734,7 +752,8 @@ export default async function handler(req, res) {
       if(name.length<2||!Number.isInteger(prep)||prep<5||prep>240) throw fail('Confira o nome e o tempo médio de preparo.',422);
       if(logo&&!/^https:\/\/[^\s<>"']+$/i.test(logo)&&!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo)) throw fail('Envie uma imagem PNG, JPG ou WebP válida.',422);
       if(logo.startsWith('data:')&&logo.length>1400000) throw fail('A logo ficou grande demais.',413);
-      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3 WHERE id=$4',[name,prep,logo,RESTAURANT_ID]);
+      const storedLogo=isImageDataUrl(logo)?await storeImageDataUrl(logo,'restaurants/logos'):logo;
+      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3 WHERE id=$4',[name,prep,storedLogo,RESTAURANT_ID]);
       return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
     }
 
@@ -900,11 +919,12 @@ export default async function handler(req, res) {
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT id,image_url FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
       if(!product) throw fail('Produto não encontrado.',404);
-      if(!/^data:image\/(?:webp|jpeg);base64,/.test(String(product.image_url||''))) throw fail('Adicione uma foto WebP ao produto antes de gerar o modelo 3D.',422);
+      if(!isImageDataUrl(product.image_url)&&!isStoredImageUrl(product.image_url)) throw fail('Adicione uma foto WebP ao produto antes de gerar o modelo 3D.',422);
+      const imageData=await imageReferenceToDataUrl(product.image_url);
       const current=await query("SELECT id FROM product_3d_jobs WHERE product_id=$1 AND restaurant_id=$2 AND status IN ('queued','processing') LIMIT 1",[productId,RESTAURANT_ID]);
       if(current.rows[0]) return json(res,200,{ok:true,jobId:current.rows[0].id,status:'queued',message:'A geração já está na fila.'});
       const jobId='3d_'+randomBytes(16).toString('hex');
-      await query("INSERT INTO product_3d_jobs (id,restaurant_id,product_id,image_data,status) VALUES ($1,$2,$3,$4,'queued')",[jobId,RESTAURANT_ID,productId,product.image_url]);
+      await query("INSERT INTO product_3d_jobs (id,restaurant_id,product_id,image_data,status) VALUES ($1,$2,$3,$4,'queued')",[jobId,RESTAURANT_ID,productId,imageData]);
       await query("UPDATE products SET model_3d_status='queued' WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID]);
       return json(res,202,{ok:true,jobId,status:'queued',message:'Solicitação adicionada à fila. O worker precisa estar ligado para processar.'});
     }
@@ -918,32 +938,36 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/products') {
       const b=await bodyOf(req,2100000), name=clean(b.name,80), description=clean(b.description,300), type=b.type, categoryId=clean(b.categoryId,50), price=Number(b.baseCents);
       const images=b.images===undefined?null:b.images;
-      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
+      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url)))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
       const imageUrl=images!==null?(images[0]||''):(b.imageUrl===undefined?'':String(b.imageUrl));
-      if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl.length>245000||(imageUrl!==''&&!isImageDataUrl(imageUrl)&&!isStoredImageUrl(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       if(name.length<2||!['pizza','burger','plate','drink'].includes(type)||!Number.isInteger(price)||price<(type==='drink'?1:500)||price>1000000) throw fail('Preencha nome, tipo e preço-base válidos.',422);
       if(type==='drink'&&!imageUrl) throw fail('Cadastre uma foto para a bebida.',422);
       if(type==='drink') await ensureBeverageSchema();
       const cat=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[categoryId,RESTAURANT_ID])).rows[0]; if(!cat) throw fail('Escolha uma categoria válida.',422);
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
+      const storedImages=images!==null?await storeImageList(images,'products/'+productId):await storeImageList(imageUrl?[imageUrl]:[],'products/'+productId);
+      const storedImageUrl=storedImages[0]||'';
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
-      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5 WHERE id=$6 AND restaurant_id=$7',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,imageUrl,JSON.stringify(images!==null?images:(imageUrl?[imageUrl]:[])),productId,RESTAURANT_ID]);
+      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5 WHERE id=$6 AND restaurant_id=$7',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
       const b=await bodyOf(req,2100000), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
       const images=b.images===undefined?null:b.images;
-      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
+      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url)))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
       const imageUrl=images!==null?(images[0]||''):(b.imageUrl===undefined?null:String(b.imageUrl));
-      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!isImageDataUrl(imageUrl)&&!isStoredImageUrl(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      const storedImages=images===null?null:await storeImageList(images,'products/'+id);
+      const storedImageUrl=images===null?(imageUrl===null?null:await storeImageDataUrl(imageUrl,'products/'+id)):(storedImages[0]||'');
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
       if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
-      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,imageUrl,new Date().toISOString(),id,RESTAURANT_ID,images===null?null:JSON.stringify(images)]);
+      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages)]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
