@@ -841,7 +841,7 @@ export default async function handler(req, res) {
     if(method==='GET'&&path==='/api/admin/daily-closing'){
       requireAdmin(req);
       const date=String(requestUrl.searchParams.get('date')||'');
-      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))throw fail('Data do fechamento inválida.',422);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))throw fail('Data do fechamento inválida.',422);
       const start=date+'T03:00:00.000Z',next=new Date(Date.parse(date+'T03:00:00.000Z')+86400000).toISOString();
       const rows=await query('SELECT id,customer_name AS "customerName",phone,fulfillment,table_label AS "tableLabel",delivery_address AS "deliveryAddress",note,status,total_cents AS "totalCents",coupon_code AS "couponCode",discount_cents AS "discountCents",created_at AS "createdAt" FROM orders WHERE restaurant_id=$1 AND created_at >= $2::timestamptz AND created_at < $3::timestamptz ORDER BY created_at ASC',[RESTAURANT_ID,start,next]);
       return json(res,200,{orders:await Promise.all(rows.rows.map(async o=>({...o,items:(await orderById(o.id))?.items||[]})))});
