@@ -581,8 +581,9 @@ async function patchProduct(productId, patch) {
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
   let currentImages=[];try{currentImages=JSON.parse(product.product_images_json||'[]')}catch{}
   if(!Array.isArray(currentImages))currentImages=[];
-  const savedImages=images===null?(currentImages.length?currentImages:(imageUrl?[storedImageUrl]:[])):storedImages;
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, storedImageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
+  const savedImages=images===null?(currentImages.length?await storeImageList(currentImages,'products/'+productId):(imageUrl?[storedImageUrl]:[])):storedImages;
+  const finalImageUrl=images===null?(savedImages[0]||''):storedImageUrl;
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
