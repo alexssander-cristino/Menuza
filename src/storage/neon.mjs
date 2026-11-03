@@ -108,8 +108,16 @@ export async function storeImageList(images, prefix = 'products') {
 export async function imageReferenceToDataUrl(reference) {
   if (isImageDataUrl(reference)) return reference;
   if (!isStoredImageUrl(reference)) throw new Error('Imagem do produto inválida para geração 3D.');
-  const response = await fetch(reference);
+  const config = storageConfig();
+  const imageUrl = new URL(reference);
+  const expectedPrefix = '/' + config.bucket + '/';
+  if (imageUrl.origin !== new URL(config.endpoint).origin || !imageUrl.pathname.startsWith(expectedPrefix)) {
+    throw new Error('A foto usada na geração 3D precisa estar armazenada no bucket do Menuza.');
+  }
+  const response = await fetch(imageUrl);
   if (!response.ok) throw new Error('Não foi possível baixar a foto do produto para gerar o modelo 3D.');
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_IMAGE_BYTES) throw new Error('A foto do produto excede o limite para geração 3D.');
   const contentType = String(response.headers.get('content-type') || 'image/webp').split(';')[0].toLowerCase();
   if (!['image/webp', 'image/jpeg', 'image/png'].includes(contentType)) throw new Error('A foto armazenada não está em um formato de imagem compatível.');
   const bytes = Buffer.from(await response.arrayBuffer());
