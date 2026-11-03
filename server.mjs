@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { isImageDataUrl, isStoredImageUrl, storeImageDataUrl, storeImageList } from './src/storage/neon.mjs';
 import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -114,7 +115,7 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
     let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
     if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
-    return {...product,images:images.filter(url=>typeof url==='string'&&/^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0,8)};
+    return {...product,images:images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8)};
   });
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
@@ -559,12 +560,12 @@ function listOrders() {
   return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
 }
 function validateProductImages(images) {
-  if (!Array.isArray(images) || images.length > 8 || images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) || images.reduce((sum,url)=>sum+url.length,0)>1950000) {
+  if (!Array.isArray(images) || images.length > 8 || images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url))) || images.reduce((sum,url)=>sum+url.length,0)>1950000) {
     throw Object.assign(new Error('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.'), { status: 422 });
   }
   return images;
 }
-function patchProduct(productId, patch) {
+async function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
@@ -574,16 +575,18 @@ function patchProduct(productId, patch) {
   const available = patch.available === undefined ? product.available : (patch.available ? 1 : 0);
   const images = patch.images === undefined ? null : validateProductImages(patch.images);
   const imageUrl = images === null ? (patch.imageUrl === undefined ? product.image_url : String(patch.imageUrl||'')) : (images[0]||'');
-  if (imageUrl && !/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
+  if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
+  const storedImages = images === null ? null : await storeImageList(images, 'products/' + productId);
+  const storedImageUrl = images === null ? (imageUrl ? await storeImageDataUrl(imageUrl, 'products/' + productId) : '') : (storedImages[0] || '');
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
   let currentImages=[];try{currentImages=JSON.parse(product.product_images_json||'[]')}catch{}
   if(!Array.isArray(currentImages))currentImages=[];
-  const savedImages=images===null?(currentImages.length?currentImages:(imageUrl?[imageUrl]:[])):images;
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, imageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
+  const savedImages=images===null?(currentImages.length?currentImages:(imageUrl?[storedImageUrl]:[])):storedImages;
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, storedImageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
-function patchRestaurantSettings(patch) {
+async function patchRestaurantSettings(patch) {
   const current = statement('SELECT name,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
   if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
@@ -595,7 +598,8 @@ function patchRestaurantSettings(patch) {
   if (validUploadedLogo && logoUrl.length > MAX_LOGO_DATA_URL) throw Object.assign(new Error('A logo ficou grande demais. Escolha uma imagem de até 1 MB.'), { status: 413 });
   if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
   if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
-  statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, logoUrl, RESTAURANT_ID);
+  const storedLogo = isImageDataUrl(logoUrl) ? await storeImageDataUrl(logoUrl, 'restaurants/logos') : logoUrl;
+  statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, storedLogo, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'settings-updated' });
   return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
 }
@@ -609,7 +613,7 @@ function patchIngredient(ingredientId, patch) {
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).ingredients.find(i => i.id === ingredientId);
 }
-function createProduct(payload) {
+async function createProduct(payload) {
   const name = cleanText(payload.name, 80);
   const description = cleanText(payload.description, 300);
   const type = payload.type;
@@ -617,14 +621,16 @@ function createProduct(payload) {
   const baseCents = Number(payload.baseCents);
   const images = payload.images === undefined ? (payload.imageUrl ? [String(payload.imageUrl)] : []) : validateProductImages(payload.images);
   const imageUrl = images[0] || '';
-  if (imageUrl && !/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
+  if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
   if (name.length < 2 || !['pizza','burger','plate'].includes(type) || !Number.isInteger(baseCents) || baseCents < 500 || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
   const category = statement('SELECT id FROM categories WHERE id=? AND restaurant_id=?').get(categoryId, RESTAURANT_ID);
   if (!category) throw Object.assign(new Error('Escolha uma categoria válida.'), { status: 422 });
   const now = new Date().toISOString();
   const id = slugify(name) + '-' + randomBytes(3).toString('hex');
+  const storedImages = await storeImageList(images, 'products/' + id);
+  const storedImageUrl = storedImages[0] || '';
   statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?, ?,?)')
-    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, imageUrl, JSON.stringify(images), now, now);
+    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), now, now);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
@@ -852,7 +858,7 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
       }
       if (request.method === 'PATCH' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request, MAX_LOGO_BODY)) });
+        return send(response, 200, { restaurant: await patchRestaurantSettings(await bodyOf(request, MAX_LOGO_BODY)) });
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/orders/')) {
         const id = path.slice('/api/admin/orders/'.length);
@@ -861,9 +867,9 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/products/')) {
         const id = path.slice('/api/admin/products/'.length);
-        return send(response, 200, { product: patchProduct(id, await bodyOf(request, 2_100_000)) });
+        return send(response, 200, { product: await patchProduct(id, await bodyOf(request, 2_100_000)) });
       }
-      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: createProduct(await bodyOf(request, 2_100_000)) });
+      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: await createProduct(await bodyOf(request, 2_100_000)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/ingredients/')) {
         const id = path.slice('/api/admin/ingredients/'.length);
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
