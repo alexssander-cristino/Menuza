@@ -72,6 +72,7 @@ export default async function handler(request, response) {
       return {
         ...product,
         imageUrl,
+        productImagesJson: JSON.stringify(storedImages),
         images: storedImages,
         ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
