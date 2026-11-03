@@ -83,6 +83,7 @@ export function isStoredImageUrl(value) {
 }
 
 export async function storeImageDataUrl(dataUrl, prefix = 'products') {
+  if (dataUrl === '' || dataUrl == null) return '';
   if (!isImageDataUrl(dataUrl)) {
     if (isStoredImageUrl(dataUrl)) return dataUrl;
     throw new Error('Imagem inválida. Envie uma imagem WebP, JPG ou PNG.');
