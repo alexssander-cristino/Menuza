@@ -245,10 +245,14 @@ async function saveDeliveryZone(body,id=null) {
 }
 async function migrateRestaurantImageFields(restaurant) {
   if (!restaurant) return restaurant;
-  let changed = false;
-  if (isImageDataUrl(restaurant.logoUrl)) { restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos'); changed = true; }
-  if (isImageDataUrl(restaurant.promoBannerImage)) { restaurant.promoBannerImage = await storeImageDataUrl(restaurant.promoBannerImage, 'restaurants/banners'); changed = true; }
-  if (changed) await query('UPDATE restaurants SET logo_url=$1,promo_banner_image=$2 WHERE id=$3',[restaurant.logoUrl || '',restaurant.promoBannerImage || '',RESTAURANT_ID]);
+  if (isImageDataUrl(restaurant.logoUrl)) {
+    restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos');
+    await query('UPDATE restaurants SET logo_url=$1 WHERE id=$2',[restaurant.logoUrl,RESTAURANT_ID]);
+  }
+  if (isImageDataUrl(restaurant.promoBannerImage)) {
+    restaurant.promoBannerImage = await storeImageDataUrl(restaurant.promoBannerImage, 'restaurants/banners');
+    await query('UPDATE restaurants SET promo_banner_image=$1 WHERE id=$2',[restaurant.promoBannerImage,RESTAURANT_ID]);
+  }
   return restaurant;
 }
 
