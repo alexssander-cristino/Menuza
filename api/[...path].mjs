@@ -844,7 +844,12 @@ export default async function handler(req, res) {
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))throw fail('Data do fechamento inválida.',422);
       const start=date+'T03:00:00.000Z',next=new Date(Date.parse(date+'T03:00:00.000Z')+86400000).toISOString();
       const rows=await query('SELECT id,customer_name AS "customerName",phone,fulfillment,table_label AS "tableLabel",delivery_address AS "deliveryAddress",note,status,total_cents AS "totalCents",coupon_code AS "couponCode",discount_cents AS "discountCents",created_at AS "createdAt" FROM orders WHERE restaurant_id=$1 AND created_at >= $2::timestamptz AND created_at < $3::timestamptz ORDER BY created_at ASC',[RESTAURANT_ID,start,next]);
-      return json(res,200,{orders:await Promise.all(rows.rows.map(async o=>({...o,items:(await orderById(o.id))?.items||[]})))});
+      const orders=await Promise.all(rows.rows.map(async o=>{
+        const itemRows=await query('SELECT product_id AS "productId",product_name_snapshot AS name,quantity,size_key AS "sizeKey",crust_key AS "crustKey",ingredients_json AS "ingredientsJson",notes,unit_price_cents AS "unitPriceCents",snapshot_json AS "snapshotJson" FROM order_items WHERE order_id=$1 ORDER BY id',[o.id]);
+        const items=itemRows.rows.map(i=>{let ingredients=[],snapshot={};try{ingredients=JSON.parse(i.ingredientsJson||'[]')}catch{}try{snapshot=JSON.parse(i.snapshotJson||'{}')}catch{}return {productId:i.productId,name:i.name,quantity:i.quantity,sizeKey:i.sizeKey,crustKey:i.crustKey,ingredients,notes:i.notes,unitPriceCents:i.unitPriceCents,snapshot}});
+        return {...o,items};
+      }));
+      return json(res,200,{orders});
     }
     if (method==='GET'&&path==='/api/admin/orders') {
       const rows=await query("SELECT id,customer_name AS \"customerName\",phone,fulfillment,table_label AS \"tableLabel\",delivery_address AS \"deliveryAddress\",note,status,total_cents AS \"totalCents\",coupon_code AS \"couponCode\",discount_cents AS \"discountCents\",created_at AS \"createdAt\" FROM orders WHERE restaurant_id=$1 ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100",[RESTAURANT_ID]);
