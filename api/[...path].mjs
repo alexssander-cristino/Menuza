@@ -743,7 +743,7 @@ export default async function handler(req, res) {
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
-      const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
+      const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
       if (!restaurant) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       return json(res,200,{restaurant});
     }
