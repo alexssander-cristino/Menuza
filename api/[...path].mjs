@@ -272,7 +272,7 @@ async function catalogFor(admin = false) {
     if (!Array.isArray(images) || !images.length) images = product.imageUrl ? [product.imageUrl] : [];
     return {
       ...product,
-      images: images.filter(url => typeof url === 'string' && url.startsWith('data:image/jpeg;base64,')).slice(0, 8),
+      images: images.filter(url => typeof url === 'string' && /^data:image\/(?:webp|jpeg);base64,/.test(url)).slice(0, 8),
       ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1
@@ -900,7 +900,7 @@ export default async function handler(req, res) {
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT id,image_url FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
       if(!product) throw fail('Produto não encontrado.',404);
-      if(!String(product.image_url||'').startsWith('data:image/jpeg;base64,')) throw fail('Adicione uma foto JPG ao produto antes de gerar o modelo 3D.',422);
+      if(!/^data:image\/(?:webp|jpeg);base64,/.test(String(product.image_url||''))) throw fail('Adicione uma foto WebP ao produto antes de gerar o modelo 3D.',422);
       const current=await query("SELECT id FROM product_3d_jobs WHERE product_id=$1 AND restaurant_id=$2 AND status IN ('queued','processing') LIMIT 1",[productId,RESTAURANT_ID]);
       if(current.rows[0]) return json(res,200,{ok:true,jobId:current.rows[0].id,status:'queued',message:'A geração já está na fila.'});
       const jobId='3d_'+randomBytes(16).toString('hex');
@@ -918,9 +918,9 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/products') {
       const b=await bodyOf(req,2100000), name=clean(b.name,80), description=clean(b.description,300), type=b.type, categoryId=clean(b.categoryId,50), price=Number(b.baseCents);
       const images=b.images===undefined?null:b.images;
-      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos JPG válidas, com tamanho total reduzido.',422);
+      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
       const imageUrl=images!==null?(images[0]||''):(b.imageUrl===undefined?'':String(b.imageUrl));
-      if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       if(name.length<2||!['pizza','burger','plate','drink'].includes(type)||!Number.isInteger(price)||price<(type==='drink'?1:500)||price>1000000) throw fail('Preencha nome, tipo e preço-base válidos.',422);
       if(type==='drink'&&!imageUrl) throw fail('Cadastre uma foto para a bebida.',422);
       if(type==='drink') await ensureBeverageSchema();
@@ -935,9 +935,9 @@ export default async function handler(req, res) {
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
       const b=await bodyOf(req,2100000), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
       const images=b.images===undefined?null:b.images;
-      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos JPG válidas, com tamanho total reduzido.',422);
+      if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(url))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
       const imageUrl=images!==null?(images[0]||''):(b.imageUrl===undefined?null:String(b.imageUrl));
-      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
+      if(imageUrl!==null&&(imageUrl.length>245000||(imageUrl!==''&&!/^data:image\/(?:webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)))) throw fail('Foto inválida ou muito grande. Escolha outra imagem.',422);
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
