@@ -826,6 +826,14 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST' && path === '/api/admin/combos') return send(response, 201, { combo: saveCombo(await bodyOf(request)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/combos/')) return send(response, 200, { combo: saveCombo(await bodyOf(request), path.slice('/api/admin/combos/'.length)) });
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
+      if (request.method === 'GET' && path === '/api/admin/daily-closing') {
+        requireAdmin(request);
+        const date=String(url.searchParams.get('date')||'');
+        if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))return send(response,422,{error:'Data do fechamento inválida.'});
+        const start=date+'T03:00:00.000Z',next=new Date(Date.parse(start)+86400000).toISOString();
+        const orders=statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? AND created_at>=? AND created_at<? ORDER BY created_at ASC").all(RESTAURANT_ID,start,next).map(order=>({...order,items:orderById(order.id).items}));
+        return send(response,200,{orders});
+      }
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/tables') {
         requireAdmin(request);
