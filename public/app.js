@@ -394,7 +394,8 @@ function renderPromotionBanner(){
   if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
   if(existing&&home.contains(existing))existing.outerHTML=html;
   else{existing?.remove();home.insertAdjacentHTML('afterbegin',html)}
-  // O banner permanece estático; a navegação manual continua disponível quando há várias ofertas.
+  // Só inicia a rotação quando existe ao menos uma promoção válida hoje.
+  startPromotionCarousel(root.getElementById('promotionBanner'));
 }
 function renderRecentProducts(){
   const section=root.getElementById('recentProductsSection');
