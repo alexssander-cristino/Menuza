@@ -1012,9 +1012,8 @@ function exportDailyClosingPdf(){
  const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
  const modes={delivery:'Entrega',pickup:'Retirada',table:'Mesa'};
  const rows=orders.map(o=>['#'+o.id,new Date(o.createdAt).toLocaleString('pt-BR'),o.customerName||'—',o.phone||'—',modes[o.fulfillment]||o.fulfillment,o.tableLabel||'—',(o.items||[]).map(i=>i.quantity+'× '+i.name).join(' · '),statusLabels[o.status]||o.status,money(o.totalCents)]);
- const byMode=summary.modes.map(m=>[m.label,m.orders.length,money(m.orders.reduce((sum,o)=>sum+Number(o.totalCents||0),0))]);
- openPdfReport('Fechamento diário','Data: '+new Date(summary.localDate+'T12:00:00').toLocaleDateString('pt-BR'),[['Pedidos registrados',orders.length],['Pedidos válidos',summary.validCount],['Faturamento',money(summary.total)],['Ticket médio',money(summary.average)],['Cancelados',summary.cancelled]],['Pedido','Data e hora','Cliente','Telefone','Modalidade','Mesa','Itens','Status','Total'],rows,win);
- if(win&&byMode.length){setTimeout(()=>{try{const doc=win.document,section=doc.createElement('section');section.innerHTML='<h2>Resumo por modalidade</h2><table><thead><tr><th>Modalidade</th><th>Pedidos</th><th>Total</th></tr></thead><tbody>'+byMode.map(r=>'<tr>'+r.map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';doc.body.appendChild(section)}catch{}},0)}
+ const modeSummary=summary.modes.flatMap(m=>[[m.label+' · pedidos',m.orders.length],[m.label+' · total',money(m.orders.reduce((sum,o)=>sum+Number(o.totalCents||0),0))]]);
+ openPdfReport('Fechamento diário','Data: '+new Date(summary.localDate+'T12:00:00').toLocaleDateString('pt-BR'),[['Pedidos registrados',orders.length],['Pedidos válidos',summary.validCount],['Faturamento',money(summary.total)],['Ticket médio',money(summary.average)],['Cancelados',summary.cancelled],...modeSummary],['Pedido','Data e hora','Cliente','Telefone','Modalidade','Mesa','Itens','Status','Total'],rows,win);
  toast('Fechamento diário pronto para salvar em PDF.');
 }
 function renderAdmin(){
