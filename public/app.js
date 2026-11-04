@@ -267,7 +267,7 @@ function cardMarkup(product) {
   const promotion=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined;
   const scheduledPromotion=!promotion&&product.promotion?.active===true;
   const footerLabel = isDrink ? 'Bebida' : '<span>'+uiIcon('clock',14)+'</span> '+Number(product.prepMinutes||25)+' min';
-  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':'')+(product.ageRestricted?'<span class="age-restricted-badge">18+</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
+  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">OFERTA</span>':'')+(product.ageRestricted?'<span class="age-restricted-badge" style="position:absolute;top:12px;left:12px;background:#7f1d1d;color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800">18+</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':actionLabel)+'</button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -568,17 +568,19 @@ function syncSceneUi(artMode) {
   setStageState(scene.state);
 }
 function invalidateCheckoutKey(){ app.checkoutKey=''; }
-function addBeverageToCart(productId) {
+async function addBeverageToCart(productId) {
   const product=app.catalog?.products.find(item=>item.id===productId);
   if(!product||product.type!=='drink')return;
   if(Number(product.active)===0||Number(product.available)===0)return toast('Essa bebida está indisponível no momento.');
+  if(!(await ensureAgeForProduct(product)))return;
   rememberRecentProduct(productId);
   app.cart.push({cartId:randomId(),productId:product.id,name:product.name,type:'drink',quantity:1,sizeKey:'unico',crustKey:'',ingredients:[],notes:''});
   invalidateCheckoutKey();setCart();playCartRunAnimation();toast(product.name+' adicionado à carrinho.');openCart();
 }
-function addBuilderToCart() {
+async function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
   const product=app.catalog.products.find(p=>p.id===builder.productId);if(!product||product.available===0)return toast('Esse produto está esgotado no momento.');
+  if(!(await ensureAgeForProduct(product)))return;
   const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
@@ -702,8 +704,9 @@ function clearCheckoutKey(){
   app.checkoutKey='';
   try{sessionStorage.removeItem('menuza-checkout-key')}catch{}
 }
-function openCheckout(){
+async function openCheckout(){
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
+  for(const item of app.cart){const product=item.productId?app.catalog?.products.find(p=>p.id===item.productId):null;const combo=item.comboId?app.catalog?.combos?.find(c=>c.id===item.comboId):null;const restrictedProduct=product?.ageRestricted?product:(combo?.items||[]).find(entry=>entry.ageRestricted);if(restrictedProduct&&!await ensureAgeForProduct(restrictedProduct.productId?{id:restrictedProduct.productId,ageRestricted:true}:restrictedProduct))return;}
   ensureCheckoutKey();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
 }
 function updateCameraARTransform() {
