@@ -624,6 +624,18 @@ async function patchRestaurantSettings(patch) {
   emit(RESTAURANT_ID, { type: 'settings-updated' });
   return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
 }
+function createIngredient(payload) {
+  const name=cleanText(payload.name,80),type=cleanText(payload.type,20),groupName=cleanText(payload.groupName,50)||'Adicionais',cents=Number(payload.cents);
+  if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(cents)||cents<0||cents>999999) throw Object.assign(new Error('Informe nome, tipo e preço válido para o adicional.'),{status:422});
+  const normalized=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+  const duplicate=statement('SELECT id,name FROM ingredients WHERE restaurant_id=?').all(RESTAURANT_ID).find(item=>normalized(item.name)===normalized(name));
+  if(duplicate) throw Object.assign(new Error('Já existe um ingrediente ou adicional com esse nome. Use outro nome ou exclua o cadastro existente.'),{status:409});
+  const id=slugify(name)+'-'+randomBytes(3).toString('hex');
+  const sortOrder=Number(statement('SELECT COALESCE(MAX(sort_order),-1)+1 AS nextOrder FROM ingredients WHERE restaurant_id=?').get(RESTAURANT_ID)?.nextOrder)||0;
+  statement('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES (?,?,?,?,?,?,0,1,?)').run(id,RESTAURANT_ID,name,type,groupName,cents,sortOrder);
+  emit(RESTAURANT_ID,{type:'catalog-updated'});
+  return catalogFor(RESTAURANT_ID,true).ingredients.find(item=>item.id===id);
+}
 function patchIngredient(ingredientId, patch) {
   const current = statement('SELECT * FROM ingredients WHERE id=? AND restaurant_id=?').get(ingredientId, RESTAURANT_ID);
   if (!current) throw Object.assign(new Error('Ingrediente não encontrado.'), { status: 404 });
@@ -923,6 +935,15 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { product: await patchProduct(id, await bodyOf(request, 2_100_000)) });
       }
       if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: await createProduct(await bodyOf(request, 2_100_000)) });
+      if (request.method === 'POST' && path === '/api/admin/ingredients') return send(response, 201, { ingredient: createIngredient(await bodyOf(request)) });
+      if (request.method === 'DELETE' && path.startsWith('/api/admin/ingredients/')) {
+        const id=decodeURIComponent(path.slice('/api/admin/ingredients/'.length));
+        const ingredient=statement('SELECT id,name FROM ingredients WHERE id=? AND restaurant_id=?').get(id,RESTAURANT_ID);
+        if(!ingredient)return send(response,404,{error:'Ingrediente não encontrado.'});
+        statement('DELETE FROM ingredients WHERE id=? AND restaurant_id=?').run(id,RESTAURANT_ID);
+        emit(RESTAURANT_ID,{type:'catalog-updated'});
+        return send(response,200,{ok:true,ingredient,message:'Ingrediente excluído. O histórico de pedidos foi preservado.'});
+      }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/ingredients/')) {
         const id = path.slice('/api/admin/ingredients/'.length);
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
