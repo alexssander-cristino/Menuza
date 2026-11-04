@@ -2283,3 +2283,12 @@ button[data-action="view-generated-3d"],
 .tracking-cancel-button:disabled{opacity:.6;cursor:wait;transform:none}
 .tracking-cancelled-banner{background:#f5e8e2;color:#9e4e3d}
 @media(max-width:560px){.tracking-cancel-actions{align-items:stretch;flex-direction:column;gap:12px}.tracking-cancel-button{width:100%;min-height:42px}}
+
+
+/* Histórico auditável das solicitações de privacidade */
+.privacy-request-events{display:grid;gap:8px;margin:14px 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft,rgba(120,110,140,.045))}
+.privacy-request-events>strong{font-size:11px;color:var(--ink)}
+.privacy-request-events>div{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:11px}
+.privacy-request-events>div span{color:var(--ink)}
+.privacy-request-events>div small{color:var(--muted);text-align:right}
+@media(max-width:600px){.privacy-request-events>div{align-items:flex-start;flex-direction:column;gap:3px}.privacy-request-events>div small{text-align:left}}
