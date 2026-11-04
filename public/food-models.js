@@ -337,7 +337,7 @@ const TOPPINGS = {
   alho: { r: .006, cover: [.05, .09, .14], kind: 'garlic', loose: true },
   brocolis: { r: .012, cover: [.1, .18, .26], kind: 'greens' },
   ervilha: { r: .0034, cover: [.04, .07, .1], kind: 'peas', loose: true },
-  batata-palha: { r: .006, cover: [.08, .14, .2], kind: 'crisps', loose: true },
+  'batata-palha': { r: .006, cover: [.08, .14, .2], kind: 'crisps', loose: true },
   chocolate: { r: .011, cover: [.1, .18, .26], kind: 'chocolate' },
   coco: { r: .006, cover: [.08, .14, .2], kind: 'coconut', loose: true },
   atum: { r: .0095, cover: [.12, .2, .3], kind: 'tuna' },
@@ -1074,7 +1074,7 @@ function resolveVisualIngredient(type, ingredient) {
 }
 
 export function buildFoodLayout(product, ingredients, size, options = {}) {
-  const o = { detail: options.detail || 1, crustKey: options.crustKey };
+  const o = { detail: options.detail || 1, crustKey: options.crustKey, flavors: Array.isArray(options.flavors) ? options.flavors : [] };
   const type = product.type;
   const combined = new Map();
   for (const original of (ingredients || [])) {
