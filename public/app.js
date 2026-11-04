@@ -613,7 +613,9 @@ function cartItemPrice(item){
   const size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
   const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);const included=product.ingredientsConfigured&&(product.defaultIngredientIds||[]).includes(entry.id);return sum+(included?0:(ingredient?.cents||0))*entry.quantity;},0);
-  return effectiveProductSizePrice(product,item.sizeKey,size)+(crust?.priceCents||0)+extras;
+  const flavors=(item.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
+  const base=Math.max(...(flavors.length?flavors:[product]).map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
+  return base+(crust?.priceCents||0)+extras;
 }
 function renderCart(){
   const total=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
