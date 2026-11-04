@@ -2092,7 +2092,7 @@ function openMobileSiteMenu(){
   toggle?.setAttribute('aria-label','Fechar menu');
   menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
 }
-function handleClick(event){
+async function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
   if(target.dataset.action==='mobile-site-menu-go'){
