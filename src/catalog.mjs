@@ -19,6 +19,22 @@ export function inferIngredientVisual(ingredient) {
     if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
     if (type === 'pizza' && has('catupiry')) return 'catupiry';
     if (type === 'burger' && has('catupiry')) return 'cheese';
+    if (type === 'pizza') {
+      if (has('abacaxi', 'pineapple')) return 'pineapple';
+      if (has('banana')) return 'banana';
+      if (has('morango', 'strawberry')) return 'strawberry';
+      if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'canela', 'leite condensado')) return 'chocolate';
+      if (has('coco')) return 'coconut';
+      if (has('alho')) return 'garlic';
+      if (has('brocolis')) return 'greens';
+      if (has('ervilha')) return 'peas';
+      if (has('batata palha', 'doritos')) return 'crisps';
+      if (has('atum')) return 'tuna';
+      if (has('palmito')) return 'palm';
+      if (has('salsicha')) return 'sausage';
+      if (has('barbecue', 'maionese', 'mostarda', 'tare', 'tarê', 'molho de pimenta', 'molho')) return 'sauce';
+      if (has('costela', 'file', 'filé', 'coxao mole', 'frango')) return 'chicken';
+    }
     if (has('cheddar')) return 'cheddar';
     if (has('requeijao', 'cream cheese', 'creme de queijo')) return 'cheese';
     if (has('parmesao', 'parmesan', 'grana padano', 'pecorino')) return 'parmesan';
@@ -37,9 +53,10 @@ export function inferIngredientVisual(ingredient) {
       if (has('picles', 'pepino', 'pickle')) return 'pickle';
     } else {
       if (has('calabresa', 'pepperoni', 'salame')) return 'pepperoni';
-      if (has('bacon', 'panceta', 'linguica')) return 'bacon';
-      if (has('frango', 'chicken')) return 'chicken';
-      if (has('cebola', 'alho', 'onion')) return 'onion';
+      if (has('bacon', 'panceta', 'linguica', 'lombo')) return 'bacon';
+      if (has('frango', 'chicken', 'costela', 'file', 'filé', 'coxao mole')) return 'chicken';
+      if (has('cebola', 'onion')) return 'onion';
+      if (has('alho', 'garlic')) return 'garlic';
       if (has('tomate', 'tomato', 'pimentao')) return 'tomato';
       if (has('milho', 'corn')) return 'corn';
       if (has('azeitona', 'oliva', 'olive')) return 'olive';
