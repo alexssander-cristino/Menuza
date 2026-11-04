@@ -1098,12 +1098,19 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/ingredients') {
       const b=await bodyOf(req), name=clean(b.name,80), type=clean(b.type,20), groupName=clean(b.groupName,50)||'Adicionais', price=Number(b.cents);
       if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipo e preço válido para o adicional.',422);
-      const duplicate=(await query('SELECT id FROM ingredients WHERE restaurant_id=$1 AND type=$2 AND lower(name)=lower($3) LIMIT 1',[RESTAURANT_ID,type,name])).rows[0];
-      if(duplicate) throw fail('Já existe um ingrediente ou adicional com esse nome para esse tipo.',409);
+      const existingNames=(await query('SELECT id,name FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
+      const normalizeIngredientName=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+      if(existingNames.some(item=>normalizeIngredientName(item.name)===normalizeIngredientName(name))) throw fail('Já existe um ingrediente ou adicional com esse nome. Use outro nome ou exclua o cadastro existente.',409);
       const id=slugify(name)+'-'+randomBytes(3).toString('hex');
       const orderResult=await query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID]);
       await query('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,1,$7)',[id,RESTAURANT_ID,name,type,groupName,price,Number(orderResult.rows[0]?.next_order)||0]);
       return json(res,201,{ingredient:(await catalogFor(true)).ingredients.find(i=>i.id===id)});
+    }
+    if (method==='DELETE'&&path.startsWith('/api/admin/ingredients/')) {
+      const found=(await query('SELECT id,name FROM ingredients WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(!found) throw fail('Ingrediente não encontrado.',404);
+      await query('DELETE FROM ingredients WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
+      return json(res,200,{ok:true,ingredient:found,message:'Ingrediente excluído. O histórico de pedidos foi preservado.'});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/ingredients/')) {
       const b=await bodyOf(req), old=(await query('SELECT * FROM ingredients WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Ingrediente não encontrado.',404);
