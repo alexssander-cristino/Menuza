@@ -964,6 +964,12 @@ function resolveVisualIngredient(type, ingredient) {
   // visual (ou visual_key da API) é a referência mais confiável para o modelo.
   const visual = String(ingredient?.visual || ingredient?.visual_key || ingredient?.visualKey || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const normalizedName = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // O nome explícito do ingrediente prevalece sobre visual_key/grupo herdado.
+  // Isso impede chocolate de virar erva quando o cadastro traz um visual padrão incorreto.
+  if (type === 'pizza' && /(^| )(chocolate|choc|kit kat|confete|pacoquinha|leite condensado|brigadeiro|nutella)( |$)/.test(normalizedName)) {
+    return { ...ingredient, id: /(^| )chocolate branco( |$)/.test(normalizedName) ? 'white-chocolate' : 'chocolate' };
+  }
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
     cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
