@@ -593,7 +593,7 @@ function validateSizePrices(type,value,fallbackCents){
   if(type==='drink'||value===undefined||value===null)return {};
   if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('Informe um preço para cada tamanho.'),{status:422});
   const options=SIZE_OPTIONS[type]||[],result={};
-  for(const option of options){const cents=Number(value[option.key]);if(!Number.isInteger(cents)||cents<1||cents>1000000)throw Object.assign(new Error('Informe um preço válido para o tamanho '+option.label+'.'),{status:422});result[option.key]=cents;}
+  for(const option of options){const cents=Number(value[option.key]);if(!Number.isInteger(cents)||cents<500||cents>1000000)throw Object.assign(new Error('Informe um preço válido para o tamanho '+option.label+'.'),{status:422});result[option.key]=cents;}
   if(!options.length)throw Object.assign(new Error('Este produto não possui tamanhos configuráveis.'),{status:422});
   return result;
 }
