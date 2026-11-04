@@ -43,7 +43,11 @@ for (const [table, column, definition] of [
   ['restaurants','logo_url',"TEXT NOT NULL DEFAULT ''"],
   ['products','image_url',"TEXT NOT NULL DEFAULT ''"],
   ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"],
-  ['products','age_restricted','INTEGER NOT NULL DEFAULT 0']
+  ['products','age_restricted','INTEGER NOT NULL DEFAULT 0'],
+  ['products','size_prices_json',"TEXT NOT NULL DEFAULT '{}'"],
+  ['products','ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','default_ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','ingredients_configured','INTEGER NOT NULL DEFAULT 0']
 ]) {
   try { db.exec('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
@@ -117,11 +121,12 @@ function seedDatabase() {
 const statement = sql => db.prepare(sql);
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.size_prices_json AS sizePricesJson,p.ingredient_ids_json AS ingredientIdsJson,p.default_ingredient_ids_json AS defaultIngredientIdsJson,p.ingredients_configured AS ingredientsConfigured,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
     let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
     if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
     images=images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8);
-    return {...product,productImagesJson:JSON.stringify(images),images};
+    let sizePrices={},ingredientIds=[],defaultIngredientIds=[];try{sizePrices=JSON.parse(product.sizePricesJson||'{}')}catch{}try{ingredientIds=JSON.parse(product.ingredientIdsJson||'[]')}catch{}try{defaultIngredientIds=JSON.parse(product.defaultIngredientIdsJson||'[]')}catch{}
+    return {...product,sizePrices:sizePrices&&typeof sizePrices==='object'&&!Array.isArray(sizePrices)?sizePrices:{},ingredientIds:Array.isArray(ingredientIds)?ingredientIds:[],defaultIngredientIds:Array.isArray(defaultIngredientIds)?defaultIngredientIds:[],ingredientsConfigured:Number(product.ingredientsConfigured)===1,productImagesJson:JSON.stringify(images),images};
   });
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
@@ -584,12 +589,30 @@ function validateProductImages(images) {
   }
   return images;
 }
+function validateSizePrices(type,value,fallbackCents){
+  if(type==='drink'||value===undefined||value===null)return {};
+  if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('Informe um preço para cada tamanho.'),{status:422});
+  const options=SIZE_OPTIONS[type]||[],result={};
+  for(const option of options){const cents=Number(value[option.key]);if(!Number.isInteger(cents)||cents<1||cents>1000000)throw Object.assign(new Error('Informe um preço válido para o tamanho '+option.label+'.'),{status:422});result[option.key]=cents;}
+  if(!options.length)throw Object.assign(new Error('Este produto não possui tamanhos configuráveis.'),{status:422});
+  return result;
+}
+function validateProductIngredientIdsLocal(value,type){
+  if(!Array.isArray(value)||value.length>40||value.some(id=>typeof id!=='string'||!id.trim())||new Set(value).size!==value.length)throw Object.assign(new Error('Selecione ingredientes válidos para o produto.'),{status:422});
+  const available=statement('SELECT id FROM ingredients WHERE restaurant_id=? AND type=? AND active=1').all(RESTAURANT_ID,type);
+  const allowed=new Set(available.map(item=>item.id));
+  if(value.some(id=>!allowed.has(id)))throw Object.assign(new Error('Um ingrediente selecionado não está disponível para este produto.'),{status:422});
+  return value;
+}
 async function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
   const description = patch.description === undefined ? product.description : cleanText(patch.description, 300);
   const price = patch.baseCents === undefined ? product.base_price_cents : Number(patch.baseCents);
+  const sizePrices = patch.sizePrices === undefined ? null : validateSizePrices(product.type,patch.sizePrices,price);
+  const ingredientIds = patch.ingredientIds === undefined ? null : validateProductIngredientIdsLocal(patch.ingredientIds,product.type);
+  const defaultIngredientIds = patch.defaultIngredientIds === undefined ? null : validateProductIngredientIdsLocal(patch.defaultIngredientIds,product.type);
   const active = patch.active === undefined ? product.active : (patch.active ? 1 : 0);
   const available = patch.available === undefined ? product.available : (patch.available ? 1 : 0);
   const images = patch.images === undefined ? null : validateProductImages(patch.images);
@@ -603,7 +626,7 @@ async function patchProduct(productId, patch) {
   const savedImages=images===null?(currentImages.length?await storeImageList(currentImages,'products/'+productId):(imageUrl?[storedImageUrl]:[])):storedImages;
   const finalImageUrl=images===null?(savedImages[0]||''):storedImageUrl;
   const ageRestricted = patch.ageRestricted === undefined ? Number(product.age_restricted || 0) : (patch.ageRestricted ? 1 : 0);
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,age_restricted=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), ageRestricted, new Date().toISOString(), productId, RESTAURANT_ID);
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,age_restricted=?,size_prices_json=COALESCE(?,size_prices_json),ingredient_ids_json=COALESCE(?,ingredient_ids_json),default_ingredient_ids_json=COALESCE(?,default_ingredient_ids_json),ingredients_configured=CASE WHEN ? THEN 1 ELSE ingredients_configured END,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices),ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null?1:0,new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
@@ -652,6 +675,9 @@ async function createProduct(payload) {
   const type = payload.type;
   const categoryId = cleanText(payload.categoryId, 50);
   const baseCents = Number(payload.baseCents);
+  const sizePrices = validateSizePrices(type,payload.sizePrices,baseCents);
+  const ingredientIds = validateProductIngredientIdsLocal(payload.ingredientIds===undefined?[]:payload.ingredientIds,type);
+  const defaultIngredientIds = validateProductIngredientIdsLocal(payload.defaultIngredientIds===undefined?[]:payload.defaultIngredientIds,type);
   const images = payload.images === undefined ? (payload.imageUrl ? [String(payload.imageUrl)] : []) : validateProductImages(payload.images);
   const imageUrl = images[0] || '';
   if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
@@ -664,6 +690,7 @@ async function createProduct(payload) {
   const storedImageUrl = storedImages[0] || '';
 statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,age_restricted,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?,?,?,?)')
     .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), payload.ageRestricted ? 1 : 0, now, now);
+  statement('UPDATE products SET size_prices_json=?,ingredient_ids_json=?,default_ingredient_ids_json=?,ingredients_configured=? WHERE id=? AND restaurant_id=?').run(JSON.stringify(sizePrices),JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),payload.ingredientIds!==undefined||payload.defaultIngredientIds!==undefined?1:0,id,RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
