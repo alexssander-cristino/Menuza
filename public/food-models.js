@@ -330,7 +330,19 @@ const TOPPINGS = {
   requeijao: { r: .012, cover: [.1, .17, .24], kind: 'cheese-generic' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .0038, cover: [.018, .03, .045], kind: 'herb', loose: true },
-  manjericao: { r: .018, cover: [.10, .18, .26], kind: 'basil' }
+  manjericao: { r: .018, cover: [.10, .18, .26], kind: 'basil' },
+  abacaxi: { r: .012, cover: [.12, .2, .3], kind: 'pineapple' },
+  banana: { r: .012, cover: [.1, .18, .26], kind: 'banana' },
+  morango: { r: .012, cover: [.1, .18, .26], kind: 'strawberry' },
+  alho: { r: .006, cover: [.05, .09, .14], kind: 'garlic', loose: true },
+  brocolis: { r: .012, cover: [.1, .18, .26], kind: 'greens' },
+  ervilha: { r: .0034, cover: [.04, .07, .1], kind: 'peas', loose: true },
+  batata-palha: { r: .006, cover: [.08, .14, .2], kind: 'crisps', loose: true },
+  chocolate: { r: .011, cover: [.1, .18, .26], kind: 'chocolate' },
+  coco: { r: .006, cover: [.08, .14, .2], kind: 'coconut', loose: true },
+  atum: { r: .0095, cover: [.12, .2, .3], kind: 'tuna' },
+  palmito: { r: .012, cover: [.1, .18, .26], kind: 'palm' },
+  salsicha: { r: .011, cover: [.12, .2, .3], kind: 'sausage' }
 };
 const TOPPING_ORDER = Object.keys(TOPPINGS);
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI);
@@ -519,6 +531,22 @@ function creamInto(m, x, y, z, R, seed, rnd, detail) {
 function baconBitInto(m, x, y, z, seed, rnd, detail) {
   baconStripInto(m, { L: .0185, W: .0075, t: .0022, seed, detail: .6, curl: .0016, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .1, t: [x, y + .0003, z] }) });
 }
+function toppingBlob(m, x, y, z, rx, ry, rz, color, seed, rnd) {
+  blobInto(m, { rx, ry, rz, seed, amp: .16, nu: 12, nv: 8,
+    xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x, y + ry * .25, z] }),
+    shade: (u, v, p) => MAT(mix(color, lin('#fff0d0'), nz(p, 70, seed) * .16), .34, .3, .2, .95)
+  });
+}
+function garlicInto(m, x, y, z, R, seed, rnd) {
+  toppingBlob(m, x, y, z, R * .9, .0022, R * .58, lin('#f1e5c9'), seed, rnd);
+}
+function fruitInto(m, kind, x, y, z, R, seed, rnd) {
+  if (kind === 'pineapple') toppingBlob(m, x, y, z, R * 1.25, .0032, R * .72, lin('#e9b83e'), seed, rnd);
+  else if (kind === 'banana') toppingBlob(m, x, y, z, R * 1.35, .0026, R * .55, lin('#f4d36c'), seed, rnd);
+  else if (kind === 'strawberry') toppingBlob(m, x, y, z, R * .82, .0034, R * .72, lin('#d94343'), seed, rnd);
+  else if (kind === 'coconut') toppingBlob(m, x, y, z, R * .9, .0015, R * .45, lin('#fff1d9'), seed, rnd);
+  else toppingBlob(m, x, y, z, R, .0025, R * .65, lin('#ead7b4'), seed, rnd);
+}
 function herbInto(m, x, y, z, rnd) {
   const L = .0048 + rnd() * .0018, W = .0021 + rnd() * .0009, yaw = rnd() * TAU, curl = .0008 + rnd() * .0008, c = mix(C.herb, C.herbLight, rnd());
   m.grid(5, 3, (u, v) => [(u - .5) * L, curl * (2 * u - 1) ** 2, (v - .5) * W * Math.sin(Math.PI * u) ** .6], () => MAT(c, .5, .5, .2, 1), { wrapU: false, up: true, xf: rigid({ yaw, pitch: (rnd() - .5) * .5, t: [x, y + .0006, z] }) });
@@ -655,6 +683,15 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'bacon': baconBitInto(m, s.x, y, s.z, sd, rnd, detail); break;
       case 'herb': herbInto(m, s.x, y, s.z, rnd); break;
       case 'basil': basilInto(m, s.x, y, s.z, sd, rnd); break;
+      case 'pineapple': case 'banana': case 'strawberry': case 'coconut': fruitInto(m, def.kind, s.x, y, s.z, r, sd, rnd); break;
+      case 'garlic': garlicInto(m, s.x, y, s.z, r, sd, rnd); break;
+      case 'greens': lettuceMesh; toppingBlob(m, s.x, y, s.z, r * 1.2, .0025, r, lin('#43833d'), sd, rnd); break;
+      case 'peas': for (let n = 0; n < 4; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.42, r*.34, r*.42, lin('#7b9b3d'), sd+n, rnd); break;
+      case 'crisps': for (let n = 0; n < 3; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.9, .0014, r*.22, lin('#e7b84d'), sd+n, rnd); break;
+      case 'chocolate': toppingBlob(m, s.x, y, s.z, r*1.25, .0026, r*.9, lin('#4b251c'), sd, rnd); break;
+      case 'tuna': toppingBlob(m, s.x, y, s.z, r*1.15, .0026, r*.8, lin('#b9a17b'), sd, rnd); break;
+      case 'palm': toppingBlob(m, s.x, y, s.z, r*.95, .0028, r*.65, lin('#eee0bd'), sd, rnd); break;
+      case 'sausage': toppingBlob(m, s.x, y, s.z, r*1.35, .0032, r*.52, lin('#b94b32'), sd, rnd); break;
       case 'cheese-generic':
       case 'cheese-cheddar':
       case 'cheese-parmesan':
@@ -683,6 +720,7 @@ function pickSites(ctx, id, qtyIdx, count, placed, r) {
       for (let i = 0; i < candidates.length; i++) {
         const [x, z] = candidates[i];
         if (Math.hypot(x, z) > ctx.Rt - r * .6) continue;
+        if (ctx.sector) { const a = Math.atan2(z, x); const span = ((a - ctx.sector.start) % TAU + TAU) % TAU; if (span > ((ctx.sector.end - ctx.sector.start + TAU) % TAU)) continue; }
         let score = Infinity, valid = true;
         for (const q of own) {
           const distance = Math.hypot(q.x - x, q.z - z);
@@ -701,7 +739,11 @@ function pickSites(ctx, id, qtyIdx, count, placed, r) {
 }
 function looseSites(ctx, id, count) {
   const rnd = randomFor(hash(id + ctx.seed + 5)), out = [];
-  for (let i = 0; i < count; i++) { const a = rnd() * TAU, r = Math.sqrt(rnd()) * ctx.Rt * .97; out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r }); }
+  for (let i = 0, attempts = 0; i < count && attempts < count * 12; attempts++) {
+    const a = rnd() * TAU, r = Math.sqrt(rnd()) * ctx.Rt * .97;
+    if (ctx.sector) { const span = ((a - ctx.sector.start) % TAU + TAU) % TAU; if (span > ((ctx.sector.end - ctx.sector.start + TAU) % TAU)) continue; }
+    out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r }); i++;
+  }
   return out;
 }
 
@@ -817,20 +859,45 @@ function burgerLayout(product, ings, size, o, kH) {
 function pizzaLayout(product, ings, size, o) {
   const D = (size?.diameterCm || Number(product.widthCm) || 30) / 100, Rp = D / 2, detail = o.detail, seed = hash(product.id || 'pizza');
   const crustKey = CRUSTS[o.crustKey] ? o.crustKey : 'tradicional';
-  const q = new Map(ings.map(i => [i.id, clamp(Number(i.quantity) || 1, 1, 3)]));
+  const flavorList = Array.isArray(o.flavors) && o.flavors.length > 1 ? o.flavors.slice(0, 8) : null;
+  const normalizeItems = items => {
+    const q = new Map();
+    for (const item of items || []) {
+      const resolved = resolveVisualIngredient('pizza', item);
+      const id = resolved.id;
+      q.set(id, clamp((q.get(id) || 0) + (Number(item.quantity) || 1), 1, 3));
+    }
+    return q;
+  };
+  const flavorMaps = flavorList ? flavorList.map(flavor => normalizeItems(flavor.ingredients || [])) : [normalizeItems(ings)];
+  // Massa, molho e mussarela formam uma base contínua; coberturas específicas
+  // de cada sabor são posicionadas somente dentro da sua fatia.
+  const q = normalizeItems(ings);
+  for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
   const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela');
-  const ctxFor = () => { const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, seed); c.hasSauce = hasSauce; c.sauceTop = (x, z) => { const a = Math.atan2(z, x), r = Math.hypot(x, z); return c.deck + (hasSauce ? c.sauceH(x, z) * c.edgeF(r / c.sauceR(a)) : 0); }; return c; };
+  const ctxFor = (sector = null, flavorSeed = seed) => {
+    const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
+    c.hasSauce = hasSauce; c.sector = sector;
+    c.sauceTop = (x, z) => { const a = Math.atan2(z, x), r = Math.hypot(x, z); return c.deck + (hasSauce ? c.sauceH(x, z) * c.edgeF(r / c.sauceR(a)) : 0); };
+    return c;
+  };
   const base = `${Rp.toFixed(4)}|${crustKey}|${detail}|${seed}`, flags = `${hasSauce ? 1 : 0}${hasCheese ? 1 : 0}`;
   const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(ctxFor(), detail) }];
   if (hasSauce) parts.push({ kind: 'sauce', key: `pizza|sauce|${base}`, y: 0, base: false, build: () => sauceMeshPizza(ctxFor(), detail) });
   if (hasCheese) parts.push({ kind: 'cheese', key: `pizza|cheese|${base}|${flags}`, y: 0, base: false, build: () => cheeseMeshPizza(ctxFor(), detail) });
-  const earlier = [];
-  for (const id of TOPPING_ORDER) {
-    if (!q.has(id)) continue;
-    const qi = q.get(id) - 1, sig = earlier.map(e => `${e.id}${e.qtyIdx}`).join(','), ear = earlier.slice();
-    parts.push({ kind: 'topping:' + id, key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}`, y: 0, base: false, build: () => toppingMesh(ctxFor(), id, qi, ear, detail) });
-    earlier.push({ id, qtyIdx: qi });
-  }
+  const sectors = flavorMaps.length > 1 ? flavorMaps : [q];
+  sectors.forEach((flavorQ, flavorIndex) => {
+    const sector = flavorMaps.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
+    const ctx = ctxFor(sector, seed + flavorIndex * 97);
+    const earlier = [];
+    for (const id of TOPPING_ORDER) {
+      if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela') continue;
+      const qi = flavorQ.get(id) - 1, sig = earlier.map(e => `${e.id}${e.qtyIdx}`).join(',');
+      const ear = earlier.slice(), sectorKey = sector ? '|sector-' + flavorIndex + '-' + sectors.length : '';
+      parts.push({ kind: 'topping:' + id + (sector ? ':' + flavorIndex : ''), key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`, y: 0, base: false, build: () => toppingMesh(ctx, id, qi, ear, detail) });
+      earlier.push({ id, qtyIdx: qi });
+    }
+  });
   const boardR = Rp * 1.12 + .012, bt = .016;
   parts.unshift({ kind: 'board', key: `board|${boardR.toFixed(4)}|${detail}`, y: -bt + .0004, base: true, build: () => boardMesh(boardR, bt, seed, detail) });
   return { parts, total: .026, radius: boardR * .86, extentH: [-bt, .026] };
@@ -918,6 +985,20 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('milho', 'corn')) visualId = 'milho';
     else if (has('manjericao', 'basil', 'basilico')) visualId = 'manjericao';
     else if (has('oregano', 'salsinha', 'cebolinha', 'rucula', 'erva', 'herb')) visualId = 'oregano';
+    else if (has('abacaxi', 'pineapple')) visualId = 'abacaxi';
+    else if (has('banana')) visualId = 'banana';
+    else if (has('morango', 'strawberry')) visualId = 'morango';
+    else if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'leite condensado', 'canela')) visualId = 'chocolate';
+    else if (has('coco')) visualId = 'coco';
+    else if (has('alho')) visualId = 'alho';
+    else if (has('brocolis')) visualId = 'brocolis';
+    else if (has('ervilha')) visualId = 'ervilha';
+    else if (has('batata palha', 'doritos')) visualId = 'batata-palha';
+    else if (has('atum')) visualId = 'atum';
+    else if (has('palmito')) visualId = 'palmito';
+    else if (has('salsicha')) visualId = 'salsicha';
+    else if (has('barbecue', 'maionese', 'mostarda', 'tarê', 'tare', 'molho de pimenta', 'molho')) visualId = 'requeijao';
+    else if (has('costela', 'file', 'filé', 'coxao mole', 'frango')) visualId = 'frango';
     else if (has('tomate', 'tomato', 'pimentao', 'pepper')) visualId = 'tomate';
     else if (has('alho frito', 'cebola crispy', 'crispy')) visualId = 'cebola';
   } else if (type === 'burger') {
