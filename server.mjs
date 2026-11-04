@@ -908,6 +908,16 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         return send(response, 200, { order: updateStatus(id, body.status) });
       }
+      if (request.method === 'DELETE' && path.startsWith('/api/admin/products/')) {
+        const id = decodeURIComponent(path.slice('/api/admin/products/'.length));
+        const product = statement('SELECT id,name FROM products WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+        if (!product) return send(response, 404, { error: 'Produto não encontrado.' });
+        const jobsTable = statement("SELECT name FROM sqlite_master WHERE type='table' AND name='product_3d_jobs'").get();
+        if (jobsTable) statement('DELETE FROM product_3d_jobs WHERE product_id=? AND restaurant_id=?').run(id, RESTAURANT_ID);
+        const deleted = statement('DELETE FROM products WHERE id=? AND restaurant_id=?').run(id, RESTAURANT_ID);
+        if (!deleted.changes) return send(response, 404, { error: 'Produto não encontrado.' });
+        return send(response, 200, { ok: true, product, message: 'Produto excluído. O histórico de pedidos foi preservado.' });
+      }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/products/')) {
         const id = path.slice('/api/admin/products/'.length);
         return send(response, 200, { product: await patchProduct(id, await bodyOf(request, 2_100_000)) });
