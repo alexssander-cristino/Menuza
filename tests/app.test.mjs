@@ -61,15 +61,14 @@ test('checkout mantém a chave idempotente após recarregar e invalida quando o 
   assert.ok(client.includes("sessionStorage.removeItem('menuza-checkout-key')"), 'successful or invalidated checkout clears persisted idempotency data');
 });
 
-test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
+test('cardápio público abre sem sessão e rotas privadas continuam separadas', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
-  assert.ok(client.includes("const firstRoute='conta'"), 'new visitors open customer login by default');
-  assert.ok(client.includes("if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}"), 'restaurant, account and order tracking routes are resolved before customer login redirect');
-  assert.ok(!client.includes("history.replaceState(null,'',location.pathname+location.search+'#conta');\n    onRoute();\n    return;"), 'refreshing the restaurant route must not redirect to customer login');
+  assert.ok(client.includes("function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));return openMenu()}"), 'public menu route remains available without customer authentication');
+  assert.ok(client.includes("if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}"), 'admin, account and order tracking routes are resolved before opening the public menu');
+  assert.ok(client.includes("await openMenu();"), 'a new visitor is sent to the public menu');
   assert.ok(client.includes("if(hash==='admin')return showAdmin()"), 'restaurant login remains independently accessible');
   assert.ok(client.includes("if(hash==='conta')return showCustomerAccount()"), 'customer login and account remain accessible');
-  assert.ok(client.includes("'/api/customer/me'"), 'session is validated by the server cookie, not a client-side flag');
+  assert.ok(client.includes("'/api/customer/me'"), 'customer session is validated by the server cookie');
 });
 
 test('o catálogo de demonstração tem tenants, categorias, produtos e recursos AR vazios', () => {
@@ -409,7 +408,7 @@ test('alerta sonoro de novos pedidos é opcional e guarda a preferência local',
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.ok(client.includes("localStorage.getItem('menuza-order-sound')==='on'"));
   assert.ok(client.includes('function trackNewOrders(orders)'));
-  assert.ok(client.includes("if(hasNewReceived&&app.admin.soundEnabled)playOrderAlert()"));
+  assert.ok(client.includes("if(newOrders.length&&app.admin.soundEnabled)playOrderAlert()"));
   assert.ok(client.includes('data-action="toggle-order-sound"'));
 });
 
@@ -448,7 +447,7 @@ test('painel mostra estado da conexão e recupera atualizações ao voltar onlin
   assert.ok(client.includes("app.admin.eventSource.onerror=()"));
   assert.ok(client.includes("window.addEventListener('online',handleAdminOnline)"));
   assert.ok(client.includes('adminConnectionStatus'));
-  assert.ok(client.includes('setInterval(refreshAdmin,20000)'), 'polling remains as a fallback if live updates fail');
+  assert.ok(client.includes("app.admin.refreshTimer=setInterval(()=>")&&client.includes("},15000);"), '15-second polling remains as a fallback if live updates fail');
 });
 
 test('editar validade de cupom preserva o horário local do navegador', async () => {
