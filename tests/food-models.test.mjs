@@ -51,3 +51,13 @@ test('ingredientes com a palavra conserva não são confundidos com ervas/oréga
   assert.ok(layout.parts.some(part => part.kind.startsWith('topping:')),
     'o ingrediente cadastrado deve continuar gerando uma cobertura 3D');
 });
+
+test('chocolate não herda a representação de erva do cadastro', () => {
+  const layout = buildFoodLayout(pizza, [
+    { id: 'ingrediente-82', name: 'Chocolate', visual_key: 'herb', groupName: 'Ervas', quantity: 1 }
+  ], { diameterCm: 35 }, { detail: 0.45 });
+
+  assertToppingBuilds(layout, 'topping:chocolate');
+  assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'),
+    'o nome Chocolate deve prevalecer sobre visual_key e grupo herdados');
+});
