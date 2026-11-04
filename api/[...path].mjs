@@ -1040,6 +1040,7 @@ export default async function handler(req, res) {
       return json(res,200,{...product,workerConfigured:Boolean(process.env.TRIPOSR_WORKER_TOKEN)});
     }
     if (method==='POST'&&path==='/api/admin/products') {
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
       const b=await bodyOf(req,2100000), name=clean(b.name,80), description=clean(b.description,300), type=b.type, categoryId=clean(b.categoryId,50), price=Number(b.baseCents);
       const images=b.images===undefined?null:b.images;
       if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url)))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
@@ -1060,6 +1061,7 @@ export default async function handler(req, res) {
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
       const b=await bodyOf(req,2100000), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
       const images=b.images===undefined?null:b.images;
       if(images!==null&&(!Array.isArray(images)||images.length>8||images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url)))||images.reduce((sum,url)=>sum+url.length,0)>1950000)) throw fail('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.',422);
