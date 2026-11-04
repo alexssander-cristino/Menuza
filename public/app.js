@@ -976,7 +976,7 @@ async function submitFiscalDocument(form){
  const signature=new Uint8Array(await file.slice(0,8).arrayBuffer());
  if(documentType==='pdf'&&String.fromCharCode(...signature.slice(0,5))!=='%PDF-')return toast('O conteúdo do arquivo não é um PDF válido.');
  if(documentType==='xml'){
-  const xml=await file.text();if(/<!DOCTYPE|<!ENTITY|<\\?xml-stylesheet/i.test(xml)||!/^\\s*(?:<\\?xml\\s[^?]*\\?>\\s*)?(?:<!--[\\s\\S]*?-->\\s*)*<[A-Za-z_][\\w:.-]*(?:\\s|>|\\/)/.test(xml))return toast('O XML está inválido ou contém declarações externas não permitidas.');
+  const xml=await file.text();if(/<!DOCTYPE|<!ENTITY|<\?xml-stylesheet/i.test(xml)||!/^\s*(?:<\?xml\s[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<[A-Za-z_][\w:.-]*(?:\s|>|\/)/.test(xml))return toast('O XML está inválido ou contém declarações externas não permitidas.');
  }
 
  const button=form.querySelector('[type=submit]');button.disabled=true;
