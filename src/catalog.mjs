@@ -27,7 +27,11 @@ export function inferIngredientVisual(ingredient) {
       if (has('abacaxi', 'pineapple')) return 'pineapple';
       if (has('banana')) return 'banana';
       if (has('morango', 'strawberry')) return 'strawberry';
-      if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'canela', 'leite condensado')) return 'chocolate';
+      if (has('creme de leite', 'leite condensado')) return 'cream';
+      if (has('chocolate branco')) return 'white-chocolate';
+      if (has('confete')) return 'sprinkles';
+      if (has('pacoquinha', 'paçoquinha')) return 'peanut';
+      if (has('chocolate', 'kit kat', 'canela')) return 'chocolate';
       if (has('coco')) return 'coconut';
       if (has('alho')) return 'garlic';
       if (has('brocolis')) return 'greens';
