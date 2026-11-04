@@ -126,7 +126,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const privacyTicket = await privacySubmission.json();
   assert.match(privacyTicket.id, /^pr_/);
   const sameOrigin = { Origin: base };
-  const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
+  const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', birthDate: '1995-04-10', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
   const customerCookie = registration.headers.get('set-cookie').split(';')[0];
   const dataExportResponse = await fetch(base + '/api/customer/data-export', { headers: { cookie: customerCookie } });
