@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=6';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=7';
 export { buildFoodGeometry };
 
 const TAU = Math.PI * 2;
@@ -256,7 +256,7 @@ export class FoodScene {
   update(product, ingredients, size, options = {}) {
     if (this.disposed) return;
     const crustKey = options.crustKey !== undefined ? options.crustKey : this.crustKey; this.crustKey = crustKey;
-    const layout = buildFoodLayout(product, ingredients, size, { detail: this.detail, crustKey });
+    const layout = buildFoodLayout(product, ingredients, size, { detail: this.detail, crustKey, flavors: options.flavors || [] });
     const pk = `${product.id}|${layout.type}`;
     this.product = product; this.ingredients = ingredients; this.size = size; this.model = { bounds: layout.bounds, type: layout.type };
     if (pk !== this.productKey) { // outro produto: limpa a cena e reinicia o enquadramento

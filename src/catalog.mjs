@@ -15,10 +15,38 @@ export function inferIngredientVisual(ingredient) {
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const text = normalize([ingredient?.id, ingredient?.name, ingredient?.groupName, ingredient?.group].filter(Boolean).join(' '));
   const has = (...words) => words.some(word => text.includes(word));
+  if (type === 'pizza' && has('barbecue')) return 'barbecue';
+  if (type === 'pizza' && has('maionese')) return 'mayonnaise';
+  if (type === 'pizza' && has('mostarda')) return 'mustard';
+  if (type === 'pizza' && has('tare', 'tarê', 'molho de pimenta')) return 'hot-sauce';
   if (type === 'pizza' || type === 'burger') {
     if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
     if (type === 'pizza' && has('catupiry')) return 'catupiry';
     if (type === 'burger' && has('catupiry')) return 'cheese';
+    if (type === 'pizza') {
+      if (has('abacaxi', 'pineapple')) return 'pineapple';
+      if (has('banana')) return 'banana';
+      if (has('morango', 'strawberry')) return 'strawberry';
+      if (has('creme de leite', 'leite condensado')) return 'cream';
+      if (has('chocolate branco')) return 'white-chocolate';
+      if (has('confete')) return 'sprinkles';
+      if (has('pacoquinha', 'paçoquinha')) return 'peanut';
+      if (has('chocolate', 'kit kat', 'canela')) return 'chocolate';
+      if (has('coco')) return 'coconut';
+      if (has('alho')) return 'garlic';
+      if (has('brocolis')) return 'greens';
+      if (has('ervilha')) return 'peas';
+      if (has('batata palha', 'doritos')) return 'crisps';
+      if (has('atum')) return 'tuna';
+      if (has('palmito')) return 'palm';
+      if (has('salsicha')) return 'sausage';
+      if (has('barbecue')) return 'barbecue';
+      if (has('maionese')) return 'mayonnaise';
+      if (has('mostarda')) return 'mustard';
+      if (has('tare', 'tarê', 'molho de pimenta')) return 'hot-sauce';
+      if (has('molho')) return 'sauce';
+      if (has('costela', 'file', 'filé', 'coxao mole', 'frango')) return 'chicken';
+    }
     if (has('cheddar')) return 'cheddar';
     if (has('requeijao', 'cream cheese', 'creme de queijo')) return 'cheese';
     if (has('parmesao', 'parmesan', 'grana padano', 'pecorino')) return 'parmesan';
@@ -37,9 +65,10 @@ export function inferIngredientVisual(ingredient) {
       if (has('picles', 'pepino', 'pickle')) return 'pickle';
     } else {
       if (has('calabresa', 'pepperoni', 'salame')) return 'pepperoni';
-      if (has('bacon', 'panceta', 'linguica')) return 'bacon';
-      if (has('frango', 'chicken')) return 'chicken';
-      if (has('cebola', 'alho', 'onion')) return 'onion';
+      if (has('bacon', 'panceta', 'linguica', 'lombo')) return 'bacon';
+      if (has('frango', 'chicken', 'costela', 'file', 'filé', 'coxao mole')) return 'chicken';
+      if (has('cebola', 'onion')) return 'onion';
+      if (has('alho', 'garlic')) return 'garlic';
       if (has('tomate', 'tomato', 'pimentao')) return 'tomato';
       if (has('milho', 'corn')) return 'corn';
       if (has('azeitona', 'oliva', 'olive')) return 'olive';
