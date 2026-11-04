@@ -367,7 +367,9 @@ function pizzaCtx(Rp, crustKey, hasSauce, hasCheese, seed) {
     return g;
   };
   const sauceR = a => Rin * (1.02 + .012 * Math.sin(a * 5 + ph));
-  const cheeseR = a => Rin * (.935 + .05 * Math.sin(a * 4 + ph) + .03 * (noise3(Math.cos(a) * 2.3, Math.sin(a) * 2.3, seed) - .5) * 2 + .018 * Math.sin(a * 11 + ph * 2));
+  // A mussarela cobre praticamente toda a área do molho, deixando só uma faixa
+  // irregular de molho visível junto à borda — não um grande anel sem queijo.
+  const cheeseR = a => Rin * (1.005 + .006 * Math.sin(a * 4 + ph) + .004 * (noise3(Math.cos(a) * 2.3, Math.sin(a) * 2.3, seed) - .5) * 2 + .003 * Math.sin(a * 11 + ph * 2));
   const edgeF = rn => Math.sqrt(Math.max(0, 1 - clamp(rn, 0, 1) ** 7));
   const sauceH = (x, z) => (.0017 + .0004 * (fbm(x * 60, z * 60, seed + 1, 2) - .5) * 2) * 1;
   const cheeseH = (x, z) => {
@@ -447,8 +449,12 @@ function cheeseMeshPizza(ctx, detail) {
     return s + cheeseH(x, z) * edgeF(v);
   }, (u, v, p) => {
     const spots = sstep(.58, .72, nz(p, 32, seed + 6)), deep = sstep(.7, .82, nz(p, 70, seed + 13)), g = cutGroove(p[0], p[2]);
-    let c = mix(C.mozz, C.mozzGold, spots * .75); c = mix(c, C.mozzBrown, deep * .55);
-    c = mix(c, C.doughPale, g * .45); c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .14);
+    let c = mix(C.mozz, C.mozzGold, spots * .42); c = mix(c, C.mozzBrown, deep * .28);
+    // Pequenas áreas irregulares deixam o molho vermelho aparecer sob/entre
+    // a camada contínua de mussarela, como numa pizza assada de verdade.
+    const sauceShow = sstep(.48, .68, fbm(p[0] * 115, p[2] * 115, seed + 29, 3)) * .42;
+    c = mix(c, C.tomSauce, sauceShow);
+    c = mix(c, C.doughPale, g * .3); c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .1);
     // poças de óleo: mais brilho e tom dourado
     const oil = sstep(.76, .9, nz(p, 45, seed + 17));
     c = mix(c, lin('#f2c46a'), oil * .35);
