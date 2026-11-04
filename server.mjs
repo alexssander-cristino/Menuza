@@ -166,7 +166,7 @@ function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
   const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(session.customerId);
-  return customer ? { ...session, customer } : null;
+  return customer ? { ...session, customer: {...customer,isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
 }
 function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
 function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
