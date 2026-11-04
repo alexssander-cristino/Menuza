@@ -32,7 +32,11 @@ export function inferIngredientVisual(ingredient) {
       if (has('atum')) return 'tuna';
       if (has('palmito')) return 'palm';
       if (has('salsicha')) return 'sausage';
-      if (has('barbecue', 'maionese', 'mostarda', 'tare', 'tarê', 'molho de pimenta', 'molho')) return 'sauce';
+      if (has('barbecue')) return 'barbecue';
+      if (has('maionese')) return 'mayonnaise';
+      if (has('mostarda')) return 'mustard';
+      if (has('tare', 'tarê', 'molho de pimenta')) return 'hot-sauce';
+      if (has('molho')) return 'sauce';
       if (has('costela', 'file', 'filé', 'coxao mole', 'frango')) return 'chicken';
     }
     if (has('cheddar')) return 'cheddar';
