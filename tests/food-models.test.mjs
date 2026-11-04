@@ -61,3 +61,17 @@ test('chocolate não herda a representação de erva do cadastro', () => {
   assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'),
     'o nome Chocolate deve prevalecer sobre visual_key e grupo herdados');
 });
+
+test('chocolate é uma camada cremosa contínua, não cobertura em pedaços', () => {
+  const layout = buildFoodLayout(pizza, [
+    { id: 'chocolate', name: 'Chocolate cremoso', quantity: 1 }
+  ], { diameterCm: 35 }, { detail: 0.45 });
+
+  const cream = layout.parts.find(part => part.kind === 'chocolate-cream');
+  assert.ok(cream, 'chocolate deve gerar uma camada cremosa contínua');
+  assert.ok(!layout.parts.some(part => part.kind === 'topping:chocolate'),
+    'chocolate não deve ser montado como pedaços isolados');
+  const geometry = cream.build();
+  assert.ok(geometry.positions.length > 0);
+  assert.ok(geometry.positions.every(Number.isFinite));
+});
