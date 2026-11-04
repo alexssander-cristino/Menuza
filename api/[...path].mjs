@@ -1047,7 +1047,7 @@ export default async function handler(req, res) {
       return json(res,201,{order,trackingUrl:'/#pedido/'+order.trackingToken});
     }
     if (method==='POST'&&path.startsWith('/api/tracking/')&&path.endsWith('/cancel')) {
-      const token=path.slice('/api/tracking/'.length).replace(/\\/cancel$/,'');
+      const token=path.slice('/api/tracking/'.length).replace(/\/cancel$/,'');
       if(!/^[A-Za-z0-9_-]{32,80}$/.test(token)) throw fail('Pedido não encontrado.',404);
       const found=(await query('SELECT id,customer_id AS "customerId" FROM orders WHERE tracking_token=$1 AND restaurant_id=$2',[token,RESTAURANT_ID])).rows[0];
       if(!found) throw fail('Pedido não encontrado.',404);
