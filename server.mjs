@@ -643,7 +643,7 @@ async function createProduct(payload) {
   const images = payload.images === undefined ? (payload.imageUrl ? [String(payload.imageUrl)] : []) : validateProductImages(payload.images);
   const imageUrl = images[0] || '';
   if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
-  if (name.length < 2 || !['pizza','burger','plate'].includes(type) || !Number.isInteger(baseCents) || baseCents < 500 || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
+  if (name.length < 2 || !['pizza','burger','plate','drink'].includes(type) || !Number.isInteger(baseCents) || baseCents < (type === 'drink' ? 1 : 500) || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
   const category = statement('SELECT id FROM categories WHERE id=? AND restaurant_id=?').get(categoryId, RESTAURANT_ID);
   if (!category) throw Object.assign(new Error('Escolha uma categoria válida.'), { status: 422 });
   const now = new Date().toISOString();
