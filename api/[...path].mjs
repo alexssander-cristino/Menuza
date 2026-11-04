@@ -448,15 +448,24 @@ async function priceItems(input) {
           included: (product.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
+    let flavorProducts=[product];
+    if(product.type==='pizza'){
+      const ids=Array.isArray(entry.flavorProductIds)?[...new Set(entry.flavorProductIds)]:[product.id];
+      const sizeOption=(cat.sizes.pizza||[]).find(x=>x.key===entry.sizeKey),limit=Number(sizeOption?.maxFlavors)||1;
+      if(!ids.includes(product.id)||ids.length<1||ids.length>limit)throw fail('A quantidade de sabores não é permitida para este tamanho.',422);
+      flavorProducts=ids.map(fid=>cat.products.find(p=>p.id===fid&&p.type==='pizza'&&p.categoryId===product.categoryId&&Number(p.active)===1&&Number(p.available)===1));
+      if(flavorProducts.some(p=>!p))throw fail('Um dos sabores selecionados está indisponível.',409);
+    }
     const effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{
       ...product,
       baseCents:product.promotionalPriceCents,
       sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))
     }:product;
+    if(product.type==='pizza'&&flavorProducts.length>1){const priceFor=p=>{const raw=Number(p.sizePrices?.[entry.sizeKey]);return Number.isInteger(raw)&&raw>0?raw:Number(p.baseCents)||0};effectiveProduct.sizePrices={...(effectiveProduct.sizePrices||{}),[entry.sizeKey]:Math.max(...flavorProducts.map(priceFor))};}
     try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog, sizes:cat.sizes, crusts:cat.crusts }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
-    priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), priced:pricedItem });
+    priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), flavorProducts:flavorProducts.map(p=>({id:p.id,name:p.name})), priced:pricedItem });
   }
   return { subtotal, priced, requiresAdult: priced.some(item=>item.product.ageRestricted===true || Number(item.product.ageRestricted)===1) };
 }
@@ -506,7 +515,7 @@ async function createOrder(body, customer) {
       if (!used.rowCount) throw fail('Esse cupom atingiu o limite de utilizações.',422);
     }
     for (const item of priced) {
-      const snapshot={productId:item.product.id,type:item.combo?'combo':item.product.type,name:item.product.name,size:item.priced.size,crust:item.priced.crust,ingredients:item.priced.ingredients,comboItems:item.priced.comboItems||[],unitPriceCents:item.priced.unitPriceCents,widthCm:item.product.widthCm,heightCm:item.product.heightCm};
+      const snapshot={productId:item.product.id,type:item.combo?'combo':item.product.type,name:item.product.name,size:item.priced.size,crust:item.priced.crust,ingredients:item.priced.ingredients,flavors:item.flavorProducts||[],comboItems:item.priced.comboItems||[],unitPriceCents:item.priced.unitPriceCents,widthCm:item.product.widthCm,heightCm:item.product.heightCm};
       await client.query(`INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [randomBytes(12).toString('hex'),id,item.product.id,item.product.name,item.quantity,item.priced.size.key,item.priced.crust?.key||'',JSON.stringify(item.priced.ingredients),item.notes,item.priced.unitPriceCents,JSON.stringify(snapshot)]);
