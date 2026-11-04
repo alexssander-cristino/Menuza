@@ -1,3 +1,4 @@
+import { inspectImageBuffer } from './image-validation.mjs';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 const DEFAULT_BUCKET = 'menuza-modelos-3d';
@@ -92,7 +93,10 @@ export async function storeImageDataUrl(dataUrl, prefix = 'products') {
   if (!match) throw new Error('Formato de imagem inválido.');
   const contentType = match[1];
   const bytes = Buffer.from(match[2], 'base64');
-  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('A imagem precisa ter até 8 MB antes do envio.');
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES || bytes.toString('base64').replace(/=+$/, '') !== match[2].replace(/=+$/, '')) throw new Error('Arquivo de imagem inválido ou acima de 8 MB.');
+  const inspected = inspectImageBuffer(bytes);
+  const expectedFormat = contentType === 'image/jpeg' ? 'jpeg' : contentType === 'image/png' ? 'png' : 'webp';
+  if (inspected.format !== expectedFormat) throw new Error('O conteúdo do arquivo não corresponde ao formato informado.');
   const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/png' ? 'png' : 'webp';
   const safePrefix = String(prefix || 'products').split('/').filter(part => /^[a-zA-Z0-9_-]{1,80}$/.test(part)).join('/');
   const key = (safePrefix || 'products') + '/' + randomBytes(16).toString('hex') + '.' + extension;
@@ -122,6 +126,9 @@ export async function imageReferenceToDataUrl(reference) {
   if (!['image/webp', 'image/jpeg', 'image/png'].includes(contentType)) throw new Error('A foto armazenada não está em um formato de imagem compatível.');
   const bytes = Buffer.from(await response.arrayBuffer());
   if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('A foto do produto excede o limite para geração 3D.');
+  const inspected = inspectImageBuffer(bytes);
+  const expectedFormat = contentType === 'image/jpeg' ? 'jpeg' : contentType === 'image/png' ? 'png' : 'webp';
+  if (inspected.format !== expectedFormat) throw new Error('A foto armazenada não corresponde ao tipo de imagem declarado.');
   return 'data:' + contentType + ';base64,' + bytes.toString('base64');
 }
 
