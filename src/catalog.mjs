@@ -3,7 +3,7 @@ export const STATUS_FLOW = Object.freeze(['received', 'confirmed', 'preparing', 
 export const SIZE_OPTIONS = Object.freeze({
   pizza: [{ key: 'individual', label: 'Individual', deltaCents: -1300, diameterCm: 20 }, { key: 'media', label: 'Média', deltaCents: 0, diameterCm: 30 }, { key: 'grande', label: 'Grande', deltaCents: 1000, diameterCm: 35 }, { key: 'familia', label: 'Família', deltaCents: 3000, diameterCm: 40 }],
   burger: [{ key: 'classico', label: 'Clássico', deltaCents: 0 }, { key: 'duplo', label: 'Duplo', deltaCents: 900 }],
-  plate: [{ key: 'unico', label: 'Porção', deltaCents: 0 }],
+  plate: [{ key: 'unico', label: 'Hot Dog', deltaCents: 0 }],
   drink: [{ key: 'unico', label: 'Unidade', deltaCents: 0 }]
 });
 export const CRUST_OPTIONS = Object.freeze([{ key: 'tradicional', label: 'Tradicional', priceCents: 0 }, { key: 'fina', label: 'Massa fina', priceCents: 0 }, { key: 'recheada', label: 'Borda de requeijão', priceCents: 850 }]);
@@ -107,12 +107,12 @@ export function makeSeed(now = new Date().toISOString()) {
     ingredients: INGREDIENTS.map((i, idx) => ({ ...i, restaurantId, groupName: i.group, addonCents: i.cents, includedByDefault: i.included ? 1 : 0, active: 1, sortOrder: idx }))
   };
 }
-export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS }) {
+export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS, sizes = SIZE_OPTIONS, crusts = CRUST_OPTIONS }) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw new Error('A quantidade deve ficar entre 1 e 10.');
   const type = product.type;
-  const size = (SIZE_OPTIONS[type] || SIZE_OPTIONS.plate).find(option => option.key === sizeKey);
+  const size = (sizes[type] || sizes.plate || []).find(option => option.key === sizeKey);
   if (!size) throw new Error('Tamanho inválido.');
-  const crust = type === 'pizza' ? CRUST_OPTIONS.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
+  const crust = type === 'pizza' ? crusts.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
   if (!crust) throw new Error('Massa ou borda inválida.');
   if (!Array.isArray(ingredients) || ingredients.length > 12) throw new Error('Selecione até 12 componentes.');
   const requiredIds = new Set(Array.isArray(product.requiredIngredientIds) ? product.requiredIngredientIds : (product.ingredientsConfigured ? (product.defaultIngredientIds || []) : catalog.filter(item => item.type === type && (item.active === undefined || Number(item.active) === 1) && Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)));
