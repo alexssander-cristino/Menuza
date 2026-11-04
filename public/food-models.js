@@ -988,7 +988,12 @@ function resolveVisualIngredient(type, ingredient) {
   if (visualAliases[visual]) return { ...ingredient, id: visualAliases[visual] };
   const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
-  const has = (...terms) => terms.some(term => text.includes(term));
+  // Correspondência por palavras inteiras: includes() confundia "conserva" com "erva"
+  // e classificava ingredientes sem relação com ervas como orégano.
+  const has = (...terms) => terms.some(term => {
+    const normalized = String(term).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return normalized && (' ' + text + ' ').includes(' ' + normalized + ' ');
+  });
   const knownPizza = new Set(['molho-tomate', 'mussarela', ...Object.keys(TOPPINGS)]);
   const knownBurger = new Set(['pao-brioche', 'carne', 'queijo-cheddar', 'queijo-extra', 'queijo-mussarela-burger', 'queijo-parmesao-burger', 'queijo-gorgonzola-burger', 'queijo-provolone-burger', 'alface', 'tomate-burger', 'molho-especial', 'picles', 'cebola-burger', 'bacon-burger', 'ovo']);
   if ((type === 'pizza' && knownPizza.has(id)) || (type === 'burger' && knownBurger.has(id))) return { ...ingredient };
