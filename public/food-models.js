@@ -20,7 +20,7 @@ const C = {
   sauce: lin('#eab283'), sauceDeep: lin('#d98f57'),
   doughRim: lin('#c98a3d'), doughBrown: lin('#a65f27'), doughChar: lin('#5f2f12'), doughPale: lin('#e2c086'), doughCream: lin('#f2e0b2'),
   tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
-  mozz: lin('#ebc878'), mozzGold: lin('#c4822f'), mozzBrown: lin('#a8651f'),
+  mozz: lin('#f0e7d5'), mozzGold: lin('#d9c49a'), mozzBrown: lin('#a98a58'),
   pep: lin('#b8412a'), pepDeep: lin('#8c2a18'), pepChar: lin('#5a190d'), pepFat: lin('#e49e80'),
   mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
@@ -449,10 +449,10 @@ function cheeseMeshPizza(ctx, detail) {
     return s + cheeseH(x, z) * edgeF(v);
   }, (u, v, p) => {
     const spots = sstep(.58, .72, nz(p, 32, seed + 6)), deep = sstep(.7, .82, nz(p, 70, seed + 13)), g = cutGroove(p[0], p[2]);
-    let c = mix(C.mozz, C.mozzGold, spots * .42); c = mix(c, C.mozzBrown, deep * .28);
+    let c = mix(C.mozz, C.mozzGold, spots * .3); c = mix(c, C.mozzBrown, deep * .18);
     // Pequenas áreas irregulares deixam o molho vermelho aparecer sob/entre
     // a camada contínua de mussarela, como numa pizza assada de verdade.
-    const sauceShow = sstep(.48, .68, fbm(p[0] * 115, p[2] * 115, seed + 29, 3)) * .42;
+    const sauceShow = sstep(.43, .64, fbm(p[0] * 82, p[2] * 82, seed + 29, 3)) * .78;
     c = mix(c, C.tomSauce, sauceShow);
     c = mix(c, C.doughPale, g * .3); c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .1);
     // poças de óleo: mais brilho e tom dourado
