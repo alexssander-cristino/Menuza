@@ -64,6 +64,8 @@ function inspectJpeg(buffer) {
     const marker = buffer[offset++];
     if (marker === 0xda) break;
     if (marker === 0xd9 || marker === 0x00 || marker === 0xd8) throw new Error('Estrutura JPEG inválida.');
+    const allowedMarkers = new Set([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf,0xc4,0xdb,0xdd,0xe0]);
+    if (!allowedMarkers.has(marker)) throw new Error('JPEG contém um segmento não permitido.');
     if (offset + 2 > buffer.length) throw new Error('JPEG incompleto.');
     const length = buffer.readUInt16BE(offset);
     if (length < 2 || offset + length > buffer.length) throw new Error('Segmento JPEG inválido.');
@@ -88,7 +90,7 @@ function inspectWebp(buffer) {
     const length = buffer.readUInt32LE(offset+4);
     const start = offset + 8, end = start + length + (length & 1);
     if (end > buffer.length) throw new Error('Estrutura WebP inválida.');
-    if (['EXIF','XMP ','ICCP','ANIM','ANMF'].includes(type)) throw new Error('WebP com metadados ou animação não é permitido.');
+    if (!['VP8X','VP8 ','VP8L','ALPH'].includes(type)) throw new Error('WebP contém metadados, animação ou segmentos não permitidos.');
     if (type === 'VP8X') {
       if (length !== 10) throw new Error('Cabeçalho WebP inválido.');
       const flags = buffer[start];
