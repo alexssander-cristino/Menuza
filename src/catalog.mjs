@@ -115,7 +115,7 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   const crust = type === 'pizza' ? CRUST_OPTIONS.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
   if (!crust) throw new Error('Massa ou borda inválida.');
   if (!Array.isArray(ingredients) || ingredients.length > 12) throw new Error('Selecione até 12 componentes.');
-  const requiredIds = new Set(Array.isArray(product.requiredIngredientIds) ? product.requiredIngredientIds : (product.ingredientsConfigured ? (product.defaultIngredientIds || []) : catalog.filter(item => Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)));
+  const requiredIds = new Set(Array.isArray(product.requiredIngredientIds) ? product.requiredIngredientIds : (product.ingredientsConfigured ? (product.defaultIngredientIds || []) : catalog.filter(item => item.type === type && (item.active === undefined || Number(item.active) === 1) && Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)));
   const supplied = Array.isArray(ingredients) ? ingredients.slice() : ingredients;
   if (!Array.isArray(supplied)) throw new Error('Selecione os ingredientes do produto.');
   for (const id of requiredIds) if (!supplied.some(entry => entry?.id === id)) supplied.push({ id, quantity: 1 });
