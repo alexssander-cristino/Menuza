@@ -65,6 +65,11 @@ const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-c
 app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
+const safeCssImageUrl = value => {
+  const raw=String(value||'').trim();
+  if(!/^https:\/\/[^\s"'<>]+$/i.test(raw)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(raw))return '';
+  return esc(raw.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n\f]/g,char=>'\\'+char.charCodeAt(0).toString(16)+' '));
+};
 function setCart() {
   const serializedCart = JSON.stringify(app.cart);
   // Uma chave idempotente só pode ser reutilizada para o mesmo carrinho.
@@ -378,7 +383,7 @@ function renderPromotionBanner(){
   if(!offers.length){stopPromotionCarousel();existing?.remove();return}
   const slides=[];
   if(bannerEnabled){
-    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+esc(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+safeCssImageUrl(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
   }
   offers.forEach((product,index)=>{
     const regular=Number(product.baseCents)||0;
