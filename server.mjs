@@ -42,7 +42,8 @@ db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
 for (const [table, column, definition] of [
   ['restaurants','logo_url',"TEXT NOT NULL DEFAULT ''"],
   ['products','image_url',"TEXT NOT NULL DEFAULT ''"],
-  ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"]
+  ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','age_restricted','INTEGER NOT NULL DEFAULT 0']
 ]) {
   try { db.exec('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
@@ -116,7 +117,7 @@ function seedDatabase() {
 const statement = sql => db.prepare(sql);
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
     let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
     if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
     images=images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8);
@@ -131,7 +132,7 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
     try { itemIds = JSON.parse(row.itemsJson); } catch {}
     const items = itemIds.map(entry => {
       const product = products.find(item => item.id === entry.productId) || statement('SELECT id,name,description,type,base_price_cents AS baseCents,active,available FROM products WHERE id=? AND restaurant_id=?').get(entry.productId, restaurantId);
-      return product ? { productId: product.id, name: product.name, quantity: entry.quantity, baseCents: product.baseCents } : null;
+      return product ? { productId: product.id, name: product.name, quantity: entry.quantity, baseCents: product.baseCents, ageRestricted: Boolean(product.ageRestricted) } : null;
     }).filter(Boolean);
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: row.active, createdAt: row.createdAt, updatedAt: row.updatedAt, items };
   });
@@ -401,7 +402,7 @@ function priceOrderItems(itemsInput) {
         const product = catalog.products.find(p => p.id === comboItem.productId && p.active === 1 && p.available === 1);
         if (!product) throw Object.assign(new Error('Um produto de um combo está indisponível. Atualize o cardápio.'), { status: 409 });
       }
-      const product = { id: row.id, name: row.name, description: row.description, type: 'plate', widthCm: null, heightCm: null };
+      const product = { id: row.id, name: row.name, description: row.description, type: 'plate', widthCm: null, heightCm: null, ageRestricted: comboItems.some(entry => catalog.products.find(p => p.id === entry.productId)?.ageRestricted) };
       const priced = { linePriceCents: row.priceCents * quantity, unitPriceCents: row.priceCents, size: { key: 'combo', label: 'Combo' }, crust: null, ingredients: [], comboItems: comboItems.map(item => {
         const source = catalog.products.find(p => p.id === item.productId);
         return { productId: source.id, name: source.name, quantity: item.quantity };
@@ -415,7 +416,7 @@ function priceOrderItems(itemsInput) {
     subtotalCents += priced.linePriceCents;
     return { product, quantity: entry.quantity, notes: cleanText(entry.notes, 300), priced };
   });
-  return { subtotalCents, pricedItems };
+  return { subtotalCents, pricedItems, requiresAdult: pricedItems.some(item => item.product.ageRestricted === true || Number(item.product.ageRestricted) === 1) };
 }
 function validateCouponForOrder(code, itemsInput) {
   const { subtotalCents } = priceOrderItems(itemsInput);
@@ -490,7 +491,8 @@ function saveCoupon(payload, id = null) {
   return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(newId,RESTAURANT_ID));
 }
 
-function createOrder(payload, customerId = null) {
+function createOrder(payload, customer = null) {
+  const customerId = customer?.id || null;
   const customerName = cleanText(payload.customerName, 100);
   const phone = cleanText(payload.phone, 30);
   const fulfillment = payload.fulfillment;
@@ -511,7 +513,8 @@ function createOrder(payload, customerId = null) {
     if ((existing.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
     return orderById(existing.id);
   }
-  const { subtotalCents, pricedItems } = priceOrderItems(itemsInput);
+  const { subtotalCents, pricedItems, requiresAdult } = priceOrderItems(itemsInput);
+  if (requiresAdult && (!customer?.birthDate || customer.isAdult !== true)) throw Object.assign(new Error(!customer?.birthDate ? 'Informe sua data de nascimento na conta para comprar este produto restrito.' : 'Este produto é permitido apenas para maiores de 18 anos.'), { status: 403 });
   const normalizedCouponCode = couponCode(payload.couponCode);
   let discountCents = 0;
   if (normalizedCouponCode) discountCents = couponEligibility(getCoupon(normalizedCouponCode), subtotalCents);
@@ -599,7 +602,8 @@ async function patchProduct(productId, patch) {
   if(!Array.isArray(currentImages))currentImages=[];
   const savedImages=images===null?(currentImages.length?await storeImageList(currentImages,'products/'+productId):(imageUrl?[storedImageUrl]:[])):storedImages;
   const finalImageUrl=images===null?(savedImages[0]||''):storedImageUrl;
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), new Date().toISOString(), productId, RESTAURANT_ID);
+  const ageRestricted = patch.ageRestricted === undefined ? Number(product.age_restricted || 0) : (patch.ageRestricted ? 1 : 0);
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,age_restricted=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), ageRestricted, new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
@@ -646,8 +650,8 @@ async function createProduct(payload) {
   const id = slugify(name) + '-' + randomBytes(3).toString('hex');
   const storedImages = await storeImageList(images, 'products/' + id);
   const storedImageUrl = storedImages[0] || '';
-  statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?, ?,?)')
-    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), now, now);
+statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,age_restricted,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?,?,?,?)')
+    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), payload.ageRestricted ? 1 : 0, now, now);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
@@ -773,6 +777,11 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
       if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
+      if (request.method === 'PATCH' && path === '/api/customer/birth-date') {
+        const current = requireCustomer(request), body = await bodyOf(request), birth = parseCustomerBirthDate(body.birthDate);
+        statement('UPDATE customers SET birth_date=? WHERE id=?').run(birth.birthDate, current.customerId);
+        return send(response,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
+      }
       if (request.method === 'GET' && path === '/api/customer/data-export') {
         const customer = requireCustomer(request).customer;
         return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone},orders:listCustomerOrders(customer.id)});
@@ -911,7 +920,7 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const customerSession = requireCustomer(request);
-        const order = createOrder(body, customerSession.customerId);
+        const order = createOrder(body, customerSession.customer);
         return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
       }
       if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
