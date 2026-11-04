@@ -459,6 +459,24 @@ function cheeseMeshPizza(ctx, detail) {
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
+function chocolateMeshPizza(ctx, detail, white = false) {
+  // Chocolate cremoso como cobertura contínua, no mesmo estilo da camada de queijo:
+  // espalhado pelo disco inteiro, sem bolinhas ou pedaços isolados.
+  const radius = ctx.sauceR;
+  const base = white ? lin('#e8d4ad') : lin('#54291f');
+  const deep = white ? lin('#c9ad80') : lin('#321710');
+  return veneerMesh(radius, (x, z, v) => {
+    const edge = ctx.edgeF(v);
+    return ctx.surf(x, z) + .0028 + .0015 * edge
+      + (fbm(x * 95, z * 95, ctx.seed + (white ? 31 : 29), 3) - .5) * .00045;
+  }, (u, v, p) => {
+    const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 2.4 + Math.hypot(p[0], p[2]) * 95 + ctx.seed);
+    const grain = (nz(p, 105, ctx.seed + 33) - .5) * .08;
+    const c = mix(base, deep, clamp(.12 + swirl * .22 + grain, 0, .42));
+    return MAT(c, .16, .58, .72, 1);
+  }, Math.round(200 * detail), Math.round(52 * detail));
+}
+
 // ---- coberturas ----
 function pepperoniInto(m, x, y, z, R, seed, rnd, detail) {
   const t = .0027, pts = [[0, 0], [R * .95, 0], [R, t * .35], [R, t * .75]];
@@ -897,6 +915,7 @@ function pizzaLayout(product, ings, size, o) {
   const q = normalizeItems(ings);
   for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
   const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela') || hasSauce;
+  const chocolateId = q.has('white-chocolate') ? 'white-chocolate' : q.has('chocolate') ? 'chocolate' : null;
   const ctxFor = (sector = null, flavorSeed = seed) => {
     const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
     c.hasSauce = hasSauce; c.sector = sector;
@@ -907,13 +926,19 @@ function pizzaLayout(product, ings, size, o) {
   const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(ctxFor(), detail) }];
   if (hasSauce) parts.push({ kind: 'sauce', key: `pizza|sauce|${base}`, y: 0, base: false, build: () => sauceMeshPizza(ctxFor(), detail) });
   if (hasCheese) parts.push({ kind: 'cheese', key: `pizza|cheese|${base}|${flags}`, y: 0, base: false, build: () => cheeseMeshPizza(ctxFor(), detail) });
+  if (chocolateId) parts.push({
+    kind: 'chocolate-cream',
+    key: `pizza|chocolate-cream|${chocolateId}|${base}|${flags}`,
+    y: 0, base: false,
+    build: () => chocolateMeshPizza(ctxFor(), detail, chocolateId === 'white-chocolate')
+  });
   const sectors = flavorMaps.length > 1 ? flavorMaps : [q];
   sectors.forEach((flavorQ, flavorIndex) => {
     const sector = flavorMaps.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
     const ctx = ctxFor(sector, seed + flavorIndex * 97);
     const earlier = [];
     for (const id of TOPPING_ORDER) {
-      if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela') continue;
+      if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela' || id === 'chocolate' || id === 'white-chocolate') continue;
       const qi = flavorQ.get(id) - 1, sig = earlier.map(e => `${e.id}${e.qtyIdx}`).join(',');
       const ear = earlier.slice(), sectorKey = sector ? '|sector-' + flavorIndex + '-' + sectors.length : '';
       parts.push({ kind: 'topping:' + id + (sector ? ':' + flavorIndex : ''), key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`, y: 0, base: false, build: () => toppingMesh(ctx, id, qi, ear, detail) });
