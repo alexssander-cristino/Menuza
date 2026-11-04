@@ -696,7 +696,7 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'greens': toppingBlob(m, s.x, y, s.z, r * 1.2, .0025, r, lin('#43833d'), sd, rnd); break;
       case 'peas': for (let n = 0; n < 4; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.42, r*.34, r*.42, lin('#7b9b3d'), sd+n, rnd); break;
       case 'crisps': for (let n = 0; n < 3; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.9, .0014, r*.22, lin('#e7b84d'), sd+n, rnd); break;
-      case 'chocolate': toppingBlob(m, s.x, y, s.z, r*1.25, .0026, r*.9, lin('#4b251c'), sd, rnd); break;
+      case TOPPINGS.chocolate.kind: toppingBlob(m, s.x, y, s.z, r*1.25, .0026, r*.9, lin('#4b251c'), sd, rnd); break;
       case 'barbecue': toppingBlob(m, s.x, y, s.z, r*1.35, .0022, r*.8, lin('#71351f'), sd, rnd); break;
       case 'mayonnaise': toppingBlob(m, s.x, y, s.z, r*1.3, .002, r*.75, lin('#f2e8d2'), sd, rnd); break;
       case 'mustard': toppingBlob(m, s.x, y, s.z, r*1.25, .002, r*.7, lin('#d9a92f'), sd, rnd); break;
