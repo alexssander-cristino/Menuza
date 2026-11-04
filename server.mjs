@@ -686,7 +686,7 @@ async function serveStatic(pathname, response) {
   if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
   try {
     const data = await readFile(target);
-    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' https://ajax.googleapis.com; connect-src 'self' https://ajax.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
     response.end(data);
   } catch {
     // HTML inexistente recebe a página visual; assets ausentes mantêm resposta simples para não quebrar o tipo do recurso.
@@ -694,7 +694,7 @@ async function serveStatic(pathname, response) {
     if (!isHtmlPath) return send(response, 404, { error: 'Arquivo não encontrado.' });
     try {
       const page = await readFile(resolve(PUBLIC, '404.html'));
-      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://ajax.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
       response.end(page);
     } catch { send(response, 404, { error: 'Página não encontrada.' }); }
   }
