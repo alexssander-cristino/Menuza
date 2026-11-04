@@ -92,7 +92,7 @@ async function customer(req) {
   await ensureCustomerSchema();
   const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate" FROM customers WHERE id=$1', [value.customerId]);
   const row=result.rows[0];
-  return row ? { ...value, customer: {...row,isAdult:parseBirthDate(String(row.birthDate).slice(0,10)).isAdult} } : null;
+  return row ? { ...value, customer: {...row,isAdult:row.birthDate?parseBirthDate(String(row.birthDate).slice(0,10)).isAdult:null} } : null;
 }
 async function requireCustomer(req) {
   const value = await customer(req);
@@ -704,8 +704,9 @@ export default async function handler(req, res) {
       await ensureCustomerSchema();
       const row=(await query('SELECT * FROM customers WHERE email=$1',[email])).rows[0];
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'E-mail ou senha inválidos.'});
-      const birth=parseBirthDate(String(row.birth_date).slice(0,10));
-      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate:String(row.birth_date).slice(0,10),isAdult:birth.isAdult}, token=sign({role:'customer',customerId:row.id,exp:Date.now()+604800000});
+      const birthDate=row.birth_date?String(row.birth_date).slice(0,10):null;
+      const birth=birthDate?parseBirthDate(birthDate):null;
+      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,isAdult:birth?.isAdult??null}, token=sign({role:'customer',customerId:row.id,exp:Date.now()+604800000});
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
