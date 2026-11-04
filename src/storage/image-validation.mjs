@@ -36,6 +36,8 @@ function inspectPng(buffer) {
       result = dimensions(buffer.readUInt32BE(dataStart), buffer.readUInt32BE(dataStart + 4), 'png');
     }
     if (forbidden.has(type)) throw new Error('PNG animado ou com metadados ativos não é permitido.');
+    const allowedChunks = new Set(['IHDR','PLTE','IDAT','IEND','tRNS','sRGB','gAMA','cHRM','pHYs','bKGD']);
+    if (!allowedChunks.has(type)) throw new Error('PNG contém metadados ou uma estrutura não permitida.');
     if (type === 'IDAT') hasIdat = true;
     if (type === 'IEND') {
       if (length !== 0 || !hasIdat || crcOffset + 4 !== buffer.length) throw new Error('Final do arquivo PNG inválido.');
