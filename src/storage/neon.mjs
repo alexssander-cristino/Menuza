@@ -88,21 +88,28 @@ export async function storeImageDataUrl(dataUrl, prefix = 'products') {
   if (dataUrl === '' || dataUrl == null) return '';
   if (!isImageDataUrl(dataUrl)) {
     if (isStoredImageUrl(dataUrl)) return dataUrl;
-    throw new Error('Imagem inválida. Envie uma imagem WebP, JPG ou PNG.');
+    throw Object.assign(new Error('Imagem inválida. Envie uma imagem WebP, JPG ou PNG.'), { status: 422 });
   }
   const match = dataUrl.match(/^data:(image\/(?:webp|jpeg|png));base64,([A-Za-z0-9+/]+={0,2})$/);
-  if (!match) throw new Error('Formato de imagem inválido.');
+  if (!match) throw Object.assign(new Error('Formato de imagem inválido.'), { status: 422 });
   const contentType = match[1];
   const bytes = Buffer.from(match[2], 'base64');
-  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES || bytes.toString('base64').replace(/=+$/, '') !== match[2].replace(/=+$/, '')) throw new Error('Arquivo de imagem inválido ou acima de 8 MB.');
-  const inspected = inspectImageBuffer(bytes);
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw Object.assign(new Error('Arquivo de imagem inválido ou acima de 8 MB.'), { status: 413 });
+  if (bytes.toString('base64').replace(/=+$/, '') !== match[2].replace(/=+$/, '')) throw Object.assign(new Error('Arquivo de imagem inválido.'), { status: 422 });
+  let inspected;
+  try { inspected = inspectImageBuffer(bytes); }
+  catch (error) { throw Object.assign(new Error(error.message || 'Imagem inválida.'), { status: 422 }); }
   const expectedFormat = contentType === 'image/jpeg' ? 'jpeg' : contentType === 'image/png' ? 'png' : 'webp';
   if (inspected.format !== expectedFormat) throw new Error('O conteúdo do arquivo não corresponde ao formato informado.');
   const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/png' ? 'png' : 'webp';
   const safePrefix = String(prefix || 'products').split('/').filter(part => /^[a-zA-Z0-9_-]{1,80}$/.test(part)).join('/');
   const key = (safePrefix || 'products') + '/' + randomBytes(16).toString('hex') + '.' + extension;
-  const uploaded = await signedS3Request('PUT', key, bytes, contentType);
-  return uploaded.url;
+  try {
+    const uploaded = await signedS3Request('PUT', key, bytes, contentType);
+    return uploaded.url;
+  } catch (error) {
+    throw Object.assign(new Error('Não foi possível enviar a imagem ao armazenamento. ' + (error.message || 'Tente novamente.')), { status: 502 });
+  }
 }
 
 export async function storeImageList(images, prefix = 'products') {
