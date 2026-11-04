@@ -318,6 +318,7 @@ async function validateSizePrices(type, value, fallbackCents) {
 }
 async function catalogFor(admin = false) {
   await ensurePizzaConfigSchema();
+  await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
