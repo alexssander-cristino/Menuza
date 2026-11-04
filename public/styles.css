@@ -2450,3 +2450,9 @@ button[data-action="view-generated-3d"],
   outline:2px solid rgba(181,43,43,.25);
   outline-offset:2px;
 }
+
+/* Preços por tamanho na área de configuração de tamanhos */
+.product-size-price-list{display:grid;gap:12px}
+.product-size-price-entry{display:grid;gap:12px;padding:16px;border:1px solid #e9e5ee;border-radius:14px;background:var(--surface,#fff);min-width:0}
+.product-size-price-entry .product-admin-heading{padding-bottom:10px;border-bottom:1px solid #eeeaf0}
+.product-size-price-entry .button{justify-self:start}
