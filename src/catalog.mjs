@@ -15,6 +15,10 @@ export function inferIngredientVisual(ingredient) {
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const text = normalize([ingredient?.id, ingredient?.name, ingredient?.groupName, ingredient?.group].filter(Boolean).join(' '));
   const has = (...words) => words.some(word => text.includes(word));
+  if (type === 'pizza' && has('barbecue')) return 'barbecue';
+  if (type === 'pizza' && has('maionese')) return 'mayonnaise';
+  if (type === 'pizza' && has('mostarda')) return 'mustard';
+  if (type === 'pizza' && has('tare', 'tarê', 'molho de pimenta')) return 'hot-sauce';
   if (type === 'pizza' || type === 'burger') {
     if (has('molho', 'sauce', 'passata', 'tomatinho')) return 'sauce';
     if (type === 'pizza' && has('catupiry')) return 'catupiry';
