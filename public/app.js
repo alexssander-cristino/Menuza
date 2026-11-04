@@ -1829,9 +1829,10 @@ async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const catalog=await api('/api/admin/catalog');
+    app.admin.ingredientsCache=catalog.ingredients||[];
     target.innerHTML=['pizza','burger','plate'].map(type=>{
       const items=catalog.ingredients.filter(i=>i.type===type);
-      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de porções')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':type==='burger'?'Ex.: Cheddar extra':'Ex.: Bacon extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':type==='burger'?'adicional':'ingrediente')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':type==='burger'?'adicionais':'ingredientes')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de porções')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':type==='burger'?'Ex.: Cheddar extra':'Ex.: Bacon extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':type==='burger'?'adicional':'ingrediente')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':type==='burger'?'adicionais':'ingredientes')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><div class="ingredient-admin-actions"><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button><button class="tiny-link button-danger" data-action="delete-ingredient" data-id="'+esc(i.id)+'">Excluir</button></div></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
     }).join('');
     target.querySelectorAll('[data-new-ingredient-type]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();createIngredient(form.dataset.newIngredientType,form)}));
     target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
@@ -2071,6 +2072,10 @@ async function deleteProduct(id,kind='product',button=null){
 async function createIngredient(type,form){
   const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.'));
   const priceInput=form.querySelector('[name="price"]');
+  const normalizedName=normalizeSearch(name).replace(/\\s+/g,' ');
+  const duplicate=(app.admin.ingredientsCache||[]).find(item=>normalizeSearch(item.name).replace(/\\s+/g,' ')===normalizedName);
+  if(duplicate){toast('Já existe um ingrediente com esse nome: '+duplicate.name+'.');form.querySelector('[name="name"]').setAttribute('aria-invalid','true');form.querySelector('[name="name"]').focus();return}
+
   if(!name||name.length<2){toast('Informe um nome com pelo menos 2 caracteres.');return}
   if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
   priceInput.removeAttribute('aria-invalid');
@@ -2092,6 +2097,22 @@ async function saveIngredient(id){
   button.disabled=true;button.textContent='Salvando…';
   try{await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({cents,active})});button.textContent='Salvo ✓';toast('Adicional atualizado.');setTimeout(()=>{if(button.isConnected){button.textContent=original;button.disabled=false}},1400)}
   catch(e){button.textContent='Tentar novamente';button.disabled=false;toast(e.message)}
+}
+async function deleteIngredient(id,actionButton){
+  const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');
+  if(!row)return;
+  const name=row.querySelector('span')?.textContent?.replace(/ · incluso$/,'').trim()||'este ingrediente';
+  if(!window.confirm('Excluir "'+name+'"? Ele deixará de aparecer nas personalizações futuras. O histórico de pedidos anteriores será preservado.'))return;
+  const original=actionButton?.textContent;
+  if(actionButton){actionButton.disabled=true;actionButton.textContent='Excluindo…'}
+  try{
+    await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'DELETE'});
+    toast('Ingrediente excluído. O histórico de pedidos foi preservado.');
+    await renderIngredientsAdmin();
+  }catch(error){
+    toast(error.message||'Não foi possível excluir o ingrediente.');
+    if(actionButton){actionButton.disabled=false;actionButton.textContent=original||'Excluir'}
+  }
 }
 async function repeatCustomerOrder(orderId){
   const order=app.customerOrders.find(item=>item.id===orderId);
@@ -2352,6 +2373,7 @@ async function handleClick(event){
   if(action==='save-beverage'){saveBeverage(target.dataset.id);return}
   if(action==='delete-product'){deleteProduct(target.dataset.id,target.dataset.kind==='beverage'?'beverage':'product',target);return}
   if(action==='save-ingredient'){saveIngredient(target.dataset.id);return}
+  if(action==='delete-ingredient'){deleteIngredient(target.dataset.id,target);return}
 }
 function syncFilters(){
   root.getElementById('searchInput').addEventListener('input',event=>{app.search=event.target.value;renderCatalog()});
