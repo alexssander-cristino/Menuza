@@ -955,12 +955,12 @@ function resolveVisualIngredient(type, ingredient) {
     cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
     catupiry: 'catupiry', cream: 'queijo-generico', cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
-    pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
+    pepperoni: 'calabresa', sausage: 'salsicha', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
     mushroom: 'champignon', herb: 'oregano', manjericao: 'manjericao', basil: 'manjericao', basilico: 'manjericao',
     pineapple: 'abacaxi', banana: 'banana', strawberry: 'morango', chocolate: 'chocolate', coconut: 'coco',
     garlic: 'alho', greens: 'brocolis', peas: 'ervilha', crisps: 'batata-palha', tuna: 'atum',
-    palm: 'palmito', sausage: 'salsicha', barbecue: 'barbecue', mayonnaise: 'mayonnaise',
+    palm: 'palmito', barbecue: 'barbecue', mayonnaise: 'mayonnaise',
     mustard: 'mustard', 'hot-sauce': 'hot-sauce'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
