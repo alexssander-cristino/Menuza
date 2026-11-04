@@ -991,7 +991,7 @@ function resolveVisualIngredient(type, ingredient) {
   // Correspondência por palavras inteiras: includes() confundia "conserva" com "erva"
   // e classificava ingredientes sem relação com ervas como orégano.
   const has = (...terms) => terms.some(term => {
-    const normalized = String(term).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const normalized = String(term).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     return normalized && (' ' + text + ' ').includes(' ' + normalized + ' ');
   });
   const knownPizza = new Set(['molho-tomate', 'mussarela', ...Object.keys(TOPPINGS)]);
