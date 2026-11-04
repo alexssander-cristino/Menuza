@@ -55,6 +55,10 @@ db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_progress','closed')),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );`);
+for (const [column, definition] of [['response_note', "TEXT NOT NULL DEFAULT ''"], ['retention_reason', "TEXT NOT NULL DEFAULT ''"], ['closed_at', 'TEXT']]) {
+  try { db.exec('ALTER TABLE privacy_requests ADD COLUMN ' + column + ' ' + definition); }
+  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+}
 db.exec('CREATE INDEX IF NOT EXISTS idx_privacy_requests_status_created ON privacy_requests(status, created_at)');
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
@@ -274,7 +278,7 @@ function endpointRateLimit(request, path) {
     const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
     const known = new Set([
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
-      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
+      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/data-export','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
       '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
       '/api/admin/tables',
       '/api/tables/available',
@@ -756,6 +760,10 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
       if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
+      if (request.method === 'GET' && path === '/api/customer/data-export') {
+        const customer = requireCustomer(request).customer;
+        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone},orders:listCustomerOrders(customer.id)});
+      }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
         const session = requireCustomer(request), body = await bodyOf(request);
@@ -788,14 +796,17 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
       if (request.method === 'GET' && path === '/api/admin/privacy-requests') {
         requireAdmin(request);
-        const requests = statement("SELECT id,name,email,phone,request_type AS requestType,details,status,created_at AS createdAt,updated_at AS updatedAt FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200").all();
+        const requests = statement("SELECT id,name,email,phone,request_type AS requestType,details,status,response_note AS responseNote,retention_reason AS retentionReason,closed_at AS closedAt,created_at AS createdAt,updated_at AS updatedAt FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200").all();
         return send(response, 200, { requests });
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/privacy-requests/')) {
         requireAdmin(request);
         const id = cleanText(path.slice('/api/admin/privacy-requests/'.length), 80), body = await bodyOf(request);
         if (!['open','in_progress','closed'].includes(body.status)) return send(response, 422, { error: 'Status inválido.' });
-        const result = statement('UPDATE privacy_requests SET status=?,updated_at=? WHERE id=?').run(body.status,new Date().toISOString(),id);
+        const responseNote = cleanText(body.responseNote, 2000), retentionReason = cleanText(body.retentionReason, 1000);
+        if (body.status === 'closed' && responseNote.length < 10) return send(response, 422, { error: 'Registre uma resposta ou providência com pelo menos 10 caracteres antes de concluir.' });
+        const now = new Date().toISOString();
+        const result = statement('UPDATE privacy_requests SET status=?,response_note=?,retention_reason=?,closed_at=?,updated_at=? WHERE id=?').run(body.status,responseNote,retentionReason,body.status === 'closed' ? now : null,now,id);
         if (!result.changes) return send(response, 404, { error: 'Solicitação não encontrada.' });
         return send(response, 200, { ok: true });
       }
