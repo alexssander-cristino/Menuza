@@ -466,6 +466,20 @@ async function updateOrderStatus(id, next) {
   });
   return await orderById(id);
 }
+async function cancelOrderByCustomer(id) {
+  await withTransaction(async client => {
+    const found=await client.query('SELECT * FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
+    const order=found.rows[0];
+    if(!order) throw fail('Pedido não encontrado.',404);
+    if(order.status==='cancelled') return;
+    if(!['received','confirmed'].includes(order.status)) throw fail('Este pedido não pode mais ser cancelado porque o preparo já pode ter começado.',409);
+    const now=new Date().toISOString();
+    await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3 AND restaurant_id=$4',['cancelled',now,id,RESTAURANT_ID]);
+    await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,'cancelled',now,'cliente']);
+    if(order.fulfillment==='table'&&order.table_label) await client.query("UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3",[now,RESTAURANT_ID,Number(order.table_label)]);
+  });
+  return await orderById(id);
+}
 async function saveCoupon(body,id=null) {
   const code=normalizeCoupon(body.code), type=body.discountType, value=Number(body.discountValue), minimum=Number(body.minimumSubtotalCents??0);
   const maxUses=body.maxUses===''||body.maxUses==null?null:Number(body.maxUses);
@@ -1031,6 +1045,17 @@ export default async function handler(req, res) {
       const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
       const c=await requireCustomer(req), order=await createOrder(b,c.customerId);
       return json(res,201,{order,trackingUrl:'/#pedido/'+order.trackingToken});
+    }
+    if (method==='POST'&&path.startsWith('/api/tracking/')&&path.endsWith('/cancel')) {
+      const token=path.slice('/api/tracking/'.length).replace(/\\/cancel$/,'');
+      if(!/^[A-Za-z0-9_-]{32,80}$/.test(token)) throw fail('Pedido não encontrado.',404);
+      const found=(await query('SELECT id,customer_id AS "customerId" FROM orders WHERE tracking_token=$1 AND restaurant_id=$2',[token,RESTAURANT_ID])).rows[0];
+      if(!found) throw fail('Pedido não encontrado.',404);
+      const c=await customer(req);
+      if(found.customerId&&(!c||c.customerId!==found.customerId)) throw fail('Pedido não encontrado.',404);
+      const retry=await limit(req,'customer-order-cancel:'+found.id,3,3600000);
+      if(retry) return json(res,429,{error:'Muitas tentativas de cancelamento. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      return json(res,200,{order:await cancelOrderByCustomer(found.id)});
     }
     if (method==='GET'&&path.startsWith('/api/tracking/')) {
       const token=path.slice('/api/tracking/'.length), found=(await query('SELECT id,customer_id AS "customerId" FROM orders WHERE tracking_token=$1 AND restaurant_id=$2',[token,RESTAURANT_ID])).rows[0];
