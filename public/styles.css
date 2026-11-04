@@ -2301,3 +2301,10 @@ button[data-action="view-generated-3d"],
 .product-admin-entry .product-admin-actions{grid-column:1/-1;margin-top:8px}
 .product-admin-entry .product-save-action{margin:0;min-width:104px}
 .beverage-admin-actions{grid-column:1/-1;justify-content:flex-start;margin-top:4px}
+
+
+/* Ações dos ingredientes no painel */
+.ingredient-admin-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.ingredient-admin-actions .button-danger{padding:5px 9px;border-radius:6px;font-size:10px}
+.ingredient-admin-row{grid-template-columns:minmax(0,1fr) auto auto auto;gap:9px}
+@media(max-width:560px){.ingredient-admin-row{grid-template-columns:minmax(0,1fr) auto auto}.ingredient-admin-actions{grid-column:1/-1;justify-content:flex-start}}
