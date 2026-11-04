@@ -300,7 +300,7 @@ function validateSizePrices(type, value, fallbackCents) {
   const result={};
   for (const option of options) {
     const cents=Number(value[option.key]);
-    if (!Number.isInteger(cents) || cents < 1 || cents > 1000000) throw fail('Informe um preço válido para o tamanho '+option.label+'.',422);
+    if (!Number.isInteger(cents) || cents < 500 || cents > 1000000) throw fail('Informe um preço válido para o tamanho '+option.label+'.',422);
     result[option.key]=cents;
   }
   if (!options.length) throw fail('Este produto não possui tamanhos configuráveis.',422);
