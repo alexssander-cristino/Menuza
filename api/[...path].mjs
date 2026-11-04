@@ -717,7 +717,8 @@ export default async function handler(req, res) {
     if (method==='GET'&&path==='/api/customer/me') { const current=await customer(req); return json(res,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
     if (method==='PATCH'&&path==='/api/customer/birth-date') {
       const current=await requireCustomer(req), b=await bodyOf(req), birth=parseBirthDate(b.birthDate);
-      await query('UPDATE customers SET birth_date=$1 WHERE id=$2',[birth.birthDate,current.customerId]);
+      const saved=await query("UPDATE customers SET birth_date=$1 WHERE id=$2 AND birth_date IS NULL RETURNING id",[birth.birthDate,current.customerId]);
+      if(!saved.rowCount&&String(current.customer.birthDate||'').slice(0,10)!==birth.birthDate) throw fail('A data de nascimento já foi registrada. Para corrigir um dado, use o canal de privacidade.',409);
       return json(res,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
     }
     if (method==='GET'&&path==='/api/customer/data-export') {
