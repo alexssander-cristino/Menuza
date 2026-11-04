@@ -47,7 +47,8 @@ for (const [table, column, definition] of [
   try { db.exec('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 }
-db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', birth_date TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+try { db.exec("ALTER TABLE customers ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
@@ -164,22 +165,33 @@ function requireAdmin(request) {
 function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
-  const customer = statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(session.customerId);
+  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(session.customerId);
   return customer ? { ...session, customer } : null;
 }
 function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
 function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
 function hashCustomerPassword(password, salt) { return scryptSync(password, salt, 64); }
 function verifyCustomerPassword(password, customer) { const expected = Buffer.from(customer.password_hash, 'hex'); const actual = hashCustomerPassword(password, customer.password_salt); return expected.length === actual.length && timingSafeEqual(expected, actual); }
+function parseCustomerBirthDate(value) {
+  const raw=String(value||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw Object.assign(new Error('Informe uma data de nascimento válida.'),{status:422});
+  const date=new Date(raw+'T00:00:00.000Z');
+  if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==raw) throw Object.assign(new Error('Informe uma data de nascimento válida.'),{status:422});
+  const today=new Date(); let age=today.getUTCFullYear()-date.getUTCFullYear(); const month=today.getUTCMonth()-date.getUTCMonth();
+  if(month<0||(month===0&&today.getUTCDate()<date.getUTCDate())) age--;
+  if(date.getTime()>Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate())||age>120) throw Object.assign(new Error('Confira sua data de nascimento.'),{status:422});
+  return {birthDate:raw,isAdult:age>=18};
+}
 function createCustomer(payload) {
   const name = cleanText(payload.name, 100), email = normalizeEmail(payload.email), phone = cleanText(payload.phone, 30), password = typeof payload.password === 'string' ? payload.password : '';
+  const birth=parseCustomerBirthDate(payload.birthDate);
   if (name.length < 2) throw Object.assign(new Error('Informe seu nome completo.'), { status: 422 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 422 });
   if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
   if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
   const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
-  statement('INSERT INTO customers (id,name,email,phone,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?)').run(id,name,email,phone,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
-  return statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(id);
+  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
+  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(id),isAdult:birth.isAdult};
 }
 function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
 function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
