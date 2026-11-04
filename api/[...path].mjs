@@ -2,6 +2,7 @@ import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypt
 import { query, withTransaction } from '../src/db/postgres.mjs';
 import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
 import { verifyTotp } from '../src/auth-totp.mjs';
+import { sanitizeUploadFileName, validateFiscalDocument } from '../src/security/file-validation.mjs';
 import { imageReferenceToDataUrl, isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl, storeImageList } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
@@ -911,9 +912,13 @@ export default async function handler(req, res) {
     }
     if(method==='POST'&&path==='/api/admin/fiscal/documents'){
       const b=await bodyOf(req,2200000),direction=clean(b.direction,10),documentType=clean(b.documentType,20);
-      const fileName=clean(b.fileName,180),mimeType=clean(b.mimeType,100),contentBase64=String(b.contentBase64||'');
+      const fileName=sanitizeUploadFileName(clean(b.fileName,180)),rawMimeType=clean(b.mimeType,100),rawContentBase64=String(b.contentBase64||'');
       const date=clean(b.date,10),amountCents=Number(b.amountCents||0),issuerCnpj=clean(b.issuerCnpj,14).replace(/\D/g,'');
-      if(!['received','issued'].includes(direction)||!['xml','pdf','other'].includes(documentType)||!fileName||!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mimeType)||!contentBase64||contentBase64.length>1800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64))throw fail('Arquivo inválido. Envie XML ou PDF de até 1,3 MB.',422);
+      if(!['received','issued'].includes(direction)||!fileName)throw fail('Informe o tipo e o nome do documento.',422);
+      let validatedFile;
+      try { validatedFile=validateFiscalDocument({documentType,mimeType:rawMimeType,contentBase64:rawContentBase64}); }
+      catch(error) { throw fail(error.message||'Arquivo inválido. Envie somente PDF ou XML de até 1,3 MB.',422); }
+      const mimeType=validatedFile.mimeType,contentBase64=validatedFile.bytes.toString('base64');
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))throw fail('Data do documento inválida.',422);
       if(!Number.isInteger(amountCents)||amountCents<0||amountCents>999999999)throw fail('Valor do documento inválido.',422);
       if(issuerCnpj&&!/^\d{14}$/.test(issuerCnpj))throw fail('CNPJ do emitente inválido.',422);
