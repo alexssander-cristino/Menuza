@@ -2096,7 +2096,6 @@ async function saveProduct(id){
   const defaultIngredientIds=[...row.querySelectorAll('.product-recipe-input input:checked')].map(input=>input.value);
   const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
   const ingredientIds=selectedAddons;
-  if(!Number.isInteger(cents)||cents<1||cents>1000000){toast('Confira os preços cadastrados para cada tamanho.');return}
   button.disabled=true;button.textContent='Salvando…';
   try{
     let images=[];try{images=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
