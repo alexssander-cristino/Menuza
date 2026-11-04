@@ -685,7 +685,7 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'basil': basilInto(m, s.x, y, s.z, sd, rnd); break;
       case 'pineapple': case 'banana': case 'strawberry': case 'coconut': fruitInto(m, def.kind, s.x, y, s.z, r, sd, rnd); break;
       case 'garlic': garlicInto(m, s.x, y, s.z, r, sd, rnd); break;
-      case 'greens': lettuceMesh; toppingBlob(m, s.x, y, s.z, r * 1.2, .0025, r, lin('#43833d'), sd, rnd); break;
+      case 'greens': toppingBlob(m, s.x, y, s.z, r * 1.2, .0025, r, lin('#43833d'), sd, rnd); break;
       case 'peas': for (let n = 0; n < 4; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.42, r*.34, r*.42, lin('#7b9b3d'), sd+n, rnd); break;
       case 'crisps': for (let n = 0; n < 3; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.9, .0014, r*.22, lin('#e7b84d'), sd+n, rnd); break;
       case 'chocolate': toppingBlob(m, s.x, y, s.z, r*1.25, .0026, r*.9, lin('#4b251c'), sd, rnd); break;
@@ -949,7 +949,10 @@ function resolveVisualIngredient(type, ingredient) {
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'calabresa', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
-    mushroom: 'champignon', herb: 'oregano', manjericao: 'manjericao', basil: 'manjericao', basilico: 'manjericao'
+    mushroom: 'champignon', herb: 'oregano', manjericao: 'manjericao', basil: 'manjericao', basilico: 'manjericao',
+    pineapple: 'abacaxi', banana: 'banana', strawberry: 'morango', chocolate: 'chocolate', coconut: 'coco',
+    garlic: 'alho', greens: 'brocolis', peas: 'ervilha', crisps: 'batata-palha', tuna: 'atum',
+    palm: 'palmito', sausage: 'salsicha'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
     cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
