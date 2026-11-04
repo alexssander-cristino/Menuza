@@ -2154,6 +2154,34 @@ function handleClick(event){
       .catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');if(unit)unit.querySelectorAll('.table-status-actions button').forEach(button=>button.disabled=false);else target.disabled=false});
     return;
   }
+  if(target.dataset.action==='download-customer-data'){
+    const button=target;
+    if(button.disabled)return;
+    const originalLabel=button.textContent;
+    button.disabled=true;
+    button.textContent='Preparando arquivo…';
+    try{
+      const data=await api('/api/customer/data-export');
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
+      const objectUrl=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=objectUrl;
+      link.download='menuza-meus-dados-'+new Date().toISOString().slice(0,10)+'.json';
+      link.style.display='none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1500);
+      button.textContent='Download iniciado';
+      toast('Download iniciado. Confira a pasta Downloads do navegador.');
+      window.setTimeout(()=>{if(button.isConnected){button.textContent=originalLabel;button.disabled=false}},1800);
+    }catch(error){
+      button.textContent=originalLabel;
+      button.disabled=false;
+      toast(error?.message||'Não foi possível baixar seus dados. Entre novamente na sua conta e tente outra vez.');
+    }
+    return;
+  }
   const action=target.dataset.action;
   if(action==='refresh-fiscal'){renderFiscalAdmin();return}
   if(action==='daily-closing-pdf'){exportDailyClosingPdf();return}
