@@ -40,3 +40,14 @@ test('calabresa continua sendo montada como uma cobertura única com quantidade 
 
   assertToppingBuilds(layout, 'topping:calabresa');
 });
+
+test('ingredientes com a palavra conserva não são confundidos com ervas/orégano', () => {
+  const layout = buildFoodLayout(pizza, [
+    { id: 'conserva-pimenta', name: 'Conserva de pimenta', groupName: 'Conservas', quantity: 1 }
+  ], { diameterCm: 35 }, { detail: 0.45 });
+
+  assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'),
+    'conserva não pode ser classificada como erva por coincidência de substring');
+  assert.ok(layout.parts.some(part => part.kind.startsWith('topping:')),
+    'o ingrediente cadastrado deve continuar gerando uma cobertura 3D');
+});
