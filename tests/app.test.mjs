@@ -289,6 +289,15 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(newProductResponse.status, 201);
   const newProduct = (await newProductResponse.json()).product;
   assert.equal(newProduct.name, 'Pão de alho da casa');
+  const deniedProductDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin } });
+  assert.equal(deniedProductDelete.status, 401, 'product deletion requires an authenticated restaurant session');
+  const productDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie } });
+  assert.equal(productDelete.status, 200);
+  assert.equal((await productDelete.json()).ok, true);
+  const catalogAfterDelete = await (await fetch(base + '/api/admin/catalog', { headers: { cookie } })).json();
+  assert.equal(catalogAfterDelete.products.some(product => product.id === newProduct.id), false, 'deleted product is removed from the catalog');
+  const missingProductDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie } });
+  assert.equal(missingProductDelete.status, 404, 'deleting a missing product returns 404');
   const soldOutUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ available: false }) });
   assert.equal((await soldOutUpdate.json()).product.available, 0);
   const catalogWithSoldOut = await (await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } })).json();
