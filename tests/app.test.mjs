@@ -129,6 +129,15 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
   const customerCookie = registration.headers.get('set-cookie').split(';')[0];
+  const dataExportResponse = await fetch(base + '/api/customer/data-export', { headers: { cookie: customerCookie } });
+  assert.equal(dataExportResponse.status, 200, 'authenticated customers can export their own account data');
+  const dataExport = await dataExportResponse.json();
+  assert.equal(dataExport.customer.email, 'joana@example.test');
+  assert.equal(dataExport.format, 'menuza-customer-data-v1');
+  assert.deepEqual(dataExport.orders, []);
+  const anonymousDataExport = await fetch(base + '/api/customer/data-export');
+  assert.equal(anonymousDataExport.status, 401, 'data export is never public');
+
   const customerSqlInjectionEmail = await fetch(base + '/api/customer/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ email: "' OR '1'='1' --", password: 'senha-teste-123' }) });
   assert.equal(customerSqlInjectionEmail.status, 401, 'SQL injection in the email field must not authenticate a customer');
   assert.equal(customerSqlInjectionEmail.headers.get('set-cookie'), null, 'failed SQL injection attempts must not receive a session cookie');
@@ -170,6 +179,14 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(privacyList.requests[0].id, privacyTicket.id);
   const privacyStatusResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'in_progress' }) });
   assert.equal(privacyStatusResponse.status, 200);
+  const closeWithoutResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'closed' }) });
+  assert.equal(closeWithoutResponse.status, 422, 'a privacy request cannot be closed without a recorded response');
+  const closeWithResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'closed', responseNote: 'Enviamos a cópia dos dados solicitados ao titular após validar sua identidade.', retentionReason: 'Os registros financeiros do pedido permanecem sujeitos aos prazos legais aplicáveis.' }) });
+  assert.equal(closeWithResponse.status, 200);
+  const resolvedPrivacyList = await (await fetch(base + '/api/admin/privacy-requests', { headers: { cookie } })).json();
+  assert.equal(resolvedPrivacyList.requests[0].responseNote.includes('cópia dos dados'), true);
+  assert.ok(resolvedPrivacyList.requests[0].closedAt);
+
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
   const tablesUnauthenticated = await fetch(base + '/api/admin/tables');
   assert.equal(tablesUnauthenticated.status, 401, 'table API requires an admin session');
