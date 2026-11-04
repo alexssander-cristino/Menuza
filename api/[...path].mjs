@@ -290,6 +290,7 @@ async function migrateRestaurantImageFields(restaurant) {
 }
 
 async function catalogFor(admin = false) {
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
@@ -307,7 +308,7 @@ async function catalogFor(admin = false) {
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
-    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
+    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
@@ -330,7 +331,8 @@ async function catalogFor(admin = false) {
       images: storedImages,
       ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
-      ingredientsConfigured: Number(product.ingredientsConfigured) === 1
+      ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
+      ageRestricted: Number(product.ageRestricted) === 1
     };
   }));
   await ensurePromoDeliverySchema();
@@ -347,7 +349,7 @@ async function catalogFor(admin = false) {
     let entries = [];
     try { entries = JSON.parse(row.itemsJson); } catch {}
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: Number(row.active), createdAt: row.createdAt, updatedAt: row.updatedAt,
-      items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents } : null; }).filter(Boolean) };
+      items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents, ageRestricted: p.ageRestricted } : null; }).filter(Boolean) };
   });
   return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
@@ -398,7 +400,7 @@ async function priceItems(input) {
       if (comboItems.length < 2) throw fail('Este combo precisa ser revisado pelo restaurante.', 409);
       const chosen = comboItems.map(i => ({ ...i, product: cat.products.find(p => p.id === i.productId && Number(p.active) === 1 && Number(p.available) === 1) }));
       if (chosen.some(i => !i.product)) throw fail('Um produto de um combo está indisponível. Atualize o cardápio.', 409);
-      const p = { id:row.id,name:row.name,description:row.description,type:'plate',widthCm:null,heightCm:null };
+      const p = { id:row.id,name:row.name,description:row.description,type:'plate',widthCm:null,heightCm:null,ageRestricted:chosen.some(i=>i.product.ageRestricted) };
       const unit = Number(row.priceCents);
       subtotal += unit * quantity;
       priced.push({ product:p, quantity, notes:clean(entry.notes,300), combo:true, priced:{ unitPriceCents:unit,linePriceCents:unit*quantity,size:{key:'combo',label:'Combo'},crust:null,ingredients:[],comboItems:chosen.map(i=>({productId:i.product.id,name:i.product.name,quantity:i.quantity})) } });
@@ -420,9 +422,9 @@ async function priceItems(input) {
     subtotal += pricedItem.linePriceCents;
     priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), priced:pricedItem });
   }
-  return { subtotal, priced };
+  return { subtotal, priced, requiresAdult: priced.some(item=>item.product.ageRestricted===true || Number(item.product.ageRestricted)===1) };
 }
-async function createOrder(body, customerId) {
+async function createOrder(body, customer) {
   const customerName=clean(body.customerName,100), phone=clean(body.phone,30), fulfillment=body.fulfillment;
   if (customerName.length<2) throw fail('Informe seu nome.',422);
   if (phone.replace(/\D/g,'').length<8) throw fail('Informe um telefone válido.',422);
@@ -433,7 +435,9 @@ async function createOrder(body, customerId) {
   if (fulfillment==='delivery'&&deliveryAddress.length<8) throw fail('Informe o endereço de entrega.',422);
   const key=clean(body.idempotencyKey,80);
   if (key.length<12) throw fail('A chave do pedido expirou. Atualize o carrinho e tente novamente.',422);
-  const {subtotal,priced}=await priceItems(body.items);
+  const {subtotal,priced,requiresAdult}=await priceItems(body.items);
+  if(requiresAdult&&(!customer?.birthDate||customer.isAdult!==true)) throw fail(!customer?.birthDate?'Informe sua data de nascimento na conta para comprar este produto restrito.':'Este produto é permitido apenas para maiores de 18 anos.',403);
+  const customerId=customer?.id||null;
   const code=normalizeCoupon(body.couponCode);
   let discount=0, coupon=null;
   if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal); }
@@ -711,6 +715,11 @@ export default async function handler(req, res) {
     }
     if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
     if (method==='GET'&&path==='/api/customer/me') { const current=await customer(req); return json(res,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
+    if (method==='PATCH'&&path==='/api/customer/birth-date') {
+      const current=await requireCustomer(req), b=await bodyOf(req), birth=parseBirthDate(b.birthDate);
+      await query('UPDATE customers SET birth_date=$1 WHERE id=$2',[birth.birthDate,current.customerId]);
+      return json(res,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
+    }
     if (method==='GET'&&path==='/api/customer/data-export') {
       const c=await requireCustomer(req);
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
@@ -1043,10 +1052,11 @@ export default async function handler(req, res) {
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
       const storedImages=images!==null?await storeImageList(images,'products/'+productId):await storeImageList(imageUrl?[imageUrl]:[],'products/'+productId);
       const storedImageUrl=storedImages[0]||'';
+      const ageRestricted=b.ageRestricted===true?1:0;
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
-      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5 WHERE id=$6 AND restaurant_id=$7',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),productId,RESTAURANT_ID]);
+      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5,age_restricted=$6 WHERE id=$7 AND restaurant_id=$8',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
@@ -1060,9 +1070,10 @@ export default async function handler(req, res) {
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
+      const ageRestricted=b.ageRestricted===undefined?Number(old.age_restricted||0):(b.ageRestricted?1:0);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
       if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
-      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages)]);
+      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),age_restricted=$14,updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
@@ -1085,7 +1096,7 @@ export default async function handler(req, res) {
     if (method==='PATCH'&&path.startsWith('/api/admin/orders/')) return json(res,200,{order:await updateOrderStatus(id,(await bodyOf(req)).status)});
     if (method==='POST'&&path==='/api/orders') {
       const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
-      const c=await requireCustomer(req), order=await createOrder(b,c.customerId);
+      const c=await requireCustomer(req), order=await createOrder(b,c.customer);
       return json(res,201,{order,trackingUrl:'/#pedido/'+order.trackingToken});
     }
     if (method==='POST'&&path.startsWith('/api/tracking/')&&path.endsWith('/cancel')) {
