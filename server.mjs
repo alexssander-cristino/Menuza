@@ -779,7 +779,8 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
       if (request.method === 'PATCH' && path === '/api/customer/birth-date') {
         const current = requireCustomer(request), body = await bodyOf(request), birth = parseCustomerBirthDate(body.birthDate);
-        statement('UPDATE customers SET birth_date=? WHERE id=?').run(birth.birthDate, current.customerId);
+        const saved = statement("UPDATE customers SET birth_date=? WHERE id=? AND (birth_date IS NULL OR birth_date='')").run(birth.birthDate, current.customerId);
+        if (!saved.changes && String(current.customer.birthDate||'').slice(0,10)!==birth.birthDate) throw Object.assign(new Error('A data de nascimento já foi registrada. Para corrigir um dado, use o canal de privacidade.'), { status: 409 });
         return send(response,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
       }
       if (request.method === 'GET' && path === '/api/customer/data-export') {
