@@ -701,7 +701,6 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'mayonnaise': toppingBlob(m, s.x, y, s.z, r*1.3, .002, r*.75, lin('#f2e8d2'), sd, rnd); break;
       case 'mustard': toppingBlob(m, s.x, y, s.z, r*1.25, .002, r*.7, lin('#d9a92f'), sd, rnd); break;
       case 'hot-sauce': toppingBlob(m, s.x, y, s.z, r*1.3, .002, r*.72, lin('#bd3824'), sd, rnd); break;
-      case 'cream': toppingBlob(m, s.x, y, s.z, r*1.35, .002, r*.78, lin('#f5eddb'), sd, rnd); break;
       case 'white-chocolate': toppingBlob(m, s.x, y, s.z, r*1.1, .0022, r*.82, lin('#f3e5c6'), sd, rnd); break;
       case 'sprinkles': {
         const colors = ['#e84b4b','#f2c84b','#55a7d8','#68a65b','#c36bb4'];
@@ -965,7 +964,7 @@ function resolveVisualIngredient(type, ingredient) {
   const visualAliases = type === 'pizza' ? {
     sauce: 'molho-tomate', molho: 'molho-tomate', 'tomato-sauce': 'molho-tomate',
     cheese: 'queijo-generico', queijo: 'queijo-generico', mozzarella: 'mussarela',
-    catupiry: 'catupiry', cream: 'queijo-generico', cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
+    catupiry: 'catupiry', cheddar: 'queijo-cheddar', parmesan: 'queijo-parmesao', 'queijo-parmesao': 'queijo-parmesao',
     gorgonzola: 'queijo-gorgonzola', provolone: 'queijo-provolone',
     pepperoni: 'calabresa', sausage: 'salsicha', bacon: 'bacon', chicken: 'frango',
     onion: 'cebola', tomato: 'tomate', corn: 'milho', olive: 'azeitona',
