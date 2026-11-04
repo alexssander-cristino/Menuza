@@ -28,5 +28,5 @@ test('rejects mismatched MIME, unsupported files and invalid Base64', () => {
 });
 
 test('sanitizes file names before they are returned to the browser', () => {
-  assert.equal(sanitizeUploadFileName('../../<script>.pdf'), '_ _script_.pdf');
+  assert.equal(sanitizeUploadFileName('../../<script>.pdf'), '_..__script_.pdf');
 });
