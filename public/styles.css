@@ -2308,3 +2308,14 @@ button[data-action="view-generated-3d"],
 .ingredient-admin-actions .button-danger{padding:5px 9px;border-radius:6px;font-size:10px}
 .ingredient-admin-row{grid-template-columns:minmax(0,1fr) auto auto auto;gap:9px}
 @media(max-width:560px){.ingredient-admin-row{grid-template-columns:minmax(0,1fr) auto auto}.ingredient-admin-actions{grid-column:1/-1;justify-content:flex-start}}
+
+
+/* Preços configuráveis por tamanho no cadastro de produtos */
+.size-price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;width:100%;margin-top:8px}
+.size-price-grid .form-field{min-width:0;margin:0}
+.size-price-grid .form-field span{display:block;margin-bottom:6px;font-size:12px;font-weight:650}
+.size-price-grid input[data-size-price-key]{width:100%;min-width:0}
+.size-price-grid-compact{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));margin:12px 0}
+.product-size-price-editor{width:100%;min-width:0}
+.ingredient-option.ingredient-required:disabled{opacity:1;cursor:not-allowed;border-color:var(--accent,#7965d8);background:color-mix(in srgb,var(--accent,#7965d8) 9%,transparent)}
+.ingredient-option.ingredient-required .ingredient-check{opacity:1}
