@@ -107,12 +107,12 @@ export function makeSeed(now = new Date().toISOString()) {
     ingredients: INGREDIENTS.map((i, idx) => ({ ...i, restaurantId, groupName: i.group, addonCents: i.cents, includedByDefault: i.included ? 1 : 0, active: 1, sortOrder: idx }))
   };
 }
-export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS }) {
+export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS, sizes = SIZE_OPTIONS, crusts = CRUST_OPTIONS }) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw new Error('A quantidade deve ficar entre 1 e 10.');
   const type = product.type;
-  const size = (SIZE_OPTIONS[type] || SIZE_OPTIONS.plate).find(option => option.key === sizeKey);
+  const size = (sizes[type] || sizes.plate || []).find(option => option.key === sizeKey);
   if (!size) throw new Error('Tamanho inválido.');
-  const crust = type === 'pizza' ? CRUST_OPTIONS.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
+  const crust = type === 'pizza' ? crusts.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
   if (!crust) throw new Error('Massa ou borda inválida.');
   if (!Array.isArray(ingredients) || ingredients.length > 12) throw new Error('Selecione até 12 componentes.');
   const requiredIds = new Set(Array.isArray(product.requiredIngredientIds) ? product.requiredIngredientIds : (product.ingredientsConfigured ? (product.defaultIngredientIds || []) : catalog.filter(item => item.type === type && (item.active === undefined || Number(item.active) === 1) && Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)));
