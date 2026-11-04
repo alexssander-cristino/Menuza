@@ -2292,3 +2292,12 @@ button[data-action="view-generated-3d"],
 .privacy-request-events>div span{color:var(--ink)}
 .privacy-request-events>div small{color:var(--muted);text-align:right}
 @media(max-width:600px){.privacy-request-events>div{align-items:flex-start;flex-direction:column;gap:3px}.privacy-request-events>div small{text-align:left}}
+
+
+/* Ações de exclusão do catálogo */
+.button-danger{border:1px solid #e6b8b8;background:#fff7f7;color:#a12d35}
+.button-danger:hover{border-color:#c94a52;background:#ffeded;color:#8d2028}
+.product-admin-actions,.beverage-admin-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.product-admin-entry .product-admin-actions{grid-column:1/-1;margin-top:8px}
+.product-admin-entry .product-save-action{margin:0;min-width:104px}
+.beverage-admin-actions{grid-column:1/-1;justify-content:flex-start;margin-top:4px}
