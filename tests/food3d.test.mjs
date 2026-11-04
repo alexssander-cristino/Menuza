@@ -109,7 +109,7 @@ test('pizza: ingredientes personalizados usam o campo visual e preenchem a base 
   const kinds = layout.parts.map(part => part.kind);
   assert.ok(kinds.includes('dough'), 'a massa deve existir mesmo sem ingrediente adicional');
   assert.ok(kinds.includes('sauce'), 'o molho personalizado deve preencher a massa');
-  assert.ok(kinds.includes('cheese'), 'o queijo personalizado deve cobrir a base');
+  assert.ok(kinds.includes('topping:queijo-generico'), 'o queijo personalizado deve gerar uma cobertura própria');
   assert.ok(kinds.includes('topping:calabresa'), 'a cobertura personalizada deve aparecer');
 });
 
@@ -146,7 +146,8 @@ test('pizza: somente cheddar e catupiry usam creme de bisnaga; outros queijos ma
   for (const [name, visual] of cases) {
     const item = { id: 'custom-' + visual, name, type: 'pizza', visual, quantity: 1 };
     const layout = buildFoodLayout(pizza, [item], SIZE_OPTIONS.pizza[1]);
-    assert.ok(layout.parts.some(part => part.kind.startsWith('topping:queijo-')), name + ' deve gerar sua cobertura');
+    const expectedKind = visual === 'catupiry' ? 'topping:catupiry' : 'topping:queijo-' + ({ cheese: 'generico', cheddar: 'cheddar', parmesan: 'parmesao', gorgonzola: 'gorgonzola', provolone: 'provolone' }[visual]);
+    assert.ok(layout.parts.some(part => part.kind === expectedKind), name + ' deve gerar sua cobertura (' + expectedKind + ')');
     assert.equal(layout.parts.some(part => part.kind === 'cheese'), false, name + ' não deve usar a camada de mussarela');
     const geometry = buildFoodGeometry(pizza, [item], SIZE_OPTIONS.pizza[1], { detail: .45 }).geometry;
     assert.ok(geometry.positions.length > 0, name + ' deve produzir geometria');
