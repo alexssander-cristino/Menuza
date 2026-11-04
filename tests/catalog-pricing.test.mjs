@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { calculateItemPrice } from '../src/catalog.mjs';
 
 const catalog = [
-  { id: 'mussarela', name: 'Mussarela', type: 'pizza', cents: 0, included: true, active: 1 },
+  { id: 'mussarela', name: 'Mussarela', type: 'pizza', cents: 250, included: true, active: 1 },
   { id: 'bacon', name: 'Bacon', type: 'pizza', cents: 350, included: false, active: 1 }
 ];
 
