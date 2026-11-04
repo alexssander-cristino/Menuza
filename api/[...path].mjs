@@ -144,6 +144,15 @@ async function ensurePrivacyRequestFields() {
   )`);
   await query("CREATE INDEX IF NOT EXISTS privacy_request_events_request_idx ON privacy_request_events (request_id, created_at)");
 }
+let pizzaConfigSchemaPromise;
+async function ensurePizzaConfigSchema(){
+ if(!pizzaConfigSchemaPromise)pizzaConfigSchemaPromise=(async()=>{
+  await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, diameter_cm INTEGER NOT NULL DEFAULT 0, max_flavors INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(restaurant_id,key))`);
+  await query(`CREATE TABLE IF NOT EXISTS pizza_crusts (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(restaurant_id,key))`);
+  if(!(await query('SELECT id FROM pizza_sizes WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length)for(const [i,x] of [{key:'individual',label:'Individual',diameter:20,max:1},{key:'media',label:'Média',diameter:30,max:2},{key:'grande',label:'Grande',diameter:35,max:3},{key:'familia',label:'Família',diameter:40,max:4}].entries())await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(restaurant_id,key) DO NOTHING',['sz_'+x.key,RESTAURANT_ID,x.key,x.label,x.diameter,x.max,i]);
+  if(!(await query('SELECT id FROM pizza_crusts WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length)for(const [i,x] of [{key:'tradicional',label:'Tradicional',price:0},{key:'recheada',label:'Requeijão',price:850}].entries())await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,sort_order) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(restaurant_id,key) DO NOTHING',['cr_'+x.key,RESTAURANT_ID,x.key,x.label,x.price,i]);
+ })().catch(e=>{pizzaConfigSchemaPromise=null;throw e});await pizzaConfigSchemaPromise;
+}
 let beverageSchemaPromise;
 async function ensureBeverageSchema() {
   if (!beverageSchemaPromise) {
@@ -292,11 +301,12 @@ async function migrateRestaurantImageFields(restaurant) {
   return restaurant;
 }
 
-function validateSizePrices(type, value, fallbackCents) {
+async function validateSizePrices(type, value, fallbackCents) {
   if (type === 'drink') return {};
   if (value === undefined || value === null) return {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('Informe um preço para cada tamanho.',422);
-  const options=SIZE_OPTIONS[type]||[];
+  await ensurePizzaConfigSchema();
+  const options=type==='pizza'?(await query('SELECT key,label FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])).rows:(SIZE_OPTIONS[type]||[]);
   const result={};
   for (const option of options) {
     const cents=Number(value[option.key]);
@@ -307,6 +317,7 @@ function validateSizePrices(type, value, fallbackCents) {
   return result;
 }
 async function catalogFor(admin = false) {
+  await ensurePizzaConfigSchema();
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
@@ -371,7 +382,8 @@ async function catalogFor(admin = false) {
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: Number(row.active), createdAt: row.createdAt, updatedAt: row.updatedAt,
       items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents, ageRestricted: p.ageRestricted } : null; }).filter(Boolean) };
   });
-  return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
+  const [sizeRows,crustRows]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
+  return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
 }
 async function validateProductIngredientIds(value, type) {
   if (!Array.isArray(value) || value.length > 40 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
@@ -441,7 +453,7 @@ async function priceItems(input) {
       baseCents:product.promotionalPriceCents,
       sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))
     }:product;
-    try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog }); }
+    try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog, sizes:cat.sizes, crusts:cat.crusts }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
     priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), priced:pricedItem });
@@ -847,6 +859,8 @@ export default async function handler(req, res) {
       await query('DELETE FROM categories WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
       return json(res,200,{ok:true});
     }
+    if(method==='GET'&&path==='/api/admin/pizza-config'){requireAdmin(req);await ensurePizzaConfigSchema();const [sizes,crusts]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",active,sort_order AS "sortOrder" FROM pizza_sizes WHERE restaurant_id=$1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active,sort_order AS "sortOrder" FROM pizza_crusts WHERE restaurant_id=$1 ORDER BY sort_order',[RESTAURANT_ID])]);return json(res,200,{sizes:sizes.rows,crusts:crusts.rows});}
+    if(method==='PUT'&&path==='/api/admin/pizza-config'){requireAdmin(req);await ensurePizzaConfigSchema();const b=await bodyOf(req);if(!Array.isArray(b.sizes)||!b.sizes.length||b.sizes.length>12||!Array.isArray(b.crusts)||!b.crusts.length||b.crusts.length>20)throw fail('Cadastre ao menos um tamanho e uma borda.',422);const keys=new Set();for(const [i,x] of b.sizes.entries()){const key=slugify(x.key||x.label),label=clean(x.label,40),diameter=Number(x.diameterCm),max=Number(x.maxFlavors);if(!key||keys.has(key)||label.length<2||!Number.isInteger(diameter)||diameter<10||diameter>60||!Number.isInteger(max)||max<1||max>8)throw fail('Confira nome, diâmetro e limite de sabores dos tamanhos.',422);keys.add(key);await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,active,sort_order) VALUES($1,$2,$3,$4,$5,$6,1,$7) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,diameter_cm=EXCLUDED.diameter_cm,max_flavors=EXCLUDED.max_flavors,active=1,sort_order=EXCLUDED.sort_order',['sz_'+key,RESTAURANT_ID,key,label,diameter,max,i]);}const crustKeys=new Set();for(const [i,x] of b.crusts.entries()){const key=slugify(x.key||x.label),label=clean(x.label,50),price=Number(x.priceCents);if(!key||crustKeys.has(key)||label.length<2||!Number.isInteger(price)||price<0||price>1000000)throw fail('Confira os nomes e preços das bordas.',422);crustKeys.add(key);await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,active,sort_order) VALUES($1,$2,$3,$4,$5,1,$6) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,price_cents=EXCLUDED.price_cents,active=1,sort_order=EXCLUDED.sort_order',['cr_'+key,RESTAURANT_ID,key,label,price,i]);}await query('UPDATE pizza_sizes SET active=0 WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...keys]]);await query('UPDATE pizza_crusts SET active=0 WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...crustKeys]]);return json(res,200,await catalogFor(true));}
     if (method==='GET'&&path==='/api/admin/catalog') return json(res,200,await catalogFor(true));
     if (method==='GET'&&path==='/api/admin/settings') {
       // A migração do esquema pode ter sido aplicada antes da migração dos dados.
@@ -1084,7 +1098,7 @@ export default async function handler(req, res) {
       const storedImages=images!==null?await storeImageList(images,'products/'+productId):await storeImageList(imageUrl?[imageUrl]:[],'products/'+productId);
       const storedImageUrl=storedImages[0]||'';
       const ageRestricted=b.ageRestricted===true?1:0;
-      const sizePrices=validateSizePrices(type,b.sizePrices,price);
+      const sizePrices=await validateSizePrices(type,b.sizePrices,price);
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
@@ -1114,7 +1128,7 @@ export default async function handler(req, res) {
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
       const ageRestricted=b.ageRestricted===undefined?Number(old.age_restricted||0):(b.ageRestricted?1:0);
-      const sizePrices=b.sizePrices===undefined?null:validateSizePrices(old.type,b.sizePrices,price);
+      const sizePrices=b.sizePrices===undefined?null:await validateSizePrices(old.type,b.sizePrices,price);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
       if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
       await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),age_restricted=$14,size_prices_json=COALESCE($15,size_prices_json),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices)]);
