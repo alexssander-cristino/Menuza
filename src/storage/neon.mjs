@@ -66,7 +66,8 @@ async function signedS3Request(method, key, body = Buffer.alloc(0), contentType 
   const response = await fetch(url, {
     method,
     headers: requestHeaders,
-    body: method === 'PUT' ? body : undefined
+    body: method === 'PUT' ? body : undefined,
+    signal: AbortSignal.timeout(15_000)
   });
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).slice(0, 300);
@@ -118,14 +119,21 @@ export async function imageReferenceToDataUrl(reference) {
   if (imageUrl.origin !== new URL(config.endpoint).origin || !imageUrl.pathname.startsWith(expectedPrefix)) {
     throw new Error('A foto usada na geração 3D precisa estar armazenada no bucket do Menuza.');
   }
-  const response = await fetch(imageUrl);
+  const response = await fetch(imageUrl, { signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error('Não foi possível baixar a foto do produto para gerar o modelo 3D.');
   const contentLength = Number(response.headers.get('content-length') || 0);
   if (contentLength > MAX_IMAGE_BYTES) throw new Error('A foto do produto excede o limite para geração 3D.');
-  const contentType = String(response.headers.get('content-type') || 'image/webp').split(';')[0].toLowerCase();
+  const contentType = String(response.headers.get('content-type') || '').split(';')[0].toLowerCase();
   if (!['image/webp', 'image/jpeg', 'image/png'].includes(contentType)) throw new Error('A foto armazenada não está em um formato de imagem compatível.');
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('A foto do produto excede o limite para geração 3D.');
+  const chunks = [];
+  let totalBytes = 0;
+  for await (const chunk of response.body || []) {
+    totalBytes += chunk.length;
+    if (totalBytes > MAX_IMAGE_BYTES) throw new Error('A foto do produto excede o limite para geração 3D.');
+    chunks.push(Buffer.from(chunk));
+  }
+  const bytes = Buffer.concat(chunks, totalBytes);
+  if (!bytes.length) throw new Error('A foto armazenada está vazia.');
   const inspected = inspectImageBuffer(bytes);
   const expectedFormat = contentType === 'image/jpeg' ? 'jpeg' : contentType === 'image/png' ? 'png' : 'webp';
   if (inspected.format !== expectedFormat) throw new Error('A foto armazenada não corresponde ao tipo de imagem declarado.');
