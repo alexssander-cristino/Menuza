@@ -70,11 +70,29 @@ function requireAdmin(req) {
   if (!value || value.role !== 'admin' || value.restaurantId !== RESTAURANT_ID) throw fail('Entre no painel para continuar.', 401);
   return value;
 }
+let customerSchemaPromise;
+async function ensureCustomerSchema() {
+  if (!customerSchemaPromise) customerSchemaPromise = query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE").catch(error => { customerSchemaPromise = null; throw error; });
+  await customerSchemaPromise;
+}
+function parseBirthDate(value) {
+  const raw = String(value || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw fail('Informe uma data de nascimento válida.',422);
+  const date = new Date(raw+'T00:00:00.000Z');
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==raw) throw fail('Informe uma data de nascimento válida.',422);
+  const today=new Date(); let age=today.getUTCFullYear()-date.getUTCFullYear();
+  const month=today.getUTCMonth()-date.getUTCMonth();
+  if(month<0||(month===0&&today.getUTCDate()<date.getUTCDate())) age--;
+  if(date.getTime()>Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate())||age>120) throw fail('Confira sua data de nascimento.',422);
+  return {birthDate:raw,age,isAdult:age>=18};
+}
 async function customer(req) {
   const value = session(req, CUSTOMER_COOKIE);
   if (!value || value.role !== 'customer' || !value.customerId) return null;
-  const result = await query('SELECT id,name,email,phone FROM customers WHERE id=$1', [value.customerId]);
-  return result.rows[0] ? { ...value, customer: result.rows[0] } : null;
+  await ensureCustomerSchema();
+  const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate" FROM customers WHERE id=$1', [value.customerId]);
+  const row=result.rows[0];
+  return row ? { ...value, customer: {...row,isAdult:parseBirthDate(String(row.birthDate).slice(0,10)).isAdult} } : null;
 }
 async function requireCustomer(req) {
   const value = await customer(req);
@@ -671,19 +689,23 @@ export default async function handler(req, res) {
       const retry=await limit(req,'customer-register:'+email,5,3600000);
       if (retry||hasHoneypot(body)) return json(res,429,{error:'Muitas solicitações. Tente novamente mais tarde.'},{'Retry-After':String(retry||900)});
       const name=clean(body.name,100), phone=clean(body.phone,30), password=typeof body.password==='string'?body.password:'';
-      if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<8||password.length>128) throw fail('Confira nome, e-mail e senha (mínimo de 8 caracteres).',422);
+      const birth=parseBirthDate(body.birthDate);
+      if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<8||password.length>128) throw fail('Confira nome, e-mail, data de nascimento e senha (mínimo de 8 caracteres).',422);
+      await ensureCustomerSchema();
       const salt=randomBytes(16).toString('hex'), id='cus_'+randomBytes(18).toString('hex');
-      try { await query('INSERT INTO customers (id,name,email,phone,password_hash,password_salt,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,name,email,phone,passwordHash(password,salt),salt,new Date().toISOString()]); }
+      try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString()]); }
       catch(e) { if(e.code==='23505') throw fail('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.',409); throw e; }
-      const safe={id,name,email,phone}, token=sign({role:'customer',customerId:id,exp:Date.now()+604800000});
+      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult}, token=sign({role:'customer',customerId:id,exp:Date.now()+604800000});
       return json(res,201,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/login') {
       const body=await bodyOf(req), email=normalizeEmail(body.email), retry=await limit(req,'customer-login:'+email,15,900000);
       if(retry) return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      await ensureCustomerSchema();
       const row=(await query('SELECT * FROM customers WHERE email=$1',[email])).rows[0];
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'E-mail ou senha inválidos.'});
-      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone}, token=sign({role:'customer',customerId:row.id,exp:Date.now()+604800000});
+      const birth=parseBirthDate(String(row.birth_date).slice(0,10));
+      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate:String(row.birth_date).slice(0,10),isAdult:birth.isAdult}, token=sign({role:'customer',customerId:row.id,exp:Date.now()+604800000});
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
@@ -692,7 +714,7 @@ export default async function handler(req, res) {
       const c=await requireCustomer(req);
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
       const orders=await Promise.all(rows.rows.map(row=>orderById(row.id)));
-      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone},orders});
+      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone,birthDate:c.customer.birthDate},orders});
     }
     if (method==='GET'&&path==='/api/customer/orders') {
       const c=await requireCustomer(req), rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC LIMIT 100',[c.customerId,RESTAURANT_ID]);
