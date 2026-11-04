@@ -12,28 +12,28 @@
       "source": "/(.*)",
       "headers": [
         {
-          "name": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests",
+          "key": "Content-Security-Policy"
         },
         {
-          "name": "X-Content-Type-Options",
-          "value": "nosniff"
+          "value": "nosniff",
+          "key": "X-Content-Type-Options"
         },
         {
-          "name": "X-Frame-Options",
-          "value": "DENY"
+          "value": "DENY",
+          "key": "X-Frame-Options"
         },
         {
-          "name": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
+          "value": "strict-origin-when-cross-origin",
+          "key": "Referrer-Policy"
         },
         {
-          "name": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=()"
+          "value": "camera=(), microphone=(), geolocation=()",
+          "key": "Permissions-Policy"
         },
         {
-          "name": "Cross-Origin-Opener-Policy",
-          "value": "same-origin"
+          "value": "same-origin",
+          "key": "Cross-Origin-Opener-Policy"
         }
       ]
     }
