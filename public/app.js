@@ -435,8 +435,7 @@ function builderPrice(builder=app.builder) {
   const size=app.catalog.sizes[product.type].find(s=>s.key===builder.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===builder.crustKey):{priceCents:0};
   const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents*item.quantity,0);
-  const sizePrice=Number(product.sizePrices?.[builder.sizeKey]);
-  const baseSizePrice=Number.isInteger(sizePrice)&&sizePrice>0?sizePrice:effectiveProductBase(product)+(size?.deltaCents||0);
+  const baseSizePrice=effectiveProductSizePrice(product,builder.sizeKey,size);
   return Math.max(0,baseSizePrice+(crust?.priceCents||0)+extras);
 }
 function groupedIngredients(type, product = null) {
@@ -514,7 +513,7 @@ function renderBuilder() {
   const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined };
   const artContent = productImageCarouselMarkup(product,'modal','contain',layered);
   const visual = '<div class="food-stage ' + (artMode ? 'view-art' : generatedMode ? 'view-generated' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + (!artMode && !generatedMode) + '">3D interativo</button>' + (product.model3dUrl ? '<button type="button" data-action="view-generated-3d" aria-pressed="' + generatedMode + '">Modelo real</button>' : '') + '</div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div>' + (product.model3dUrl ? '<model-viewer class="generated-food-model" src="' + esc(product.model3dUrl) + '" alt="Modelo 3D de ' + esc(product.name) + '" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ' + (generatedMode ? '' : 'hidden') + '></model-viewer>' : '') + '<canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D interativo de ' + esc(product.name) + '" ' + (artMode || generatedMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (artMode || generatedMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
-  const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(Number(product.sizePrices?.[size.key])||product.baseCents + size.deltaCents))) + '</small></button>').join('');
+  const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(effectiveProductSizePrice(product,size.key,size)))) + '</small></button>').join('');
   const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
   const ingredientGroups = groupedIngredients(product.type, product);
   let ingredientHtml = ingredientGroups.length ? '<div class="step-row"><b>03</b> Ingredientes e adicionais</div><p class="ingredient-help">Adicionais pagos são opcionais. Você pode continuar sem escolher nenhum.</p>' : '';
@@ -596,16 +595,22 @@ async function addBuilderToCart() {
 }
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
 function effectiveProductBase(product){return product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined?Number(product.promotionalPriceCents):Number(product?.baseCents)||0;}
-function productPriceMarkup(product){const promo=product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined;return promo?'<span class="promo-price"><del>'+money(product.baseCents)+'</del><strong>'+money(product.promotionalPriceCents)+'</strong></span>':'<span class="product-price">'+money(product.baseCents)+'</span>';}
+function effectiveProductSizePrice(product,key,size){
+  const configured=Number(product?.sizePrices?.[key]);
+  if(Number.isInteger(configured)&&configured>0){
+    const promo=product?.promotionalPriceCents,base=Number(product?.baseCents);
+    return promo!==null&&promo!==undefined&&base>0?Math.max(1,Math.round(configured*Number(promo)/base)):configured;
+  }
+  return effectiveProductBase(product)+(size?.deltaCents||0);
+}
+function productPriceMarkup(product){const promo=product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined,from=Object.keys(product?.sizePrices||{}).length>1?'A partir de ':'';return promo?'<span class="promo-price"><del>'+from+money(product.baseCents)+'</del><strong>'+from+money(product.promotionalPriceCents)+'</strong></span>':'<span class="product-price">'+from+money(product.baseCents)+'</span>';}
 function cartItemPrice(item){
   if(item.comboId){return Number(app.catalog.combos?.find(combo=>combo.id===item.comboId)?.priceCents)||0;}
   const product=app.catalog.products.find(p=>p.id===item.productId);if(!product)return 0;
   const size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
   const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);const included=product.ingredientsConfigured&&(product.defaultIngredientIds||[]).includes(entry.id);return sum+(included?0:(ingredient?.cents||0))*entry.quantity;},0);
-  const sizePrice=Number(product.sizePrices?.[item.sizeKey]);
-  const baseSizePrice=Number.isInteger(sizePrice)&&sizePrice>0?sizePrice:effectiveProductBase(product)+(size?.deltaCents||0);
-  return baseSizePrice+(crust?.priceCents||0)+extras;
+  return effectiveProductSizePrice(product,item.sizeKey,size)+(crust?.priceCents||0)+extras;
 }
 function renderCart(){
   const total=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
