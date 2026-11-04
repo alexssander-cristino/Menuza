@@ -112,6 +112,16 @@ async function ensurePrivacyRequestFields() {
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS response_note TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS retention_reason TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS closed_at TEXT");
+  await query(`CREATE TABLE IF NOT EXISTS privacy_request_events (
+    id BIGSERIAL PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT NOT NULL DEFAULT '',
+    to_status TEXT NOT NULL DEFAULT '',
+    actor_type TEXT NOT NULL DEFAULT 'system',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS privacy_request_events_request_idx ON privacy_request_events (request_id, created_at)");
 }
 let beverageSchemaPromise;
 async function ensureBeverageSchema() {
@@ -696,12 +706,15 @@ export default async function handler(req, res) {
     }
     if (method==='POST'&&path==='/api/privacy-requests') {
       await ensurePrivacyRequestFields();
-      const b=await bodyOf(req), name=clean(b.name,100), email=normalizeEmail(b.email), phone=clean(b.phone,30), details=clean(b.details,2000), type=['access','correction','deletion','question','support'].includes(b.requestType)?b.requestType:'';
+      const b=await bodyOf(req), name=clean(b.name,100), email=normalizeEmail(b.email), phone=clean(b.phone,30), details=clean(b.details,2000), type=['access','correction','deletion','anonymization','portability','sharing_info','revocation','automated_decision','question','support'].includes(b.requestType)?b.requestType:'';
       if(hasHoneypot(b)) return json(res,429,{error:'Muitas solicitações.'},{'Retry-After':'900'});
       if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!type||details.length<10) throw fail('Informe nome, e-mail válido, tipo de solicitação e detalhes com pelo menos 10 caracteres.',422);
       const retry=await limit(req,'privacy-request:'+email,5,3600000); if(retry) return json(res,429,{error:'Muitas solicitações.'},{'Retry-After':String(retry)});
       const id='pr_'+randomBytes(12).toString('hex'), now=new Date().toISOString();
-      await query('INSERT INTO privacy_requests (id,name,email,phone,request_type,details,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)',[id,name,email,phone,type,details,'open',now]);
+      await withTransaction(async client=>{
+        await client.query('INSERT INTO privacy_requests (id,name,email,phone,request_type,details,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)',[id,name,email,phone,type,details,'open',now]);
+        await client.query('INSERT INTO privacy_request_events (request_id,event_type,from_status,to_status,actor_type,created_at) VALUES ($1,$2,$3,$4,$5,$6)',[id,'created','','open','requester',now]);
+      });
       return json(res,201,{ok:true,id,message:'Solicitação registrada. Guarde este código para referência: '+id});
     }
     if (method==='GET'&&path==='/api/admin/me') {
@@ -726,7 +739,7 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/admin/privacy-requests') {
       await ensurePrivacyRequestFields();
-      return json(res,200,{requests:(await query("SELECT id,name,email,phone,request_type AS \"requestType\",details,status,response_note AS \"responseNote\",retention_reason AS \"retentionReason\",closed_at AS \"closedAt\",created_at AS \"createdAt\",updated_at AS \"updatedAt\" FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,created_at DESC LIMIT 200")).rows});
+      return json(res,200,{requests:(await query("SELECT p.id,p.name,p.email,p.phone,p.request_type AS \"requestType\",p.details,p.status,p.response_note AS \"responseNote\",p.retention_reason AS \"retentionReason\",p.closed_at AS \"closedAt\",p.created_at AS \"createdAt\",p.updated_at AS \"updatedAt\",COALESCE((SELECT json_agg(json_build_object('eventType',e.event_type,'fromStatus',e.from_status,'toStatus',e.to_status,'actorType',e.actor_type,'createdAt',e.created_at) ORDER BY e.created_at,e.id) FROM privacy_request_events e WHERE e.request_id=p.id),'[]'::json) AS events FROM privacy_requests p ORDER BY CASE p.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,p.created_at DESC LIMIT 200")).rows});
     }
     if (method==='PATCH'&&path.startsWith('/api/admin/privacy-requests/')) {
       await ensurePrivacyRequestFields();
@@ -734,8 +747,14 @@ export default async function handler(req, res) {
       if(!['open','in_progress','closed'].includes(b.status)) throw fail('Status inválido.',422);
       if(b.status==='closed'&&responseNote.length<10) throw fail('Registre uma resposta ou providência com pelo menos 10 caracteres antes de concluir.',422);
       const now=new Date().toISOString();
-      const result=await query('UPDATE privacy_requests SET status=$1,response_note=$2,retention_reason=$3,closed_at=$4,updated_at=$5 WHERE id=$6',[b.status,responseNote,retentionReason,b.status==='closed'?now:null,now,id]);
-      if(!result.rowCount) throw fail('Solicitação não encontrada.',404);
+      await withTransaction(async client=>{
+        const current=await client.query('SELECT status FROM privacy_requests WHERE id=$1 FOR UPDATE',[id]);
+        if(!current.rowCount) throw fail('Solicitação não encontrada.',404);
+        const previousStatus=current.rows[0].status;
+        await client.query('UPDATE privacy_requests SET status=$1,response_note=$2,retention_reason=$3,closed_at=$4,updated_at=$5 WHERE id=$6',[b.status,responseNote,retentionReason,b.status==='closed'?now:null,now,id]);
+        if(previousStatus!==b.status) await client.query('INSERT INTO privacy_request_events (request_id,event_type,from_status,to_status,actor_type,created_at) VALUES ($1,$2,$3,$4,$5,$6)',[id,'status_changed',previousStatus,b.status,'admin',now]);
+        else await client.query('INSERT INTO privacy_request_events (request_id,event_type,from_status,to_status,actor_type,created_at) VALUES ($1,$2,$3,$4,$5,$6)',[id,'response_updated',previousStatus,b.status,'admin',now]);
+      });
       return json(res,200,{ok:true});
     }
     if (method==='GET'&&path==='/api/admin/categories') {
