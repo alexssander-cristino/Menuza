@@ -436,7 +436,11 @@ async function priceItems(input) {
           included: (product.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    const effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{...product,baseCents:product.promotionalPriceCents}:product;
+    const effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{
+      ...product,
+      baseCents:product.promotionalPriceCents,
+      sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))
+    }:product;
     try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
