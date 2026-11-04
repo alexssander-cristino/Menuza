@@ -969,12 +969,20 @@ async function submitFiscalExpense(form){
 async function submitFiscalDocument(form){
  const d=new FormData(form),file=d.get('file');if(!(file instanceof File)||!file.size)return toast('Selecione um arquivo XML ou PDF.');
  if(file.size>1300000)return toast('O arquivo deve ter no máximo 1,3 MB.');
- const mime=file.type||(file.name.toLowerCase().endsWith('.xml')?'application/xml':'application/pdf');
- if(!['application/xml','text/xml','application/pdf','application/octet-stream'].includes(mime))return toast('Formato não permitido. Envie XML ou PDF.');
+ const extension=String(file.name||'').toLowerCase().split('.').pop(),documentType=extension==='xml'?'xml':extension==='pdf'?'pdf':'';
+ if(!documentType)return toast('Formato não permitido. Envie somente arquivos .xml ou .pdf.');
+ const expectedMime=documentType==='xml'?'application/xml':'application/pdf',mime=file.type||expectedMime;
+ if(mime!=='application/octet-stream'&&mime!==expectedMime&&!(documentType==='xml'&&mime==='text/xml'))return toast('A extensão do arquivo não corresponde ao tipo informado.');
+ const signature=new Uint8Array(await file.slice(0,8).arrayBuffer());
+ if(documentType==='pdf'&&String.fromCharCode(...signature.slice(0,5))!=='%PDF-')return toast('O conteúdo do arquivo não é um PDF válido.');
+ if(documentType==='xml'){
+  const xml=await file.text();if(/<!DOCTYPE|<!ENTITY|<\\?xml-stylesheet/i.test(xml)||!/^\\s*(?:<\\?xml\\s[^?]*\\?>\\s*)?(?:<!--[\\s\\S]*?-->\\s*)*<[A-Za-z_][\\w:.-]*(?:\\s|>|\\/)/.test(xml))return toast('O XML está inválido ou contém declarações externas não permitidas.');
+ }
+
  const button=form.querySelector('[type=submit]');button.disabled=true;
  try{
   const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file)});
-  const data={direction:d.get('direction'),documentType:file.name.toLowerCase().endsWith('.xml')?'xml':file.name.toLowerCase().endsWith('.pdf')?'pdf':'other',fileName:file.name,mimeType:mime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
+  const data={direction:d.get('direction'),documentType,fileName:file.name,mimeType:documentType==='xml'&&mime==='text/xml'?'text/xml':expectedMime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
   await api('/api/admin/fiscal/documents',{method:'POST',body:JSON.stringify(data)});toast('Documento armazenado.');await renderFiscalAdmin();
  }catch(e){toast(e.message);button.disabled=false}
 }
