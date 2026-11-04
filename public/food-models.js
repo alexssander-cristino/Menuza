@@ -450,11 +450,10 @@ function cheeseMeshPizza(ctx, detail) {
   }, (u, v, p) => {
     const spots = sstep(.58, .72, nz(p, 32, seed + 6)), deep = sstep(.7, .82, nz(p, 70, seed + 13)), g = cutGroove(p[0], p[2]);
     let c = mix(C.mozz, C.mozzGold, spots * .3); c = mix(c, C.mozzBrown, deep * .18);
-    // Pequenas áreas irregulares deixam o molho vermelho aparecer sob/entre
-    // a camada contínua de mussarela, como numa pizza assada de verdade.
-    const sauceShow = sstep(.43, .64, fbm(p[0] * 82, p[2] * 82, seed + 29, 3)) * .78;
-    c = mix(c, C.tomSauce, sauceShow);
-    c = mix(c, C.doughPale, g * .3); c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .1);
+    // A mussarela é uma camada única, contínua e clara sobre toda a base.
+    // O molho aparece por baixo e na borda exposta, nunca como manchas na superfície.
+    c = mix(c, C.doughPale, g * .12);
+    c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .045);
     // poças de óleo: mais brilho e tom dourado
     const oil = sstep(.76, .9, nz(p, 45, seed + 17));
     c = mix(c, lin('#f2c46a'), oil * .35);
