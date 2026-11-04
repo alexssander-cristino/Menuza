@@ -116,3 +116,8 @@
 .privacy-submit-button:focus-visible{outline:3px solid #8975dd;outline-offset:3px}
 .privacy-form-footnote{margin:0!important;color:#898394!important;font-size:10px!important;line-height:1.6!important;text-align:center}
 @media(max-width:600px){.privacy-rights-grid{grid-template-columns:1fr;gap:8px}.privacy-right-card{display:grid;grid-template-columns:30px 1fr;column-gap:10px;align-items:center;padding:12px}.privacy-right-icon{grid-row:span 2;margin:0}.privacy-right-card p{margin:3px 0 0}.privacy-form-shell{padding:17px}.privacy-form-heading{flex-direction:column;gap:9px}.privacy-form-grid{grid-template-columns:1fr}.privacy-field-full{grid-column:auto}}
+
+
+/* Honeypot: keep anti-spam field out of the visual and keyboard flow */
+.hp-field{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;margin:0!important;padding:0!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important;opacity:0!important;pointer-events:none!important}
+.hp-field input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
