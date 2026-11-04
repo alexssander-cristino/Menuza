@@ -115,9 +115,14 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   const crust = type === 'pizza' ? CRUST_OPTIONS.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
   if (!crust) throw new Error('Massa ou borda inválida.');
   if (!Array.isArray(ingredients) || ingredients.length > 12) throw new Error('Selecione até 12 componentes.');
+  const requiredIds = new Set(Array.isArray(product.requiredIngredientIds) ? product.requiredIngredientIds : (product.ingredientsConfigured ? (product.defaultIngredientIds || []) : catalog.filter(item => Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)));
+  const supplied = Array.isArray(ingredients) ? ingredients.slice() : ingredients;
+  if (!Array.isArray(supplied)) throw new Error('Selecione os ingredientes do produto.');
+  for (const id of requiredIds) if (!supplied.some(entry => entry?.id === id)) supplied.push({ id, quantity: 1 });
+  if (supplied.length > 12) throw new Error('A receita obrigatória excede o limite de componentes.');
   const seen = new Set();
   let extras = 0;
-  const canonical = ingredients.map(entry => {
+  const canonical = supplied.map(entry => {
     if (!entry || typeof entry.id !== 'string' || seen.has(entry.id)) throw new Error('A composição contém componentes inválidos ou duplicados.');
     seen.add(entry.id);
     const item = catalog.find(i => i.id === entry.id && i.type === type && (i.active === undefined || Number(i.active) === 1));
@@ -126,11 +131,15 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
     const included = Boolean(item.included ?? Number(item.includedByDefault) === 1);
     const count = entry.quantity ?? 1;
     if (!Number.isInteger(count) || count < 1 || count > 3) throw new Error('Cada componente pode ter de 1 a 3 porções.');
-    if (included && count !== 1) throw new Error('A quantidade desse componente não pode ser alterada.');
+    if ((included || requiredIds.has(item.id)) && count !== 1) throw new Error('A quantidade desse componente não pode ser alterada.');
     extras += cents * count;
     return { id: item.id, name: item.name, quantity: count, unitPriceCents: cents, included, visual: item.visual || item.visual_key || 'herb' };
   });
-  const unitPriceCents = Number(product.baseCents ?? product.base_price_cents) + size.deltaCents + crust.priceCents + extras;
+  const configuredSizePrice = Number(product.sizePrices?.[size.key]);
+  const baseSizePrice = Number.isSafeInteger(configuredSizePrice) && configuredSizePrice > 0
+    ? configuredSizePrice
+    : Number(product.baseCents ?? product.base_price_cents) + size.deltaCents;
+  const unitPriceCents = baseSizePrice + crust.priceCents + extras;
   if (!Number.isSafeInteger(unitPriceCents) || unitPriceCents < 0) throw new Error('O preço calculado é inválido.');
-  return { size: { key: size.key, label: size.label, diameterCm: size.diameterCm || null }, crust: type === 'pizza' ? { key: crust.key, priceCents: crust.priceCents } : null, ingredients: canonical, unitPriceCents, linePriceCents: unitPriceCents * quantity };
+  return { size: { key: size.key, label: size.label, diameterCm: size.diameterCm || null, priceCents: baseSizePrice }, crust: type === 'pizza' ? { key: crust.key, priceCents: crust.priceCents } : null, ingredients: canonical, unitPriceCents, linePriceCents: unitPriceCents * quantity };
 }
