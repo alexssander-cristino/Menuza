@@ -14,7 +14,7 @@ const UI_ICON_PATHS = {
 };
 function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
 
-import { FoodScene } from './food-scene.js?v=76';
+import { FoodScene } from './food-scene.js?v=77';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=4';
@@ -513,7 +513,19 @@ function renderBuilder() {
   const artMode = app.viewMode === 'art';
   const generatedMode = app.viewMode === 'generated' && Boolean(product.model3dUrl);
   const autoOn = app.scene ? app.scene.autoRotate : !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined };
+  const sceneFlavors = isPizza ? chosenFlavors.map((id, index) => {
+    const flavorProduct = app.catalog.products.find(item => item.id === id);
+    if (!flavorProduct) return null;
+    const defaults = defaultIngredients(flavorProduct, app.catalog);
+    const merged = new Map(defaults.map(item => [item.id, { ...item }]));
+    for (const item of builder.ingredients) {
+      const previous = merged.get(item.id);
+      if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
+      else merged.set(item.id, { ...item });
+    }
+    return { id: flavorProduct.id, ingredients: [...merged.values()] };
+  }).filter(Boolean) : [];
+  const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined, flavors: sceneFlavors };
   const artContent = productImageCarouselMarkup(product,'modal','contain',layered);
   const visual = '<div class="food-stage ' + (artMode ? 'view-art' : generatedMode ? 'view-generated' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + (!artMode && !generatedMode) + '">3D interativo</button>' + (product.model3dUrl ? '<button type="button" data-action="view-generated-3d" aria-pressed="' + generatedMode + '">Modelo real</button>' : '') + '</div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div>' + (product.model3dUrl ? '<model-viewer class="generated-food-model" src="' + esc(product.model3dUrl) + '" alt="Modelo 3D de ' + esc(product.name) + '" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ' + (generatedMode ? '' : 'hidden') + '></model-viewer>' : '') + '<canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D interativo de ' + esc(product.name) + '" ' + (artMode || generatedMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (artMode || generatedMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
   const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(effectiveProductSizePrice(product,size.key,size)))) + '</small></button>').join('');
