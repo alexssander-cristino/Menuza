@@ -108,6 +108,11 @@ async function limit(req, key, maximum, windowMs) {
     ON CONFLICT (bucket_key) DO UPDATE SET timestamps_json=EXCLUDED.timestamps_json,updated_at=EXCLUDED.updated_at`, [bucket, JSON.stringify(times), now]);
   return 0;
 }
+async function ensurePrivacyRequestFields() {
+  await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS response_note TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS retention_reason TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS closed_at TEXT");
+}
 let beverageSchemaPromise;
 async function ensureBeverageSchema() {
   if (!beverageSchemaPromise) {
@@ -659,6 +664,12 @@ export default async function handler(req, res) {
     }
     if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
     if (method==='GET'&&path==='/api/customer/me') { const current=await customer(req); return json(res,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
+    if (method==='GET'&&path==='/api/customer/data-export') {
+      const c=await requireCustomer(req);
+      const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
+      const orders=await Promise.all(rows.rows.map(row=>orderById(row.id)));
+      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone},orders});
+    }
     if (method==='GET'&&path==='/api/customer/orders') {
       const c=await requireCustomer(req), rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC LIMIT 100',[c.customerId,RESTAURANT_ID]);
       return json(res,200,{orders:await Promise.all(rows.rows.map(r=>orderById(r.id)))});
@@ -670,6 +681,7 @@ export default async function handler(req, res) {
       return json(res,200,{ok:true,message:'Conta excluída. Registros de pedidos mantidos por obrigações legais ou operacionais foram desvinculados da conta.'},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)});
     }
     if (method==='POST'&&path==='/api/privacy-requests') {
+      await ensurePrivacyRequestFields();
       const b=await bodyOf(req), name=clean(b.name,100), email=normalizeEmail(b.email), phone=clean(b.phone,30), details=clean(b.details,2000), type=['access','correction','deletion','question','support'].includes(b.requestType)?b.requestType:'';
       if(hasHoneypot(b)) return json(res,429,{error:'Muitas solicitações.'},{'Retry-After':'900'});
       if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!type||details.length<10) throw fail('Informe nome, e-mail válido, tipo de solicitação e detalhes com pelo menos 10 caracteres.',422);
@@ -698,10 +710,19 @@ export default async function handler(req, res) {
         req.on('close',()=>{clearTimeout(timeout);finish();});
       });
     }
-    if (method==='GET'&&path==='/api/admin/privacy-requests') return json(res,200,{requests:(await query("SELECT id,name,email,phone,request_type AS \"requestType\",details,status,created_at AS \"createdAt\",updated_at AS \"updatedAt\" FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,created_at DESC LIMIT 200")).rows});
+    if (method==='GET'&&path==='/api/admin/privacy-requests') {
+      await ensurePrivacyRequestFields();
+      return json(res,200,{requests:(await query("SELECT id,name,email,phone,request_type AS \"requestType\",details,status,response_note AS \"responseNote\",retention_reason AS \"retentionReason\",closed_at AS \"closedAt\",created_at AS \"createdAt\",updated_at AS \"updatedAt\" FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,created_at DESC LIMIT 200")).rows});
+    }
     if (method==='PATCH'&&path.startsWith('/api/admin/privacy-requests/')) {
-      const b=await bodyOf(req); if(!['open','in_progress','closed'].includes(b.status)) throw fail('Status inválido.',422);
-      const result=await query('UPDATE privacy_requests SET status=$1,updated_at=$2 WHERE id=$3',[b.status,new Date().toISOString(),id]); if(!result.rowCount) throw fail('Solicitação não encontrada.',404); return json(res,200,{ok:true});
+      await ensurePrivacyRequestFields();
+      const b=await bodyOf(req), responseNote=clean(b.responseNote,2000), retentionReason=clean(b.retentionReason,1000);
+      if(!['open','in_progress','closed'].includes(b.status)) throw fail('Status inválido.',422);
+      if(b.status==='closed'&&responseNote.length<10) throw fail('Registre uma resposta ou providência com pelo menos 10 caracteres antes de concluir.',422);
+      const now=new Date().toISOString();
+      const result=await query('UPDATE privacy_requests SET status=$1,response_note=$2,retention_reason=$3,closed_at=$4,updated_at=$5 WHERE id=$6',[b.status,responseNote,retentionReason,b.status==='closed'?now:null,now,id]);
+      if(!result.rowCount) throw fail('Solicitação não encontrada.',404);
+      return json(res,200,{ok:true});
     }
     if (method==='GET'&&path==='/api/admin/categories') {
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url) VALUES ($1,$2,$3,'BRL',30,$4,'') ON CONFLICT (id) DO NOTHING`,[RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
