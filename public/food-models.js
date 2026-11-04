@@ -346,7 +346,11 @@ const TOPPINGS = {
   barbecue: { r: .011, cover: [.08, .14, .2], kind: 'barbecue', loose: true },
   mayonnaise: { r: .011, cover: [.08, .14, .2], kind: 'mayonnaise', loose: true },
   mustard: { r: .010, cover: [.08, .14, .2], kind: 'mustard', loose: true },
-  'hot-sauce': { r: .010, cover: [.08, .14, .2], kind: 'hot-sauce', loose: true }
+  'hot-sauce': { r: .010, cover: [.08, .14, .2], kind: 'hot-sauce', loose: true },
+  cream: { r: .011, cover: [.08, .14, .2], kind: 'cream', loose: true },
+  'white-chocolate': { r: .010, cover: [.1, .18, .26], kind: 'white-chocolate' },
+  sprinkles: { r: .004, cover: [.12, .2, .3], kind: 'sprinkles', loose: true },
+  peanut: { r: .006, cover: [.1, .18, .26], kind: 'peanut', loose: true }
 };
 const TOPPING_ORDER = Object.keys(TOPPINGS);
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI);
@@ -697,6 +701,14 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'mayonnaise': toppingBlob(m, s.x, y, s.z, r*1.3, .002, r*.75, lin('#f2e8d2'), sd, rnd); break;
       case 'mustard': toppingBlob(m, s.x, y, s.z, r*1.25, .002, r*.7, lin('#d9a92f'), sd, rnd); break;
       case 'hot-sauce': toppingBlob(m, s.x, y, s.z, r*1.3, .002, r*.72, lin('#bd3824'), sd, rnd); break;
+      case 'cream': toppingBlob(m, s.x, y, s.z, r*1.35, .002, r*.78, lin('#f5eddb'), sd, rnd); break;
+      case 'white-chocolate': toppingBlob(m, s.x, y, s.z, r*1.1, .0022, r*.82, lin('#f3e5c6'), sd, rnd); break;
+      case 'sprinkles': {
+        const colors = ['#e84b4b','#f2c84b','#55a7d8','#68a65b','#c36bb4'];
+        for (let n = 0; n < 5; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.45, .0012, r*.16, lin(colors[n % colors.length]), sd+n, rnd);
+        break;
+      }
+      case 'peanut': for (let n = 0; n < 5; n++) toppingBlob(m, s.x + (rnd()-.5)*r, y, s.z + (rnd()-.5)*r, r*.34, .0014, r*.3, lin('#c99a58'), sd+n, rnd); break;
       case 'tuna': toppingBlob(m, s.x, y, s.z, r*1.15, .0026, r*.8, lin('#b9a17b'), sd, rnd); break;
       case 'palm': toppingBlob(m, s.x, y, s.z, r*.95, .0028, r*.65, lin('#eee0bd'), sd, rnd); break;
       case 'sausage': toppingBlob(m, s.x, y, s.z, r*1.35, .0032, r*.52, lin('#b94b32'), sd, rnd); break;
@@ -961,7 +973,8 @@ function resolveVisualIngredient(type, ingredient) {
     pineapple: 'abacaxi', banana: 'banana', strawberry: 'morango', chocolate: 'chocolate', coconut: 'coco',
     garlic: 'alho', greens: 'brocolis', peas: 'ervilha', crisps: 'batata-palha', tuna: 'atum',
     palm: 'palmito', barbecue: 'barbecue', mayonnaise: 'mayonnaise',
-    mustard: 'mustard', 'hot-sauce': 'hot-sauce'
+    mustard: 'mustard', 'hot-sauce': 'hot-sauce', cream: 'cream', 'white-chocolate': 'white-chocolate',
+    sprinkles: 'sprinkles', peanut: 'peanut'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
     cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
