@@ -20,7 +20,8 @@ const C = {
   sauce: lin('#eab283'), sauceDeep: lin('#d98f57'),
   doughRim: lin('#c98a3d'), doughBrown: lin('#a65f27'), doughChar: lin('#5f2f12'), doughPale: lin('#e2c086'), doughCream: lin('#f2e0b2'),
   tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
-  mozz: lin('#f0e7d5'), mozzGold: lin('#d9c49a'), mozzBrown: lin('#a98a58'),
+  // Mussarela em tom marfim dourado: distingue-se de catupiry, creme e outros ingredientes brancos.
+  mozz: lin('#e4d2ad'), mozzGold: lin('#cfb47f'), mozzBrown: lin('#a98a58'),
   pep: lin('#b8412a'), pepDeep: lin('#8c2a18'), pepChar: lin('#5a190d'), pepFat: lin('#e49e80'),
   mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
