@@ -127,8 +127,8 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
     seen.add(entry.id);
     const item = catalog.find(i => i.id === entry.id && i.type === type && (i.active === undefined || Number(i.active) === 1));
     if (!item) throw new Error('Um dos componentes não está disponível para este produto.');
-    const cents = Number(item.cents ?? item.addonCents ?? 0);
-    const included = Boolean(item.included ?? Number(item.includedByDefault) === 1);
+    const included = requiredIds.has(item.id) || Boolean(item.included ?? Number(item.includedByDefault) === 1);
+    const cents = included ? 0 : Number(item.cents ?? item.addonCents ?? 0);
     const count = entry.quantity ?? 1;
     if (!Number.isInteger(count) || count < 1 || count > 3) throw new Error('Cada componente pode ter de 1 a 3 porções.');
     if ((included || requiredIds.has(item.id)) && count !== 1) throw new Error('A quantidade desse componente não pode ser alterada.');
