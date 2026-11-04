@@ -1068,6 +1068,15 @@ export default async function handler(req, res) {
       await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5,age_restricted=$6 WHERE id=$7 AND restaurant_id=$8',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
+    if (method==='DELETE'&&path.startsWith('/api/admin/products/')&&!path.endsWith('/3d')) {
+      const product=(await query('SELECT id,name FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
+      if(!product) throw fail('Produto não encontrado.',404);
+      const jobsTable=await query("SELECT to_regclass('public.product_3d_jobs') AS table_name");
+      if(jobsTable.rows[0]?.table_name) await query('DELETE FROM product_3d_jobs WHERE product_id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
+      const deleted=await query('DELETE FROM products WHERE id=$1 AND restaurant_id=$2 RETURNING id,name',[id,RESTAURANT_ID]);
+      if(!deleted.rows[0]) throw fail('Produto não encontrado.',404);
+      return json(res,200,{ok:true,product:deleted.rows[0],message:'Produto excluído. O histórico de pedidos foi preservado.'});
+    }
     if (method==='PATCH'&&path.startsWith('/api/admin/products/')) {
       await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
       const b=await bodyOf(req,2100000), old=(await query('SELECT * FROM products WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!old) throw fail('Produto não encontrado.',404);
