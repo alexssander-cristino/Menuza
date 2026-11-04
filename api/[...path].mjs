@@ -292,11 +292,26 @@ async function migrateRestaurantImageFields(restaurant) {
   return restaurant;
 }
 
+function validateSizePrices(type, value, fallbackCents) {
+  if (type === 'drink') return {};
+  if (value === undefined || value === null) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('Informe um preço para cada tamanho.',422);
+  const options=SIZE_OPTIONS[type]||[];
+  const result={};
+  for (const option of options) {
+    const cents=Number(value[option.key]);
+    if (!Number.isInteger(cents) || cents < 1 || cents > 1000000) throw fail('Informe um preço válido para o tamanho '+option.label+'.',422);
+    result[option.key]=cents;
+  }
+  if (!options.length) throw fail('Este produto não possui tamanhos configuráveis.',422);
+  return result;
+}
 async function catalogFor(admin = false) {
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS size_prices_json TEXT NOT NULL DEFAULT '{}'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS product_images_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
@@ -311,12 +326,13 @@ async function catalogFor(admin = false) {
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
-    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
+    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredients_configured AS "ingredientsConfigured",size_prices_json AS "sizePricesJson",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
   const productRows = await Promise.all(products.rows.map(async product => {
-    let ingredientIds = [], defaultIngredientIds = [], images = [];
+    let ingredientIds = [], defaultIngredientIds = [], images = [], sizePrices = {};
+    try { sizePrices = JSON.parse(product.sizePricesJson || '{}'); } catch {}
     try { ingredientIds = JSON.parse(product.ingredientIdsJson || '[]'); } catch {}
     try { defaultIngredientIds = JSON.parse(product.defaultIngredientIdsJson || '[]'); } catch {}
     try { images = JSON.parse(product.productImagesJson || '[]'); } catch {}
@@ -335,6 +351,7 @@ async function catalogFor(admin = false) {
       ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
+      sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
       ageRestricted: Number(product.ageRestricted) === 1
     };
   }));
@@ -1062,10 +1079,11 @@ export default async function handler(req, res) {
       const storedImages=images!==null?await storeImageList(images,'products/'+productId):await storeImageList(imageUrl?[imageUrl]:[],'products/'+productId);
       const storedImageUrl=storedImages[0]||'';
       const ageRestricted=b.ageRestricted===true?1:0;
+      const sizePrices=validateSizePrices(type,b.sizePrices,price);
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
-      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5,age_restricted=$6 WHERE id=$7 AND restaurant_id=$8',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,productId,RESTAURANT_ID]);
+      await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5,age_restricted=$6,size_prices_json=$7 WHERE id=$8 AND restaurant_id=$9',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,JSON.stringify(sizePrices),productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
     if (method==='DELETE'&&path.startsWith('/api/admin/products/')&&!path.endsWith('/3d')) {
@@ -1090,9 +1108,10 @@ export default async function handler(req, res) {
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
       const ageRestricted=b.ageRestricted===undefined?Number(old.age_restricted||0):(b.ageRestricted?1:0);
+      const sizePrices=b.sizePrices===undefined?null:validateSizePrices(old.type,b.sizePrices,price);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
       if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
-      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),age_restricted=$14,updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted]);
+      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredients_configured=CASE WHEN $8 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($9,image_url),product_images_json=COALESCE($13,product_images_json),age_restricted=$14,size_prices_json=COALESCE($15,size_prices_json),updated_at=$10 WHERE id=$11 AND restaurant_id=$12',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices)]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
