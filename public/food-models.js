@@ -369,7 +369,8 @@ function pizzaCtx(Rp, crustKey, hasSauce, hasCheese, seed) {
   const sauceR = a => Rin * (1.02 + .012 * Math.sin(a * 5 + ph));
   // A mussarela cobre praticamente toda a área do molho, deixando só uma faixa
   // irregular de molho visível junto à borda — não um grande anel sem queijo.
-  const cheeseR = a => Rin * (1.005 + .006 * Math.sin(a * 4 + ph) + .004 * (noise3(Math.cos(a) * 2.3, Math.sin(a) * 2.3, seed) - .5) * 2 + .003 * Math.sin(a * 11 + ph * 2));
+  // Camada de mussarela acompanha praticamente todo o disco de molho.
+  const cheeseR = a => sauceR(a) * .995;
   const edgeF = rn => Math.sqrt(Math.max(0, 1 - clamp(rn, 0, 1) ** 7));
   const sauceH = (x, z) => (.0017 + .0004 * (fbm(x * 60, z * 60, seed + 1, 2) - .5) * 2) * 1;
   const cheeseH = (x, z) => {
@@ -443,21 +444,17 @@ function sauceMeshPizza(ctx, detail) {
   }, Math.round(160 * detail), Math.round(32 * detail));
 }
 function cheeseMeshPizza(ctx, detail) {
-  const { cheeseR, cheeseH, edgeF, seed, cutGroove } = ctx;
+  const { cheeseR, cheeseH, edgeF, seed } = ctx;
   return veneerMesh(cheeseR, (x, z, v) => {
-    const s = ctx.sauceTop(x, z);
-    return s + cheeseH(x, z) * edgeF(v);
+    // Camada contínua acima do molho, com espessura estável do centro até a borda.
+    const sauce = ctx.sauceTop(x, z);
+    return sauce + .0022 + cheeseH(x, z) * (.35 + .65 * edgeF(v));
   }, (u, v, p) => {
-    const spots = sstep(.58, .72, nz(p, 32, seed + 6)), deep = sstep(.7, .82, nz(p, 70, seed + 13)), g = cutGroove(p[0], p[2]);
-    let c = mix(C.mozz, C.mozzGold, spots * .3); c = mix(c, C.mozzBrown, deep * .18);
-    // A mussarela é uma camada única, contínua e clara sobre toda a base.
-    // O molho aparece por baixo e na borda exposta, nunca como manchas na superfície.
-    c = mix(c, C.doughPale, g * .12);
-    c = mul(c, 1 + (nz(p, 100, seed + 1) - .5) * .045);
-    // poças de óleo: mais brilho e tom dourado
-    const oil = sstep(.76, .9, nz(p, 45, seed + 17));
-    c = mix(c, lin('#f2c46a'), oil * .35);
-    return MAT(c, lerp(.38, .22, oil), .5, .65, lerp(1, .82, sstep(.82, 1, v)));
+    // Textura muito sutil: a cor base permanece mussarela em toda a superfície.
+    const grain = (nz(p, 85, seed + 1) - .5) * .035;
+    const warm = sstep(.82, 1, v) * .055;
+    const c = mix(C.mozz, C.mozzGold, clamp(.12 + grain + warm, 0, .24));
+    return MAT(c, .3, .48, .55, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -898,7 +895,7 @@ function pizzaLayout(product, ings, size, o) {
   // de cada sabor são posicionadas somente dentro da sua fatia.
   const q = normalizeItems(ings);
   for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
-  const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela');
+  const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela') || hasSauce;
   const ctxFor = (sector = null, flavorSeed = seed) => {
     const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
     c.hasSauce = hasSauce; c.sector = sector;
