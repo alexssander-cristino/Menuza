@@ -785,7 +785,7 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'GET' && path === '/api/customer/data-export') {
         const customer = requireCustomer(request).customer;
-        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone},orders:listCustomerOrders(customer.id)});
+        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate},orders:listCustomerOrders(customer.id)});
       }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
