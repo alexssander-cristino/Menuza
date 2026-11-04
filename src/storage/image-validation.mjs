@@ -84,19 +84,30 @@ function inspectJpeg(buffer) {
 function inspectWebp(buffer) {
   if (buffer.length < 25 || buffer.toString('ascii',0,4) !== 'RIFF' || buffer.toString('ascii',8,12) !== 'WEBP') return null;
   if (buffer.readUInt32LE(4) + 8 !== buffer.length) throw new Error('Tamanho do arquivo WebP inválido.');
-  let offset = 12, chunks = 0, result = null, imageChunk = false;
+  let offset = 12, chunks = 0, result = null, imageChunk = false, extendedFlags = null, hasIccProfile = false;
   while (offset + 8 <= buffer.length && chunks++ < 128) {
     const type = buffer.toString('ascii',offset,offset+4);
     const length = buffer.readUInt32LE(offset+4);
     const start = offset + 8, end = start + length + (length & 1);
     if (end > buffer.length) throw new Error('Estrutura WebP inválida.');
-    if (!['VP8X','VP8 ','VP8L','ALPH'].includes(type)) throw new Error('WebP contém metadados, animação ou segmentos não permitidos.');
+    if (!['VP8X','VP8 ','VP8L','ALPH','ICCP'].includes(type)) throw new Error('WebP contém metadados, animação ou segmentos não permitidos.');
     if (type === 'VP8X') {
-      if (length !== 10) throw new Error('Cabeçalho WebP inválido.');
+      if (chunks !== 1 || length !== 10) throw new Error('Cabeçalho WebP inválido.');
       const flags = buffer[start];
-      if (flags & 0x2c) throw new Error('WebP com metadados incorporados não é permitido.');
+      // ICC é um perfil de cor inerte, normalmente incluído pelo canvas do navegador.
+      // EXIF, XMP e animação continuam bloqueados.
+      if (flags & 0x0e) throw new Error('WebP animado ou com metadados EXIF/XMP não é permitido.');
+      extendedFlags = flags;
       result = dimensions(1 + buffer[start+4] + (buffer[start+5]<<8) + (buffer[start+6]<<16),
         1 + buffer[start+7] + (buffer[start+8]<<8) + (buffer[start+9]<<16), 'webp');
+    } else if (type === 'ICCP') {
+      if (extendedFlags === null || !(extendedFlags & 0x20) || hasIccProfile || imageChunk ||
+          length < 128 || length > 1024 * 1024 ||
+          buffer.readUInt32BE(start) < 128 || buffer.readUInt32BE(start) > length ||
+          buffer.toString('ascii',start+36,start+40) !== 'acsp') {
+        throw new Error('Perfil de cor ICC do WebP inválido.');
+      }
+      hasIccProfile = true;
     } else if (type === 'VP8 ') {
       if (length < 10 || buffer[start+3] !== 0x9d || buffer[start+4] !== 0x01 || buffer[start+5] !== 0x2a) throw new Error('Quadro WebP inválido.');
       result = dimensions(buffer.readUInt16LE(start+6)&0x3fff,buffer.readUInt16LE(start+8)&0x3fff,'webp');
@@ -110,6 +121,7 @@ function inspectWebp(buffer) {
     offset = end;
   }
   if (!result || !imageChunk || offset !== buffer.length) throw new Error('WebP incompleto ou sem imagem válida.');
+  if (extendedFlags !== null && Boolean(extendedFlags & 0x20) !== hasIccProfile) throw new Error('Perfil de cor ICC do WebP ausente ou inesperado.');
   return result;
 }
 
