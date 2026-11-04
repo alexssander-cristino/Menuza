@@ -1277,7 +1277,7 @@ function productSizePriceMarkup(type,prices={},baseCents=null,compact=false){
     let cents=Number(prices?.[size.key]);
     if(!Number.isInteger(cents)||cents<1)cents=Number.isInteger(baseCents)?baseCents+Number(size.deltaCents||0):0;
     const value=cents>0?(cents/100).toFixed(2):'';
-    return '<label class="form-field"><span>'+esc(size.label)+' (R$)</span><input type="number" min="0.01" max="10000" step="0.01" required data-size-price-key="'+esc(size.key)+'" value="'+value+'" placeholder="0,00"></label>';
+    return '<label class="form-field"><span>'+esc(size.label)+' (R$)</span><input type="number" min="5" max="10000" step="0.01" required data-size-price-key="'+esc(size.key)+'" value="'+value+'" placeholder="0,00"></label>';
   }).join('')+'</div>';
 }
 function readProductSizePrices(container){
@@ -1286,7 +1286,7 @@ function readProductSizePrices(container){
   const prices={};
   for(const input of inputs){
     const cents=Math.round(Number(input.value)*100);
-    if(!Number.isInteger(cents)||cents<1||cents>1000000){input.setAttribute('aria-invalid','true');input.focus();throw new Error('Informe um preço válido para cada tamanho.');}
+    if(!Number.isInteger(cents)||cents<500||cents>1000000){input.setAttribute('aria-invalid','true');input.focus();throw new Error('Informe um preço válido para cada tamanho.');}
     input.removeAttribute('aria-invalid');prices[input.dataset.sizePriceKey]=cents;
   }
   return prices;
