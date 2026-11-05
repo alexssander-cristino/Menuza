@@ -1483,7 +1483,7 @@ async function renderCatalogAdmin(){
       if(button.disabled)return;
       const data=new FormData(form),sharedPizza=catalog.products.find(product=>product.type==='pizza'),sizePrices=data.get('type')==='pizza'&&sharedPizza?{...(sharedPizza.sizePrices||{})}:{},price=data.get('type')==='pizza'&&Object.keys(sizePrices).length?Math.min(...Object.values(sizePrices)):500;
       const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
-      const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value);
+      const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value).filter(id=>!selectedRecipe.includes(id));
       const ingredientIds=selectedAddons;
       button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
       try{
@@ -2196,7 +2196,7 @@ async function saveProduct(id){
   const button=row.querySelector('[data-action="save-product"]');if(!button||button.disabled)return;
   const active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked,ageRestricted=Boolean(row.querySelector('.product-age-restricted-input')?.checked);
   const defaultIngredientIds=[...row.querySelectorAll('.product-recipe-input input:checked')].map(input=>input.value);
-  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
+  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value).filter(id=>!defaultIngredientIds.includes(id));
   const ingredientIds=selectedAddons;
   button.disabled=true;button.textContent='Salvando…';
   try{
