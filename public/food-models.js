@@ -1039,6 +1039,69 @@ function pizzaBoardMesh(R, T, seed, detail) {
   return m.finish();
 }
 
+// Recorta a geometria real de cada cobertura pelos dois raios da fatia.
+// Filtrar apenas o centro das peças não basta: peças grandes e fios de molho
+// ainda atravessavam a divisória e pareciam pertencer aos sabores vizinhos.
+function clipGeometryToSector(geometry, sector) {
+  if (!sector || !geometry?.positions?.length || !geometry?.indices?.length) return geometry;
+  const positions = [], normals = [], colors = [], materials = [], indices = [];
+  const readVertex = index => {
+    const p = index * 3, n = index * 3, m = index * 4;
+    return {
+      p: [geometry.positions[p], geometry.positions[p + 1], geometry.positions[p + 2]],
+      n: geometry.normals?.length >= p + 3 ? [geometry.normals[p], geometry.normals[p + 1], geometry.normals[p + 2]] : [0, 1, 0],
+      c: geometry.colors?.length >= p + 3 ? [geometry.colors[p], geometry.colors[p + 1], geometry.colors[p + 2]] : [1, 1, 1],
+      m: geometry.materials?.length >= m + 4 ? Array.from(geometry.materials.slice(m, m + 4)) : [0, 0, 0, 1]
+    };
+  };
+  const interpolate = (a, b, t) => ({
+    p: a.p.map((v, i) => v + (b.p[i] - v) * t),
+    n: a.n.map((v, i) => v + (b.n[i] - v) * t),
+    c: a.c.map((v, i) => v + (b.c[i] - v) * t),
+    m: a.m.map((v, i) => v + (b.m[i] - v) * t)
+  });
+  const crossRay = (vertex, angle) => Math.cos(angle) * vertex.p[2] - Math.sin(angle) * vertex.p[0];
+  const clip = (polygon, angle, keepPositive) => {
+    const output = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const current = polygon[i], previous = polygon[(i + polygon.length - 1) % polygon.length];
+      const dc = crossRay(current, angle) * (keepPositive ? 1 : -1);
+      const dp = crossRay(previous, angle) * (keepPositive ? 1 : -1);
+      const insideCurrent = dc >= -1e-9, insidePrevious = dp >= -1e-9;
+      if (insideCurrent !== insidePrevious) {
+        const denominator = dp - dc;
+        const t = Math.abs(denominator) < 1e-12 ? 0 : dp / denominator;
+        output.push(interpolate(previous, current, t));
+      }
+      if (insideCurrent) output.push(current);
+    }
+    return output;
+  };
+  const emit = vertex => {
+    const index = positions.length / 3;
+    positions.push(...vertex.p); normals.push(...vertex.n); colors.push(...vertex.c); materials.push(...vertex.m);
+    indices.push(index);
+  };
+  for (let i = 0; i + 2 < geometry.indices.length; i += 3) {
+    let polygon = [readVertex(geometry.indices[i]), readVertex(geometry.indices[i + 1]), readVertex(geometry.indices[i + 2])];
+    polygon = clip(polygon, sector.start, true);
+    polygon = clip(polygon, sector.end, false);
+    if (polygon.length < 3) continue;
+    const baseIndex = positions.length / 3;
+    for (const vertex of polygon) {
+      positions.push(...vertex.p); normals.push(...vertex.n); colors.push(...vertex.c); materials.push(...vertex.m);
+    }
+    for (let j = 1; j < polygon.length - 1; j++) indices.push(baseIndex, baseIndex + j, baseIndex + j + 1);
+  }
+  if (!positions.length) return { ...geometry, positions: new Float32Array(), normals: new Float32Array(), colors: new Float32Array(), materials: new Float32Array(), indices: new Uint32Array(), box: [0, 0, 0, 0, 0, 0] };
+  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) {
+    box[0] = Math.min(box[0], positions[i]); box[1] = Math.min(box[1], positions[i + 1]); box[2] = Math.min(box[2], positions[i + 2]);
+    box[3] = Math.max(box[3], positions[i]); box[4] = Math.max(box[4], positions[i + 1]); box[5] = Math.max(box[5], positions[i + 2]);
+  }
+  return { ...geometry, positions: new Float32Array(positions), normals: new Float32Array(normals), colors: new Float32Array(colors), materials: new Float32Array(materials), indices: new Uint32Array(indices), box };
+}
+
 function pizzaLayout(product, ings, size, o) {
   const D = (size?.diameterCm || Number(product.widthCm) || 30) / 100, Rp = D / 2, detail = o.detail, seed = hash(product.id || 'pizza');
   const crustKey = CRUSTS[o.crustKey] ? o.crustKey : 'tradicional';
@@ -1081,7 +1144,7 @@ function pizzaLayout(product, ings, size, o) {
         kind: 'chocolate-cream' + (sector ? ':' + flavorIndex : ''),
         key: `pizza|chocolate-cream|${flavorChocolateIds.join('+')}|${base}|${flags}|sector-${flavorIndex}-${sectors.length}`,
         y: 0, base: false,
-        build: () => chocolateMeshPizza(ctx, detail, flavorChocolateStyle)
+        build: () => clipGeometryToSector(chocolateMeshPizza(ctx, detail, flavorChocolateStyle), sector)
       });
     }
     const earlier = [];
@@ -1089,7 +1152,7 @@ function pizzaLayout(product, ings, size, o) {
       if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela' || id === 'chocolate' || id === 'white-chocolate') continue;
       const qi = flavorQ.get(id) - 1, sig = earlier.map(e => `${e.id}${e.qtyIdx}`).join(',');
       const ear = earlier.slice(), sectorKey = sector ? '|sector-' + flavorIndex + '-' + sectors.length : '';
-      parts.push({ kind: 'topping:' + id + (sector ? ':' + flavorIndex : ''), key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`, y: 0, base: false, build: () => toppingMesh(ctx, id, qi, ear, detail) });
+      parts.push({ kind: 'topping:' + id + (sector ? ':' + flavorIndex : ''), key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`, y: 0, base: false, build: () => clipGeometryToSector(toppingMesh(ctx, id, qi, ear, detail), sector) });
       earlier.push({ id, qtyIdx: qi });
     }
   });
