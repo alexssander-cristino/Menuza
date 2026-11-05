@@ -165,9 +165,12 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
     return { id: item.id, name: item.name, quantity: count, unitPriceCents: cents, included, visual: item.visual || item.visual_key || 'herb' };
   });
   const configuredSizePrice = Number(product.sizePrices?.[size.key]);
-  const baseSizePrice = Number.isSafeInteger(configuredSizePrice) && configuredSizePrice > 0
-    ? configuredSizePrice
-    : Number(product.baseCents ?? product.base_price_cents) + size.deltaCents;
+  const officialPizzaSizePrice = type === 'pizza' ? Number(size.priceCents) : 0;
+  const baseSizePrice = type === 'pizza' && Number.isSafeInteger(officialPizzaSizePrice) && officialPizzaSizePrice >= 500
+    ? officialPizzaSizePrice
+    : Number.isSafeInteger(configuredSizePrice) && configuredSizePrice > 0
+      ? configuredSizePrice
+      : Number(product.baseCents ?? product.base_price_cents) + Number(size.deltaCents || 0);
   const unitPriceCents = baseSizePrice + crust.priceCents + extras;
   if (!Number.isSafeInteger(unitPriceCents) || unitPriceCents < 0) throw new Error('O preço calculado é inválido.');
   return { size: { key: size.key, label: size.label, diameterCm: size.diameterCm || null, priceCents: baseSizePrice }, crust: type === 'pizza' ? { key: crust.key, priceCents: crust.priceCents } : null, ingredients: canonical, unitPriceCents, linePriceCents: unitPriceCents * quantity };
