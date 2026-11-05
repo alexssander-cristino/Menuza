@@ -530,7 +530,8 @@ function renderBuilder() {
   const isPizza = product.type === 'pizza';
   const isBuildYourOwn = isBuildYourOwnPizza(product);
   const buildYourOwnDefaults = new Set(isBuildYourOwn ? (product.defaultIngredientIds || []) : []);
-  const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;\n  const ingredientLimit = isBuildYourOwn ? 3 : 12;
+  const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;
+  const ingredientLimit = isBuildYourOwn ? 3 : 12;
   const selected = new Set(builder.ingredients.map(i => i.id));
   const selectedIngredientDescription = ingredientDescription(product, builder.ingredients.map(item => item.id));
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
