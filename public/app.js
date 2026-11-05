@@ -464,7 +464,7 @@ async function openBuilder(productId,cartItem=null) {
   const initial=cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(product,app.catalog);
   const requiredIds=product.ingredientsConfigured?(product.defaultIngredientIds||[]):app.catalog.ingredients.filter(item=>item.type===product.type&&item.included).map(item=>item.id);
   for(const id of requiredIds)if(!initial.some(item=>item.id===id))initial.push({id,quantity:1});
-  app.builder={productId,ingredients:initial,sizeKey:cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',flavorProductIds:cartItem?.flavorProductIds?.length?cartItem.flavorProductIds:[product.id],editId:cartItem?.cartId||null};
+  const availableSizes=app.catalog.sizes?.[product.type]||[],defaultSize=availableSizes.find(size=>size.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||availableSizes[0];const availableCrusts=product.type==='pizza'?(app.catalog.crusts||[]):[],defaultCrust=availableCrusts.find(crust=>crust.key==='tradicional')||availableCrusts[0];app.builder={productId,ingredients:initial,sizeKey:cartItem&&availableSizes.some(size=>size.key===cartItem.sizeKey)?cartItem.sizeKey:(defaultSize?.key||''),crustKey:cartItem&&availableCrusts.some(crust=>crust.key===cartItem.crustKey)?cartItem.crustKey:(defaultCrust?.key||''),flavorProductIds:cartItem?.flavorProductIds?.length?cartItem.flavorProductIds:[product.id],editId:cartItem?.cartId||null};
   app.rotate=0;app.zoom=1;renderBuilder();
 }
 function arStatusText(product = app.catalog?.products.find(item => item.id === app.builder?.productId)) {
@@ -2449,15 +2449,16 @@ function syncFilters(){
 }
 async function openMenu(){
   try{
-    if(!app.catalog){
-      const menuGrid=root.getElementById('menuGrid');if(menuGrid)menuGrid.innerHTML=skeletonMarkup('catalog');
-      const resultCount=root.getElementById('resultCount');if(resultCount)resultCount.textContent='Preparando cardápio…';
-      app.catalog=await api('/api/catalog');
-      app.cart=normalizeCartForCatalog(app.cart,app.catalog);
-      setCart();
-      applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
-      renderCatalog();
-    }
+    // Sempre busca a configuração atual do restaurante ao voltar ao cardápio.
+    // Sem isso, o cliente continuava usando o catálogo antigo carregado antes
+    // de o administrador salvar tamanhos, preços, bordas ou produtos.
+    const menuGrid=root.getElementById('menuGrid');if(menuGrid&&!app.catalog)menuGrid.innerHTML=skeletonMarkup('catalog');
+    const resultCount=root.getElementById('resultCount');if(resultCount&&!app.catalog)resultCount.textContent='Preparando cardápio…';
+    app.catalog=await api('/api/catalog',{cache:'no-store'});
+    app.cart=normalizeCartForCatalog(app.cart,app.catalog);
+    setCart();
+    applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
+    renderCatalog();
     showHome();
   }catch(error){
     if(error?.status===401){
