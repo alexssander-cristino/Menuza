@@ -385,14 +385,15 @@ async function catalogFor(admin = false) {
       items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents, ageRestricted: p.ageRestricted } : null; }).filter(Boolean) };
   });
   const [sizeRows,crustRows]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
-  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.filter(x=>Number.isInteger(Number(x.priceCents))&&Number(x.priceCents)>=500).map(x=>[x.key,Number(x.priceCents)]));
+  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.map(x=>[x.key,Number(x.priceCents)||0]));
   // Um tamanho recém-criado pode ainda estar sem preço. Não descarte por isso
   // os preços globais já salvos dos outros tamanhos nem volte silenciosamente
   // para a tabela antiga de preços de cada produto.
   if(Object.keys(sharedPizzaPrices).length){
     for(const product of productRows)if(product.type==='pizza'){
-      product.sizePrices={...(product.sizePrices||{}),...sharedPizzaPrices};
-      product.baseCents=Math.min(...Object.values(product.sizePrices).map(Number).filter(value=>Number.isInteger(value)&&value>=500));
+      product.sizePrices={...(product.sizePrices||{}),...Object.fromEntries(Object.entries(sharedPizzaPrices).filter(([,value])=>Number.isInteger(value)&&value>=500))};
+      const validPrices=Object.values(sharedPizzaPrices).filter(value=>Number.isInteger(value)&&value>=500);
+      if(validPrices.length)product.baseCents=Math.min(...validPrices);
     }
   }
   return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)||0,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
