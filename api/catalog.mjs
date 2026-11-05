@@ -68,7 +68,7 @@ export default async function handler(request, response) {
     const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult] = await Promise.all([
       query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
       query('SELECT id, name, slug, sort_order AS "sortOrder" FROM categories WHERE restaurant_id = $1 ORDER BY sort_order', [RESTAURANT_ID]),
-      query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredients_configured AS "ingredientsConfigured", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
+      query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredients_configured AS "ingredientsConfigured", p.size_prices_json AS "sizePricesJson", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
       query('SELECT id, name, type, group_name AS "groupName", addon_cents AS cents, included_by_default AS included, active, sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id = $1 AND active = 1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT id, name, description, price_cents AS "priceCents", items_json AS "itemsJson", active, created_at AS "createdAt", updated_at AS "updatedAt" FROM combos WHERE restaurant_id = $1 AND active = 1 ORDER BY created_at DESC', [RESTAURANT_ID]),
       query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID]),
@@ -80,6 +80,8 @@ export default async function handler(request, response) {
       let ingredientIds = [];
       let defaultIngredientIds = [];
       let images = [];
+      let sizePrices = {};
+      try { sizePrices = JSON.parse(product.sizePricesJson || '{}'); } catch {}
       try { ingredientIds = JSON.parse(product.ingredientIdsJson || '[]'); } catch {}
       try { defaultIngredientIds = JSON.parse(product.defaultIngredientIdsJson || '[]'); } catch {}
       try { images = JSON.parse(product.productImagesJson || '[]'); } catch {}
@@ -92,6 +94,7 @@ export default async function handler(request, response) {
       const promotionalPriceCents = promotionPrice(product, promotion);
       return {
         ...product,
+        sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
         imageUrl,
         productImagesJson: JSON.stringify(storedImages),
         images: storedImages,
@@ -116,6 +119,21 @@ export default async function handler(request, response) {
       restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos');
       await query('UPDATE restaurants SET logo_url=$1 WHERE id=$2',[restaurant.logoUrl,RESTAURANT_ID]);
     }
+
+    // Os preços cadastrados no painel ficam em products.size_prices_json.
+    // A tabela de tamanhos pode ter price_cents zerado em cadastros antigos;
+    // nesse caso, recuperar o preço global salvo nos produtos, sem usar valores padrão.
+    const pizzaProducts = products.filter(product => product.type === 'pizza');
+    const configuredPrice = (key) => {
+      const values = pizzaProducts.map(product => Number(product.sizePrices?.[key])).filter(value => Number.isInteger(value) && value >= 500);
+      if (!values.length) return 0;
+      return values.every(value => value === values[0]) ? values[0] : 0;
+    };
+    const publicPizzaSizes = sizeResult.rows.map(size => {
+      const storedPrice = Number(size.priceCents);
+      const priceCents = Number.isInteger(storedPrice) && storedPrice >= 500 ? storedPrice : configuredPrice(size.key);
+      return { ...size, priceCents, deltaCents: 0 };
+    });
 
     const ingredients = ingredientResult.rows.map(row => ({
       ...row,
@@ -153,7 +171,7 @@ export default async function handler(request, response) {
       products,
       ingredients,
       combos,
-      sizes: { ...SIZE_OPTIONS, pizza: sizeResult.rows.map(size => ({ ...size, priceCents: Number(size.priceCents) || 0, deltaCents: 0 })) },
+      sizes: { ...SIZE_OPTIONS, pizza: publicPizzaSizes },
       crusts: crustResult.rows.map(crust => ({ ...crust, priceCents: Number(crust.priceCents) || 0 }))
     });
   } catch (error) {
