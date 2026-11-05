@@ -115,3 +115,17 @@ test('mussarela gera uma cobertura contínua com tom quente, sem branco puro', (
   assert.ok(avg[0] > avg[2], 'mussarela deve ter um tom creme quente, não branco azulado');
   assert.ok(avg[0] < 0.95 && avg[1] < 0.90, 'mussarela não pode ficar próxima do branco puro');
 });
+
+
+test('canela em pó usa partículas finas e reconhece cadastro personalizado mesmo com visual de erva', () => {
+  const layout = buildFoodLayout(pizza, [
+    { id: 'ingrediente-tempero-91', name: 'Canela', visual_key: 'herb', groupName: 'Ervas', quantity: 1 }
+  ], { diameterCm: 35 }, { detail: 0.45 });
+
+  assertToppingBuilds(layout, 'topping:canela-em-po');
+  assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano' || part.kind === 'topping:manjericao'),
+    'canela em pó não pode virar orégano ou folhas de manjericão');
+  const powder = layout.parts.find(part => part.kind === 'topping:canela-em-po').build();
+  assert.ok(powder.box[4] - powder.box[1] < 0.004,
+    'a cobertura de canela deve ser muito baixa, como pó fino, sem pedaços ou folhas');
+});
