@@ -302,7 +302,14 @@ function renderCatalog() {
   renderRecentProducts();
   renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
   const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
-  root.getElementById('menuGrid').innerHTML=(comboCards+products.map(cardMarkup).join(''))||'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
+  const categorySections=orderedCategories.map(category=>{
+    const categoryProducts=products.filter(product=>product.categoryId===category.id);
+    if(!categoryProducts.length)return '';
+    return '<section class="menu-category-section" aria-label="Categoria '+esc(category.name)+'"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>'+esc(category.name)+'</h2></div><span class="menu-category-count">'+categoryProducts.length+' '+(categoryProducts.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+categoryProducts.map(cardMarkup).join('')+'</div></section>';
+  }).join('');
+  const uncategorized=products.filter(product=>!app.catalog.categories.some(category=>category.id===product.categoryId));
+  const uncategorizedSection=uncategorized.length?'<section class="menu-category-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>Outros itens</h2></div><span class="menu-category-count">'+uncategorized.length+' '+(uncategorized.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+uncategorized.map(cardMarkup).join('')+'</div></section>':'';
+  root.getElementById('menuGrid').innerHTML=(comboCards?'<section class="menu-category-section menu-combos-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">COMBINAÇÕES</span><h2>Combos</h2></div></div><div class="menu-category-products">'+comboCards+'</div></section>':'')+categorySections+uncategorizedSection||'<div class="no-results"><h3>Nenhum item encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
   const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
   const visibleCount=products.length+visibleComboCount;
   root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
