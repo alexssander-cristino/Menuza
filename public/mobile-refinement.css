@@ -1519,3 +1519,39 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
 }
 @media (min-width:721px) { .mobile-site-menu { display:none !important; } }
 @media (prefers-reduced-motion:reduce) { .mobile-site-menu-panel,.mobile-site-menu-backdrop,.mobile-menu-button span { transition:none !important; } }
+
+/* Customer menu product cards: keep flavor/product names readable on phones. */
+@media (max-width: 700px) {
+  .menu-grid .product-card-top,
+  .featured-grid .product-card-top {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .menu-grid .product-card-top h3,
+  .featured-grid .product-card-top h3 {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0 0 6px;
+    font-size: clamp(14px, 4vw, 17px);
+    line-height: 1.2;
+    letter-spacing: normal;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+  }
+
+  .menu-grid .product-card-top .product-price,
+  .featured-grid .product-card-top .product-price {
+    min-width: max-content;
+    white-space: nowrap;
+    align-self: start;
+  }
+}
+
