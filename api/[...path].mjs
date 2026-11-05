@@ -461,13 +461,6 @@ async function priceItems(input) {
     const product = cat.products.find(p => p.id === entry?.productId && Number(p.active) === 1 && Number(p.available) === 1);
     if (!product) throw fail('Um dos produtos está indisponível ou esgotado no momento.', 409);
     let pricedItem;
-    const productIngredientIds = new Set([...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]);
-    const productIngredientCatalog = product.ingredientsConfigured
-      ? cat.ingredients.filter(ingredient => productIngredientIds.has(ingredient.id)).map(ingredient => ({
-          ...ingredient,
-          included: (product.defaultIngredientIds || []).includes(ingredient.id)
-        }))
-      : cat.ingredients;
     let flavorProducts=[product];
     if(product.type==='pizza'){
       const ids=Array.isArray(entry.flavorProductIds)?[...new Set(entry.flavorProductIds)]:[product.id];
@@ -476,11 +469,23 @@ async function priceItems(input) {
       flavorProducts=ids.map(fid=>cat.products.find(p=>p.id===fid&&p.type==='pizza'&&p.categoryId===product.categoryId&&Number(p.active)===1&&Number(p.available)===1));
       if(flavorProducts.some(p=>!p))throw fail('Um dos sabores selecionados está indisponível.',409);
     }
-    const effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{
+    const byoFlavor=flavorProducts.find(isBuildYourOwnPizza)||null;
+    const productIngredientIds = new Set(byoFlavor
+      ? [...(byoFlavor.ingredientIds || []), ...(byoFlavor.defaultIngredientIds || [])]
+      : [...(product.ingredientIds || []), ...(product.defaultIngredientIds || [])]);
+    const ingredientSource=byoFlavor||product;
+    const productIngredientCatalog = ingredientSource.ingredientsConfigured
+      ? cat.ingredients.filter(ingredient => productIngredientIds.has(ingredient.id)).map(ingredient => ({
+          ...ingredient,
+          included: (ingredientSource.defaultIngredientIds || []).includes(ingredient.id)
+        }))
+      : cat.ingredients;
+    let effectiveProduct=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined?{
       ...product,
       baseCents:product.promotionalPriceCents,
       sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))
     }:product;
+    if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
     if(product.type==='pizza'&&flavorProducts.length>1){const priceFor=p=>{const raw=Number(p.sizePrices?.[entry.sizeKey]);return Number.isInteger(raw)&&raw>0?raw:Number(p.baseCents)||0};effectiveProduct.sizePrices={...(effectiveProduct.sizePrices||{}),[entry.sizeKey]:Math.max(...flavorProducts.map(priceFor))};}
     try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog, sizes:cat.sizes, crusts:cat.crusts }); }
     catch (error) { throw fail(error.message,422); }
