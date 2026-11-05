@@ -182,3 +182,35 @@ test('chocolate de um sabor doce fica restrito à fatia, sem cobrir o sabor salg
   assert.ok(layout.parts.some(part => part.kind === 'topping:calabresa:0'),
     'a cobertura salgada deve continuar independente na primeira fatia');
 });
+
+
+test('nenhuma cobertura ultrapassa os limites angulares da fatia do sabor', () => {
+  const flavors = [
+    { id: 'pizza-calabresa', ingredients: [{ id: 'calabresa', name: 'Calabresa', quantity: 2 }] },
+    { id: 'pizza-catupiry', ingredients: [{ id: 'catupiry', name: 'Catupiry', quantity: 2 }] },
+    { id: 'pizza-banana', ingredients: [{ id: 'banana', name: 'Banana', quantity: 2 }] }
+  ];
+  const layout = buildFoodLayout(pizza, [], { diameterCm: 35 }, { detail: 0.45, flavors });
+  const sectors = flavors.map((_, index) => ({
+    start: -Math.PI + index * Math.PI * 2 / flavors.length,
+    end: -Math.PI + (index + 1) * Math.PI * 2 / flavors.length
+  }));
+
+  for (let index = 0; index < flavors.length; index++) {
+    const expectedKind = ['topping:calabresa:0', 'topping:catupiry:1', 'topping:banana:2'][index];
+    const part = layout.parts.find(item => item.kind === expectedKind);
+    assert.ok(part, expectedKind + ' deve existir');
+    const geometry = part.build();
+    assert.ok(geometry.indices.length > 0, expectedKind + ' deve manter faces após o recorte');
+
+    const sector = sectors[index];
+    for (let vertex = 0; vertex < geometry.positions.length; vertex += 3) {
+      const x = geometry.positions[vertex], z = geometry.positions[vertex + 2];
+      if (Math.hypot(x, z) < 1e-7) continue;
+      const angle = Math.atan2(z, x);
+      const span = ((angle - sector.start) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      assert.ok(span <= (sector.end - sector.start) + 1e-5,
+        expectedKind + ' não pode ultrapassar a divisória da fatia');
+    }
+  }
+});
