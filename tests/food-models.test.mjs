@@ -165,3 +165,20 @@ test('a divisão das fatias acompanha o diâmetro configurado da pizza', () => {
     'a quantidade de sabores e a divisão das fatias devem permanecer consistentes entre tamanhos'
   );
 });
+
+
+test('chocolate de um sabor doce fica restrito à fatia, sem cobrir o sabor salgado', () => {
+  const flavors = [
+    { id: 'pizza-calabresa', ingredients: [{ id: 'calabresa', name: 'Calabresa', quantity: 1 }] },
+    { id: 'pizza-chocolate', ingredients: [{ id: 'chocolate', name: 'Chocolate', quantity: 1 }] }
+  ];
+  const layout = buildFoodLayout(pizza, [], { diameterCm: 35 }, { detail: 0.45, flavors });
+  const creams = layout.parts.filter(part => part.kind.startsWith('chocolate-cream'));
+  assert.equal(creams.length, 1, 'deve existir uma única cobertura de chocolate na fatia doce');
+  assert.equal(creams[0].kind, 'chocolate-cream:1', 'o chocolate deve pertencer à segunda fatia');
+  const geometry = creams[0].build();
+  assert.ok(geometry.positions.length > 0);
+  assert.ok(geometry.positions.every(Number.isFinite));
+  assert.ok(layout.parts.some(part => part.kind === 'topping:calabresa:0'),
+    'a cobertura salgada deve continuar independente na primeira fatia');
+});
