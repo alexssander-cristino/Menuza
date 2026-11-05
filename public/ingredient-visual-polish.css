@@ -375,3 +375,46 @@
   .ingredient-choice{grid-template-columns:18px minmax(0,1fr) auto;padding:10px}
   .ingredient-choice small{max-width:100px}
 }
+
+/* Mobile: keep pizza flavor names readable instead of breaking every character. */
+@media (max-width: 700px) {
+  .builder-content .ingredient-list,
+  .builder-content .ingredient-item {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .builder-content .ingredient-option {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 9px;
+    box-sizing: border-box;
+  }
+
+  .builder-content .ingredient-name {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
+    line-height: 1.4;
+  }
+
+  .builder-content .ingredient-name small {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .builder-content .ingredient-cost {
+    min-width: max-content;
+    max-width: none;
+    white-space: nowrap;
+  }
+}
+
