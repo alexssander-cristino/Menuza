@@ -342,7 +342,15 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   let out = '';
 
   const bunBottom = () => {
-    out += '<g class="food-ingredient"><path d="M' + (L + 6) + ' ' + (y - 40) + 'h' + (W - 12) + 'q10 0 8 14q-6 34-' + 70 + ' 36h-' + (W - 96) + 'q-76-2-' + 82 + '-36q-2-14 8-14z" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/><path d="M' + (L + 22) + ' ' + (y - 36) + 'h' + (W - 44) + '" stroke="#f4cf8b" stroke-width="3" opacity=".7"/></g>';
+    // Pão inferior simétrico: curvas esquerda/direita espelhadas e largura constante.
+    const bottomPath = 'M' + (L + 8) + ' ' + (y - 34)
+      + 'C' + (L + 8) + ' ' + (y - 18) + ' ' + (L + 24) + ' ' + (y - 2) + ' ' + (L + 48) + ' ' + y
+      + 'H' + (R - 48)
+      + 'C' + (R - 24) + ' ' + (y - 2) + ' ' + (R - 8) + ' ' + (y - 18) + ' ' + (R - 8) + ' ' + (y - 34)
+      + 'Q' + (R - 8) + ' ' + (y - 42) + ' ' + (R - 20) + ' ' + (y - 42)
+      + 'H' + (L + 20) + 'Q' + (L + 8) + ' ' + (y - 42) + ' ' + (L + 8) + ' ' + (y - 34) + 'Z';
+    out += '<g class="food-ingredient"><path d="' + bottomPath + '" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/>'
+      + '<path d="M' + (L + 24) + ' ' + (y - 35) + 'H' + (R - 24) + '" fill="none" stroke="#f4cf8b" stroke-width="3" opacity=".7"/></g>';
     y -= 38;
   };
   const sauceLayer = () => {

@@ -1,8 +1,26 @@
 import { query } from '../src/db/postgres.mjs';
-import { CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
+import { inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
 import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
+
+async function ensurePizzaConfigSchema() {
+  await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL,
+    label TEXT NOT NULL, diameter_cm INTEGER NOT NULL DEFAULT 0,
+    max_flavors INTEGER NOT NULL DEFAULT 1, price_cents INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(restaurant_id,key)
+  )`);
+  await query('ALTER TABLE pizza_sizes ADD COLUMN IF NOT EXISTS price_cents INTEGER NOT NULL DEFAULT 0');
+  await query(`CREATE TABLE IF NOT EXISTS pizza_crusts (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL,
+    label TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(restaurant_id,key)
+  )`);
+  // O catálogo público nunca cria opções padrão; exibe exclusivamente os cadastros do restaurante.
+}
 
 function saoPauloWeekday() {
   const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date());
@@ -28,6 +46,7 @@ export default async function handler(request, response) {
   }
 
   try {
+    await ensurePizzaConfigSchema();
     // Keep the public endpoint compatible with databases upgraded by the admin API.
     await query(`CREATE TABLE IF NOT EXISTS product_promotions (
       id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
@@ -46,19 +65,23 @@ export default async function handler(request, response) {
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
 
-    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult] = await Promise.all([
+    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult] = await Promise.all([
       query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
       query('SELECT id, name, slug, sort_order AS "sortOrder" FROM categories WHERE restaurant_id = $1 ORDER BY sort_order', [RESTAURANT_ID]),
-      query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredients_configured AS "ingredientsConfigured", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
+      query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredients_configured AS "ingredientsConfigured", p.size_prices_json AS "sizePricesJson", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
       query('SELECT id, name, type, group_name AS "groupName", addon_cents AS cents, included_by_default AS included, active, sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id = $1 AND active = 1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT id, name, description, price_cents AS "priceCents", items_json AS "itemsJson", active, created_at AS "createdAt", updated_at AS "updatedAt" FROM combos WHERE restaurant_id = $1 AND active = 1 ORDER BY created_at DESC', [RESTAURANT_ID]),
-      query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID])
+      query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID]),
+      query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
+      query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])
     ]);
 
     const products = await Promise.all(productResult.rows.map(async product => {
       let ingredientIds = [];
       let defaultIngredientIds = [];
       let images = [];
+      let sizePrices = {};
+      try { sizePrices = JSON.parse(product.sizePricesJson || '{}'); } catch {}
       try { ingredientIds = JSON.parse(product.ingredientIdsJson || '[]'); } catch {}
       try { defaultIngredientIds = JSON.parse(product.defaultIngredientIdsJson || '[]'); } catch {}
       try { images = JSON.parse(product.productImagesJson || '[]'); } catch {}
@@ -71,6 +94,7 @@ export default async function handler(request, response) {
       const promotionalPriceCents = promotionPrice(product, promotion);
       return {
         ...product,
+        sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
         imageUrl,
         productImagesJson: JSON.stringify(storedImages),
         images: storedImages,
@@ -95,6 +119,21 @@ export default async function handler(request, response) {
       restaurant.logoUrl = await storeImageDataUrl(restaurant.logoUrl, 'restaurants/logos');
       await query('UPDATE restaurants SET logo_url=$1 WHERE id=$2',[restaurant.logoUrl,RESTAURANT_ID]);
     }
+
+    // Os preços cadastrados no painel ficam em products.size_prices_json.
+    // A tabela de tamanhos pode ter price_cents zerado em cadastros antigos;
+    // nesse caso, recuperar o preço global salvo nos produtos, sem usar valores padrão.
+    const pizzaProducts = products.filter(product => product.type === 'pizza');
+    const configuredPrice = (key) => {
+      const values = pizzaProducts.map(product => Number(product.sizePrices?.[key])).filter(value => Number.isInteger(value) && value >= 500);
+      if (!values.length) return 0;
+      return values.every(value => value === values[0]) ? values[0] : 0;
+    };
+    const publicPizzaSizes = sizeResult.rows.map(size => {
+      const storedPrice = Number(size.priceCents);
+      const priceCents = Number.isInteger(storedPrice) && storedPrice >= 500 ? storedPrice : configuredPrice(size.key);
+      return { ...size, priceCents, deltaCents: 0 };
+    });
 
     const ingredients = ingredientResult.rows.map(row => ({
       ...row,
@@ -132,8 +171,8 @@ export default async function handler(request, response) {
       products,
       ingredients,
       combos,
-      sizes: SIZE_OPTIONS,
-      crusts: CRUST_OPTIONS
+      sizes: { ...SIZE_OPTIONS, pizza: publicPizzaSizes },
+      crusts: crustResult.rows.map(crust => ({ ...crust, priceCents: Number(crust.priceCents) || 0 }))
     });
   } catch (error) {
     console.error('[Menuza catalog] Failed to load catalog:', error?.message || error);

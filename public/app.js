@@ -291,18 +291,29 @@ function visibleProducts() {
   });
   if (app.sort==='price') list=list.slice().sort((a,b)=>a.baseCents-b.baseCents);
   if (app.sort==='name') list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  if (app.sort==='featured') list=list.slice().sort((a,b)=>b.featured-a.featured);
-  return list;
+  if (app.sort==='featured') list=list.slice().sort((a,b)=>Number(b.featured)-Number(a.featured));
+  // Bebidas ficam sempre no fim do cardápio, sem interferir na ordenação dos demais produtos.
+  return list.filter(product=>product.type!=='drink').concat(list.filter(product=>product.type==='drink'));
 }
 function renderCatalog() {
   if (!app.catalog) return;
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
-  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
-  root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
+  const drinkCategoryIds=new Set(app.catalog.products.filter(product=>product.type==='drink').map(product=>product.categoryId));
+  const orderedCategories=app.catalog.categories.slice().sort((a,b)=>Number(drinkCategoryIds.has(a.id))-Number(drinkCategoryIds.has(b.id)));
+  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
+  const featuredProducts=app.catalog.products.filter(p=>p.featured&&p.type!=='drink').slice(0,4);
+  root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
   renderRecentProducts();
   renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
   const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
-  root.getElementById('menuGrid').innerHTML=(comboCards+products.map(cardMarkup).join(''))||'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
+  const categorySections=orderedCategories.map(category=>{
+    const categoryProducts=products.filter(product=>product.categoryId===category.id);
+    if(!categoryProducts.length)return '';
+    return '<section class="menu-category-section" aria-label="Categoria '+esc(category.name)+'"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>'+esc(category.name)+'</h2></div><span class="menu-category-count">'+categoryProducts.length+' '+(categoryProducts.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+categoryProducts.map(cardMarkup).join('')+'</div></section>';
+  }).join('');
+  const uncategorized=products.filter(product=>!app.catalog.categories.some(category=>category.id===product.categoryId));
+  const uncategorizedSection=uncategorized.length?'<section class="menu-category-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>Outros itens</h2></div><span class="menu-category-count">'+uncategorized.length+' '+(uncategorized.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+uncategorized.map(cardMarkup).join('')+'</div></section>':'';
+  root.getElementById('menuGrid').innerHTML=(comboCards?'<section class="menu-category-section menu-combos-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">COMBINAÇÕES</span><h2>Combos</h2></div></div><div class="menu-category-products">'+comboCards+'</div></section>':'')+categorySections+uncategorizedSection||'<div class="no-results"><h3>Nenhum item encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
   const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
   const visibleCount=products.length+visibleComboCount;
   root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
@@ -462,7 +473,17 @@ async function ensureAgeForProduct(product){
   return true;
 }
 async function openBuilder(productId,cartItem=null) {
-  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return;if(product.available===0)return toast('Esse produto está esgotado no momento.');
+  // O modal precisa consultar a configuração mais recente no momento da abertura.
+  // Atualizar apenas ao entrar no cardápio não resolve quando a página já ficou aberta
+  // enquanto o restaurante cadastrava tamanhos, preços, bordas ou produtos.
+  try{
+    const latestCatalog=await api('/api/catalog',{cache:'no-store'});
+    if(latestCatalog&&Array.isArray(latestCatalog.products))app.catalog=latestCatalog;
+  }catch(error){
+    toast(error?.message||'Não foi possível atualizar as opções deste produto.');
+    return;
+  }
+  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return toast('Este produto não está mais disponível no cardápio. Atualize a página.');if(product.available===0)return toast('Esse produto está esgotado no momento.');
   if(!(await ensureAgeForProduct(product)))return;
   rememberRecentProduct(productId);
   const initial=cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(product,app.catalog);
@@ -525,10 +546,15 @@ function renderBuilder() {
     if (!flavorProduct) return null;
     const defaults = defaultIngredients(flavorProduct, app.catalog);
     const merged = new Map(defaults.map(item => [item.id, { ...item }]));
-    for (const item of builder.ingredients) {
-      const previous = merged.get(item.id);
-      if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
-      else merged.set(item.id, { ...item });
+    // Os adicionais escolhidos no formulário pertencem ao sabor principal.
+    // Replicá-los em todos os sabores fazia os mesmos ingredientes aparecerem
+    // em cada fatia, dando a impressão de que a pizza inteira tinha a mesma cobertura.
+    if (index === 0) {
+      for (const item of builder.ingredients) {
+        const previous = merged.get(item.id);
+        if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
+        else merged.set(item.id, { ...item });
+      }
     }
     return { id: flavorProduct.id, ingredients: [...merged.values()] };
   }).filter(Boolean) : [];
@@ -621,6 +647,13 @@ async function addBuilderToCart() {
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
 function effectiveProductBase(product){return product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined?Number(product.promotionalPriceCents):Number(product?.baseCents)||0;}
 function effectiveProductSizePrice(product,key,size){
+  // Para pizzas, o preço oficial é o preço salvo junto ao tamanho no painel.
+  // Não usar deltas ou preços antigos do produto como substitutos.
+  const configuredSize=Number(size?.priceCents);
+  if(product?.type==='pizza'&&Number.isInteger(configuredSize)&&configuredSize>=500){
+    const promo=product?.promotionalPriceCents,base=Number(product?.baseCents);
+    return promo!==null&&promo!==undefined&&base>0?Math.max(1,Math.round(configuredSize*Number(promo)/base)):configuredSize;
+  }
   const configured=Number(product?.sizePrices?.[key]);
   if(Number.isInteger(configured)&&configured>0){
     const promo=product?.promotionalPriceCents,base=Number(product?.baseCents);
@@ -1086,8 +1119,10 @@ function exportDailyClosingPdf(){
 }
 async function renderPizzaConfigAdmin(){
  const target=root.getElementById('adminBody');target.innerHTML=skeletonMarkup('content');
- try{const data=await api('/api/admin/pizza-config');const sizes=data.sizes||[],crusts=data.crusts||[];
- target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Tamanhos de pizza</h2><small>Cadastre uma vez. Cada tamanho define diâmetro e quantidade máxima de sabores.</small></div></div><form id="pizzaConfigForm"><div class="admin-form-grid"><div class="form-field wide"><div class="admin-panel-head"><b>Tamanhos e limites de sabores</b></div><div id="pizzaSizeRows">'+sizes.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="sizeKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome</span><input name="sizeLabel" value="'+esc(x.label)+'" required maxlength="40"></label><label class="form-field"><span>Diâmetro (cm)</span><input name="sizeDiameter" type="number" min="10" max="60" value="'+Number(x.diameterCm)+'" required></label><label class="form-field"><span>Máximo de sabores</span><input name="sizeFlavors" type="number" min="1" max="8" value="'+Number(x.maxFlavors)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-size">Adicionar tamanho</button></div><div class="form-field wide"><div class="admin-panel-head"><b>Bordas e preços adicionais</b></div><div id="pizzaCrustRows">'+crusts.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="crustKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome da borda</span><input name="crustLabel" value="'+esc(x.label)+'" required maxlength="50"></label><label class="form-field"><span>Preço adicional (R$)</span><input name="crustPrice" type="number" min="0" max="10000" step="0.01" value="'+(Number(x.priceCents)/100).toFixed(2)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-crust">Adicionar borda</button></div><div class="form-field wide"><button class="button button-dark" type="submit">Salvar tamanhos e bordas</button></div></div></form></section>';
+ try{const data=await api('/api/admin/pizza-config');const sizes=data.sizes||[],crusts=data.crusts||[],catalog=await api('/api/admin/catalog');app.catalog=catalog;
+ const existingPizza=catalog.products.find(product=>product.type==='pizza'),savedSizePrices=Object.fromEntries(sizes.filter(size=>Number(size.priceCents)>=500).map(size=>[size.key,Number(size.priceCents)])),initialSharedPrices={...(existingPizza?.sizePrices||{}),...savedSizePrices};
+ target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Tamanhos de pizza</h2><small>Cadastre uma vez. Cada tamanho define diâmetro e quantidade máxima de sabores.</small></div></div><form id="pizzaConfigForm"><div class="admin-form-grid"><div class="form-field wide"><div class="admin-panel-head"><b>Tamanhos e limites de sabores</b></div><div id="pizzaSizeRows">'+sizes.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="sizeKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome</span><input name="sizeLabel" value="'+esc(x.label)+'" required maxlength="40"></label><label class="form-field"><span>Diâmetro (cm)</span><input name="sizeDiameter" type="number" min="10" max="60" value="'+Number(x.diameterCm)+'" required></label><label class="form-field"><span>Máximo de sabores</span><input name="sizeFlavors" type="number" min="1" max="8" value="'+Number(x.maxFlavors)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-size">Adicionar tamanho</button></div><div class="form-field wide"><div class="admin-panel-head"><b>Bordas e preços adicionais</b></div><div id="pizzaCrustRows">'+crusts.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="crustKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome da borda</span><input name="crustLabel" value="'+esc(x.label)+'" required maxlength="50"></label><label class="form-field"><span>Preço adicional (R$)</span><input name="crustPrice" type="number" min="0" max="10000" step="0.01" value="'+(Number(x.priceCents)/100).toFixed(2)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-crust">Adicionar borda</button></div><div class="form-field wide"><button class="button button-dark" type="submit">Salvar tamanhos e bordas</button></div></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Preço único das pizzas por tamanho</h2><small>Cadastre um único preço para cada tamanho. Esse valor será aplicado automaticamente a todas as pizzas e a todos os sabores.</small></div></div><div class="product-size-price-entry" id="sharedPizzaPricing"><div class="product-size-price-editor">'+productSizePriceMarkup('pizza',initialSharedPrices,existingPizza?.baseCents||null,true)+'</div><button type="button" class="button button-dark button-small" data-save-shared-pizza-prices>Salvar preços de todas as pizzas</button><small>Ao salvar, todos os sabores de pizza passam a usar exatamente os mesmos valores por tamanho.</small></div></section>';
+ target.querySelector('[data-save-shared-pizza-prices]')?.addEventListener('click',async buttonEvent=>{const button=buttonEvent.currentTarget,row=target.querySelector('#sharedPizzaPricing');if(!row||button.disabled)return;let sizePrices;try{sizePrices=readProductSizePrices(row)}catch(error){toast(error.message);return}button.disabled=true;button.textContent='Salvando preços dos tamanhos…';try{await api('/api/admin/pizza-size-prices',{method:'PATCH',body:JSON.stringify({sizePrices})});toast('Preços salvos nos tamanhos e atualizados no cardápio do cliente.');await renderPizzaConfigAdmin()}catch(error){toast(error.message||'Não foi possível salvar os preços dos tamanhos.');button.disabled=false;button.textContent='Tentar novamente'}});
  const form=target.querySelector('#pizzaConfigForm');form.addEventListener('submit',async e=>{e.preventDefault();const sizeRows=[...form.querySelectorAll('#pizzaSizeRows .pizza-config-row')],crustRows=[...form.querySelectorAll('#pizzaCrustRows .pizza-config-row')];const makeKey=(label,index)=>label.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+index;const sizes=sizeRows.map((row,i)=>({key:row.querySelector('[name=sizeKey]')?.value||makeKey(row.querySelector('[name=sizeLabel]').value.trim(),i),label:row.querySelector('[name=sizeLabel]').value.trim(),diameterCm:Number(row.querySelector('[name=sizeDiameter]').value),maxFlavors:Number(row.querySelector('[name=sizeFlavors]').value)}));const crusts=crustRows.map((row,i)=>({key:row.querySelector('[name=crustKey]')?.value||makeKey(row.querySelector('[name=crustLabel]').value.trim(),i),label:row.querySelector('[name=crustLabel]').value.trim(),priceCents:Math.round(Number(row.querySelector('[name=crustPrice]').value)*100)}));const button=form.querySelector('[type=submit]');button.disabled=true;try{await api('/api/admin/pizza-config',{method:'PUT',body:JSON.stringify({sizes,crusts})});app.catalog=await api('/api/admin/catalog');toast('Tamanhos e bordas atualizados.');renderPizzaConfigAdmin()}catch(error){toast(error.message||'Não foi possível salvar.');button.disabled=false}});
  }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar tamanhos e bordas</h2><p>'+esc(error.message)+'</p></section>'}
 }
@@ -1332,12 +1367,37 @@ async function renderCatalogAdmin(){
     const catalog=await api('/api/admin/catalog');
     app.catalog=catalog;
     const ingredientChoices=(type,selected=[],name='ingredientIds')=>catalog.ingredients.filter(item=>item.type===type&&item.active!==0).map(item=>'<label class="ingredient-choice"><input type="checkbox" name="'+name+'" value="'+esc(item.id)+'" '+(selected.includes(item.id)?'checked':'')+'><span>'+esc(item.name)+'</span>'+(item.cents?'<small>+'+money(item.cents)+'</small>':'')+'</label>').join('');
-    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Novo produto</h2><small>Defina a receita padrão e quais adicionais o cliente pode escolher.</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type" id="newProductType"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Hot Dog</option></select></label><div class="form-field wide"><span>Preços por tamanho</span><div data-new-size-prices>'+productSizePriceMarkup('pizza')+'</div><small>Cadastre o preço final de cada tamanho. O cliente verá o valor correspondente ao selecionar.</small></div><label class="form-field wide"><span>Descrição complementar</span><input name="description" maxlength="300" placeholder="Ex.: Massa artesanal assada em forno a lenha"></label><label class="form-field wide age-restriction-option"><span><input type="checkbox" name="ageRestricted"> Produto restrito a maiores de 18 anos</span><small>Ative para bebidas alcoólicas ou qualquer item com restrição legal de idade.</small></label><label class="form-field wide"><span>Foto real do produto (opcional)</span><input type="file" name="productPhotos" accept="image/png,image/jpeg,image/webp" multiple><small>Adicione até 8 fotos. Elas serão comprimidas em WebP e vão girar automaticamente no cardápio e na personalização.</small></label><label class="form-field wide"><span>Ingredientes da receita padrão</span><div class="ingredient-checkbox-list" data-product-select="recipe">'+ingredientChoices('pizza',[],'defaultIngredientIds')+'</div><small>Fazem parte da receita obrigatória: já vêm selecionados e o cliente não pode removê-los.</small><small data-new-recipe-preview>Ingredientes: nenhum selecionado.</small><div class="recipe-live-preview" data-new-recipe-art aria-live="polite"><span>Prévia da receita</span></div></label><label class="form-field wide"><span>Adicionais permitidos neste produto</span><div class="ingredient-checkbox-list" data-product-select="addons">'+ingredientChoices('pizza',[],'ingredientIds')+'</div><small>Opcional: se deixar vazio, o cliente verá apenas a receita padrão, sem adicionais para escolher.</small></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos cadastrados</h2><small>Edite a receita, os adicionais e a disponibilidade de cada produto.</small></div></div><div class="product-admin-list">'+catalog.products.filter(product=>product.type!=='drink').map(product=>'<article class="product-admin-entry" data-product-admin="'+esc(product.id)+'"><div class="product-admin-top"><div class="product-admin-heading"><b>'+esc(product.name)+'</b><small>'+esc(catalog.categories.find(item=>item.id===product.categoryId)?.name||'Sem categoria')+'</small></div><div class="product-admin-statuses"><label><input type="checkbox" class="product-active-input" '+(product.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(product.available!==0?'checked':'')+'> Disponível</label><label><input type="checkbox" class="product-age-restricted-input" '+(product.ageRestricted?'checked':'')+'> 18+</label></div></div><section class="product-size-pricing"><div class="product-size-pricing-heading"><strong>Preço por tamanho</strong><small>Defina o preço final de cada opção.</small></div><div class="product-size-price-editor">'+productSizePriceMarkup(product.type,product.sizePrices,product.baseCents,true)+'</div></section><div class="product-photo-config product-gallery-config"><label>Adicionar fotos <input type="file" class="product-photos-input" accept="image/png,image/jpeg,image/webp" multiple></label><small>Até 8 imagens no total. Elas são comprimidas em WebP e alternam automaticamente no card e no modal.</small><input type="hidden" class="product-images-json" value="'+esc(JSON.stringify(productImages(product)))+'"><div class="product-images-preview">'+(productImages(product).length?productImages(product).map((url,index)=>'<span class="product-image-admin-thumb"><img src="'+esc(url)+'" alt="Foto '+(index+1)+'"><button type="button" data-action="remove-product-image" data-index="'+index+'" aria-label="Remover foto '+(index+1)+'">×</button></span>').join(''):'<small>Nenhuma foto cadastrada.</small>')+'</div><label><input type="checkbox" class="product-photos-remove"> Remover todas as fotos</label></div><div class="product-ingredient-config"><label><span>Receita padrão</span><div class="ingredient-checkbox-list product-recipe-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),'defaultIngredientIds')+'</div></label><label><span>Adicionais permitidos</span><div class="ingredient-checkbox-list product-addons-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.ingredientIds||[]):[],'ingredientIds')+'</div></label><small data-product-recipe-preview>Descrição automática: '+esc(productIngredientNames(product,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),catalog).join(', ')||'Nenhum ingrediente definido')+'</small><div class="recipe-live-preview" data-product-recipe-art aria-live="polite"><span>Prévia da receita</span></div></div><div class="product-3d-admin"><span class="product-3d-status">'+(product.model3dStatus==='completed'?'Modelo TripoSR pronto':product.model3dStatus==='queued'?'Na fila':product.model3dStatus==='processing'?'Gerando modelo…':product.model3dStatus==='failed'?'Falha na geração':'Sem modelo TripoSR')+'</span>'+(product.model3dUrl?'<button type="button" class="button button-outline button-small" data-action="admin-generated-3d" data-id="'+esc(product.id)+'">Ver modelo real</button>':'')+'<button type="button" class="button button-outline button-small" data-action="generate-product-3d" data-id="'+esc(product.id)+'" '+(!product.imageUrl?'disabled':'')+'>'+(product.model3dStatus==='completed'?'Gerar novamente':'Gerar modelo 3D')+'</button></div><div class="product-admin-actions"><button type="button" class="button button-dark button-small product-save-action" data-action="save-product" data-id="'+esc(product.id)+'">Salvar alterações</button><button type="button" class="button button-danger button-small" data-action="delete-product" data-kind="product" data-id="'+esc(product.id)+'">Excluir produto</button></div></article>').join('')+'</div></section>';
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Novo produto</h2><small>Defina a receita padrão e quais adicionais o cliente pode escolher.</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type" id="newProductType"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Hot Dog</option></select></label><label class="form-field wide"><span>Descrição complementar</span><input name="description" maxlength="300" placeholder="Ex.: Massa artesanal assada em forno a lenha"></label><label class="form-field wide age-restriction-option"><span><input type="checkbox" name="ageRestricted"> Produto restrito a maiores de 18 anos</span><small>Ative para bebidas alcoólicas ou qualquer item com restrição legal de idade.</small></label><label class="form-field wide"><span>Foto real do produto (opcional)</span><input type="file" name="productPhotos" accept="image/png,image/jpeg,image/webp" multiple><small>Adicione até 8 fotos. Elas serão comprimidas em WebP e vão girar automaticamente no cardápio e na personalização.</small></label><label class="form-field wide"><span>Ingredientes da receita padrão</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar ingrediente da receita..." aria-label="Buscar ingrediente da receita"></div><div class="ingredient-checkbox-list" data-product-select="recipe">'+ingredientChoices('pizza',[],'defaultIngredientIds')+'</div><small>Fazem parte da receita obrigatória: já vêm selecionados e o cliente não pode removê-los.</small><small data-new-recipe-preview>Ingredientes: nenhum selecionado.</small><div class="recipe-live-preview" data-new-recipe-art aria-live="polite"><span>Prévia da receita</span></div></label><label class="form-field wide"><span>Adicionais permitidos neste produto</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar adicional permitido..." aria-label="Buscar adicional permitido"></div><div class="ingredient-checkbox-list" data-product-select="addons">'+ingredientChoices('pizza',[],'ingredientIds')+'</div><small>Opcional: se deixar vazio, o cliente verá apenas a receita padrão, sem adicionais para escolher.</small></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos cadastrados</h2><small>Edite a receita, os adicionais e a disponibilidade de cada produto.</small></div></div><div class="product-admin-list">'+catalog.products.filter(product=>product.type!=='drink').map(product=>'<article class="product-admin-entry" data-product-admin="'+esc(product.id)+'"><div class="product-admin-top"><div class="product-admin-heading"><b>'+esc(product.name)+'</b><small>'+esc(catalog.categories.find(item=>item.id===product.categoryId)?.name||'Sem categoria')+'</small></div><div class="product-admin-statuses"><label><input type="checkbox" class="product-active-input" '+(product.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(product.available!==0?'checked':'')+'> Disponível</label><label><input type="checkbox" class="product-age-restricted-input" '+(product.ageRestricted?'checked':'')+'> 18+</label></div></div><div class="product-photo-config product-gallery-config"><label>Adicionar fotos <input type="file" class="product-photos-input" accept="image/png,image/jpeg,image/webp" multiple></label><small>Até 8 imagens no total. Elas são comprimidas em WebP e alternam automaticamente no card e no modal.</small><input type="hidden" class="product-images-json" value="'+esc(JSON.stringify(productImages(product)))+'"><div class="product-images-preview">'+(productImages(product).length?productImages(product).map((url,index)=>'<span class="product-image-admin-thumb"><img src="'+esc(url)+'" alt="Foto '+(index+1)+'"><button type="button" data-action="remove-product-image" data-index="'+index+'" aria-label="Remover foto '+(index+1)+'">×</button></span>').join(''):'<small>Nenhuma foto cadastrada.</small>')+'</div><label><input type="checkbox" class="product-photos-remove"> Remover todas as fotos</label></div><div class="product-ingredient-config"><label><span>Receita padrão</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar ingrediente da receita..." aria-label="Buscar ingrediente da receita"></div><div class="ingredient-checkbox-list product-recipe-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),'defaultIngredientIds')+'</div></label><label><span>Adicionais permitidos</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar adicional permitido..." aria-label="Buscar adicional permitido"></div><div class="ingredient-checkbox-list product-addons-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.ingredientIds||[]):[],'ingredientIds')+'</div></label><small data-product-recipe-preview>Descrição automática: '+esc(productIngredientNames(product,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),catalog).join(', ')||'Nenhum ingrediente definido')+'</small><div class="recipe-live-preview" data-product-recipe-art aria-live="polite"><span>Prévia da receita</span></div></div><div class="product-3d-admin"><span class="product-3d-status">'+(product.model3dStatus==='completed'?'Modelo TripoSR pronto':product.model3dStatus==='queued'?'Na fila':product.model3dStatus==='processing'?'Gerando modelo…':product.model3dStatus==='failed'?'Falha na geração':'Sem modelo TripoSR')+'</span>'+(product.model3dUrl?'<button type="button" class="button button-outline button-small" data-action="admin-generated-3d" data-id="'+esc(product.id)+'">Ver modelo real</button>':'')+'<button type="button" class="button button-outline button-small" data-action="generate-product-3d" data-id="'+esc(product.id)+'" '+(!product.imageUrl?'disabled':'')+'>'+(product.model3dStatus==='completed'?'Gerar novamente':'Gerar modelo 3D')+'</button></div><div class="product-admin-actions"><button type="button" class="button button-dark button-small product-save-action" data-action="save-product" data-id="'+esc(product.id)+'">Salvar alterações</button><button type="button" class="button button-danger button-small" data-action="delete-product" data-kind="product" data-id="'+esc(product.id)+'">Excluir produto</button></div></article>').join('')+'</div></section>';
     const updateRecipePreview=(select,preview,prefix='Ingredientes: ')=>{
       if(!select||!preview)return;
       const names=[...select.querySelectorAll('input:checked')].map(input=>input.closest('.ingredient-choice')?.querySelector('span')?.textContent.trim()||'').filter(Boolean);
       preview.textContent=names.length?prefix+names.join(', ')+'.':prefix+'nenhum selecionado.';
     };
+    const filterIngredientPicker=(searchInput)=>{
+      const list=searchInput?.parentElement?.nextElementSibling;
+      if(!list?.classList.contains('ingredient-checkbox-list'))return;
+      const query=normalizeSearch(searchInput.value||'');
+      const choices=[...list.querySelectorAll('.ingredient-choice')];
+      let visible=0;
+      choices.forEach(choice=>{
+        const match=!query||normalizeSearch(choice.textContent||'').includes(query);
+        choice.hidden=!match;
+        if(match)visible++;
+      });
+      let empty=list.querySelector('.ingredient-picker-empty');
+      if(!empty){
+        empty=root.createElement('p');
+        empty.className='ingredient-picker-empty';
+        empty.textContent='Nenhum ingrediente encontrado.';
+        empty.hidden=true;
+        list.append(empty);
+      }
+      empty.hidden=!query||visible!==0;
+    };
+    target.querySelectorAll('[data-ingredient-picker-search]').forEach(input=>{
+      input.addEventListener('input',()=>filterIngredientPicker(input));
+      filterIngredientPicker(input);
+    });
     app.admin.recipePreviewCatalog=catalog;
     const typeSelect=root.getElementById('newProductType');
     const newRecipeSelect=target.querySelector('[data-product-select="recipe"]');
@@ -1375,20 +1435,20 @@ async function renderCatalogAdmin(){
         const prior=[...list.querySelectorAll('input:checked')].map(input=>input.value);
         const name=list.dataset.productSelect==='recipe'?'defaultIngredientIds':'ingredientIds';
         list.innerHTML=ingredientChoices(type,prior,name);
+        const search=list.previousElementSibling?.querySelector('[data-ingredient-picker-search]');
+        if(search)filterIngredientPicker(search);
       }
       refreshNewRecipePreview();
     };
     typeSelect.addEventListener('change',()=>{
       updateIngredientOptions();
-      const pricesRoot=target.querySelector('[data-new-size-prices]');
-      if(pricesRoot)pricesRoot.innerHTML=productSizePriceMarkup(typeSelect.value);
     });
     refreshNewRecipePreview();
     root.getElementById('newProductForm').addEventListener('submit',async event=>{
       event.preventDefault();
       const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('newProductError');
       if(button.disabled)return;
-      const data=new FormData(form),sizePrices=readProductSizePrices(form),price=Math.min(...Object.values(sizePrices));
+      const data=new FormData(form),sharedPizza=catalog.products.find(product=>product.type==='pizza'),sizePrices=data.get('type')==='pizza'&&sharedPizza?{...(sharedPizza.sizePrices||{})}:{},price=data.get('type')==='pizza'&&Object.keys(sizePrices).length?Math.min(...Object.values(sizePrices)):500;
       const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
       const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value);
       const ingredientIds=selectedAddons;
@@ -2101,20 +2161,17 @@ async function generateProduct3D(id,button){
 async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
   const button=row.querySelector('[data-action="save-product"]');if(!button||button.disabled)return;
-  let sizePrices;
-  try{sizePrices=readProductSizePrices(row)}catch(error){toast(error.message);return}
-  const cents=Math.min(...Object.values(sizePrices)),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked,ageRestricted=Boolean(row.querySelector('.product-age-restricted-input')?.checked);
+  const active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked,ageRestricted=Boolean(row.querySelector('.product-age-restricted-input')?.checked);
   const defaultIngredientIds=[...row.querySelectorAll('.product-recipe-input input:checked')].map(input=>input.value);
   const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
   const ingredientIds=selectedAddons;
-  if(!Number.isInteger(cents)||cents<1||cents>1000000){toast('Confira os preços cadastrados para cada tamanho.');return}
   button.disabled=true;button.textContent='Salvando…';
   try{
     let images=[];try{images=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
     const removePhotos=Boolean(row.querySelector('.product-photos-remove')?.checked),newFiles=[...(row.querySelector('.product-photos-input')?.files||[])];
     if(!removePhotos&&images.length+newFiles.length>8)throw new Error('O limite é de 8 fotos por produto.');
     if(removePhotos)images=[];else if(newFiles.length)images=images.concat(await Promise.all(newFiles.map(productPhotoData)));
-    await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,sizePrices,active,available,ageRestricted,ingredientIds,defaultIngredientIds,images,imageUrl:images[0]||''})});
+    await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({active,available,ageRestricted,ingredientIds,defaultIngredientIds,images,imageUrl:images[0]||''})});
     toast('Produto salvo. Receita, descrição e modelo atualizados.');
     await renderCatalogAdmin();
   }catch(error){toast(error.message||'Não foi possível salvar o produto.');if(button.isConnected){button.disabled=false;button.textContent='Tentar novamente'}}
@@ -2460,15 +2517,16 @@ function syncFilters(){
 }
 async function openMenu(){
   try{
-    if(!app.catalog){
-      const menuGrid=root.getElementById('menuGrid');if(menuGrid)menuGrid.innerHTML=skeletonMarkup('catalog');
-      const resultCount=root.getElementById('resultCount');if(resultCount)resultCount.textContent='Preparando cardápio…';
-      app.catalog=await api('/api/catalog');
-      app.cart=normalizeCartForCatalog(app.cart,app.catalog);
-      setCart();
-      applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
-      renderCatalog();
-    }
+    // Sempre busca a configuração atual do restaurante ao voltar ao cardápio.
+    // Sem isso, o cliente continuava usando o catálogo antigo carregado antes
+    // de o administrador salvar tamanhos, preços, bordas ou produtos.
+    const menuGrid=root.getElementById('menuGrid');if(menuGrid&&!app.catalog)menuGrid.innerHTML=skeletonMarkup('catalog');
+    const resultCount=root.getElementById('resultCount');if(resultCount&&!app.catalog)resultCount.textContent='Preparando cardápio…';
+    app.catalog=await api('/api/catalog',{cache:'no-store'});
+    app.cart=normalizeCartForCatalog(app.cart,app.catalog);
+    setCart();
+    applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
+    renderCatalog();
     showHome();
   }catch(error){
     if(error?.status===401){
