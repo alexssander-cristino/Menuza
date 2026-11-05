@@ -57,7 +57,8 @@ test('chocolate não herda a representação de erva do cadastro', () => {
     { id: 'ingrediente-82', name: 'Chocolate', visual_key: 'herb', groupName: 'Ervas', quantity: 1 }
   ], { diameterCm: 35 }, { detail: 0.45 });
 
-  assertToppingBuilds(layout, 'topping:chocolate');
+  assert.ok(layout.parts.some(part => part.kind === 'chocolate-cream'),
+    'o chocolate deve gerar uma camada cremosa contínua');
   assert.ok(!layout.parts.some(part => part.kind === 'topping:oregano'),
     'o nome Chocolate deve prevalecer sobre visual_key e grupo herdados');
 });
