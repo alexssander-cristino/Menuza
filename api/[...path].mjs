@@ -363,7 +363,7 @@ async function catalogFor(admin = false) {
       imageUrl,
       productImagesJson: JSON.stringify(storedImages),
       images: storedImages,
-      ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
+      ingredientIds: Array.isArray(ingredientIds) ? ingredientIds.filter(id => typeof id === 'string').slice(0, 200) : [],
       defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
       ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
       sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
@@ -406,7 +406,7 @@ async function catalogFor(admin = false) {
   return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,priceCents:Number(sharedPizzaPrices[x.key])||0,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
 }
 async function validateProductIngredientIds(value, type) {
-  if (!Array.isArray(value) || value.length > 40 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
+  if (!Array.isArray(value) || value.length > 200 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
     throw fail('Selecione ingredientes válidos para o produto.', 422);
   }
   if (!value.length) return [];
