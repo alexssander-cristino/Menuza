@@ -612,8 +612,9 @@ async function addBeverageToCart(productId) {
 async function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
   const product=app.catalog.products.find(p=>p.id===builder.productId);if(!product||product.available===0)return toast('Esse produto está esgotado no momento.');
+  if(isBuildYourOwnPizza(product)&&builder.ingredients.length!==3)return toast('Selecione exatamente 3 ingredientes no total, contando os ingredientes padrão.');
   if(!(await ensureAgeForProduct(product)))return;
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,flavorProductIds:product.type==='pizza'?(builder.flavorProductIds||[product.id]):[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,flavorProductIds:product.type==='pizza'?(isBuildYourOwnPizza(product)?[product.id]:(builder.flavorProductIds||[product.id])):[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
@@ -2268,9 +2269,9 @@ async function handleClick(event){
   }
   if(target.dataset.ingredient&&app.builder){
     const id=target.dataset.ingredient,index=app.builder.ingredients.findIndex(i=>i.id===id),product=app.catalog.products.find(item=>item.id===app.builder.productId),ingredient=app.catalog.ingredients.find(item=>item.id===id);
-    const required=product?.ingredientsConfigured?(product.defaultIngredientIds||[]).includes(id):Boolean(ingredient?.included);
-    if(index>=0&&required)return toast('Este ingrediente faz parte da receita e não pode ser removido.');
-    if(index>=0)app.builder.ingredients.splice(index,1);else if(app.builder.ingredients.length<12){app.builder.ingredients.push({id,quantity:1});app.builder.lastAdded=id}else return toast('O limite é de 12 componentes.');
+    const buildYourOwn=isBuildYourOwnPizza(product),required=buildYourOwn?(product?.defaultIngredientIds||[]).includes(id):(product?.ingredientsConfigured?(product.defaultIngredientIds||[]).includes(id):Boolean(ingredient?.included));
+    if(index>=0&&required)return toast('Este ingrediente faz parte da receita padrão e não pode ser removido.');
+    if(index>=0)app.builder.ingredients.splice(index,1);else if(app.builder.ingredients.length<(buildYourOwn?3:12)){app.builder.ingredients.push({id,quantity:1});app.builder.lastAdded=id}else return toast(buildYourOwn?'A pizza Monte a sua permite exatamente 3 ingredientes no total.':'O limite é de 12 componentes.');
     renderBuilder();return
   }
   if(target.dataset.fulfillment){const checkoutForm=root.getElementById('checkoutForm');if(!checkoutForm){toast('Abra o carrinho antes de escolher a modalidade do pedido.');return}renderCheckoutMode(checkoutForm,target.dataset.fulfillment);return}
