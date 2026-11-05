@@ -342,6 +342,7 @@ const TOPPINGS = {
   requeijao: { r: .0105, cover: [.10, .17, .24], kind: 'catupiry' },
   milho: { r: .0034, cover: [.04, .07, .1], kind: 'corn', loose: true },
   oregano: { r: .0038, cover: [.06, .10, .15], kind: 'herb', loose: true },
+  'canela-em-po': { r: .0048, cover: [.07, .11, .16], kind: 'powder', loose: true },
   manjericao: { r: .018, cover: [.10, .18, .26], kind: 'basil' },
   abacaxi: { r: .012, cover: [.12, .2, .3], kind: 'pineapple' },
   banana: { r: .012, cover: [.1, .18, .26], kind: 'banana' },
@@ -824,6 +825,16 @@ function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
       case 'cream': creamInto(m, s.x, y, s.z, r, sd, rnd, detail); break;
       case 'bacon': baconBitInto(m, s.x, y, s.z, sd, rnd, detail); break;
       case 'herb': herbInto(m, s.x, y, s.z, rnd); break;
+      case 'powder': {
+        // Canela em pó: partículas minúsculas, achatadas e distribuídas; nunca folhas ou grumos.
+        const powderColors = ['#9a6037', '#ad7547', '#81502f', '#bd8958'];
+        for (let n = 0; n < 5; n++) {
+          const px = s.x + (rnd() - .5) * r * 1.25;
+          const pz = s.z + (rnd() - .5) * r * 1.25;
+          toppingBlob(m, px, ctx.surf(px, pz), pz, r * (.16 + rnd() * .12), .00022 + rnd() * .00012, r * (.14 + rnd() * .10), lin(powderColors[(sd + n) % powderColors.length]), sd + n, rnd);
+        }
+        break;
+      }
       case 'basil': basilInto(m, s.x, y, s.z, sd, rnd); break;
       case 'pineapple': case 'banana': case 'strawberry': case 'coconut': fruitInto(m, def.kind, s.x, y, s.z, r, sd, rnd); break;
       case 'garlic': garlicInto(m, s.x, y, s.z, r, sd, rnd); break;
@@ -1121,6 +1132,9 @@ function resolveVisualIngredient(type, ingredient) {
   const normalizedName = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   // O nome explícito do ingrediente prevalece sobre visual_key/grupo herdado.
   // Isso impede chocolate de virar erva quando o cadastro traz um visual padrão incorreto.
+  if (type === 'pizza' && /(^| )(canela|canela em po|cinnamon|cinnamon powder)( |$)/.test(normalizedName)) {
+    return { ...ingredient, id: 'canela-em-po' };
+  }
   if (type === 'pizza' && /(^| )(chocolate|choc|kit kat|confete|pacoquinha|leite condensado|brigadeiro|nutella)( |$)/.test(normalizedName)) {
     return { ...ingredient, id: /(^| )chocolate branco( |$)/.test(normalizedName) ? 'white-chocolate' : 'chocolate' };
   }
@@ -1136,7 +1150,7 @@ function resolveVisualIngredient(type, ingredient) {
     garlic: 'alho', greens: 'brocolis', peas: 'ervilha', crisps: 'batata-palha', tuna: 'atum',
     palm: 'palmito', barbecue: 'barbecue', mayonnaise: 'mayonnaise',
     mustard: 'mustard', 'hot-sauce': 'hot-sauce', cream: 'cream', 'white-chocolate': 'white-chocolate',
-    sprinkles: 'sprinkles', peanut: 'peanut'
+    sprinkles: 'sprinkles', peanut: 'peanut', cinnamon: 'canela-em-po', 'cinnamon-powder': 'canela-em-po', 'canela-em-po': 'canela-em-po', canela: 'canela-em-po'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
     cheddar: 'queijo-cheddar', cheese: 'queijo-extra', mozzarella: 'queijo-mussarela-burger',
@@ -1183,7 +1197,8 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('abacaxi', 'pineapple')) visualId = 'abacaxi';
     else if (has('banana')) visualId = 'banana';
     else if (has('morango', 'strawberry')) visualId = 'morango';
-    else if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'leite condensado', 'canela')) visualId = 'chocolate';
+    else if (has('canela', 'cinnamon')) visualId = 'canela-em-po';
+    else if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'leite condensado')) visualId = 'chocolate';
     else if (has('coco')) visualId = 'coco';
     else if (has('alho')) visualId = 'alho';
     else if (has('brocolis')) visualId = 'brocolis';
