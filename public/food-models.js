@@ -495,7 +495,7 @@ function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
   const radius = ctx.sector ? (angle => {
     const span = ((angle - ctx.sector.start) % TAU + TAU) % TAU;
     const width = ((ctx.sector.end - ctx.sector.start) % TAU + TAU) % TAU;
-    return span <= width ? ctx.sauceR : 0;
+    return span <= width ? ctx.sauceR(angle) : 0;
   }) : ctx.sauceR;
   const mixed = style === 'mixed';
   const white = style === 'white-chocolate';
