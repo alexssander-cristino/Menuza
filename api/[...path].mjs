@@ -466,7 +466,7 @@ async function priceItems(input) {
       const ids=Array.isArray(entry.flavorProductIds)?[...new Set(entry.flavorProductIds)]:[product.id];
       const sizeOption=(cat.sizes.pizza||[]).find(x=>x.key===entry.sizeKey),limit=Number(sizeOption?.maxFlavors)||1;
       if(!ids.includes(product.id)||ids.length<1||ids.length>limit)throw fail('A quantidade de sabores não é permitida para este tamanho.',422);
-      flavorProducts=ids.map(fid=>cat.products.find(p=>p.id===fid&&p.type==='pizza'&&p.categoryId===product.categoryId&&Number(p.active)===1&&Number(p.available)===1));
+      flavorProducts=ids.map(fid=>cat.products.find(p=>p.id===fid&&p.type==='pizza'&&Number(p.active)===1&&Number(p.available)===1));
       if(flavorProducts.some(p=>!p))throw fail('Um dos sabores selecionados está indisponível.',409);
     }
     const byoFlavor=flavorProducts.find(isBuildYourOwnPizza)||null;
