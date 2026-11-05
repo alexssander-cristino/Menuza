@@ -4,6 +4,33 @@ import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDat
 
 const RESTAURANT_ID = 'rest-bela-mesa';
 
+async function ensurePizzaConfigSchema() {
+  await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL,
+    label TEXT NOT NULL, diameter_cm INTEGER NOT NULL DEFAULT 0,
+    max_flavors INTEGER NOT NULL DEFAULT 1, price_cents INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(restaurant_id,key)
+  )`);
+  await query('ALTER TABLE pizza_sizes ADD COLUMN IF NOT EXISTS price_cents INTEGER NOT NULL DEFAULT 0');
+  await query(`CREATE TABLE IF NOT EXISTS pizza_crusts (
+    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL,
+    label TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(restaurant_id,key)
+  )`);
+  if (!(await query('SELECT id FROM pizza_sizes WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length) {
+    for (const [i,size] of [{key:'individual',label:'Individual',diameter:20,max:1},{key:'media',label:'Média',diameter:30,max:2},{key:'grande',label:'Grande',diameter:35,max:3},{key:'familia',label:'Família',diameter:40,max:4}].entries()) {
+      await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(restaurant_id,key) DO NOTHING',['sz_'+size.key,RESTAURANT_ID,size.key,size.label,size.diameter,size.max,i]);
+    }
+  }
+  if (!(await query('SELECT id FROM pizza_crusts WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length) {
+    for (const [i,crust] of [{key:'tradicional',label:'Tradicional',price:0},{key:'recheada',label:'Requeijão',price:850}].entries()) {
+      await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,sort_order) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(restaurant_id,key) DO NOTHING',['cr_'+crust.key,RESTAURANT_ID,crust.key,crust.label,crust.price,i]);
+    }
+  }
+}
+
 function saoPauloWeekday() {
   const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date());
   return ({ Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 })[day] || 1;
@@ -28,6 +55,7 @@ export default async function handler(request, response) {
   }
 
   try {
+    await ensurePizzaConfigSchema();
     // Keep the public endpoint compatible with databases upgraded by the admin API.
     await query(`CREATE TABLE IF NOT EXISTS product_promotions (
       id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
@@ -46,13 +74,15 @@ export default async function handler(request, response) {
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
 
-    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult] = await Promise.all([
+    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult] = await Promise.all([
       query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
       query('SELECT id, name, slug, sort_order AS "sortOrder" FROM categories WHERE restaurant_id = $1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredients_configured AS "ingredientsConfigured", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
       query('SELECT id, name, type, group_name AS "groupName", addon_cents AS cents, included_by_default AS included, active, sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id = $1 AND active = 1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT id, name, description, price_cents AS "priceCents", items_json AS "itemsJson", active, created_at AS "createdAt", updated_at AS "updatedAt" FROM combos WHERE restaurant_id = $1 AND active = 1 ORDER BY created_at DESC', [RESTAURANT_ID]),
-      query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID])
+      query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID]),
+      query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
+      query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])
     ]);
 
     const products = await Promise.all(productResult.rows.map(async product => {
@@ -132,8 +162,8 @@ export default async function handler(request, response) {
       products,
       ingredients,
       combos,
-      sizes: SIZE_OPTIONS,
-      crusts: CRUST_OPTIONS
+      sizes: { ...SIZE_OPTIONS, pizza: sizeResult.rows.map(size => ({ ...size, priceCents: Number(size.priceCents) || 0, deltaCents: 0 })) },
+      crusts: crustResult.rows.map(crust => ({ ...crust, priceCents: Number(crust.priceCents) || 0 }))
     });
   } catch (error) {
     console.error('[Menuza catalog] Failed to load catalog:', error?.message || error);
