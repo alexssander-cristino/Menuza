@@ -19,16 +19,7 @@ async function ensurePizzaConfigSchema() {
     active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
     UNIQUE(restaurant_id,key)
   )`);
-  if (!(await query('SELECT id FROM pizza_sizes WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length) {
-    for (const [i,size] of [{key:'individual',label:'Individual',diameter:20,max:1},{key:'media',label:'Média',diameter:30,max:2},{key:'grande',label:'Grande',diameter:35,max:3},{key:'familia',label:'Família',diameter:40,max:4}].entries()) {
-      await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(restaurant_id,key) DO NOTHING',['sz_'+size.key,RESTAURANT_ID,size.key,size.label,size.diameter,size.max,i]);
-    }
-  }
-  if (!(await query('SELECT id FROM pizza_crusts WHERE restaurant_id=$1 LIMIT 1',[RESTAURANT_ID])).rows.length) {
-    for (const [i,crust] of [{key:'tradicional',label:'Tradicional',price:0},{key:'recheada',label:'Requeijão',price:850}].entries()) {
-      await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,sort_order) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(restaurant_id,key) DO NOTHING',['cr_'+crust.key,RESTAURANT_ID,crust.key,crust.label,crust.price,i]);
-    }
-  }
+  // O catálogo público nunca cria opções padrão; exibe exclusivamente os cadastros do restaurante.
 }
 
 function saoPauloWeekday() {
