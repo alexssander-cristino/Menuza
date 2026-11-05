@@ -297,7 +297,7 @@ function renderCatalog() {
   const drinkCategoryIds=new Set(app.catalog.products.filter(product=>product.type==='drink').map(product=>product.categoryId));
   const orderedCategories=app.catalog.categories.slice().sort((a,b)=>Number(drinkCategoryIds.has(a.id))-Number(drinkCategoryIds.has(b.id)));
   root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
-  const featuredProducts=app.catalog.products.filter(p=>p.featured).slice().sort((a,b)=>Number(a.type==='drink')-Number(b.type==='drink')).slice(0,4);
+  const featuredProducts=app.catalog.products.filter(p=>p.featured&&p.type!=='drink').slice(0,4);
   root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
   renderRecentProducts();
   renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
