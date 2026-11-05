@@ -1,5 +1,5 @@
 import { query } from '../src/db/postgres.mjs';
-import { CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
+import { inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
 import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
