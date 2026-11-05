@@ -150,6 +150,9 @@ async function ensurePizzaConfigSchema(){
   await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, diameter_cm INTEGER NOT NULL DEFAULT 0, max_flavors INTEGER NOT NULL DEFAULT 1, price_cents INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(restaurant_id,key))`);
   await query("ALTER TABLE pizza_sizes ADD COLUMN IF NOT EXISTS price_cents INTEGER NOT NULL DEFAULT 0");
   await query(`CREATE TABLE IF NOT EXISTS pizza_crusts (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(restaurant_id,key))`);
+  // Registros inativos eram opções removidas do cadastro; não devem permanecer duplicando o banco.
+  await query('DELETE FROM pizza_sizes WHERE restaurant_id=$1 AND active=0',[RESTAURANT_ID]);
+  await query('DELETE FROM pizza_crusts WHERE restaurant_id=$1 AND active=0',[RESTAURANT_ID]);
   // Não criar tamanhos ou bordas padrão: somente o que o restaurante cadastrar deve existir.
  })().catch(e=>{pizzaConfigSchemaPromise=null;throw e});await pizzaConfigSchemaPromise;
 }
