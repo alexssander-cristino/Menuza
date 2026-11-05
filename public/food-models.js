@@ -1102,6 +1102,18 @@ function clipGeometryToSector(geometry, sector) {
   return { ...geometry, positions: new Float32Array(positions), normals: new Float32Array(normals), colors: new Float32Array(colors), materials: new Float32Array(materials), indices: new Uint32Array(indices), box };
 }
 
+function pizzaDividerMesh(ctx, angle, detail) {
+  const m = new Mesh(), radius = ctx.Rp - ctx.rho * 1.95, halfWidth = Math.max(.00055, ctx.Rp * .0032);
+  m.grid(Math.max(24, Math.round(72 * detail)), 4, (u, v) => {
+    const r = .001 + u * radius;
+    const side = (v - .5) * halfWidth * 2;
+    const x = Math.cos(angle) * r - Math.sin(angle) * side;
+    const z = Math.sin(angle) * r + Math.cos(angle) * side;
+    return [x, ctx.surf(x, z) + .0062, z];
+  }, () => MAT(lin('#75452b'), .42, .18, .3, .96), { up: true });
+  return m.finish();
+}
+
 function pizzaLayout(product, ings, size, o) {
   const D = (size?.diameterCm || Number(product.widthCm) || 30) / 100, Rp = D / 2, detail = o.detail, seed = hash(product.id || 'pizza');
   const crustKey = CRUSTS[o.crustKey] ? o.crustKey : 'tradicional';
@@ -1116,46 +1128,77 @@ function pizzaLayout(product, ings, size, o) {
     return q;
   };
   const flavorMaps = flavorList ? flavorList.map(flavor => normalizeItems(flavor.ingredients || [])) : [normalizeItems(ings)];
-  // Massa, molho e mussarela formam uma base contínua; coberturas específicas
-  // de cada sabor são posicionadas somente dentro da sua fatia.
-  const q = normalizeItems(ings);
-  for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
-  const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela') || hasSauce;
-  const ctxFor = (sector = null, flavorSeed = seed) => {
-    const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
-    c.hasSauce = hasSauce; c.sector = sector;
-    c.sauceTop = (x, z) => { const a = Math.atan2(z, x), r = Math.hypot(x, z); return c.deck + (hasSauce ? c.sauceH(x, z) * c.edgeF(r / c.sauceR(a)) : 0); };
-    return c;
-  };
-  const base = `${Rp.toFixed(4)}|${crustKey}|${detail}|${seed}`, flags = `${hasSauce ? 1 : 0}${hasCheese ? 1 : 0}`;
-  const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(ctxFor(), detail) }];
-  if (hasSauce) parts.push({ kind: 'sauce', key: `pizza|sauce|${base}`, y: 0, base: false, build: () => sauceMeshPizza(ctxFor(), detail) });
-  if (hasCheese) parts.push({ kind: 'cheese', key: `pizza|cheese|${base}|${flags}`, y: 0, base: false, build: () => cheeseMeshPizza(ctxFor(), detail) });
-  const sectors = flavorList ? flavorMaps : [q];
-  // Cada sabor recebe somente a quantidade de cobertura proporcional à sua fatia.
-  // A fração angular é recalculada sempre que o cliente adiciona/remove um sabor.
+  const sectors = flavorList ? flavorMaps : [normalizeItems(ings)];
+  const sectorCount = sectors.length;
+  const base = `${Rp.toFixed(4)}|${crustKey}|${detail}|${seed}`;
+  const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(pizzaCtx(Rp, crustKey, false, false, seed), detail) }];
+
+  // Cada sabor é uma fatia independente. Molho, queijo e coberturas são
+  // construídos e recortados dentro do mesmo setor, nunca como uma camada global.
   sectors.forEach((flavorQ, flavorIndex) => {
-    const sector = flavorList && sectors.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
-    const ctx = ctxFor(sector, seed + flavorIndex * 97);
+    const sector = flavorList && sectorCount > 1
+      ? { start: -Math.PI + flavorIndex * TAU / sectorCount, end: -Math.PI + (flavorIndex + 1) * TAU / sectorCount }
+      : null;
+    const hasSauce = flavorQ.has('molho-tomate');
+    const hasCheese = flavorQ.has('mussarela') || hasSauce;
+    const flags = `${hasSauce ? 1 : 0}${hasCheese ? 1 : 0}`;
+    const ctx = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, seed + flavorIndex * 97);
+    ctx.hasSauce = hasSauce;
+    ctx.sector = sector;
+    ctx.sauceTop = (x, z) => {
+      const a = Math.atan2(z, x), r = Math.hypot(x, z);
+      return ctx.deck + (hasSauce ? ctx.sauceH(x, z) * ctx.edgeF(r / ctx.sauceR(a)) : 0);
+    };
+    const suffix = sector ? `:${flavorIndex}` : '';
+    const sectorKey = sector ? `|sector-${flavorIndex}-${sectorCount}` : '|whole';
+    if (hasSauce) parts.push({
+      kind: 'sauce' + suffix, key: `pizza|sauce|${base}|${flags}${sectorKey}`, y: 0, base: false,
+      build: () => clipGeometryToSector(sauceMeshPizza(ctx, detail), sector)
+    });
+    if (hasCheese) parts.push({
+      kind: 'cheese' + suffix, key: `pizza|cheese|${base}|${flags}${sectorKey}`, y: 0, base: false,
+      build: () => clipGeometryToSector(cheeseMeshPizza(ctx, detail), sector)
+    });
+
     const flavorChocolateIds = ['chocolate', 'white-chocolate'].filter(id => flavorQ.has(id));
     if (flavorChocolateIds.length) {
-      const flavorChocolateStyle = flavorChocolateIds.length > 1 ? 'mixed' : flavorChocolateIds[0];
+      const style = flavorChocolateIds.length > 1 ? 'mixed' : flavorChocolateIds[0];
       parts.push({
-        kind: 'chocolate-cream' + (sector ? ':' + flavorIndex : ''),
-        key: `pizza|chocolate-cream|${flavorChocolateIds.join('+')}|${base}|${flags}|sector-${flavorIndex}-${sectors.length}`,
+        kind: 'chocolate-cream' + suffix,
+        key: `pizza|chocolate-cream|${flavorChocolateIds.join('+')}|${base}|${flags}${sectorKey}`,
         y: 0, base: false,
-        build: () => clipGeometryToSector(chocolateMeshPizza(ctx, detail, flavorChocolateStyle), sector)
+        build: () => clipGeometryToSector(chocolateMeshPizza(ctx, detail, style), sector)
       });
     }
     const earlier = [];
     for (const id of TOPPING_ORDER) {
       if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela' || id === 'chocolate' || id === 'white-chocolate') continue;
       const qi = flavorQ.get(id) - 1, sig = earlier.map(e => `${e.id}${e.qtyIdx}`).join(',');
-      const ear = earlier.slice(), sectorKey = sector ? '|sector-' + flavorIndex + '-' + sectors.length : '';
-      parts.push({ kind: 'topping:' + id + (sector ? ':' + flavorIndex : ''), key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`, y: 0, base: false, build: () => clipGeometryToSector(toppingMesh(ctx, id, qi, ear, detail), sector) });
+      const ear = earlier.slice();
+      parts.push({
+        kind: 'topping:' + id + suffix,
+        key: `pizza|top|${id}${qi}|${base}|${flags}|${sig}${sectorKey}`,
+        y: 0, base: false,
+        build: () => clipGeometryToSector(toppingMesh(ctx, id, qi, ear, detail), sector)
+      });
       earlier.push({ id, qtyIdx: qi });
     }
   });
+
+  // Uma divisória radial para cada fronteira entre sabores. Ao selecionar ou
+  // remover um sabor, a quantidade e o ângulo das divisórias são recalculados.
+  if (flavorList && sectorCount > 1) {
+    for (let i = 0; i < sectorCount; i++) {
+      const angle = -Math.PI + i * TAU / sectorCount;
+      const dividerCtx = pizzaCtx(Rp, crustKey, true, true, seed);
+      parts.push({
+        kind: 'flavor-divider:' + i,
+        key: `pizza|divider|${base}|${sectorCount}|${i}`,
+        y: 0, base: false,
+        build: () => pizzaDividerMesh(dividerCtx, angle, detail)
+      });
+    }
+  }
   const boardR = Rp * 1.12 + .012, bt = .016;
   parts.unshift({ kind: 'board', key: 'pboard|' + boardR.toFixed(4) + '|' + detail, y: -bt + .0004, base: true, build: () => pizzaBoardMesh(boardR, bt, seed, detail) });
   return { parts, total: .026, radius: boardR * .86, extentH: [-bt, .026] };
