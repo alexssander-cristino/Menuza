@@ -1038,7 +1038,7 @@ function pizzaBoardMesh(R, T, seed, detail) {
 function pizzaLayout(product, ings, size, o) {
   const D = (size?.diameterCm || Number(product.widthCm) || 30) / 100, Rp = D / 2, detail = o.detail, seed = hash(product.id || 'pizza');
   const crustKey = CRUSTS[o.crustKey] ? o.crustKey : 'tradicional';
-  const flavorList = Array.isArray(o.flavors) && o.flavors.length > 1 ? o.flavors.slice(0, 8) : null;
+  const flavorList = Array.isArray(o.flavors) && o.flavors.length ? o.flavors.slice(0, 8) : null;
   const normalizeItems = items => {
     const q = new Map();
     for (const item of items || []) {
@@ -1072,11 +1072,11 @@ function pizzaLayout(product, ings, size, o) {
     y: 0, base: false,
     build: () => chocolateMeshPizza(ctxFor(), detail, chocolateStyle)
   });
-  const sectors = flavorMaps.length > 1 ? flavorMaps : [q];
+  const sectors = flavorList ? flavorMaps : [q];
   // Cada sabor recebe somente a quantidade de cobertura proporcional à sua fatia.
   // A fração angular é recalculada sempre que o cliente adiciona/remove um sabor.
   sectors.forEach((flavorQ, flavorIndex) => {
-    const sector = flavorMaps.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
+    const sector = flavorList && sectors.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
     const ctx = ctxFor(sector, seed + flavorIndex * 97);
     const earlier = [];
     for (const id of TOPPING_ORDER) {
