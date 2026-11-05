@@ -1109,7 +1109,7 @@ function pizzaDividerMesh(ctx, angle, detail) {
     const side = (v - .5) * halfWidth * 2;
     const x = Math.cos(angle) * r - Math.sin(angle) * side;
     const z = Math.sin(angle) * r + Math.cos(angle) * side;
-    return [x, ctx.surf(x, z) + .0062, z];
+    return [x, ctx.surf(x, z) + .0018, z];
   }, () => MAT(lin('#75452b'), .42, .18, .3, .96), { up: true });
   return m.finish();
 }
