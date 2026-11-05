@@ -458,7 +458,17 @@ async function ensureAgeForProduct(product){
   return true;
 }
 async function openBuilder(productId,cartItem=null) {
-  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return;if(product.available===0)return toast('Esse produto está esgotado no momento.');
+  // O modal precisa consultar a configuração mais recente no momento da abertura.
+  // Atualizar apenas ao entrar no cardápio não resolve quando a página já ficou aberta
+  // enquanto o restaurante cadastrava tamanhos, preços, bordas ou produtos.
+  try{
+    const latestCatalog=await api('/api/catalog',{cache:'no-store'});
+    if(latestCatalog&&Array.isArray(latestCatalog.products))app.catalog=latestCatalog;
+  }catch(error){
+    toast(error?.message||'Não foi possível atualizar as opções deste produto.');
+    return;
+  }
+  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return toast('Este produto não está mais disponível no cardápio. Atualize a página.');if(product.available===0)return toast('Esse produto está esgotado no momento.');
   if(!(await ensureAgeForProduct(product)))return;
   rememberRecentProduct(productId);
   const initial=cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(product,app.catalog);
