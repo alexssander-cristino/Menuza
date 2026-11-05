@@ -418,3 +418,52 @@
   }
 }
 
+/* Search field for ingredient selectors in the product editor. */
+.ingredient-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0;
+  padding: 0 12px;
+  min-height: 40px;
+  border: 1px solid var(--mz-line, #e7e3ed);
+  border-radius: 10px;
+  background: var(--mz-surface, #fff);
+  color: var(--mz-muted, #827b8d);
+  box-sizing: border-box;
+}
+.ingredient-picker-search > span {
+  flex: 0 0 auto;
+  font-size: 19px;
+  line-height: 1;
+}
+.ingredient-picker-search input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--mz-ink, #292333);
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+}
+.ingredient-picker-search:focus-within {
+  border-color: var(--mz-violet-500, #7965d8);
+  box-shadow: 0 0 0 3px rgba(121, 101, 216, .12);
+}
+.ingredient-choice[hidden] { display: none !important; }
+.ingredient-picker-empty {
+  grid-column: 1 / -1;
+  margin: 8px 0;
+  padding: 12px;
+  color: var(--mz-muted, #827b8d);
+  font-size: 12px;
+  text-align: center;
+}
+
