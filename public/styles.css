@@ -2456,3 +2456,12 @@ button[data-action="view-generated-3d"],
 .product-size-price-entry{display:grid;gap:12px;padding:16px;border:1px solid #e9e5ee;border-radius:14px;background:var(--surface,#fff);min-width:0}
 .product-size-price-entry .product-admin-heading{padding-bottom:10px;border-bottom:1px solid #eeeaf0}
 .product-size-price-entry .button{justify-self:start}
+
+
+/* Controle para selecionar todos os adicionais de um produto. */
+.product-addon-picker{display:grid;gap:8px;margin-top:7px}
+.ingredient-select-all{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;padding:7px 10px;border:1px solid #ead8c4;border-radius:9px;background:#fff8f1;color:#75512c;font-size:11px;font-weight:700;cursor:pointer}
+.ingredient-select-all input{width:16px;height:16px;margin:0;accent-color:#f5a14c;cursor:pointer}
+.ingredient-select-all:has(input:checked){border-color:#edcba9;background:#fff1e2}
+.ingredient-select-all input:indeterminate{accent-color:#f5a14c}
+.ingredient-select-all input:disabled{cursor:not-allowed;opacity:.45}
