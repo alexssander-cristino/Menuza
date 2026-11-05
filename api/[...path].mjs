@@ -386,11 +386,16 @@ async function catalogFor(admin = false) {
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: Number(row.active), createdAt: row.createdAt, updatedAt: row.updatedAt,
       items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents, ageRestricted: p.ageRestricted } : null; }).filter(Boolean) };
   });
-  const [sizeRows,crustRows]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
-  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.map(x=>[x.key,Number(x.priceCents)||0]));
-  // Um tamanho recém-criado pode ainda estar sem preço. Não descarte por isso
-  // os preços globais já salvos dos outros tamanhos nem volte silenciosamente
-  // para a tabela antiga de preços de cada produto.
+  const [sizeRows,crustRows]=await Promise.all([query("SELECT key,label,diameter_cm AS \"diameterCm\",max_flavors AS \"maxFlavors\",price_cents AS \"priceCents\",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY CASE lower(label) WHEN 'broto' THEN 0 WHEN 'pequena' THEN 1 WHEN 'média' THEN 2 WHEN 'media' THEN 2 WHEN 'grande' THEN 3 WHEN 'família' THEN 4 WHEN 'familia' THEN 4 ELSE 5 END,sort_order",[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
+  // Os preços efetivamente cadastrados estão em size_prices_json dos produtos.
+  // A tabela de tamanhos pode continuar com zero em instalações antigas; recuperar
+  // o preço compartilhado salvo (os produtos deste restaurante usam os mesmos valores).
+  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.map(size=>{
+    const stored=Number(size.priceCents);
+    if(Number.isInteger(stored)&&stored>=500)return [size.key,stored];
+    const values=productRows.filter(product=>product.type==='pizza').map(product=>Number(product.sizePrices?.[size.key])).filter(value=>Number.isInteger(value)&&value>=500);
+    return [size.key,values.length&&values.every(value=>value===values[0])?values[0]:0];
+  }));
   if(Object.keys(sharedPizzaPrices).length){
     for(const product of productRows)if(product.type==='pizza'){
       product.sizePrices={...(product.sizePrices||{}),...Object.fromEntries(Object.entries(sharedPizzaPrices).filter(([,value])=>Number.isInteger(value)&&value>=500))};
@@ -398,7 +403,7 @@ async function catalogFor(admin = false) {
       if(validPrices.length)product.baseCents=Math.min(...validPrices);
     }
   }
-  return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)||0,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
+  return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,priceCents:Number(sharedPizzaPrices[x.key])||0,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
 }
 async function validateProductIngredientIds(value, type) {
   if (!Array.isArray(value) || value.length > 40 || value.some(id => typeof id !== 'string' || !id.trim()) || new Set(value).size !== value.length) {
