@@ -789,20 +789,20 @@ function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
 
 const siteCache = new Map();
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
-  const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt;
+  const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt, sectorRatio = ctx.sector ? Math.min(1, Math.max(0, ((ctx.sector.end - ctx.sector.start + TAU) % TAU) / TAU)) : 1;
   if (!def) return m.finish();
   if (def.kind === 'cheddar-drizzle' || def.kind === 'catupiry-drizzle') {
     pizzaDrizzleInto(m, ctx, def.kind, hash(id + ctx.seed + qtyIdx), detail);
     return m.finish();
   }
-  const count = Math.max(1, Math.round(def.cover[qtyIdx] * A / (Math.PI * def.r * def.r)));
+  const count = Math.max(1, Math.round(def.cover[qtyIdx] * A * sectorRatio / (Math.PI * def.r * def.r)));
   // posições já ocupadas por toppings de maior prioridade (com cache: o resultado depende só da sequência anterior)
   const placed = [];
-  let sig = ctx.Rt.toFixed(4) + '|' + ctx.seed + '|';
+  let sig = ctx.Rt.toFixed(4) + '|' + ctx.seed + '|' + (ctx.sector ? `${ctx.sector.start.toFixed(5)}:${ctx.sector.end.toFixed(5)}|` : 'whole|');
   for (const e of earlier) {
     const d2 = TOPPINGS[e.id]; if (d2.loose) continue;
     sig += e.id + e.qtyIdx + ',';
-    const c2 = Math.max(1, Math.round(d2.cover[e.qtyIdx] * A / (Math.PI * d2.r * d2.r)));
+    const c2 = Math.max(1, Math.round(d2.cover[e.qtyIdx] * A * sectorRatio / (Math.PI * d2.r * d2.r)));
     let got = siteCache.get(sig);
     if (!got) {
       got = pickSites(ctx, e.id, e.qtyIdx, c2, placed, d2.r);
@@ -1073,6 +1073,8 @@ function pizzaLayout(product, ings, size, o) {
     build: () => chocolateMeshPizza(ctxFor(), detail, chocolateStyle)
   });
   const sectors = flavorMaps.length > 1 ? flavorMaps : [q];
+  // Cada sabor recebe somente a quantidade de cobertura proporcional à sua fatia.
+  // A fração angular é recalculada sempre que o cliente adiciona/remove um sabor.
   sectors.forEach((flavorQ, flavorIndex) => {
     const sector = flavorMaps.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
     const ctx = ctxFor(sector, seed + flavorIndex * 97);
