@@ -21,7 +21,7 @@ const C = {
   doughRim: lin('#c98a3d'), doughBrown: lin('#a65f27'), doughChar: lin('#5f2f12'), doughPale: lin('#e2c086'), doughCream: lin('#f2e0b2'),
   tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
   // Mussarela em tom marfim dourado: distingue-se de catupiry, creme e outros ingredientes brancos.
-  mozz: lin('#e4d2ad'), mozzGold: lin('#cfb47f'), mozzBrown: lin('#a98a58'),
+  mozz: lin('#d8c18f'), mozzGold: lin('#c59d62'), mozzBrown: lin('#987044'),
   pep: lin('#b8412a'), pepDeep: lin('#8c2a18'), pepChar: lin('#5a190d'), pepFat: lin('#e49e80'),
   mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
@@ -146,7 +146,7 @@ function cheeseMesh(Rp, Hp, seed, detail, yaw = 0, style = 'cheddar') {
     const d = Math.hypot(p[0], p[2]) / Rp, low = sstep(-.0015, -.009, p[1]), tv = 1 + (nz(p, 60, seed + 1) - .5) * .12;
     const palettes = {
       cheddar: [C.cheddar, C.cheddarLight, C.cheddarDeep],
-      mozzarella: [lin('#f4e8c8'), lin('#fff8e8'), lin('#ddcfad')],
+      mozzarella: [lin('#dfc99b'), lin('#f0dfb8'), lin('#b99a68')],
       parmesan: [lin('#d9c58f'), lin('#f4e4b7'), lin('#bba16b')],
       gorgonzola: [lin('#e8dfc9'), lin('#f5eddc'), lin('#aeb69a')],
       provolone: [lin('#ead9a8'), lin('#fff0c9'), lin('#c9b77f')],
@@ -469,37 +469,47 @@ function cheeseMeshPizza(ctx, detail) {
     return sauce + .0022 + cheeseH(x, z) * (.35 + .65 * edgeF(v)) + bubbles(x, z) * edgeF(v) - cutGroove(x, z) * .0006;
   }, (u, v, p) => {
     const x = p[0], z = p[2];
-    const grain = (nz(p, 85, seed + 1) - .5) * .04;
-    // gratinado: manchas douradas (mais fortes perto da borda) e pontos mais tostados
-    const toast = sstep(.56, .74, fbm(x * 48, z * 48, seed + 51, 3)) * (.45 + .55 * sstep(.2, .9, v));
-    const burnt = sstep(.78, .9, fbm(x * 95, z * 95, seed + 53, 2)) * toast;
-    const oil = sstep(.62, .78, fbm(x * 34, z * 34, seed + 57, 2));
-    const bub = sstep(.6, .8, fbm(x * 150, z * 150, seed + 41, 2));
-    let c = mix(C.mozz, C.mozzGold, clamp(.12 + grain + sstep(.82, 1, v) * .08, 0, .3));
-    c = mix(c, lin('#f0dca8'), bub * .25);
-    c = mix(c, lin('#d9a24c'), toast * .6);
-    c = mix(c, lin('#a86a28'), burnt * .55);
-    c = mix(c, C.oilOrange, oil * .12);
-    c = mix(c, C.mozzBrown, cutGroove(x, z) * .35);
-    return MAT(mul(c, 1 + grain), .22 + toast * .1, .52, .55, 1);
+    const grain = (nz(p, 92, seed + 1) - .5) * .035;
+    // Mussarela cremosa: marfim quente, pequenas bolhas e pontos dourados discretos.
+    // Evita o branco puro e o aspecto plástico mesmo sob iluminação forte.
+    const toastNoise = fbm(x * 42, z * 42, seed + 51, 3);
+    const toast = sstep(.66, .84, toastNoise) * (.22 + .30 * sstep(.28, .92, v));
+    const browned = sstep(.82, .93, fbm(x * 88, z * 88, seed + 53, 2)) * toast;
+    const oil = sstep(.68, .82, fbm(x * 31, z * 31, seed + 57, 2));
+    const bub = sstep(.62, .82, fbm(x * 145, z * 145, seed + 41, 2));
+    let c = mix(C.mozz, C.mozzGold, clamp(.20 + grain + sstep(.84, 1, v) * .12, 0, .42));
+    c = mix(c, lin('#ead5a8'), bub * .18);
+    c = mix(c, lin('#c9954e'), toast * .48);
+    c = mix(c, lin('#96602f'), browned * .38);
+    c = mix(c, C.oilOrange, oil * .07);
+    c = mix(c, C.mozzBrown, cutGroove(x, z) * .24);
+    return MAT(mul(c, 1 + grain), .34 + toast * .08, .30, .24, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
-function chocolateMeshPizza(ctx, detail, white = false) {
-  // Chocolate cremoso como cobertura contínua, no mesmo estilo da camada de queijo:
-  // espalhado pelo disco inteiro, sem bolinhas ou pedaços isolados.
+function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
+  // Todos os chocolates são uma única cobertura cremosa contínua.
+  // Quando há chocolate ao leite e branco juntos, a mistura fica sutil e homogênea:
+  // nenhum sabor vira pedaço grande ou camada isolada que roube a cena.
   const radius = ctx.sauceR;
-  const base = white ? lin('#e8d4ad') : lin('#54291f');
-  const deep = white ? lin('#c9ad80') : lin('#321710');
+  const mixed = style === 'mixed';
+  const white = style === 'white-chocolate';
+  const base = mixed ? lin('#76503a') : white ? lin('#d9c29c') : lin('#563126');
+  const deep = mixed ? lin('#4b2c22') : white ? lin('#b99b70') : lin('#321b15');
+  const accent = mixed ? lin('#c9ad86') : base;
   return veneerMesh(radius, (x, z, v) => {
     const edge = ctx.edgeF(v);
-    return ctx.surf(x, z) + .0028 + .0015 * edge
-      + (fbm(x * 95, z * 95, ctx.seed + (white ? 31 : 29), 3) - .5) * .00045;
+    return ctx.surf(x, z) + .0025 + .0011 * edge
+      + (fbm(x * 105, z * 105, ctx.seed + (white ? 31 : 29), 3) - .5) * .00028;
   }, (u, v, p) => {
-    const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 2.4 + Math.hypot(p[0], p[2]) * 95 + ctx.seed);
-    const grain = (nz(p, 105, ctx.seed + 33) - .5) * .08;
-    const c = mix(base, deep, clamp(.12 + swirl * .22 + grain, 0, .42));
-    return MAT(c, .16, .58, .72, 1);
+    const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 2.1 + Math.hypot(p[0], p[2]) * 78 + ctx.seed);
+    const grain = (nz(p, 112, ctx.seed + 33) - .5) * .045;
+    let c = mix(base, deep, clamp(.16 + swirl * .13 + grain, 0, .32));
+    if (mixed) {
+      const marbling = fbm(p[0] * 68, p[2] * 68, ctx.seed + 37, 2);
+      c = mix(c, accent, sstep(.61, .82, marbling) * .18);
+    }
+    return MAT(c, .30, .30, .18, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -1033,7 +1043,8 @@ function pizzaLayout(product, ings, size, o) {
   const q = normalizeItems(ings);
   for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
   const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela') || hasSauce;
-  const chocolateId = q.has('white-chocolate') ? 'white-chocolate' : q.has('chocolate') ? 'chocolate' : null;
+  const chocolateIds = ['chocolate', 'white-chocolate'].filter(id => q.has(id));
+  const chocolateStyle = chocolateIds.length > 1 ? 'mixed' : chocolateIds[0] || null;
   const ctxFor = (sector = null, flavorSeed = seed) => {
     const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
     c.hasSauce = hasSauce; c.sector = sector;
@@ -1044,11 +1055,11 @@ function pizzaLayout(product, ings, size, o) {
   const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(ctxFor(), detail) }];
   if (hasSauce) parts.push({ kind: 'sauce', key: `pizza|sauce|${base}`, y: 0, base: false, build: () => sauceMeshPizza(ctxFor(), detail) });
   if (hasCheese) parts.push({ kind: 'cheese', key: `pizza|cheese|${base}|${flags}`, y: 0, base: false, build: () => cheeseMeshPizza(ctxFor(), detail) });
-  if (chocolateId) parts.push({
+  if (chocolateStyle) parts.push({
     kind: 'chocolate-cream',
-    key: `pizza|chocolate-cream|${chocolateId}|${base}|${flags}`,
+    key: `pizza|chocolate-cream|${chocolateIds.join('+')}|${base}|${flags}`,
     y: 0, base: false,
-    build: () => chocolateMeshPizza(ctxFor(), detail, chocolateId === 'white-chocolate')
+    build: () => chocolateMeshPizza(ctxFor(), detail, chocolateStyle)
   });
   const sectors = flavorMaps.length > 1 ? flavorMaps : [q];
   sectors.forEach((flavorQ, flavorIndex) => {
