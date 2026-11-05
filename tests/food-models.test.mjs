@@ -129,3 +129,39 @@ test('canela em pó usa partículas finas e reconhece cadastro personalizado mes
   assert.ok(powder.box[4] - powder.box[1] < 0.004,
     'a cobertura de canela deve ser muito baixa, como pó fino, sem pedaços ou folhas');
 });
+
+
+test('pizza de três sabores divide as coberturas em três fatias proporcionais', () => {
+  const flavors = [
+    { id: 'calabresa', ingredients: [{ id: 'calabresa', name: 'Calabresa', quantity: 1 }] },
+    { id: 'banana', ingredients: [{ id: 'banana', name: 'Banana', quantity: 1 }] },
+    { id: 'bacon', ingredients: [{ id: 'bacon', name: 'Bacon', quantity: 1 }] }
+  ];
+  const layout = buildFoodLayout(pizza, [], { diameterCm: 35 }, { detail: 0.45, flavors });
+
+  for (let index = 0; index < 3; index++) {
+    const part = layout.parts.find(item => item.kind === ['topping:calabresa:0', 'topping:banana:1', 'topping:bacon:2'][index]);
+    assert.ok(part, 'cada sabor deve gerar sua própria cobertura na fatia correspondente');
+    const geometry = part.build();
+    assert.ok(geometry.positions.length > 0);
+    assert.ok(geometry.positions.every(Number.isFinite));
+  }
+  assert.equal(layout.parts.filter(part => /^topping:/.test(part.kind)).length, 3,
+    'somente as três coberturas dos sabores escolhidos devem ser montadas');
+});
+
+test('a divisão das fatias acompanha o diâmetro configurado da pizza', () => {
+  const flavors = [
+    { id: 'calabresa', ingredients: [{ id: 'calabresa', name: 'Calabresa', quantity: 1 }] },
+    { id: 'banana', ingredients: [{ id: 'banana', name: 'Banana', quantity: 1 }] },
+    { id: 'bacon', ingredients: [{ id: 'bacon', name: 'Bacon', quantity: 1 }] }
+  ];
+  const small = buildFoodLayout(pizza, [], { diameterCm: 25 }, { detail: 0.35, flavors });
+  const large = buildFoodLayout(pizza, [], { diameterCm: 40 }, { detail: 0.35, flavors });
+  assert.ok(large.bounds[0] > small.bounds[0], 'o modelo deve respeitar o diâmetro grande selecionado');
+  assert.deepEqual(
+    large.parts.filter(part => /^topping:/.test(part.kind)).map(part => part.kind),
+    small.parts.filter(part => /^topping:/.test(part.kind)).map(part => part.kind),
+    'a quantidade de sabores e a divisão das fatias devem permanecer consistentes entre tamanhos'
+  );
+});
