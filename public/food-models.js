@@ -492,7 +492,11 @@ function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
   // Todos os chocolates são uma única cobertura cremosa contínua.
   // Quando há chocolate ao leite e branco juntos, a mistura fica sutil e homogênea:
   // nenhum sabor vira pedaço grande ou camada isolada que roube a cena.
-  const radius = ctx.sauceR;
+  const radius = ctx.sector ? (angle => {
+    const span = ((angle - ctx.sector.start) % TAU + TAU) % TAU;
+    const width = ((ctx.sector.end - ctx.sector.start) % TAU + TAU) % TAU;
+    return span <= width ? ctx.sauceR : 0;
+  }) : ctx.sauceR;
   const mixed = style === 'mixed';
   const white = style === 'white-chocolate';
   const base = mixed ? lin('#76503a') : white ? lin('#d9c29c') : lin('#563126');
@@ -1054,8 +1058,6 @@ function pizzaLayout(product, ings, size, o) {
   const q = normalizeItems(ings);
   for (const map of flavorMaps) for (const [id, amount] of map) if (!q.has(id)) q.set(id, amount);
   const hasSauce = q.has('molho-tomate'), hasCheese = q.has('mussarela') || hasSauce;
-  const chocolateIds = ['chocolate', 'white-chocolate'].filter(id => q.has(id));
-  const chocolateStyle = chocolateIds.length > 1 ? 'mixed' : chocolateIds[0] || null;
   const ctxFor = (sector = null, flavorSeed = seed) => {
     const c = pizzaCtx(Rp, crustKey, hasSauce, hasCheese, flavorSeed);
     c.hasSauce = hasSauce; c.sector = sector;
@@ -1066,18 +1068,22 @@ function pizzaLayout(product, ings, size, o) {
   const parts = [{ kind: 'dough', key: `pizza|dough|${base}`, y: 0, base: false, build: () => doughMesh(ctxFor(), detail) }];
   if (hasSauce) parts.push({ kind: 'sauce', key: `pizza|sauce|${base}`, y: 0, base: false, build: () => sauceMeshPizza(ctxFor(), detail) });
   if (hasCheese) parts.push({ kind: 'cheese', key: `pizza|cheese|${base}|${flags}`, y: 0, base: false, build: () => cheeseMeshPizza(ctxFor(), detail) });
-  if (chocolateStyle) parts.push({
-    kind: 'chocolate-cream',
-    key: `pizza|chocolate-cream|${chocolateIds.join('+')}|${base}|${flags}`,
-    y: 0, base: false,
-    build: () => chocolateMeshPizza(ctxFor(), detail, chocolateStyle)
-  });
   const sectors = flavorList ? flavorMaps : [q];
   // Cada sabor recebe somente a quantidade de cobertura proporcional à sua fatia.
   // A fração angular é recalculada sempre que o cliente adiciona/remove um sabor.
   sectors.forEach((flavorQ, flavorIndex) => {
     const sector = flavorList && sectors.length > 1 ? { start: -Math.PI + flavorIndex * TAU / sectors.length, end: -Math.PI + (flavorIndex + 1) * TAU / sectors.length } : null;
     const ctx = ctxFor(sector, seed + flavorIndex * 97);
+    const flavorChocolateIds = ['chocolate', 'white-chocolate'].filter(id => flavorQ.has(id));
+    if (flavorChocolateIds.length) {
+      const flavorChocolateStyle = flavorChocolateIds.length > 1 ? 'mixed' : flavorChocolateIds[0];
+      parts.push({
+        kind: 'chocolate-cream' + (sector ? ':' + flavorIndex : ''),
+        key: `pizza|chocolate-cream|${flavorChocolateIds.join('+')}|${base}|${flags}|sector-${flavorIndex}-${sectors.length}`,
+        y: 0, base: false,
+        build: () => chocolateMeshPizza(ctx, detail, flavorChocolateStyle)
+      });
+    }
     const earlier = [];
     for (const id of TOPPING_ORDER) {
       if (!flavorQ.has(id) || id === 'molho-tomate' || id === 'mussarela' || id === 'chocolate' || id === 'white-chocolate') continue;
