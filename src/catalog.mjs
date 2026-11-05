@@ -154,7 +154,7 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   const supplied = Array.isArray(ingredients) ? ingredients.slice() : ingredients;
   if (!Array.isArray(supplied)) throw new Error('Selecione os ingredientes do produto.');
   for (const id of requiredIds) if (!supplied.some(entry => entry?.id === id)) supplied.push({ id, quantity: 1 });
-  if (isBuildYourOwnPizza(product) && supplied.length !== 3) throw new Error('A pizza Monte a sua deve ter exatamente 3 ingredientes no total, contando os ingredientes padrão.');
+  if (isBuildYourOwnPizza(product)) { const defaults = new Set(product.defaultIngredientIds || []); const missingDefaults = [...defaults].some(id => !supplied.some(entry => entry?.id === id)); const addonCount = supplied.filter(entry => !defaults.has(entry?.id)).length; if (missingDefaults || addonCount > 3) throw new Error('A pizza Monte a sua mantém os ingredientes padrão e permite escolher até 3 adicionais.'); }
   if (supplied.length > 12) throw new Error('A receita obrigatória excede o limite de componentes.');
   const seen = new Set();
   let extras = 0;
