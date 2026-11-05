@@ -540,10 +540,15 @@ function renderBuilder() {
     if (!flavorProduct) return null;
     const defaults = defaultIngredients(flavorProduct, app.catalog);
     const merged = new Map(defaults.map(item => [item.id, { ...item }]));
-    for (const item of builder.ingredients) {
-      const previous = merged.get(item.id);
-      if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
-      else merged.set(item.id, { ...item });
+    // Os adicionais escolhidos no formulário pertencem ao sabor principal.
+    // Replicá-los em todos os sabores fazia os mesmos ingredientes aparecerem
+    // em cada fatia, dando a impressão de que a pizza inteira tinha a mesma cobertura.
+    if (index === 0) {
+      for (const item of builder.ingredients) {
+        const previous = merged.get(item.id);
+        if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
+        else merged.set(item.id, { ...item });
+      }
     }
     return { id: flavorProduct.id, ingredients: [...merged.values()] };
   }).filter(Boolean) : [];
