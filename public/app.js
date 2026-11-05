@@ -287,14 +287,18 @@ function visibleProducts() {
   });
   if (app.sort==='price') list=list.slice().sort((a,b)=>a.baseCents-b.baseCents);
   if (app.sort==='name') list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  if (app.sort==='featured') list=list.slice().sort((a,b)=>b.featured-a.featured);
-  return list;
+  if (app.sort==='featured') list=list.slice().sort((a,b)=>Number(b.featured)-Number(a.featured));
+  // Bebidas ficam sempre no fim do cardápio, sem interferir na ordenação dos demais produtos.
+  return list.filter(product=>product.type!=='drink').concat(list.filter(product=>product.type==='drink'));
 }
 function renderCatalog() {
   if (!app.catalog) return;
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
-  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
-  root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
+  const drinkCategoryIds=new Set(app.catalog.products.filter(product=>product.type==='drink').map(product=>product.categoryId));
+  const orderedCategories=app.catalog.categories.slice().sort((a,b)=>Number(drinkCategoryIds.has(a.id))-Number(drinkCategoryIds.has(b.id)));
+  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
+  const featuredProducts=app.catalog.products.filter(p=>p.featured).slice().sort((a,b)=>Number(a.type==='drink')-Number(b.type==='drink')).slice(0,4);
+  root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
   renderRecentProducts();
   renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
   const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
