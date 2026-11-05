@@ -7,6 +7,12 @@ export const SIZE_OPTIONS = Object.freeze({
   drink: [{ key: 'unico', label: 'Unidade', deltaCents: 0 }]
 });
 export const CRUST_OPTIONS = Object.freeze([{ key: 'tradicional', label: 'Tradicional', priceCents: 0 }, { key: 'fina', label: 'Massa fina', priceCents: 0 }, { key: 'recheada', label: 'Borda de requeijão', priceCents: 850 }]);
+
+// O sabor especial usa o nome exato cadastrado pelo restaurante.
+export function isBuildYourOwnPizza(product) {
+  const name = String(product?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+  return product?.type === 'pizza' && name === 'monte a sua';
+}
 // Determina a peça 3D de ingredientes cadastrados livremente no painel.
  // A informação é calculada no servidor para que o painel e o cardápio público
  // recebam exatamente o mesmo visual, sem depender de IDs pré-definidos.
@@ -148,6 +154,7 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   const supplied = Array.isArray(ingredients) ? ingredients.slice() : ingredients;
   if (!Array.isArray(supplied)) throw new Error('Selecione os ingredientes do produto.');
   for (const id of requiredIds) if (!supplied.some(entry => entry?.id === id)) supplied.push({ id, quantity: 1 });
+  if (isBuildYourOwnPizza(product) && supplied.length !== 3) throw new Error('A pizza Monte a sua deve ter exatamente 3 ingredientes no total, contando os ingredientes padrão.');
   if (supplied.length > 12) throw new Error('A receita obrigatória excede o limite de componentes.');
   const seen = new Set();
   let extras = 0;

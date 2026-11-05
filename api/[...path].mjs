@@ -1,6 +1,6 @@
 import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
 import { query, withTransaction } from '../src/db/postgres.mjs';
-import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
+import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, isBuildYourOwnPizza, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
 import { verifyTotp } from '../src/auth-totp.mjs';
 import { sanitizeUploadFileName, validateFiscalDocument } from '../src/security/file-validation.mjs';
 import { imageReferenceToDataUrl, isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl, storeImageList } from '../src/storage/neon.mjs';
@@ -1131,6 +1131,7 @@ export default async function handler(req, res) {
       const sizePrices=await validateSizePrices(type,b.sizePrices,price);
       const ingredientIds=await validateProductIngredientIds(b.ingredientIds===undefined?[]:b.ingredientIds,type);
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
+      if(isBuildYourOwnPizza({name,type})){const availableIds=new Set([...defaultIngredientIds,...ingredientIds]);if(defaultIngredientIds.length>3||availableIds.size<3)throw fail('Na pizza Monte a sua, cadastre até 3 ingredientes padrão e disponibilize ingredientes suficientes para completar exatamente 3 no total.',422);}
       await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
       await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredients_configured=$3,image_url=$4,product_images_json=$5,age_restricted=$6,size_prices_json=$7 WHERE id=$8 AND restaurant_id=$9',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,JSON.stringify(sizePrices),productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
@@ -1157,6 +1158,7 @@ export default async function handler(req, res) {
       const name=b.name===undefined?old.name:clean(b.name,80), description=b.description===undefined?old.description:clean(b.description,300), price=b.baseCents===undefined?Number(old.base_price_cents):Number(b.baseCents), active=b.active===undefined?Number(old.active):(b.active?1:0), available=b.available===undefined?Number(old.available):(b.available?1:0);
       const ingredientIds=b.ingredientIds===undefined?null:await validateProductIngredientIds(b.ingredientIds,old.type);
       const defaultIngredientIds=b.defaultIngredientIds===undefined?null:await validateProductIngredientIds(b.defaultIngredientIds,old.type);
+      if(isBuildYourOwnPizza({name,type:old.type})){let currentDefaults=[],currentAllowed=[];try{currentDefaults=JSON.parse(old.default_ingredient_ids_json||'[]')}catch{}try{currentAllowed=JSON.parse(old.ingredient_ids_json||'[]')}catch{}const defaults=defaultIngredientIds??currentDefaults,allowed=ingredientIds??currentAllowed,availableIds=new Set([...defaults,...allowed]);if(defaults.length>3||availableIds.size<3)throw fail('Na pizza Monte a sua, cadastre até 3 ingredientes padrão e disponibilize ingredientes suficientes para completar exatamente 3 no total.',422);}
       const ageRestricted=b.ageRestricted===undefined?Number(old.age_restricted||0):(b.ageRestricted?1:0);
       const sizePrices=b.sizePrices===undefined?null:await validateSizePrices(old.type,b.sizePrices,price);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
