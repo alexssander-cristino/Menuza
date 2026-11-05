@@ -214,3 +214,36 @@ test('nenhuma cobertura ultrapassa os limites angulares da fatia do sabor', () =
     }
   }
 });
+
+
+test('cada sabor cria sua própria base e uma divisória radial dinâmica', () => {
+  const flavors = [
+    { id: 'pizza-a', ingredients: [
+      { id: 'molho-tomate', name: 'Molho de tomate', quantity: 1 },
+      { id: 'mussarela', name: 'Mussarela', quantity: 1 },
+      { id: 'calabresa', name: 'Calabresa', quantity: 1 }
+    ] },
+    { id: 'pizza-b', ingredients: [
+      { id: 'molho-tomate', name: 'Molho de tomate', quantity: 1 },
+      { id: 'mussarela', name: 'Mussarela', quantity: 1 },
+      { id: 'banana', name: 'Banana', quantity: 1 }
+    ] },
+    { id: 'pizza-c', ingredients: [
+      { id: 'chocolate', name: 'Chocolate', quantity: 1 }
+    ] }
+  ];
+  const layout = buildFoodLayout(pizza, [], { diameterCm: 35 }, { detail: 0.35, flavors });
+  assert.equal(layout.parts.filter(part => part.kind.startsWith('flavor-divider:')).length, 3,
+    'três sabores devem criar três divisórias radiais');
+  assert.ok(layout.parts.some(part => part.kind === 'sauce:0'));
+  assert.ok(layout.parts.some(part => part.kind === 'sauce:1'));
+  assert.ok(layout.parts.some(part => part.kind === 'cheese:0'));
+  assert.ok(layout.parts.some(part => part.kind === 'cheese:1'));
+  assert.ok(!layout.parts.some(part => part.kind === 'sauce:2' || part.kind === 'cheese:2'),
+    'a fatia sem molho e mussarela não pode herdar a base dos outros sabores');
+  for (const part of layout.parts.filter(item => item.kind.startsWith('flavor-divider:'))) {
+    const geometry = part.build();
+    assert.ok(geometry.positions.length > 0, 'cada divisória deve gerar geometria visível');
+    assert.ok(geometry.positions.every(Number.isFinite));
+  }
+});
