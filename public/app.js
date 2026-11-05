@@ -1408,10 +1408,12 @@ async function renderCatalogAdmin(){
         master.disabled=boxes.length===0;
       };
       master.addEventListener('change',()=>{
-        picker.querySelectorAll('.ingredient-checkbox-list input[type="checkbox"]').forEach(input=>{
-          input.checked=master.checked;
-          input.dispatchEvent(new Event('change',{bubbles:true}));
-        });
+        // Capture the requested state before dispatching events: each bubbling
+        // change recalculates master.checked and must not affect the remaining items.
+        const shouldCheck=master.checked;
+        const boxes=[...picker.querySelectorAll('.ingredient-checkbox-list input[type="checkbox"]')];
+        boxes.forEach(input=>{input.checked=shouldCheck;});
+        boxes.forEach(input=>input.dispatchEvent(new Event('change',{bubbles:true})));
         sync();
       });
       picker.addEventListener('change',event=>{
