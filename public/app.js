@@ -1527,7 +1527,7 @@ async function renderCatalogAdmin(){
       const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value).filter(id=>!selectedRecipe.includes(id));
       const ingredientIds=selectedAddons;
       const ingredientQuantities={};
-      if(['burger','plate'].includes(data.get('type')))for(const input of form.querySelectorAll('[data-ingredient-quantity]')){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20)throw new Error('Use quantidades entre 1 e 20 para cada ingrediente.');if(selectedRecipe.includes(input.dataset.ingredientQuantity)||selectedAddons.includes(input.dataset.ingredientQuantity))ingredientQuantities[input.dataset.ingredientQuantity]=quantity;}
+      if(['burger','plate'].includes(data.get('type')))for(const input of form.querySelectorAll('[data-ingredient-quantity]')){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20){errorNode.textContent='Use quantidades entre 1 e 20 para cada ingrediente.';input.focus();return}if(selectedRecipe.includes(input.dataset.ingredientQuantity)||selectedAddons.includes(input.dataset.ingredientQuantity))ingredientQuantities[input.dataset.ingredientQuantity]=quantity;}
       button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
       try{
         const files=[...(form.querySelector('[name="productPhotos"]')?.files||[])];if(files.length>8)throw new Error('Adicione no máximo 8 fotos por produto.');
