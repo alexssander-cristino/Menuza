@@ -1233,15 +1233,16 @@ function hotDogLayout(product, ings, o) {
   const bunX = length * .94 / (bunRadius * 2);
   const sausageR = bunRadius * .39;
   const sausageX = length * .88 / (sausageR * 2);
-  const key = kind => `hotdog-v4|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v5|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
-  // Um único pão oval e macio, com topo abaulado e laterais contínuas.
-  // Evita as duas "paredes" artificiais que faziam o pão parecer uma canaleta montada.
+  // Pão de hot dog como um único pão inferior: base arredondada, laterais
+  // macias e miolo superior plano para a salsicha ficar encaixada, sem uma
+  // cúpula cobrindo o recheio nem paredes artificiais nas laterais.
   parts.push({
     kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
-    build: stretch(() => bunTopMesh(bunRadius, .012, seed + 1, detail), bunX, 1.12)
+    build: stretch(() => bunBottomMesh(bunRadius, .012, seed + 1, detail), bunX, 1.12)
   });
 
   // Salsicha longa, cilíndrica e com pontas arredondadas. A escala longitudinal
