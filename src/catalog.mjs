@@ -166,8 +166,8 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
     const included = requiredIds.has(item.id) || Boolean(item.included ?? Number(item.includedByDefault) === 1);
     const cents = included ? 0 : Number(item.cents ?? item.addonCents ?? 0);
     const count = entry.quantity ?? 1;
-    if (!Number.isInteger(count) || count < 1 || count > 3) throw new Error('Cada componente pode ter de 1 a 3 porções.');
-    if ((included || requiredIds.has(item.id)) && count !== 1) throw new Error('A quantidade desse componente não pode ser alterada.');
+    if (!Number.isInteger(count) || count < 1 || count > (['burger','plate'].includes(type) ? 20 : 3)) throw new Error(['burger','plate'].includes(type) ? 'Cada ingrediente pode ter de 1 a 20 unidades.' : 'Cada componente pode ter de 1 a 3 porções.');
+    if (!['burger','plate'].includes(type) && (included || requiredIds.has(item.id)) && count !== 1) throw new Error('A quantidade desse componente não pode ser alterada.');
     extras += cents * count;
     return { id: item.id, name: item.name, quantity: count, unitPriceCents: cents, included, visual: item.visual || item.visual_key || 'herb' };
   });
