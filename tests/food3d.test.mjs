@@ -71,21 +71,23 @@ test('pizza: o diâmetro escolhido define a escala real e a quantidade de ingred
   assert.ok(big.extent[3] - big.extent[0] > (small.extent[3] - small.extent[0]) * 1.8);
 });
 
-test('hot dog: pão dividido, abas laterais e salsicha alongada usam peças próprias', () => {
+test('hot dog: pão em canaleta, salsicha inteira e molhos com cores separadas', () => {
   const hotdog = { id: 'hotdog-classico', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
   const layout = buildFoodLayout(hotdog, [
     { id: 'salsicha', name: 'Salsicha', quantity: 1 },
     { id: 'ketchup', name: 'Ketchup', quantity: 1 },
-    { id: 'mostarda', name: 'Mostarda', quantity: 1 }
+    { id: 'mostarda', name: 'Mostarda', quantity: 1 },
+    { id: 'maionese', name: 'Maionese', quantity: 1 }
   ], { key: 'hotdog' });
   const kinds = layout.parts.map(part => part.kind);
-  assert.ok(kinds.includes('hotdog-bun'), 'o pão inferior deve existir');
-  assert.ok(kinds.includes('hotdog-bun-lip-left') && kinds.includes('hotdog-bun-lip-right'), 'o pão deve ter duas abas laterais');
-  assert.ok(kinds.includes('hotdog-sausage'), 'a salsicha deve ser uma peça própria, não um disco de hambúrguer');
-  assert.ok(kinds.includes('hotdog-sauce'), 'os molhos selecionados devem aparecer');
+  assert.ok(kinds.includes('hotdog-bun-base'), 'o pão inferior deve existir');
+  assert.ok(kinds.includes('hotdog-bun-wall-left') && kinds.includes('hotdog-bun-wall-right'), 'o pão deve formar uma canaleta');
+  assert.ok(kinds.includes('hotdog-sausage'), 'a salsicha deve ser uma peça inteira e alongada');
+  assert.ok(kinds.includes('hotdog-ketchup') && kinds.includes('hotdog-mustard') && kinds.includes('hotdog-mayo'), 'cada molho selecionado deve ter sua própria faixa');
+  assert.ok(!kinds.includes('hotdog-board'), 'o cachorro-quente não deve usar uma tábua circular de hambúrguer');
   const sausage = layout.parts.find(part => part.kind === 'hotdog-sausage');
   const geometry = sausage.build();
-  assert.ok(geometry.box[3] - geometry.box[0] > (geometry.box[5] - geometry.box[2]) * 3, 'a salsicha deve ser alongada');
+  assert.ok(geometry.box[3] - geometry.box[0] > (geometry.box[5] - geometry.box[2]) * 3, 'a salsicha deve ser claramente mais comprida que larga');
 });
 
 test('geometria: sem NaN, normais unitárias e índices válidos em todos os produtos', () => {
