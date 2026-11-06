@@ -1204,6 +1204,57 @@ function pizzaLayout(product, ings, size, o) {
   return { parts, total: .026, radius: boardR * .86, extentH: [-bt, .026] };
 }
 
+
+// Escala uma peça procedural preservando normais e materiais.
+function scaleFoodGeometry(geometry, sx, sy, sz) {
+  const positions = geometry.positions;
+  const normals = geometry.normals;
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] *= sx; positions[i + 1] *= sy; positions[i + 2] *= sz;
+    if (normals?.length >= i + 3) {
+      let x = normals[i] / sx, y = normals[i + 1] / sy, z = normals[i + 2] / sz;
+      const d = Math.hypot(x, y, z) || 1;
+      normals[i] = x / d; normals[i + 1] = y / d; normals[i + 2] = z / d;
+    }
+  }
+  if (geometry.box?.length === 6) geometry.box = [
+    geometry.box[0] * sx, geometry.box[1] * sy, geometry.box[2] * sz,
+    geometry.box[3] * sx, geometry.box[4] * sy, geometry.box[5] * sz
+  ];
+  return geometry;
+}
+
+function hotDogLayout(product, ings, o) {
+  const length = clamp((Number(product.widthCm) || 20) / 100, .17, .25);
+  const radius = length * .225, seed = hash(product.id || 'hotdog'), detail = o.detail;
+  const sx = length / (radius * 2) * .88, sz = .72;
+  const key = kind => `hotdog|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const stretch = (builder, x = sx, z = sz) => () => scaleFoodGeometry(builder(), x, 1, z);
+  const parts = [];
+  const boardR = radius * 1.18, boardT = .012;
+  parts.push({ kind: 'hotdog-board', key: key('board'), y: -boardT + .0004, base: true,
+    build: stretch(() => boardMesh(boardR, boardT, seed, detail), sx * 1.12, sz * 1.35) });
+  parts.push({ kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
+    build: stretch(() => bunBottomMesh(radius, .018, seed + 1, detail), sx, sz) });
+  parts.push({ kind: 'hotdog-sausage', key: key('sausage'), y: .012,
+    build: stretch(() => pattyMesh(radius * .72, .011, seed + 2, detail), sx * .94, .48) });
+
+  const names = ings.map(item => ({
+    item, name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+  }));
+  const has = pattern => names.some(x => pattern.test(x.name));
+  const qty = pattern => Math.min(3, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 3), 0)));
+  const add = (kind, build, y, x = 1, z = 1) => parts.push({ kind: 'hotdog-' + kind, key: key(kind), y, build: stretch(build, x, z) });
+  if (has(/queijo|cheddar|mussarela|catupiry|cream/)) add('cheese', () => cheeseMesh(radius * .68, .003, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .022, sx * .9, .44);
+  if (has(/bacon|calabresa|linguica/)) add('bacon', () => baconMesh(radius * .8, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .024, sx * .88, .5);
+  if (has(/alface|rucula|repolho|salada/)) add('greens', () => lettuceMesh(radius * .76, 1, seed + 12, detail, 3), .021, sx * .92, .55);
+  if (has(/tomate|pimentao|pimenta/)) add('tomato', () => tomatoMesh(radius * .56, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .024, sx * .9, .42);
+  if (has(/cebola|onion/)) add('onion', () => onionMesh(radius * .7, 1, seed + 14, detail, qty(/cebola|onion/)), .025, sx * .9, .5);
+  if (has(/picles|pepino|pickle/)) add('pickles', () => pickleMesh(radius * .65, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .025, sx * .88, .5);
+  if (has(/molho|ketchup|mostarda|maionese|barbecue|bbq/)) add('sauce', () => sauceMesh(radius * .62, 1, seed + 16, detail), .026, sx * .92, .3);
+  return { parts, total: .032, radius: length * .62, extentH: [-boardT, .035] };
+}
+
 function plateLayout(product, ings, size, o) {
   const W = (Number(product.widthCm) || 20) / 100, R = W / 2 * 1.2, detail = o.detail, seed = hash(product.id || 'plate');
   const key = k => `plate|${k}|${R.toFixed(4)}|${detail}|${seed}`;
@@ -1395,10 +1446,10 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     layout = burgerLayout(product, list, size, o, H / ref);
     bounds = [(Number(product.widthCm) || 12) / 100, H, (Number(product.depthCm) || 12) / 100];
   } else {
-    layout = plateLayout(product, list, size, o);
-    bounds = [(Number(product.widthCm) || 20) / 100, (Number(product.heightCm) || 4) / 100, (Number(product.depthCm) || 20) / 100];
+    layout = hotDogLayout(product, list, o);
+    bounds = [Math.max(.17, Math.min(.25, (Number(product.widthCm) || 20) / 100)), .055, .085];
   }
-  return { type: type === 'pizza' || type === 'burger' ? type : 'plate', parts: layout.parts, bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
+  return { type: type === 'pizza' || type === 'burger' ? type : 'hotdog', parts: layout.parts, bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
 }
 
 // Versão síncrona: constrói e funde todas as peças (usada em testes e como fallback).
