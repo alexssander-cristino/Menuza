@@ -71,7 +71,7 @@ test('pizza: o diâmetro escolhido define a escala real e a quantidade de ingred
   assert.ok(big.extent[3] - big.extent[0] > (small.extent[3] - small.extent[0]) * 1.8);
 });
 
-test('hot dog: pão em canaleta, salsicha inteira e molhos com cores separadas', () => {
+test('hot dog: pão oval único, salsicha longa e molhos separados', () => {
   const hotdog = { id: 'hotdog-classico', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
   const layout = buildFoodLayout(hotdog, [
     { id: 'salsicha', name: 'Salsicha', quantity: 1 },
@@ -80,14 +80,13 @@ test('hot dog: pão em canaleta, salsicha inteira e molhos com cores separadas',
     { id: 'maionese', name: 'Maionese', quantity: 1 }
   ], { key: 'hotdog' });
   const kinds = layout.parts.map(part => part.kind);
-  assert.ok(kinds.includes('hotdog-bun-base'), 'o pão inferior deve existir');
-  assert.ok(kinds.includes('hotdog-bun-wall-left') && kinds.includes('hotdog-bun-wall-right'), 'o pão deve formar uma canaleta');
-  assert.ok(kinds.includes('hotdog-sausage'), 'a salsicha deve ser uma peça inteira e alongada');
+  assert.ok(kinds.includes('hotdog-bun'), 'o pão deve ser uma peça única, oval e abaulada');
+  assert.ok(!kinds.includes('hotdog-bun-wall-left') && !kinds.includes('hotdog-bun-wall-right'), 'não deve haver laterais artificiais separadas');
+  assert.ok(kinds.includes('hotdog-sausage'), 'a salsicha deve existir');
   assert.ok(kinds.includes('hotdog-ketchup') && kinds.includes('hotdog-mustard') && kinds.includes('hotdog-mayo'), 'cada molho selecionado deve ter sua própria faixa');
-  assert.ok(!kinds.includes('hotdog-board'), 'o cachorro-quente não deve usar uma tábua circular de hambúrguer');
   const sausage = layout.parts.find(part => part.kind === 'hotdog-sausage');
   const geometry = sausage.build();
-  assert.ok(geometry.box[3] - geometry.box[0] > (geometry.box[5] - geometry.box[2]) * 3, 'a salsicha deve ser claramente mais comprida que larga');
+  assert.ok(geometry.box[3] - geometry.box[0] > (geometry.box[5] - geometry.box[2]) * 5, 'a salsicha deve ser longa e fina');
 });
 
 test('geometria: sem NaN, normais unitárias e índices válidos em todos os produtos', () => {
