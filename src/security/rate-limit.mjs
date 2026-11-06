@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 let schemaPromise;
 async function ensureRateLimitSchema(query){
   if(!schemaPromise)schemaPromise=(async()=>{
-    await query(`CREATE TABLE IF NOT EXISTS security_rate_buckets(bucket_key TEXT PRIMARY KEY,timestamps_json TEXT NOT NULL DEFAULT '[]',updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query(`CREATE TABLE IF NOT EXISTS security_rate_buckets(bucket_key TEXT PRIMARY KEY,timestamps_json TEXT NOT NULL DEFAULT '[]',updated_at BIGINT NOT NULL DEFAULT 0)`);
     await query('CREATE INDEX IF NOT EXISTS security_rate_buckets_updated_idx ON security_rate_buckets(updated_at)');
   })().catch(e=>{schemaPromise=null;throw e});
   await schemaPromise;
@@ -32,8 +32,8 @@ export async function consumeRateLimit({req,key,maximum,windowMs,secret,query,wi
     const timestamps=activeTimestamps(row.rows[0]?.timestamps_json,now,windowMs),retry=retryAfterSeconds(timestamps,now,windowMs,maximum);
     if(retry)return retry;
     timestamps.push(now);
-    await client.query(`INSERT INTO security_rate_buckets(bucket_key,timestamps_json,updated_at) VALUES($1,$2,NOW())
-      ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=EXCLUDED.timestamps_json,updated_at=NOW()`,[bucket,JSON.stringify(timestamps)]);
+    await client.query(`INSERT INTO security_rate_buckets(bucket_key,timestamps_json,updated_at) VALUES($1,$2,$3)
+      ON CONFLICT(bucket_key) DO UPDATE SET timestamps_json=EXCLUDED.timestamps_json,updated_at=EXCLUDED.updated_at`,[bucket,JSON.stringify(timestamps),now]);
     return 0;
   });
 }
