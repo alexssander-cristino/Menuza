@@ -17,12 +17,12 @@ function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_
 import { FoodScene } from './food-scene.js?v=78';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
-import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=5';
+import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDogArtSvg } from './food-art.js?v=6';
 
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '92';
+const MENUZA_APP_BUILD = '93';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -213,7 +213,7 @@ function ingredientDescription(product, ids = product.defaultIngredientIds || []
 }
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
-const plateArt = (seed, ingredients) => plateArtSvg(seed, ingredients || []);
+const hotDogArt = (seed, ingredients) => hotDogArtSvg(seed, ingredients || []);
 async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
   if(!file)return '';
   if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
@@ -235,7 +235,7 @@ async function productPhotoData(file){
 function productSvg(product, ingredients, opts = {}) {
   if (product.type === 'pizza') return pizzaArt(ingredients || defaultIngredients(product, app.catalog), product.id);
   if (product.type === 'burger') return burgerArt(ingredients || defaultIngredients(product, app.catalog), product.id, opts);
-  return plateArt(product.id, ingredients || defaultIngredients(product, app.catalog));
+  return hotDogArt(product.id, ingredients || defaultIngredients(product, app.catalog));
 }
 function productImages(product) {
   const images=Array.isArray(product?.images)?product.images.filter(url=>typeof url==='string'&&url):[];
@@ -963,7 +963,7 @@ async function loadTracking(token){
     const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparação',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};
     const currentStep=current==='delivering'?4:({received:0,confirmed:1,preparing:2,ready:3,completed:flow.length-1}[current]??0);
     const prepMinutes=Number(order.prepMinutes);const estimatedAt=Date.parse(order.createdAt)+prepMinutes*60000;const prepEstimate=!isCancelled&&['received','confirmed','preparing'].includes(current)&&Number.isFinite(estimatedAt)&&prepMinutes>0?(Date.now()>estimatedAt?'O preparo está levando mais tempo que o previsto. A estimativa inicial era por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. Acompanhe as atualizações nesta página.':'Previsão inicial: cerca de '+prepMinutes+' min de preparo, por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. É uma estimativa e pode variar.'):'';const flowStatuses=order.fulfillment==='delivery'?['received','confirmed','preparing','ready','delivering','completed']:['received','confirmed','preparing','ready','completed'];const timeline=flow.map((label,index)=>{const changedAt=formatOrderStatusTime(order.history,flowStatuses[index]);return '<div class="timeline-item '+(!isCancelled&&index<currentStep?'done':!isCancelled&&index===currentStep?'current':'')+'"><div class="timeline-dot"></div><span>'+label+'</span>'+(changedAt?'<small class="timeline-time">'+esc(changedAt)+'</small>':'')+'</div>'}).join('');
-    const rows=order.items.map(item=>{const snapshot=item.snapshot,art=snapshot.type==='pizza'?pizzaArt(snapshot.ingredients,item.productId):snapshot.type==='burger'?burgerArt(snapshot.ingredients):plateArt();return '<div class="tracking-order-item"><div class="tracking-art">'+art+'</div><span>'+item.quantity+'× '+esc(item.name)+'<small>'+esc(item.snapshot.size.label)+' · '+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</small></span><b>'+money(item.unitPriceCents*item.quantity)+'</b></div>'}).join('');
+    const rows=order.items.map(item=>{const snapshot=item.snapshot,art=snapshot.type==='pizza'?pizzaArt(snapshot.ingredients,item.productId):snapshot.type==='burger'?burgerArt(snapshot.ingredients):hotDogArt();return '<div class="tracking-order-item"><div class="tracking-art">'+art+'</div><span>'+item.quantity+'× '+esc(item.name)+'<small>'+esc(item.snapshot.size.label)+' · '+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</small></span><b>'+money(item.unitPriceCents*item.quantity)+'</b></div>'}).join('');
     const canCustomerCancel=['received','confirmed'].includes(current);
     target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><div class="checkmark">'+(isCancelled?'×':'✓')+'</div><div class="eyebrow" style="justify-content:center">ACOMPANHAMENTO DO PEDIDO</div><h1>'+(isCancelled?'Pedido cancelado.':'Estamos cuidando de tudo.')+'</h1><p>Este acompanhamento reflete as atualizações feitas pelo restaurante.<br>O número do pedido é <b>'+esc(order.id)+'</b>.</p></div><div class="tracking-card"><div class="tracking-meta"><div><small>STATUS AGORA</small><b>'+esc(labels[current]||current)+'</b></div><div class="status-pill">'+(order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):'Retirada')+'</div></div>'+(isCancelled?'<div class="ready-banner tracking-cancelled-banner">Este pedido foi cancelado.</div>':'<div class="status-timeline" style="grid-template-columns:repeat('+flow.length+',minmax(0,1fr))">'+timeline+'</div>')+(prepEstimate?'<div class="ready-banner tracking-estimate">'+esc(prepEstimate)+'</div>':'')+(canCustomerCancel?'<div class="tracking-cancel-actions"><div><strong>Precisa desistir do pedido?</strong><small>Você pode cancelar enquanto o restaurante ainda não iniciou o preparo.</small></div><button type="button" class="tracking-cancel-button" data-action="cancel-order" data-token="'+esc(token)+'">Cancelar pedido</button></div>':'')+'<div class="tracking-items"><h3>Itens do pedido</h3>'+rows+'<div class="tracking-order-item" style="border-top:1px solid #e5e8df;margin-top:5px;padding-top:13px"><b>Total</b><b>'+money(order.totalCents)+'</b></div></div>'+(current==='ready'?'<div class="ready-banner">Seu pedido está pronto. Bom apetite!</div>':current==='completed'?'<div class="ready-banner">Pedido concluído. Esperamos que tenha gostado!</div>':'')+'<p class="tracking-note">Pagamento combinado diretamente com o restaurante. O status acompanha as atualizações reais da equipe.</p></div></section>';
   }catch(e){target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><h1>Não encontramos esse pedido.</h1><p>'+esc(e.message)+'</p></div></section>'}
