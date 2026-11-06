@@ -333,7 +333,7 @@ function normalizeOpeningHours(value) {
     const enabled=Boolean(source.enabled);
     const periods=Array.isArray(source.periods)?source.periods:[];
     if (periods.length>4) throw fail('Cada dia permite até quatro períodos de funcionamento.',422);
-    const normalized=periods.map(period=>{
+    const normalized=(enabled?periods:[]).map(period=>{
       const open=String(period?.open||''),close=String(period?.close||'');
       if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(open)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(close)||open>=close) throw fail('Confira os horários: o encerramento deve ser depois da abertura.',422);
       return {open,close};
