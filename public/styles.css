@@ -2517,3 +2517,7 @@ button[data-action="view-generated-3d"],
 .restaurant-hours-unconfigured{margin:0;color:var(--muted);font-size:11px}
 .restaurant-hours-list{display:grid;gap:6px}
 @media(max-width:700px){.restaurant-hours-details{width:100%;min-width:0}}
+
+
+/* Posicionamento do horário logo abaixo do cabeçalho */
+.site-header + .restaurant-hours-banner{margin:12px auto 0}
