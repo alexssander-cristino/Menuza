@@ -936,6 +936,16 @@ export default async function handler(req, res) {
     }
     if (path.startsWith('/api/admin/')) await requireAdmin(req);
     if (method==='GET'&&path==='/api/admin/security') { const row=ADMIN_TOTP_SECRET?null:await getAdminTwoFactor(); return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET||row?.enabledAt),managedByEnvironment:Boolean(ADMIN_TOTP_SECRET),recoveryCodesRemaining:Array.isArray(row?.recoveryCodesHashes)?row.recoveryCodesHashes.length:null}); }
+    if (method==='POST'&&path==='/api/admin/security/environment-qr') {
+      const retry=await limit(req,'admin-2fa-environment-qr',5,900000);
+      if(retry)return json(res,429,{error:'Muitas solicitações de QR Code. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      const body=await bodyOf(req);
+      if(!validAdminPassword(body.password))return json(res,401,{error:'Confirme sua senha administrativa para visualizar o QR Code.'});
+      if(!ADMIN_TOTP_SECRET)return json(res,409,{error:'Não existe ADMIN_TOTP_SECRET configurado no ambiente.'});
+      const label=encodeURIComponent('Menuza:Administrador'),issuer=encodeURIComponent('Menuza');
+      const otpauthUri='otpauth://totp/'+label+'?secret='+ADMIN_TOTP_SECRET+'&issuer='+issuer+'&algorithm=SHA1&digits=6&period=30';
+      return json(res,200,{ok:true,otpauthUri,managedByEnvironment:true});
+    }
     if (method==='POST'&&path==='/api/admin/security/setup') {
       const retry=await limit(req,'admin-2fa-setup',5,900000); if(retry)return json(res,429,{error:'Muitas tentativas de configuração. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
       const body=await bodyOf(req); if(!validAdminPassword(body.password))return json(res,401,{error:'Confirme sua senha administrativa para iniciar a configuração.'});
