@@ -939,8 +939,7 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/security/environment-qr') {
       const retry=await limit(req,'admin-2fa-environment-qr',5,900000);
       if(retry)return json(res,429,{error:'Muitas solicitações de QR Code. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
-      const body=await bodyOf(req);
-      if(!validAdminPassword(body.password))return json(res,401,{error:'Confirme sua senha administrativa para visualizar o QR Code.'});
+      // requireAdmin(req), executado antes desta rota, já exige uma sessão administrativa autenticada.
       if(!ADMIN_TOTP_SECRET)return json(res,409,{error:'Não existe ADMIN_TOTP_SECRET configurado no ambiente.'});
       const label=encodeURIComponent('Menuza:Administrador'),issuer=encodeURIComponent('Menuza');
       const otpauthUri='otpauth://totp/'+label+'?secret='+ADMIN_TOTP_SECRET+'&issuer='+issuer+'&algorithm=SHA1&digits=6&period=30';
