@@ -22,7 +22,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDog
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '95';
+const MENUZA_APP_BUILD = '96';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -1499,8 +1499,9 @@ async function renderCatalogAdmin(){
       const type=typeSelect.value;
       for(const list of target.querySelectorAll('[data-product-select]')){
         const prior=[...list.querySelectorAll('input:checked')].map(input=>input.value);
+        const quantities=Object.fromEntries([...list.querySelectorAll('[data-ingredient-quantity]')].map(input=>[input.dataset.ingredientQuantity,input.value]));
         const name=list.dataset.productSelect==='recipe'?'defaultIngredientIds':'ingredientIds';
-        list.innerHTML=ingredientChoices(type,prior,name);
+        list.innerHTML=ingredientChoices(type,prior,name,quantities);
         const search=list.previousElementSibling?.querySelector('[data-ingredient-picker-search]');
         if(search)filterIngredientPicker(search);
       }
@@ -1527,7 +1528,7 @@ async function renderCatalogAdmin(){
       const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value).filter(id=>!selectedRecipe.includes(id));
       const ingredientIds=selectedAddons;
       const ingredientQuantities={};
-      if(['burger','plate'].includes(data.get('type')))for(const input of form.querySelectorAll('[data-ingredient-quantity]')){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20){errorNode.textContent='Use quantidades entre 1 e 20 para cada ingrediente.';input.focus();return}if(selectedRecipe.includes(input.dataset.ingredientQuantity)||selectedAddons.includes(input.dataset.ingredientQuantity))ingredientQuantities[input.dataset.ingredientQuantity]=quantity;}
+      if(['burger','plate'].includes(data.get('type')))for(const input of form.querySelectorAll('[data-ingredient-quantity]')){const id=input.dataset.ingredientQuantity;if(selectedRecipe.includes(id)||selectedAddons.includes(id)){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20){errorNode.textContent='Use quantidades entre 1 e 20 para cada ingrediente selecionado.';input.focus();return}ingredientQuantities[id]=quantity}}
       button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
       try{
         const files=[...(form.querySelector('[name="productPhotos"]')?.files||[])];if(files.length>8)throw new Error('Adicione no máximo 8 fotos por produto.');
@@ -2345,7 +2346,7 @@ async function saveProduct(id){
   const ingredientIds=selectedAddons;
   const productType=app.catalog.products.find(product=>product.id===id)?.type;
   const ingredientQuantities={};
-  if(['burger','plate'].includes(productType))for(const input of row.querySelectorAll('[data-ingredient-quantity]')){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20){toast('Use quantidades entre 1 e 20 para cada ingrediente.');input.focus();return}if(defaultIngredientIds.includes(input.dataset.ingredientQuantity)||selectedAddons.includes(input.dataset.ingredientQuantity))ingredientQuantities[input.dataset.ingredientQuantity]=quantity;}
+  if(['burger','plate'].includes(productType))for(const input of row.querySelectorAll('[data-ingredient-quantity]')){const id=input.dataset.ingredientQuantity;if(defaultIngredientIds.includes(id)||selectedAddons.includes(id)){const quantity=Number(input.value);if(!Number.isInteger(quantity)||quantity<1||quantity>20){toast('Use quantidades entre 1 e 20 para cada ingrediente selecionado.');input.focus();return}ingredientQuantities[id]=quantity}}
   button.disabled=true;button.textContent='Salvando…';
   try{
     let images=[];try{images=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
