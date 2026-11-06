@@ -1224,50 +1224,49 @@ function scaleFoodGeometry(geometry, sx, sy, sz) {
   return geometry;
 }
 
-// Pão próprio para cachorro-quente: volume de pão macio e arredondado,
-// com laterais altas e topo abaulado, sem aparência de fatia achatada.
-// Pão de hot dog em formato de bisnaga: base plana, laterais arredondadas,
-// topo abaulado e canal longitudinal real para acomodar a salsicha.
-// Bisnaga de hot dog construída no eixo do comprimento (não é um disco esticado).
-// A seção transversal tem laterais fofas e uma canaleta larga para a salsicha.
+// Pão de cachorro-quente em formato de bisnaga, com pontas arredondadas
+// e um corte/canaleta profunda para a salsicha ficar visivelmente encaixada.
 function hotDogBunMesh(R, H, seed, detail) {
   const m = new Mesh();
   const P = (u, v) => {
     const theta = v * TAU;
-    const along = Math.sin(Math.PI * u);
-    const cap = Math.max(.0001, along) ** .34;
+    const longitudinal = Math.abs(u * 2 - 1);
+    // Mantém o corpo cheio e arredonda apenas os dois extremos, como pão de hot dog.
+    const endT = clamp((longitudinal - .76) / .24, 0, 1);
+    const cap = Math.sqrt(Math.max(.0001, 1 - endT * endT));
     const wobble = 1
-      + .012 * Math.sin(u * Math.PI * 5 + seed)
-      + .009 * (noise3(u * 2.4, Math.cos(theta) * 1.4, seed) - .5);
+      + .009 * Math.sin(u * Math.PI * 5 + seed)
+      + .006 * (noise3(u * 2.4, Math.cos(theta) * 1.4, seed) - .5);
     const width = R * cap * wobble;
     const z = Math.cos(theta) * width;
     const upper = Math.max(0, Math.sin(theta));
     const lower = Math.max(0, -Math.sin(theta));
-    const bottom = H * .045 * cap;
-    const crown = H * .98 * cap * upper;
-    const underside = H * .045 * cap * lower;
-    const groove = H * .245 * cap
-      * Math.exp(-((z / (R * .43)) ** 2))
-      * sstep(.08, .52, upper);
-    const crumb = (fbm(u * 42, Math.cos(theta) * 35, Math.sin(theta) * 35, seed + 2, 3) - .5) * .00042;
+    const bottom = H * .075 * cap;
+    const crown = H * .96 * cap * upper;
+    const underside = H * .075 * cap * lower;
+    // A canaleta é larga e funda: deixa a salsicha aparente, sem engolir o recheio.
+    const groove = H * .52 * cap
+      * Math.exp(-((z / (R * .39)) ** 2))
+      * sstep(.04, .42, upper);
+    const crumb = (fbm(u * 42, Math.cos(theta) * 35, Math.sin(theta) * 35, seed + 2, 3) - .5) * .00022;
     return [
       (u - .5) * 2 * R,
       bottom + crown - underside - groove + crumb,
       z
     ];
   };
-  m.grid(176, 88, P, (u, v, p, n) => {
+  m.grid(192, 96, P, (u, v, p, n) => {
     const theta = v * TAU;
     const upper = Math.max(0, Math.sin(theta));
-    const groove = Math.exp(-((p[2] / (R * .44)) ** 2)) * sstep(.08, .5, upper);
-    const side = sstep(-.25, .48, n[1]);
-    const crown = mix(C.bunSide, C.bunCrown, side * .82);
-    const channel = mix(crown, C.bunCrumb, groove * .78);
-    const freckles = sstep(.7, .83, nz(p, 38, seed + 7)) * upper;
-    const grain = 1 + (nz(p, 62, seed + 4) - .5) * .12;
-    const color = mix(channel, C.bunDeep, freckles * .12);
-    return MAT(mul(color, grain), .4, .13, .56, .9);
-  }, { wrapU: false, wrapV: true, ref: [0, H * .25, 0] });
+    const groove = Math.exp(-((p[2] / (R * .41)) ** 2)) * sstep(.04, .42, upper);
+    const side = sstep(-.2, .5, n[1]);
+    const crown = mix(C.bunSide, C.bunCrown, side * .86);
+    const channel = mix(crown, C.bunCrumb, groove * .9);
+    const toast = sstep(.78, .91, nz(p, 34, seed + 7)) * upper * (1 - groove * .5);
+    const grain = 1 + (nz(p, 62, seed + 4) - .5) * .09;
+    const color = mix(mix(channel, C.bunToast, toast * .3), C.bunDeep, toast * .12);
+    return MAT(mul(color, grain), .43, .11, .5, .92);
+  }, { wrapU: false, wrapV: true, ref: [0, H * .2, 0] });
   return m.finish();
 }
 function hotDogLayout(product, ings, o) {
@@ -1279,7 +1278,7 @@ function hotDogLayout(product, ings, o) {
   const bunX = length * .94 / (bunRadius * 2);
   const sausageR = bunRadius * .39;
   const sausageX = length * .88 / (sausageR * 2);
-  const key = kind => `hotdog-v8|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v9|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
@@ -1303,13 +1302,16 @@ function hotDogLayout(product, ings, o) {
       shade: (u, v, p, n) => {
         const grill = sstep(.86, .96, nz(p, 95, seed + 10)) * .12;
         const meat = mix(lin('#a9442e'), lin('#d87952'), .38 + .18 * (nz(p, 42, seed + 11) - .5));
-        return MAT(mul(mix(meat, lin('#6f3024'), grill), 1 + (nz(p, 70, seed + 12) - .5) * .08), .28, .2, .68, .98);
+        const angle = Math.atan2(p[2], p[0]);
+        const grillLine = (1 - sstep(.035, .12, Math.abs(Math.sin(angle * 5 + seed * .17)))) * .16;
+        const sear = Math.max(grill, grillLine);
+        return MAT(mul(mix(meat, lin('#6f3024'), sear), 1 + (nz(p, 70, seed + 12) - .5) * .08), .3, .18, .62, .98);
       }
     });
     return m.finish();
   };
   parts.push({
-    kind: 'hotdog-sausage', key: key('sausage'), y: .0105, base: true,
+    kind: 'hotdog-sausage', key: key('sausage'), y: .0115, base: true,
     build: stretch(sausageMesh, sausageX, 1.02)
   });
 
@@ -1325,21 +1327,21 @@ function hotDogLayout(product, ings, o) {
 
   // Complementos aparecem sobre a salsicha, em escala menor e sem cobrir o pão inteiro.
   if (has(/queijo|cheddar|mussarela|catupiry|cream/))
-    add('cheese', () => cheeseMesh(sausageR * .82, .0024, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0185, sausageX * .9, .55);
+    add('cheese', () => cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198, sausageX * .82, .48);
   if (has(/bacon|calabresa|linguica/))
-    add('bacon', () => baconMesh(sausageR * .72, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .019, sausageX * .86, .55);
+    add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
-    add('greens', () => lettuceMesh(sausageR * .72, 1, seed + 12, detail, Math.min(5, 2 + qty(/alface|rucula|repolho|salada/))), .0178, sausageX * .9, .62);
+    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(5, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54);
   if (has(/tomate|pimentao|pimenta/))
-    add('tomato', () => tomatoMesh(sausageR * .62, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .019, sausageX * .82, .55);
+    add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0201, sausageX * .76, .48);
   if (has(/cebola|onion/))
-    add('onion', () => onionMesh(sausageR * .68, 1, seed + 14, detail, qty(/cebola|onion/)), .0192, sausageX * .84, .58);
+    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion/)), .0203, sausageX * .78, .5);
   if (has(/picles|pepino|pickle/))
-    add('pickles', () => pickleMesh(sausageR * .64, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .019, sausageX * .82, .55);
+    add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
 
   // Molhos em fios finos e compridos, separados por cor.
   const sauceRibbon = (color, ribbonSeed, zShift) => {
-    const m = new Mesh(), L = length * .76, W = .00145, T = .00075;
+    const m = new Mesh(), L = length * .72, W = .00125, T = .00065;
     const P = (u, v) => {
       const x = (u - .5) * L;
       const wave = Math.sin(u * Math.PI * 4 + ribbonSeed) * .0008 + Math.sin(u * Math.PI * 9 + ribbonSeed * .7) * .00025;
@@ -1358,7 +1360,7 @@ function hotDogLayout(product, ings, o) {
     { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.0014 }
   ];
   for (const sauce of sauceTypes) if (has(sauce.pattern))
-    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0202, 1, 1);
+    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0212, 1, 1);
 
   return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
 }
