@@ -358,3 +358,276 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .ad
   color:inherit!important;
 }
 
+
+
+/* Cherry Red — camada final e autoritativa para todo o painel do restaurante.
+   Mantém o tema restrito ao shell administrativo e corrige componentes que
+   não usam os nomes de classe legados. */
+.admin-shell-v2[data-mz-admin-theme="dark"] {
+  --mz-night-bg: #130D10;
+  --mz-night-sidebar: #211319;
+  --mz-night-card: #321A23;
+  --mz-night-raised: #48232F;
+  --mz-night-border: #603340;
+  --mz-night-red: #E04458;
+  --mz-night-red-hover: #F36B7B;
+  --mz-night-text: #FFF0F2;
+  --mz-night-muted: #C9A6AD;
+  --mz-night-placeholder: #A9828B;
+  --mz-night-danger: #FF929C;
+  --mz-night-success: #91E0B4;
+  color-scheme: dark !important;
+  background: var(--mz-night-bg) !important;
+  color: var(--mz-night-text) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main-content,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-content,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-view,
+.admin-shell-v2[data-mz-admin-theme="dark"] #adminContent,
+.admin-shell-v2[data-mz-admin-theme="dark"] #adminView {
+  background: var(--mz-night-bg) !important;
+  color: var(--mz-night-text) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-nav,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-footer {
+  background: var(--mz-night-sidebar) !important;
+  color: var(--mz-night-text) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main-top,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel-head,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-section-head {
+  background: transparent !important;
+  color: var(--mz-night-text) !important;
+  border-color: var(--mz-night-border) !important;
+}
+
+/* Cor padrão de texto e títulos: impede texto herdado escuro no fundo vinho. */
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main *,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar * {
+  border-color: var(--mz-night-border);
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h1,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h2,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h3,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h4,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h5,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main h6,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main label,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main legend,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main th,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main strong,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar b,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar strong {
+  color: var(--mz-night-text) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main p,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main small,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main .muted,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main .field-hint,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main [class*="hint"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main [class*="description"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main [class*="subtitle"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar small,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-label,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab:not(.active) {
+  color: var(--mz-night-muted) !important;
+}
+
+/* Cartões principais e superfícies elevadas. */
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-stat-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-metric-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .metric-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .order-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .settings-card,
+.admin-shell-v2[data-mz-admin-theme="dark"] .settings-section,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table-wrap,
+.admin-shell-v2[data-mz-admin-theme="dark"] .table-map-shell,
+.admin-shell-v2[data-mz-admin-theme="dark"] .table-manager,
+.admin-shell-v2[data-mz-admin-theme="dark"] .opening-hours-day,
+.admin-shell-v2[data-mz-admin-theme="dark"] .product-admin-entry,
+.admin-shell-v2[data-mz-admin-theme="dark"] .product-size-pricing,
+.admin-shell-v2[data-mz-admin-theme="dark"] .product-size-price-entry,
+.admin-shell-v2[data-mz-admin-theme="dark"] .accessibility-setting-group,
+.admin-shell-v2[data-mz-admin-theme="dark"] .accessibility-preview,
+.admin-shell-v2[data-mz-admin-theme="dark"] .accessibility-toggle,
+.admin-shell-v2[data-mz-admin-theme="dark"] .settings-note,
+.admin-shell-v2[data-mz-admin-theme="dark"] .delivery-zone-row,
+.admin-shell-v2[data-mz-admin-theme="dark"] .privacy-request-events,
+.admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li,
+.admin-shell-v2[data-mz-admin-theme="dark"] [class*="admin-card"],
+.admin-shell-v2[data-mz-admin-theme="dark"] [class*="stat-card"],
+.admin-shell-v2[data-mz-admin-theme="dark"] [class*="metric-card"] {
+  background-color: var(--mz-night-card) !important;
+  color: var(--mz-night-text) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel [class*="inner"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel [class*="nested"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel [class*="secondary"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel [class*="subcard"],
+.admin-shell-v2[data-mz-admin-theme="dark"] .order-card-footer,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table thead,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table th {
+  background-color: var(--mz-night-raised) !important;
+  border-color: var(--mz-night-border) !important;
+}
+
+/* Menu, navegação, seleção e hover. */
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-link,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-item {
+  color: var(--mz-night-muted) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-link:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-item:hover {
+  color: var(--mz-night-text) !important;
+  background: var(--mz-night-raised) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-link.active,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-item.active,
+.admin-shell-v2[data-mz-admin-theme="dark"] [aria-current="page"] {
+  color: var(--mz-night-red-hover) !important;
+  background: rgba(224, 68, 88, .16) !important;
+  border-color: rgba(224, 68, 88, .42) !important;
+}
+
+/* Formulários, selects, caixas de busca e estados de foco. */
+.admin-shell-v2[data-mz-admin-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.admin-shell-v2[data-mz-admin-theme="dark"] select,
+.admin-shell-v2[data-mz-admin-theme="dark"] textarea,
+.admin-shell-v2[data-mz-admin-theme="dark"] .orders-search,
+.admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field {
+  color: var(--mz-night-text) !important;
+  background: var(--mz-night-sidebar) !important;
+  border: 1px solid var(--mz-night-border) !important;
+  box-shadow: none !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] input::placeholder,
+.admin-shell-v2[data-mz-admin-theme="dark"] textarea::placeholder {
+  color: var(--mz-night-placeholder) !important;
+  opacity: 1 !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] input:focus,
+.admin-shell-v2[data-mz-admin-theme="dark"] select:focus,
+.admin-shell-v2[data-mz-admin-theme="dark"] textarea:focus {
+  border-color: var(--mz-night-red) !important;
+  outline: 2px solid rgba(224, 68, 88, .25) !important;
+  outline-offset: 1px;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] input[type="checkbox"],
+.admin-shell-v2[data-mz-admin-theme="dark"] input[type="radio"],
+.admin-shell-v2[data-mz-admin-theme="dark"] input[type="range"] {
+  accent-color: var(--mz-night-red) !important;
+}
+
+/* Botões: contraste correto com o vermelho de destaque. */
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-primary,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary,
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-dark,
+.admin-shell-v2[data-mz-admin-theme="dark"] button[type="submit"]:not(.button-outline) {
+  color: #FFFFFF !important;
+  background: var(--mz-night-red) !important;
+  border-color: var(--mz-night-red) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-primary:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-dark:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] button[type="submit"]:not(.button-outline):hover {
+  color: #211319 !important;
+  background: var(--mz-night-red-hover) !important;
+  border-color: var(--mz-night-red-hover) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-outline,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-outline,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-secondary {
+  color: var(--mz-night-text) !important;
+  background: var(--mz-night-raised) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .button-outline:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-outline:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .btn-secondary:hover {
+  color: var(--mz-night-text) !important;
+  background: var(--mz-night-card) !important;
+  border-color: var(--mz-night-red-hover) !important;
+}
+
+/* Tabelas, modais, menus flutuantes e links. */
+.admin-shell-v2[data-mz-admin-theme="dark"] table,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table {
+  color: var(--mz-night-text) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] table td,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table td {
+  color: var(--mz-night-text) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] table tr:nth-child(even),
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table tr:nth-child(even) {
+  background: rgba(72, 35, 47, .42) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] table tr:hover,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-table tr:hover {
+  background: rgba(224, 68, 88, .12) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-modal,
+.admin-shell-v2[data-mz-admin-theme="dark"] .modal-content,
+.admin-shell-v2[data-mz-admin-theme="dark"] .dropdown-menu,
+.admin-shell-v2[data-mz-admin-theme="dark"] .popover,
+.admin-shell-v2[data-mz-admin-theme="dark"] [role="dialog"],
+.admin-shell-v2[data-mz-admin-theme="dark"] [role="menu"] {
+  color: var(--mz-night-text) !important;
+  background: var(--mz-night-card) !important;
+  border-color: var(--mz-night-border) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main a:not(.button):not(.btn) {
+  color: var(--mz-night-red-hover) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main a:not(.button):not(.btn):hover {
+  color: var(--mz-night-text) !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main hr,
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-main [class*="divider"] {
+  border-color: var(--mz-night-border) !important;
+}
+
+/* Estados informativos mantêm significado sem perder legibilidade. */
+.admin-shell-v2[data-mz-admin-theme="dark"] .error-text,
+.admin-shell-v2[data-mz-admin-theme="dark"] [class*="error"] { color: var(--mz-night-danger) !important; }
+.admin-shell-v2[data-mz-admin-theme="dark"] .success-text,
+.admin-shell-v2[data-mz-admin-theme="dark"] [class*="success"] { color: var(--mz-night-success) !important; }
+.admin-shell-v2[data-mz-admin-theme="dark"] .admin-status-chip,
+.admin-shell-v2[data-mz-admin-theme="dark"] .daily-status-completed {
+  color: #B8EDCF !important;
+  background: #263B31 !important;
+  border-color: #42634F !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] .daily-status-cancelled {
+  color: #FFC2CE !important;
+  background: #49252F !important;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] ::selection {
+  color: #FFFFFF;
+  background: rgba(224, 68, 88, .4);
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-track { background: var(--mz-night-bg); }
+.admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--mz-night-border);
+  border: 2px solid var(--mz-night-bg);
+  border-radius: 20px;
+}
+.admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--mz-night-red); }
