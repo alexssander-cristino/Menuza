@@ -2641,7 +2641,18 @@ async function openMenu(){
     // de o administrador salvar tamanhos, preços, bordas ou produtos.
     const menuGrid=root.getElementById('menuGrid');if(menuGrid&&!app.catalog)menuGrid.innerHTML=skeletonMarkup('catalog');
     const resultCount=root.getElementById('resultCount');if(resultCount&&!app.catalog)resultCount.textContent='Preparando cardápio…';
-    app.catalog=await api('/api/catalog',{cache:'no-store'});
+    const [catalogResult,hoursResult]=await Promise.all([
+      api('/api/catalog',{cache:'no-store'}),
+      api('/api/opening-hours',{cache:'no-store'}).catch(()=>null)
+    ]);
+    app.catalog=catalogResult;
+    // Consulta os horários por uma rota pública e independente do catálogo.
+    // Assim o cardápio do cliente sempre recebe a configuração recém-salva.
+    if(hoursResult?.openingHours){
+      app.catalog.restaurant=app.catalog.restaurant||{};
+      app.catalog.restaurant.openingHours=hoursResult.openingHours;
+      app.catalog.restaurant.openingStatus=hoursResult.status||app.catalog.restaurant.openingStatus;
+    }
     app.cart=normalizeCartForCatalog(app.cart,app.catalog);
     setCart();
     applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
