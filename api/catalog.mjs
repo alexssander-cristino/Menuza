@@ -1,4 +1,5 @@
-import { query } from '../src/db/postgres.mjs';
+import { query, withTransaction } from '../src/db/postgres.mjs';
+import { consumeRateLimit } from '../src/security/rate-limit.mjs';
 import { inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
 import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl } from '../src/storage/neon.mjs';
 
@@ -46,6 +47,8 @@ export default async function handler(request, response) {
   }
 
   try {
+    const retry=await consumeRateLimit({req:request,key:'public-catalog',maximum:120,windowMs:60000,secret:process.env.APP_SECRET||'menuza-public-catalog-rate-limit',query,withTransaction});
+    if(retry){response.setHeader('Retry-After',String(retry));response.setHeader('Cache-Control','no-store');return response.status(429).json({error:'Muitas consultas ao cardápio. Aguarde um pouco e tente novamente.'});}
     await ensurePizzaConfigSchema();
     // Keep the public endpoint compatible with databases upgraded by the admin API.
     await query(`CREATE TABLE IF NOT EXISTS product_promotions (
@@ -165,6 +168,7 @@ export default async function handler(request, response) {
       };
     });
 
+    response.setHeader('Cache-Control','public, s-maxage=15, stale-while-revalidate=30');
     return response.status(200).json({
       restaurant,
       categories: categoryResult.rows,
