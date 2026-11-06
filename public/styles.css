@@ -2529,3 +2529,17 @@ button[data-action="view-generated-3d"],
 .ingredient-quantity-wrap small{margin:0!important;color:inherit;font-size:10px}
 .ingredient-choice .ingredient-quantity-input{width:54px;min-width:54px;height:30px;padding:3px 5px;border:1px solid #d9cfc5;border-radius:7px;background:#fff;color:#29232a;font:inherit;font-size:12px;font-weight:600;text-align:center;accent-color:auto}
 .ingredient-choice .ingredient-quantity-input:focus{outline:2px solid #d69a62;outline-offset:1px}
+
+
+/* Quantidades de ingredientes: linhas separadas evitam que o campo numérico acione o checkbox. */
+.product-ingredient-config .ingredient-choice{display:flex;align-items:center;gap:10px;min-height:44px;padding:7px 9px;cursor:default}
+.product-ingredient-config .ingredient-choice-main{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;min-height:30px;cursor:pointer}
+.product-ingredient-config .ingredient-choice-main>span{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.product-ingredient-config .ingredient-choice-main small{flex:0 0 auto;margin-left:4px}
+.product-ingredient-config .ingredient-quantity-wrap{flex:0 0 96px;display:grid;grid-template-columns:auto 54px;align-items:center;justify-content:end;gap:6px;margin:0!important;padding-left:8px;border-left:1px solid #eee4da}
+.product-ingredient-config .ingredient-quantity-wrap>span{font-size:10px;font-weight:700;color:#8b7b6d}
+.product-ingredient-config .ingredient-choice .ingredient-quantity-input{width:54px;min-width:54px;height:34px;padding:4px 3px;border:1px solid #d8c9bc;border-radius:8px;background:#fff;color:#30251f;font-size:13px;font-weight:700;text-align:center;cursor:text;appearance:textfield;-moz-appearance:textfield}
+.product-ingredient-config .ingredient-choice .ingredient-quantity-input::-webkit-inner-spin-button,.product-ingredient-config .ingredient-choice .ingredient-quantity-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.product-ingredient-config .ingredient-choice .ingredient-quantity-input:focus{outline:2px solid #d69a62;outline-offset:1px;border-color:#d69a62}
+.product-ingredient-config .ingredient-choice:has(.ingredient-choice-main input:checked){border-color:#e8bd94;background:#fff8f1}
+@media(max-width:520px){.product-ingredient-config .ingredient-choice{gap:6px;padding:7px}.product-ingredient-config .ingredient-quantity-wrap{flex-basis:88px;grid-template-columns:auto 50px;gap:4px;padding-left:6px}.product-ingredient-config .ingredient-choice .ingredient-quantity-input{width:50px;min-width:50px}}
