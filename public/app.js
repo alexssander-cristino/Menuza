@@ -312,7 +312,7 @@ function renderRestaurantHours(){
   const names=['','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
   const days=Object.entries(schedule.days||{}).map(([key,day])=>({key:Number(key),...day})).sort((a,b)=>a.key-b.key);
   const hours=days.map(day=>'<div class="restaurant-hours-row"><span>'+names[day.key]+'</span><b>'+(!day.enabled?'Fechado':(day.periods||[]).map(period=>period.open+'–'+period.close).join(' · '))+'</b></div>').join('');
-  target.innerHTML='<div class="restaurant-hours-card '+(status.isOpen?'is-open':'is-closed')+'"><div class="restaurant-hours-status"><span class="restaurant-hours-dot"></span><div><strong>'+(status.isOpen?'Estamos abertos':'Estamos fechados')+'</strong><small>'+esc(status.message||'')+'</small></div></div>'+(status.configured?'<details class="restaurant-hours-details"><summary>Ver horários de funcionamento</summary><div class="restaurant-hours-list">'+hours+'</div></details>':'')+'</div>';
+  target.innerHTML='<div class="restaurant-hours-card '+(status.isOpen?'is-open':'is-closed')+'"><div class="restaurant-hours-status"><span class="restaurant-hours-dot"></span><div><strong>'+(status.configured?(status.isOpen?'Estamos abertos':'Estamos fechados'):'Horários não cadastrados')+'</strong><small>'+(status.configured?esc(status.message||''):'O restaurante ainda não publicou o expediente.')+'</small></div></div>'+(status.configured?'<details class="restaurant-hours-details"><summary>Ver horários de funcionamento</summary><div class="restaurant-hours-list">'+hours+'</div></details>':'')+'</div>';
 }
 function renderCatalog() {
   if (!app.catalog) return;
