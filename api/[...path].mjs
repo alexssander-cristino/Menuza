@@ -1,4 +1,5 @@
-import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
+import { randomBytes, createHash, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
+import { consumeRateLimit } from '../src/security/rate-limit.mjs';
 import { query, withTransaction } from '../src/db/postgres.mjs';
 import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, isBuildYourOwnPizza, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
 import { verifyTotp } from '../src/auth-totp.mjs';
@@ -52,25 +53,48 @@ function sign(payload) {
   const sig = createHmac('sha256', SECRET).update(body).digest('base64url');
   return body + '.' + sig;
 }
-function session(req, cookieName) {
-  const raw = String(req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith(cookieName + '='));
-  if (!raw) return null;
-  try {
-    const [body, signature] = decodeURIComponent(raw.slice(cookieName.length + 1)).split('.');
-    if (!body || !signature || SECRET.length < 32) return null;
-    const expected = createHmac('sha256', SECRET).update(body).digest();
-    const given = Buffer.from(signature, 'base64url');
-    if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-    const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    return parsed.exp > Date.now() ? parsed : null;
-  } catch { return null; }
+let authSessionsSchemaPromise;
+async function ensureAuthSessionsSchema(){
+  if(!authSessionsSchemaPromise)authSessionsSchemaPromise=(async()=>{
+    await query(`CREATE TABLE IF NOT EXISTS auth_sessions(token_hash TEXT PRIMARY KEY,role TEXT NOT NULL CHECK(role IN ('admin','customer')),subject_id TEXT NOT NULL,restaurant_id TEXT NOT NULL,expires_at TIMESTAMPTZ NOT NULL,revoked_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS auth_sessions_subject_idx ON auth_sessions(role,subject_id,expires_at)');
+  })().catch(e=>{authSessionsSchemaPromise=null;throw e});
+  await authSessionsSchemaPromise;
+}
+function rawCookieToken(req,name){
+  const prefix=name+'=',raw=String(req.headers.cookie||'').split(';').map(v=>v.trim()).find(v=>v.startsWith(prefix));
+  if(!raw)return '';try{return decodeURIComponent(raw.slice(prefix.length))}catch{return ''}
+}
+function tokenHash(token){return createHash('sha256').update(token).digest('hex')}
+async function storeSession(token,role,subjectId,expiresAt){
+  await ensureAuthSessionsSchema();
+  await query('INSERT INTO auth_sessions(token_hash,role,subject_id,restaurant_id,expires_at) VALUES($1,$2,$3,$4,$5)',[tokenHash(token),role,subjectId,RESTAURANT_ID,new Date(expiresAt).toISOString()]);
+}
+async function revokeSession(req,name){
+  const token=rawCookieToken(req,name);if(!token)return;
+  await ensureAuthSessionsSchema();
+  await query('UPDATE auth_sessions SET revoked_at=NOW() WHERE token_hash=$1 AND revoked_at IS NULL',[tokenHash(token)]);
+}
+async function session(req,name){
+  const token=rawCookieToken(req,name);if(!token||SECRET.length<32)return null;
+  try{
+    const i=token.lastIndexOf('.');if(i<1)return null;
+    const body=token.slice(0,i),signature=token.slice(i+1),expected=createHmac('sha256',SECRET).update(body).digest(),given=Buffer.from(signature,'base64url');
+    if(given.length!==expected.length||!timingSafeEqual(given,expected))return null;
+    const parsed=JSON.parse(Buffer.from(body,'base64url').toString('utf8'));if(!parsed.exp||parsed.exp<=Date.now())return null;
+    await ensureAuthSessionsSchema();
+    const result=await query('SELECT role,subject_id AS "subjectId",restaurant_id AS "restaurantId" FROM auth_sessions WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>NOW()',[tokenHash(token)]);
+    const row=result.rows[0],subject=parsed.role==='admin'?parsed.restaurantId:parsed.customerId;
+    if(!row||row.role!==parsed.role||row.restaurantId!==RESTAURANT_ID||!subject||row.subjectId!==subject)return null;
+    return parsed;
+  }catch{return null}
 }
 function cookie(name, value, maxAge) {
   return name + '=' + encodeURIComponent(value) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : '');
 }
-function requireAdmin(req) {
-  const value = session(req, ADMIN_COOKIE);
-  if (!value || value.role !== 'admin' || value.restaurantId !== RESTAURANT_ID) throw fail('Entre no painel para continuar.', 401);
+async function requireAdmin(req) {
+  const value=await session(req,ADMIN_COOKIE);
+  if(!value||value.role!=='admin'||value.restaurantId!==RESTAURANT_ID)throw fail('Entre no painel para continuar.',401);
   return value;
 }
 let customerSchemaPromise;
@@ -90,7 +114,7 @@ function parseBirthDate(value) {
   return {birthDate:raw,age,isAdult:age>=18};
 }
 async function customer(req) {
-  const value = session(req, CUSTOMER_COOKIE);
+  const value = await session(req, CUSTOMER_COOKIE);
   if (!value || value.role !== 'customer' || !value.customerId) return null;
   await ensureCustomerSchema();
   const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate" FROM customers WHERE id=$1', [value.customerId]);
@@ -112,23 +136,7 @@ function verifyPassword(password, row) {
 function hasHoneypot(body) {
   return ['website', 'companyWebsite', 'faxNumber'].some(key => typeof body[key] === 'string' && body[key].trim());
 }
-function clientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length < 512) return forwarded.split(',')[0].trim();
-  return req.socket?.remoteAddress || 'unknown';
-}
-async function limit(req, key, maximum, windowMs) {
-  const now = Date.now();
-  const bucket = createHmac('sha256', SECRET || 'menuza-local-rate-limit').update(key + ':' + clientIp(req)).digest('hex');
-  const row = await query('SELECT timestamps_json FROM security_rate_buckets WHERE bucket_key=$1', [bucket]);
-  let times = [];
-  try { times = JSON.parse(row.rows[0]?.timestamps_json || '[]').filter(v => Number.isSafeInteger(v) && v > now - windowMs && v <= now); } catch {}
-  if (times.length >= maximum) return Math.max(1, Math.ceil((times[0] + windowMs - now) / 1000));
-  times.push(now);
-  await query(`INSERT INTO security_rate_buckets (bucket_key,timestamps_json,updated_at) VALUES ($1,$2,$3)
-    ON CONFLICT (bucket_key) DO UPDATE SET timestamps_json=EXCLUDED.timestamps_json,updated_at=EXCLUDED.updated_at`, [bucket, JSON.stringify(times), now]);
-  return 0;
-}
+async function limit(req,key,maximum,windowMs){return consumeRateLimit({req,key,maximum,windowMs,secret:SECRET,query,withTransaction})}
 async function ensurePrivacyRequestFields() {
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS response_note TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS retention_reason TEXT NOT NULL DEFAULT ''");
@@ -778,33 +786,33 @@ export default async function handler(req, res) {
     }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if (method==='GET'&&path==='/api/restaurant/branding') { await ensurePromoDeliverySchema(); const restaurant=(await query('SELECT name,logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage",promo_banner_title AS "promoBannerTitle",promo_banner_text AS "promoBannerText",promo_banner_active AS "promoBannerActive" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null; return json(res,200,{restaurant:await migrateRestaurantImageFields(restaurant)}); }
-    if (method==='GET'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
-    if (method==='PATCH'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
+    if (method==='GET'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
+    if (method==='PATCH'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
     if (method==='GET'&&path==='/api/opening-hours') {
       const result=await getOpeningHours();
       return json(res,200,{openingHours:result.schedule,status:result.status});
     }
     if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
     if (method==='GET'&&path==='/api/admin/opening-hours') {
-      requireAdmin(req);
+      await requireAdmin(req);
       const result=await getOpeningHours();
       return json(res,200,{openingHours:result.schedule,status:result.status});
     }
     if (method==='PATCH'&&path==='/api/admin/opening-hours') {
-      requireAdmin(req);
+      await requireAdmin(req);
       await ensureOpeningHoursSchema();
       const schedule=normalizeOpeningHours(await bodyOf(req));
       await query('UPDATE restaurants SET opening_hours_json=$1 WHERE id=$2',[JSON.stringify(schedule),RESTAURANT_ID]);
       return json(res,200,{openingHours:schedule,status:openingHoursState(schedule)});
     }
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
-    if (method==='GET'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,promotions:c.products.filter(p=>p.promotion).map(p=>({productId:p.id,name:p.name,...p.promotion}))}); }
-    if (method==='POST'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
-    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
-    if (method==='GET'&&path==='/api/admin/delivery') { requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
-    if (method==='POST'&&path==='/api/admin/delivery/zones') { requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{zone:await saveDeliveryZone(await bodyOf(req))}); }
-    if (method==='PATCH'&&path.startsWith('/api/admin/delivery/zones/')) { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM delivery_zones WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Região não encontrada.',404); return json(res,200,{zone:await saveDeliveryZone({...b,name:b.name??current.name,feeMode:b.feeMode??current.fee_mode,feeCents:b.feeCents??Number(current.fee_cents),perKmCents:b.perKmCents??Number(current.per_km_cents),distanceKm:b.distanceKm??Number(current.distance_km||0),active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
-    if (method==='PATCH'&&path==='/api/admin/delivery/location') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req),lat=b.latitude===''||b.latitude==null?null:Number(b.latitude),lon=b.longitude===''||b.longitude==null?null:Number(b.longitude),address=clean(b.address,220); if(!address|| (lat!==null&&(!Number.isFinite(lat)||Math.abs(lat)>90)) || (lon!==null&&(!Number.isFinite(lon)||Math.abs(lon)>180)) || ((lat===null)!==(lon===null))) throw fail('Informe o endereço e, se usar cálculo por km, as duas coordenadas válidas.',422); await query('UPDATE restaurants SET address=$1,latitude=$2,longitude=$3 WHERE id=$4',[address,lat,lon,RESTAURANT_ID]); return json(res,200,{ok:true}); }
+    if (method==='GET'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,promotions:c.products.filter(p=>p.promotion).map(p=>({productId:p.id,name:p.name,...p.promotion}))}); }
+    if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='GET'&&path==='/api/admin/delivery') { await requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
+    if (method==='POST'&&path==='/api/admin/delivery/zones') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{zone:await saveDeliveryZone(await bodyOf(req))}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/delivery/zones/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM delivery_zones WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Região não encontrada.',404); return json(res,200,{zone:await saveDeliveryZone({...b,name:b.name??current.name,feeMode:b.feeMode??current.fee_mode,feeCents:b.feeCents??Number(current.fee_cents),perKmCents:b.perKmCents??Number(current.per_km_cents),distanceKm:b.distanceKm??Number(current.distance_km||0),active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='PATCH'&&path==='/api/admin/delivery/location') { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req),lat=b.latitude===''||b.latitude==null?null:Number(b.latitude),lon=b.longitude===''||b.longitude==null?null:Number(b.longitude),address=clean(b.address,220); if(!address|| (lat!==null&&(!Number.isFinite(lat)||Math.abs(lat)>90)) || (lon!==null&&(!Number.isFinite(lon)||Math.abs(lon)>180)) || ((lat===null)!==(lon===null))) throw fail('Informe o endereço e, se usar cálculo por km, as duas coordenadas válidas.',422); await query('UPDATE restaurants SET address=$1,latitude=$2,longitude=$3 WHERE id=$4',[address,lat,lon,RESTAURANT_ID]); return json(res,200,{ok:true}); }
 
     if (method==='GET'&&path.startsWith('/api/tables/qr/')) {
       const token=path.slice('/api/tables/qr/'.length);
@@ -826,10 +834,11 @@ export default async function handler(req, res) {
       const expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest();
       if (!timingSafeEqual(candidate,expected)) return json(res,401,{error:'Não foi possível entrar. Confira os dados e tente novamente.'});
       if (ADMIN_TOTP_SECRET&&!verifyTotp(ADMIN_TOTP_SECRET,body.otp)) return json(res,401,{error:'A verificação em duas etapas está ativada neste ambiente. Informe o código atual de 6 dígitos do autenticador.'});
-      const token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:Date.now()+SESSION_MS});
+      const expiresAt=Date.now()+SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:expiresAt});
+      await storeSession(token,'admin',RESTAURANT_ID,expiresAt);
       return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(SESSION_MS/1000))});
     }
-    if (method==='POST'&&path==='/api/admin/logout') return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,'',0)});
+    if (method==='POST'&&path==='/api/admin/logout') { await revokeSession(req,ADMIN_COOKIE); return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,'',0)}); }
     if (method==='POST'&&path==='/api/customer/register') {
       const body=await bodyOf(req), email=normalizeEmail(body.email);
       const retry=await limit(req,'customer-register:'+email,5,3600000);
@@ -841,7 +850,8 @@ export default async function handler(req, res) {
       const salt=randomBytes(16).toString('hex'), id='cus_'+randomBytes(18).toString('hex');
       try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString()]); }
       catch(e) { if(e.code==='23505') throw fail('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.',409); throw e; }
-      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult}, token=sign({role:'customer',customerId:id,exp:Date.now()+604800000});
+      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:id,exp:expiresAt});
+      await storeSession(token,'customer',id,expiresAt);
       return json(res,201,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/login') {
@@ -852,10 +862,11 @@ export default async function handler(req, res) {
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'E-mail ou senha inválidos.'});
       const birthDate=row.birth_date?String(row.birth_date).slice(0,10):null;
       const birth=birthDate?parseBirthDate(birthDate):null;
-      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,isAdult:birth?.isAdult??null}, token=sign({role:'customer',customerId:row.id,exp:Date.now()+604800000});
+      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,isAdult:birth?.isAdult??null},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:row.id,exp:expiresAt});
+      await storeSession(token,'customer',row.id,expiresAt);
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
-    if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
+    if (method==='POST'&&path==='/api/customer/logout') { await requireCustomer(req); await revokeSession(req,CUSTOMER_COOKIE); return json(res,200,{ok:true},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)}); }
     if (method==='GET'&&path==='/api/customer/me') { const current=await customer(req); return json(res,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
     if (method==='PATCH'&&path==='/api/customer/birth-date') {
       const current=await requireCustomer(req), b=await bodyOf(req), birth=parseBirthDate(b.birthDate);
@@ -876,7 +887,8 @@ export default async function handler(req, res) {
     if (method==='DELETE'&&path==='/api/customer/account') {
       const c=await requireCustomer(req), body=await bodyOf(req), row=(await query('SELECT * FROM customers WHERE id=$1',[c.customerId])).rows[0];
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'Senha incorreta. A conta não foi excluída.'});
-      await withTransaction(async client=>{await client.query('UPDATE orders SET customer_id=NULL WHERE customer_id=$1',[c.customerId]);await client.query('DELETE FROM customers WHERE id=$1',[c.customerId]);});
+      await ensureAuthSessionsSchema();
+      await withTransaction(async client=>{await client.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE role=$1 AND subject_id=$2 AND revoked_at IS NULL',['customer',c.customerId]);await client.query('UPDATE orders SET customer_id=NULL WHERE customer_id=$1',[c.customerId]);await client.query('DELETE FROM customers WHERE id=$1',[c.customerId]);});
       return json(res,200,{ok:true,message:'Conta excluída. Registros de pedidos mantidos por obrigações legais ou operacionais foram desvinculados da conta.'},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)});
     }
     if (method==='POST'&&path==='/api/privacy-requests') {
@@ -893,11 +905,11 @@ export default async function handler(req, res) {
       return json(res,201,{ok:true,id,message:'Solicitação registrada. Guarde este código para referência: '+id});
     }
     if (method==='GET'&&path==='/api/admin/me') {
-      const current=session(req,ADMIN_COOKIE);
+      const current=await session(req,ADMIN_COOKIE);
       const authenticated=Boolean(current&&current.role==='admin'&&current.restaurantId===RESTAURANT_ID);
       return json(res,200,{authenticated,...(authenticated?{restaurantId:RESTAURANT_ID}:{})});
     }
-    if (path.startsWith('/api/admin/')) requireAdmin(req);
+    if (path.startsWith('/api/admin/')) await requireAdmin(req);
     if (method==='GET'&&path==='/api/admin/security') return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET)});
     if (method==='GET'&&path==='/api/admin/events') {
       res.setHeader('Content-Type','text/event-stream; charset=utf-8');
@@ -965,9 +977,9 @@ export default async function handler(req, res) {
       await query('DELETE FROM categories WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID]);
       return json(res,200,{ok:true});
     }
-    if(method==='GET'&&path==='/api/admin/pizza-config'){requireAdmin(req);await ensurePizzaConfigSchema();const [sizes,crusts]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active,sort_order AS "sortOrder" FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active,sort_order AS "sortOrder" FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);return json(res,200,{sizes:sizes.rows,crusts:crusts.rows});}
-    if(method==='PATCH'&&path==='/api/admin/pizza-size-prices'){requireAdmin(req);await ensurePizzaConfigSchema();const b=await bodyOf(req);if(!b.sizePrices||typeof b.sizePrices!=='object'||Array.isArray(b.sizePrices))throw fail('Informe os preços dos tamanhos.',422);const sizes=(await query('SELECT key,label FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])).rows;if(!sizes.length)throw fail('Cadastre os tamanhos das pizzas primeiro.',422);for(const size of sizes){const cents=Number(b.sizePrices[size.key]);if(!Number.isInteger(cents)||cents<500||cents>1000000)throw fail('Informe um preço válido para '+size.label+'.',422);}for(const size of sizes)await query('UPDATE pizza_sizes SET price_cents=$1 WHERE restaurant_id=$2 AND key=$3',[Number(b.sizePrices[size.key]),RESTAURANT_ID,size.key]);return json(res,200,await catalogFor(true));}
-    if(method==='PUT'&&path==='/api/admin/pizza-config'){requireAdmin(req);await ensurePizzaConfigSchema();const b=await bodyOf(req);if(!Array.isArray(b.sizes)||!b.sizes.length||b.sizes.length>12||!Array.isArray(b.crusts)||!b.crusts.length||b.crusts.length>20)throw fail('Cadastre ao menos um tamanho e uma borda.',422);const keys=new Set();for(const [i,x] of b.sizes.entries()){const key=slugify(x.key||x.label),label=clean(x.label,40),diameter=Number(x.diameterCm),max=Number(x.maxFlavors);if(!key||keys.has(key)||label.length<2||!Number.isInteger(diameter)||diameter<10||diameter>60||!Number.isInteger(max)||max<1||max>8)throw fail('Confira nome, diâmetro e limite de sabores dos tamanhos.',422);keys.add(key);await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,active,sort_order) VALUES($1,$2,$3,$4,$5,$6,1,$7) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,diameter_cm=EXCLUDED.diameter_cm,max_flavors=EXCLUDED.max_flavors,active=1,sort_order=EXCLUDED.sort_order',['sz_'+key,RESTAURANT_ID,key,label,diameter,max,i]);}const crustKeys=new Set();for(const [i,x] of b.crusts.entries()){const key=slugify(x.key||x.label),label=clean(x.label,50),price=Number(x.priceCents);if(!key||crustKeys.has(key)||label.length<2||!Number.isInteger(price)||price<0||price>1000000)throw fail('Confira os nomes e preços das bordas.',422);crustKeys.add(key);await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,active,sort_order) VALUES($1,$2,$3,$4,$5,1,$6) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,price_cents=EXCLUDED.price_cents,active=1,sort_order=EXCLUDED.sort_order',['cr_'+key,RESTAURANT_ID,key,label,price,i]);}await query('DELETE FROM pizza_sizes WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...keys]]);await query('DELETE FROM pizza_crusts WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...crustKeys]]);return json(res,200,await catalogFor(true));}
+    if(method==='GET'&&path==='/api/admin/pizza-config'){await requireAdmin(req);await ensurePizzaConfigSchema();const [sizes,crusts]=await Promise.all([query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active,sort_order AS "sortOrder" FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active,sort_order AS "sortOrder" FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);return json(res,200,{sizes:sizes.rows,crusts:crusts.rows});}
+    if(method==='PATCH'&&path==='/api/admin/pizza-size-prices'){await requireAdmin(req);await ensurePizzaConfigSchema();const b=await bodyOf(req);if(!b.sizePrices||typeof b.sizePrices!=='object'||Array.isArray(b.sizePrices))throw fail('Informe os preços dos tamanhos.',422);const sizes=(await query('SELECT key,label FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])).rows;if(!sizes.length)throw fail('Cadastre os tamanhos das pizzas primeiro.',422);for(const size of sizes){const cents=Number(b.sizePrices[size.key]);if(!Number.isInteger(cents)||cents<500||cents>1000000)throw fail('Informe um preço válido para '+size.label+'.',422);}for(const size of sizes)await query('UPDATE pizza_sizes SET price_cents=$1 WHERE restaurant_id=$2 AND key=$3',[Number(b.sizePrices[size.key]),RESTAURANT_ID,size.key]);return json(res,200,await catalogFor(true));}
+    if(method==='PUT'&&path==='/api/admin/pizza-config'){await requireAdmin(req);await ensurePizzaConfigSchema();const b=await bodyOf(req);if(!Array.isArray(b.sizes)||!b.sizes.length||b.sizes.length>12||!Array.isArray(b.crusts)||!b.crusts.length||b.crusts.length>20)throw fail('Cadastre ao menos um tamanho e uma borda.',422);const keys=new Set();for(const [i,x] of b.sizes.entries()){const key=slugify(x.key||x.label),label=clean(x.label,40),diameter=Number(x.diameterCm),max=Number(x.maxFlavors);if(!key||keys.has(key)||label.length<2||!Number.isInteger(diameter)||diameter<10||diameter>60||!Number.isInteger(max)||max<1||max>8)throw fail('Confira nome, diâmetro e limite de sabores dos tamanhos.',422);keys.add(key);await query('INSERT INTO pizza_sizes(id,restaurant_id,key,label,diameter_cm,max_flavors,active,sort_order) VALUES($1,$2,$3,$4,$5,$6,1,$7) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,diameter_cm=EXCLUDED.diameter_cm,max_flavors=EXCLUDED.max_flavors,active=1,sort_order=EXCLUDED.sort_order',['sz_'+key,RESTAURANT_ID,key,label,diameter,max,i]);}const crustKeys=new Set();for(const [i,x] of b.crusts.entries()){const key=slugify(x.key||x.label),label=clean(x.label,50),price=Number(x.priceCents);if(!key||crustKeys.has(key)||label.length<2||!Number.isInteger(price)||price<0||price>1000000)throw fail('Confira os nomes e preços das bordas.',422);crustKeys.add(key);await query('INSERT INTO pizza_crusts(id,restaurant_id,key,label,price_cents,active,sort_order) VALUES($1,$2,$3,$4,$5,1,$6) ON CONFLICT(restaurant_id,key) DO UPDATE SET label=EXCLUDED.label,price_cents=EXCLUDED.price_cents,active=1,sort_order=EXCLUDED.sort_order',['cr_'+key,RESTAURANT_ID,key,label,price,i]);}await query('DELETE FROM pizza_sizes WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...keys]]);await query('DELETE FROM pizza_crusts WHERE restaurant_id=$1 AND NOT(key=ANY($2::text[]))',[RESTAURANT_ID,[...crustKeys]]);return json(res,200,await catalogFor(true));}
     if (method==='GET'&&path==='/api/admin/catalog') return json(res,200,await catalogFor(true));
     if (method==='GET'&&path==='/api/admin/settings') {
       // A migração do esquema pode ter sido aplicada antes da migração dos dados.
@@ -1075,7 +1087,7 @@ export default async function handler(req, res) {
       return json(res,200,row);
     }
     if(method==='GET'&&path==='/api/admin/daily-closing'){
-      requireAdmin(req);
+      await requireAdmin(req);
       const date=String(requestUrl.searchParams.get('date')||'');
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))throw fail('Data do fechamento inválida.',422);
       const start=date+'T03:00:00.000Z',next=new Date(Date.parse(date+'T03:00:00.000Z')+86400000).toISOString();
@@ -1168,7 +1180,7 @@ export default async function handler(req, res) {
       throw fail('Rota do worker não encontrada.',404);
     }
     if(method==='POST'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
-      requireAdmin(req);
+      await requireAdmin(req);
       await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT id,image_url FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
@@ -1183,7 +1195,7 @@ export default async function handler(req, res) {
       return json(res,202,{ok:true,jobId,status:'queued',message:'Solicitação adicionada à fila. O worker precisa estar ligado para processar.'});
     }
     if(method==='GET'&&path.startsWith('/api/admin/products/')&&path.endsWith('/3d')){
-      requireAdmin(req);
+      await requireAdmin(req);
       const productId=decodeURIComponent(path.split('/').slice(-2,-1)[0]);
       const product=(await query("SELECT model_3d_url AS \"modelUrl\",model_3d_status AS status FROM products WHERE id=$1 AND restaurant_id=$2",[productId,RESTAURANT_ID])).rows[0];
       if(!product) throw fail('Produto não encontrado.',404);
