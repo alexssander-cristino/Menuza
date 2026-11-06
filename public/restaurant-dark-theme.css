@@ -1,15 +1,15 @@
-/* Menuza — tema escuro vermelho/crimson. Aplicado somente ao painel do restaurante. */
+/* Menuza — tema escuro Cherry Red. Aplicado somente ao painel do restaurante. */
 .admin-shell-v2[data-mz-admin-theme="dark"]{
   color-scheme:dark;
-  --mz-night-bg:#140F11;
-  --mz-night-sidebar:#1D1417;
-  --mz-night-card:#29191E;
-  --mz-night-raised:#382128;
-  --mz-night-border:#503039;
-  --mz-night-red:#D65A68;
-  --mz-night-red-hover:#EB7884;
-  --mz-night-text:#FFF2F3;
-  --mz-night-muted:#C2A6AA;
+  --mz-night-bg:#130D10;
+  --mz-night-sidebar:#211319;
+  --mz-night-card:#321A23;
+  --mz-night-raised:#48232F;
+  --mz-night-border:#603340;
+  --mz-night-red:#E04458;
+  --mz-night-red-hover:#F36B7B;
+  --mz-night-text:#FFF0F2;
+  --mz-night-muted:#C9A6AD;
   --mz-night-danger:#F28A91;
   --mz-night-success:#8DD9B0;
   background:var(--mz-night-bg)!important;
@@ -65,8 +65,8 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
 .admin-shell-v2[data-mz-admin-theme="dark"] [aria-current="page"]{
   color:var(--mz-night-red)!important;
-  background:rgba(214,90,104,.14)!important;
-  border-color:rgba(214,90,104,.30)!important;
+  background:rgba(224,68,88,.14)!important;
+  border-color:rgba(224,68,88,.30)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-icon,
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-label{
@@ -149,7 +149,7 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] select:focus,
 .admin-shell-v2[data-mz-admin-theme="dark"] textarea:focus{
   border-color:var(--mz-night-red)!important;
-  outline:2px solid rgba(214,90,104,.20)!important;
+  outline:2px solid rgba(224,68,88,.20)!important;
   outline-offset:1px;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] input::placeholder,
@@ -166,9 +166,9 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-dark,
 .admin-shell-v2[data-mz-admin-theme="dark"] button[type="submit"]:not(.button-outline){
   background:var(--mz-night-red)!important;
-  color:#260F14!important;
+  color:#2A0D14!important;
   border-color:var(--mz-night-red)!important;
-  box-shadow:0 5px 16px rgba(214,90,104,.20)!important;
+  box-shadow:0 5px 16px rgba(224,68,88,.20)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-primary:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary:hover,
@@ -212,7 +212,7 @@
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] table tr:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-table tr:hover{
-  background:rgba(214,90,104,.09)!important;
+  background:rgba(224,68,88,.09)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] hr,
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel hr,
@@ -255,7 +255,7 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] .table-map-entry{
   background:var(--mz-night-raised)!important;border-color:var(--mz-night-border)!important;color:var(--mz-night-text)!important;
 }
-.admin-shell-v2[data-mz-admin-theme="dark"] ::selection{background:rgba(214,90,104,.36);color:var(--mz-night-text)}
+.admin-shell-v2[data-mz-admin-theme="dark"] ::selection{background:rgba(224,68,88,.36);color:var(--mz-night-text)}
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar{width:10px;height:10px}
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-track{background:var(--mz-night-bg)}
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb{background:var(--mz-night-border);border:2px solid var(--mz-night-bg);border-radius:20px}
@@ -271,15 +271,15 @@ html body.admin-route .announcement,
 html body.admin-route .site-header,
 html body.admin-route .mobile-site-menu { display:none!important; }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] {
-  background:var(--mz-night-bg,#140F11)!important;
-  color:var(--mz-night-text,#FFF2F3)!important;
+  background:var(--mz-night-bg,#130D10)!important;
+  color:var(--mz-night-text,#FFF0F2)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-nav,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-footer {
-  background:var(--mz-night-sidebar,#1D1417)!important;
-  color:var(--mz-night-text,#FFF2F3)!important;
-  border-color:var(--mz-night-border,#503039)!important;
+  background:var(--mz-night-sidebar,#211319)!important;
+  color:var(--mz-night-text,#FFF0F2)!important;
+  border-color:var(--mz-night-border,#603340)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar *,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-main-top,
@@ -292,7 +292,7 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .or
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card *,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li * {
-  color:var(--mz-night-text,#FFF2F3)!important;
+  color:var(--mz-night-text,#FFF0F2)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-card,
@@ -302,40 +302,40 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .or
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field {
-  background:var(--mz-night-card,#29191E)!important;
-  border-color:var(--mz-night-border,#503039)!important;
+  background:var(--mz-night-card,#321A23)!important;
+  border-color:var(--mz-night-border,#603340)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-link {
   background:transparent!important;
-  color:var(--mz-night-muted,#C2A6AA)!important;
+  color:var(--mz-night-muted,#C9A6AD)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab[aria-current="page"] {
-  background:rgba(214,90,104,.16)!important;
-  color:var(--mz-night-red,#D65A68)!important;
-  border-color:var(--mz-night-border,#503039)!important;
+  background:rgba(224,68,88,.16)!important;
+  color:var(--mz-night-red,#E04458)!important;
+  border-color:var(--mz-night-border,#603340)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] input,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] select,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] textarea,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-status-select {
-  background:var(--mz-night-sidebar,#1D1417)!important;
-  color:var(--mz-night-text,#FFF2F3)!important;
-  border-color:var(--mz-night-border,#503039)!important;
+  background:var(--mz-night-sidebar,#211319)!important;
+  color:var(--mz-night-text,#FFF0F2)!important;
+  border-color:var(--mz-night-border,#603340)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-dark,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-primary,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary {
-  background:var(--mz-night-red,#D65A68)!important;
-  border-color:var(--mz-night-red,#D65A68)!important;
-  color:#260F14!important;
+  background:var(--mz-night-red,#E04458)!important;
+  border-color:var(--mz-night-red,#E04458)!important;
+  color:#2A0D14!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-outline,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .btn-secondary {
-  background:var(--mz-night-raised,#382128)!important;
-  border-color:var(--mz-night-border,#503039)!important;
-  color:var(--mz-night-text,#FFF2F3)!important;
+  background:var(--mz-night-raised,#48232F)!important;
+  border-color:var(--mz-night-border,#603340)!important;
+  color:var(--mz-night-text,#FFF0F2)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel small,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card span,
@@ -344,12 +344,12 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .or
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-customer,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-lines,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-fulfillment {
-  color:var(--mz-night-muted,#C2A6AA)!important;
+  color:var(--mz-night-muted,#C9A6AD)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card-footer,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li {
-  border-color:var(--mz-night-border,#503039)!important;
+  border-color:var(--mz-night-border,#603340)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-status-chip {
   background:#263b31!important;color:#b8edcf!important;border-color:#42634f!important;
