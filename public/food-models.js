@@ -1225,81 +1225,104 @@ function scaleFoodGeometry(geometry, sx, sy, sz) {
 }
 
 function hotDogLayout(product, ings, o) {
-  const length = clamp((Number(product.widthCm) || 20) / 100, .17, .25);
+  const length = clamp((Number(product.widthCm) || 20) / 100, .18, .24);
   const radius = length * .225, seed = hash(product.id || 'hotdog'), detail = o.detail;
-  const sx = length / (radius * 2) * .88, sz = .78;
-  const key = kind => `hotdog|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
-  const stretch = (builder, x = sx, z = sz) => () => scaleFoodGeometry(builder(), x, 1, z);
+  const sx = length / (radius * 2);
+  const key = kind => `hotdog-v2|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
-  const boardR = radius * 1.18, boardT = .012;
 
-  // Base de pão comprido, com miolo claro e casca tostada.
-  parts.push({ kind: 'hotdog-board', key: key('board'), y: -boardT + .0004, base: true,
-    build: stretch(() => boardMesh(boardR, boardT, seed, detail), sx * 1.12, sz * 1.35) });
-  parts.push({ kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
-    build: stretch(() => bunBottomMesh(radius, .018, seed + 1, detail), sx, sz) });
-
-  // Duas abas laterais de pão deixam o centro aberto, como um pão de hot dog
-  // cortado longitudinalmente, em vez de um pão redondo de hambúrguer.
+  // Pão de hot dog: base baixa e duas laterais compridas que formam a canaleta.
+  // Não há tábua/disco de hambúrguer: a silhueta é um pão oval aberto.
+  parts.push({
+    kind: 'hotdog-bun-base', key: key('bun-base'), y: 0, base: true,
+    build: stretch(() => bunBottomMesh(radius, .0085, seed + 1, detail), sx * 1.02, 1.22)
+  });
   for (const side of [-1, 1]) {
     parts.push({
-      kind: side < 0 ? 'hotdog-bun-lip-left' : 'hotdog-bun-lip-right',
-      key: key(side < 0 ? 'bun-lip-left' : 'bun-lip-right'),
-      y: .0048, z: side * radius * .43, base: true,
-      build: stretch(() => bunTopMesh(radius * .57, .0125, seed + (side < 0 ? 21 : 22), detail), sx * 1.82, .34)
+      kind: side < 0 ? 'hotdog-bun-wall-left' : 'hotdog-bun-wall-right',
+      key: key(side < 0 ? 'bun-wall-left' : 'bun-wall-right'),
+      y: .0035, z: side * radius * .53, base: true,
+      build: stretch(() => bunBottomMesh(radius * .57, .0125, seed + (side < 0 ? 21 : 22), detail), sx * 1.72, .72)
     });
   }
 
-  // Salsicha cilíndrica e arredondada nas pontas, não um disco de hambúrguer.
-  const sausageR = radius * .235, sausageH = .0072;
+  // Salsicha inteira, roliça, com pontas arredondadas e marcas leves de chapa.
+  const sausageR = radius * .245, sausageH = .0092;
   const sausageMesh = () => {
-    const m = new Mesh(), prof = superPuck(sausageR, sausageH, 2.8, 48, .02);
+    const m = new Mesh(), prof = superPuck(sausageR, sausageH, 3.15, 56, .035);
     m.revolve(prof, {
-      nu: 112, nv: 40, detail,
-      R: a => 1 + .018 * Math.sin(a * 5 + seed) + .012 * (noise3(Math.cos(a) * 2, Math.sin(a) * 2, seed + 8) - .5),
+      nu: 144, nv: 48, detail,
+      R: a => 1 + .014 * Math.sin(a * 5 + seed) + .009 * (noise3(Math.cos(a) * 2, Math.sin(a) * 2, seed + 8) - .5),
       disp: (a, r, y) => {
-        const d = (fbm(Math.cos(a) * r * 150, y * 120, Math.sin(a) * r * 150, seed + 9, 3) - .5) * .00055;
+        const d = (fbm(Math.cos(a) * r * 180, y * 130, Math.sin(a) * r * 180, seed + 9, 3) - .5) * .00032;
         return [d, d * .45];
       },
       shade: (u, v, p, n) => {
-        const char = sstep(.76, .94, nz(p, 95, seed + 10)) * .22;
-        const warm = mix(lin('#a93620'), lin('#d96a3d'), .35 + .25 * (nz(p, 42, seed + 11) - .5));
-        return MAT(mul(mix(warm, lin('#64251b'), char), 1 + (nz(p, 70, seed + 12) - .5) * .12), .34, .18, .7, .96);
+        const char = sstep(.83, .96, nz(p, 95, seed + 10)) * .16;
+        const warm = mix(lin('#a9432d'), lin('#d87550'), .42 + .2 * (nz(p, 42, seed + 11) - .5));
+        return MAT(mul(mix(warm, lin('#692b20'), char), 1 + (nz(p, 70, seed + 12) - .5) * .1), .3, .22, .68, .98);
       }
     });
     return m.finish();
   };
   parts.push({
-    kind: 'hotdog-sausage', key: key('sausage'), y: .0132,
-    build: stretch(sausageMesh, sx * 4.35, .92)
+    kind: 'hotdog-sausage', key: key('sausage'), y: .0118, base: true,
+    build: stretch(sausageMesh, sx * .94, 1.04)
   });
 
   const names = ings.map(item => ({
-    item, name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    item,
+    name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   }));
   const has = pattern => names.some(x => pattern.test(x.name));
   const qty = pattern => Math.min(3, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 3), 0)));
-  const add = (kind, build, y, x = sx, z = .5, offsetZ = 0) => parts.push({
-    kind: 'hotdog-' + kind, key: key(kind), y, z: offsetZ, build: stretch(build, x, z)
+  const add = (kind, build, y, xScale, zScale, zOffset = 0) => parts.push({
+    kind: 'hotdog-' + kind, key: key(kind), y, z: zOffset, build: stretch(build, xScale, zScale)
   });
 
-  // Coberturas em escala de cachorro-quente: distribuídas sobre a salsicha e o pão.
+  // Queijo derretido em faixa longitudinal sobre a salsicha.
   if (has(/queijo|cheddar|mussarela|catupiry|cream/))
-    add('cheese', () => cheeseMesh(radius * .34, .003, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .021, sx * 1.42, .42);
-  if (has(/bacon|calabresa|linguica/))
-    add('bacon', () => baconMesh(radius * .48, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0225, sx * 1.45, .5);
-  if (has(/alface|rucula|repolho|salada/))
-    add('greens', () => lettuceMesh(radius * .43, 1, seed + 12, detail, 3), .0205, sx * 1.55, .58);
-  if (has(/tomate|pimentao|pimenta/))
-    add('tomato', () => tomatoMesh(radius * .34, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0225, sx * 1.35, .45);
-  if (has(/cebola|onion/))
-    add('onion', () => onionMesh(radius * .4, 1, seed + 14, detail, qty(/cebola|onion/)), .023, sx * 1.4, .5);
-  if (has(/picles|pepino|pickle/))
-    add('pickles', () => pickleMesh(radius * .38, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .023, sx * 1.35, .48);
-  if (has(/molho|ketchup|mostarda|maionese|barbecue|bbq/))
-    add('sauce', () => sauceMesh(radius * .4, 1, seed + 16, detail), .024, sx * 1.5, .36);
+    add('cheese', () => cheeseMesh(radius * .34, .0032, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0205, sx * 1.42, .62);
 
-  return { parts, total: .032, radius: length * .62, extentH: [-boardT, .035] };
+  // Adicionais sólidos ficam em porções pequenas ao longo do pão, não em discos gigantes.
+  if (has(/bacon|calabresa|linguica/))
+    add('bacon', () => baconMesh(radius * .42, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .022, sx * 1.35, .62);
+  if (has(/alface|rucula|repolho|salada/))
+    add('greens', () => lettuceMesh(radius * .39, 1, seed + 12, detail, Math.min(5, 2 + qty(/alface|rucula|repolho|salada/))), .0198, sx * 1.5, .68);
+  if (has(/tomate|pimentao|pimenta/))
+    add('tomato', () => tomatoMesh(radius * .32, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0218, sx * 1.25, .62);
+  if (has(/cebola|onion/))
+    add('onion', () => onionMesh(radius * .36, 1, seed + 14, detail, qty(/cebola|onion/)), .022, sx * 1.3, .68);
+  if (has(/picles|pepino|pickle/))
+    add('pickles', () => pickleMesh(radius * .34, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .022, sx * 1.28, .62);
+
+  // Molhos são fios compridos com cores próprias (ketchup, mostarda, maionese e barbecue).
+  const sauceRibbon = (color, ribbonSeed, zShift) => {
+    const m = new Mesh(), L = length * .82, W = .0026, T = .0011;
+    const P = (u, v) => {
+      const x = (u - .5) * L;
+      const wave = Math.sin(u * Math.PI * 5 + ribbonSeed) * .0012 + Math.sin(u * Math.PI * 11 + ribbonSeed * .7) * .00035;
+      return [x, wave + Math.sin(v * Math.PI) * .00035, (v - .5) * W];
+    };
+    m.slab(84 * detail, 8, P, T, (u, v, p, n, face) =>
+      MAT(mul(lin(color), .94 + .06 * Math.sin(u * Math.PI * 8 + ribbonSeed)), .2, .48, .16, face === 1 ? .72 : 1),
+      { xf: rigid({ t: [0, 0, zShift] }), ref: () => [0, 0, 0] });
+    return m.finish();
+  };
+  const sauceTypes = [
+    { pattern: /ketchup/, kind: 'ketchup', color: '#c52f2f', z: -.0035 },
+    { pattern: /mostarda/, kind: 'mustard', color: '#e5b52f', z: .0035 },
+    { pattern: /maionese|mayo/, kind: 'mayo', color: '#f1e4bd', z: 0 },
+    { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .002 },
+    { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.001 }
+  ];
+  for (const sauce of sauceTypes) {
+    if (!has(sauce.pattern)) continue;
+    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0232, 1, 1);
+  }
+
+  return { parts, total: .032, radius: length * .62, extentH: [-.009, .034] };
 }
 
 function plateLayout(product, ings, size, o) {
