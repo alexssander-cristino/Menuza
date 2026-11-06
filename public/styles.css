@@ -2519,5 +2519,5 @@ button[data-action="view-generated-3d"],
 @media(max-width:700px){.restaurant-hours-details{width:100%;min-width:0}}
 
 
-/* Posicionamento do horário logo abaixo do cabeçalho */
-.site-header + .restaurant-hours-banner{margin:12px auto 0}
+/* Horário exibido no início do cardápio do cliente */
+#homeView > .restaurant-hours-banner{margin:12px auto 24px}
