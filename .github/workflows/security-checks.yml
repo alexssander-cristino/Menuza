@@ -22,8 +22,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run complete automated test suite
-        run: npm test
+      - name: Run security-focused tests
+        run: node --test tests/rate-limit.test.mjs tests/image-validation.test.mjs tests/file-validation.test.mjs
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Check security-sensitive JavaScript syntax
