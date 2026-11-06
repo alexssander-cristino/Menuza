@@ -263,3 +263,99 @@
 @media(max-width:720px){
  .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar{background:var(--mz-night-sidebar)!important}
 }
+
+/* Precedência final do Burgundy: sunset-theme.css contém regras administrativas claras
+   e carregava depois deste arquivo. Estes seletores ficam após ele e respeitam
+   exclusivamente o tema escuro selecionado no painel. */
+html body.admin-route .announcement,
+html body.admin-route .site-header,
+html body.admin-route .mobile-site-menu { display:none!important; }
+html body.admin-route #adminView,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] {
+  background:var(--mz-night-bg,#171014)!important;
+  color:var(--mz-night-text,#FFF1F5)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-nav,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-footer {
+  background:var(--mz-night-sidebar,#20151B)!important;
+  color:var(--mz-night-text,#FFF1F5)!important;
+  border-color:var(--mz-night-border,#49303D)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-main-top,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-main-top *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li * {
+  color:var(--mz-night-text,#FFF1F5)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-stat-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field {
+  background:var(--mz-night-card,#2A1B23)!important;
+  border-color:var(--mz-night-border,#49303D)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar-link {
+  background:transparent!important;
+  color:var(--mz-night-muted,#BCA5AE)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab[aria-current="page"] {
+  background:rgba(232,121,167,.15)!important;
+  color:var(--mz-night-pink,#E879A7)!important;
+  border-color:var(--mz-night-border,#49303D)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] input,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] select,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] textarea,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-status-select {
+  background:var(--mz-night-sidebar,#20151B)!important;
+  color:var(--mz-night-text,#FFF1F5)!important;
+  border-color:var(--mz-night-border,#49303D)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-dark,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-primary,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary {
+  background:var(--mz-night-pink,#E879A7)!important;
+  border-color:var(--mz-night-pink,#E879A7)!important;
+  color:#2b111d!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-outline,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .btn-secondary {
+  background:var(--mz-night-raised,#36232D)!important;
+  border-color:var(--mz-night-border,#49303D)!important;
+  color:var(--mz-night-text,#FFF1F5)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel small,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card span,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .metric-card small,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-time,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-customer,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-lines,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-fulfillment {
+  color:var(--mz-night-muted,#BCA5AE)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card-footer,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .popular-list li {
+  border-color:var(--mz-night-border,#49303D)!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-status-chip {
+  background:#263b31!important;color:#b8edcf!important;border-color:#42634f!important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-status-chip * {
+  color:inherit!important;
+}
+
