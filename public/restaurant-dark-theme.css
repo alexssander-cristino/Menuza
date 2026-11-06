@@ -6,8 +6,8 @@
   --mz-night-card:#29191E;
   --mz-night-raised:#382128;
   --mz-night-border:#503039;
-  --mz-night-pink:#D65A68;
-  --mz-night-pink-hover:#EB7884;
+  --mz-night-red:#D65A68;
+  --mz-night-red-hover:#EB7884;
   --mz-night-text:#FFF2F3;
   --mz-night-muted:#C2A6AA;
   --mz-night-danger:#F28A91;
@@ -64,7 +64,7 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-nav-item.active,
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
 .admin-shell-v2[data-mz-admin-theme="dark"] [aria-current="page"]{
-  color:var(--mz-night-pink)!important;
+  color:var(--mz-night-red)!important;
   background:rgba(214,90,104,.14)!important;
   border-color:rgba(214,90,104,.30)!important;
 }
@@ -148,7 +148,7 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] input:focus,
 .admin-shell-v2[data-mz-admin-theme="dark"] select:focus,
 .admin-shell-v2[data-mz-admin-theme="dark"] textarea:focus{
-  border-color:var(--mz-night-pink)!important;
+  border-color:var(--mz-night-red)!important;
   outline:2px solid rgba(214,90,104,.20)!important;
   outline-offset:1px;
 }
@@ -159,23 +159,23 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] input[type="checkbox"],
 .admin-shell-v2[data-mz-admin-theme="dark"] input[type="radio"],
 .admin-shell-v2[data-mz-admin-theme="dark"] input[type="range"]{
-  accent-color:var(--mz-night-pink)!important;
+  accent-color:var(--mz-night-red)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-primary,
 .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary,
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-dark,
 .admin-shell-v2[data-mz-admin-theme="dark"] button[type="submit"]:not(.button-outline){
-  background:var(--mz-night-pink)!important;
+  background:var(--mz-night-red)!important;
   color:#260F14!important;
-  border-color:var(--mz-night-pink)!important;
+  border-color:var(--mz-night-red)!important;
   box-shadow:0 5px 16px rgba(214,90,104,.20)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-primary:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-dark:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] button[type="submit"]:not(.button-outline):hover{
-  background:var(--mz-night-pink-hover)!important;
-  border-color:var(--mz-night-pink-hover)!important;
+  background:var(--mz-night-red-hover)!important;
+  border-color:var(--mz-night-red-hover)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-outline,
 .admin-shell-v2[data-mz-admin-theme="dark"] .btn-outline{
@@ -186,8 +186,8 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] .button-outline:hover,
 .admin-shell-v2[data-mz-admin-theme="dark"] .btn-outline:hover{
   background:var(--mz-night-raised)!important;
-  border-color:var(--mz-night-pink)!important;
-  color:var(--mz-night-pink-hover)!important;
+  border-color:var(--mz-night-red)!important;
+  color:var(--mz-night-red-hover)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] button:disabled,
 .admin-shell-v2[data-mz-admin-theme="dark"] .button:disabled{
@@ -221,7 +221,7 @@
 }
 /* Links, ícones e feedback */
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel a:not(.button):not(.btn){
-  color:var(--mz-night-pink-hover)!important;
+  color:var(--mz-night-red-hover)!important;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel a:not(.button):not(.btn):hover{
   color:var(--mz-night-text)!important;
@@ -259,12 +259,12 @@
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar{width:10px;height:10px}
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-track{background:var(--mz-night-bg)}
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb{background:var(--mz-night-border);border:2px solid var(--mz-night-bg);border-radius:20px}
-.admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:var(--mz-night-pink)}
+.admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:var(--mz-night-red)}
 @media(max-width:720px){
  .admin-shell-v2[data-mz-admin-theme="dark"] .admin-sidebar{background:var(--mz-night-sidebar)!important}
 }
 
-/* Precedência final do Burgundy: sunset-theme.css contém regras administrativas claras
+/* Precedência final do tema vermelho: sunset-theme.css contém regras administrativas claras
    e carregava depois deste arquivo. Estes seletores ficam após ele e respeitam
    exclusivamente o tema escuro selecionado no painel. */
 html body.admin-route .announcement,
@@ -313,7 +313,7 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .ad
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab.active,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-tab[aria-current="page"] {
   background:rgba(214,90,104,.16)!important;
-  color:var(--mz-night-pink,#D65A68)!important;
+  color:var(--mz-night-red,#D65A68)!important;
   border-color:var(--mz-night-border,#503039)!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] input,
@@ -327,8 +327,8 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .or
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-dark,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-primary,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .btn-primary {
-  background:var(--mz-night-pink,#D65A68)!important;
-  border-color:var(--mz-night-pink,#D65A68)!important;
+  background:var(--mz-night-red,#D65A68)!important;
+  border-color:var(--mz-night-red,#D65A68)!important;
   color:#260F14!important;
 }
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button-outline,
