@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyTotp } from '../src/auth-totp.mjs';
+import { verifyTotp, generateTotpSecret } from '../src/auth-totp.mjs';
 
 test('validates RFC 6238 six-digit TOTP vectors', () => {
   const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -18,4 +18,13 @@ test('allows one 30-second step of clock drift but not distant codes', () => {
   const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
   assert.equal(verifyTotp(secret, '287082', 59_000), true);
   assert.equal(verifyTotp(secret, '287082', 150_000), false);
+});
+
+test('generates unique Base32 secrets accepted by the TOTP verifier', () => {
+  const first = generateTotpSecret();
+  const second = generateTotpSecret();
+  assert.match(first, /^[A-Z2-7]{32}$/);
+  assert.match(second, /^[A-Z2-7]{32}$/);
+  assert.notEqual(first, second);
+  assert.equal(verifyTotp(first, '000000'), false);
 });

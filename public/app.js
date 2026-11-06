@@ -986,8 +986,8 @@ async function showAdmin(){
 }
 function renderAdminLogin(errorText=''){
   stopPromotionCarousel();root.body.classList.add('admin-route');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Galileu Pizzas e Lanches para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador (se 2FA estiver ativado)</span><input type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
-  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),otp=String(formData.get('otp')||'').trim();try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,otp})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
+  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Galileu Pizzas e Lanches para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador ou código de recuperação</span><input type="text" name="otp" inputmode="text" maxlength="20" autocomplete="one-time-code" placeholder="000000 ou código de recuperação"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
+  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),factor=String(formData.get('otp')||'').trim(),secondFactor=/^\d{6}$/.test(factor)?{otp:factor}:{recoveryCode:factor};try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
 }
 
 function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
@@ -1869,6 +1869,7 @@ async function renderSettingsAdmin(){
   target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const settingsResult=await api('/api/admin/settings');
+    const securityResult=await api('/api/admin/security');
     const restaurant=settingsResult?.restaurant&&typeof settingsResult.restaurant==='object'?settingsResult.restaurant:{};
     const initialName=String(restaurant.name||'').trim();
     const initialPrep=Number(restaurant.prepMinutes)||30;
@@ -1898,6 +1899,16 @@ async function renderSettingsAdmin(){
           <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">${uiIcon('shield',22)}</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
         </aside>
       </div>
+      <section class="admin-panel menu-general-qr-panel" id="adminSecuritySettings">
+        <div class="admin-panel-head"><div><h2>Autenticação em duas etapas</h2><small>Proteja o acesso administrativo com um aplicativo autenticador.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('shield',20)}</span></div>
+        <div id="adminSecurityContent">
+          <p id="adminSecurityStatus">${securityResult.twoFactorEnabled?'A autenticação em duas etapas está ativa.':'A autenticação em duas etapas está desativada.'}</p>
+          ${securityResult.managedByEnvironment?'<p class="field-hint">A configuração atual vem da variável ADMIN_TOTP_SECRET. Para migrar o gerenciamento para esta tela, remova essa variável do ambiente após planejar a migração.</p>':''}
+          <div class="settings-actions"><button class="button button-dark button-small" type="button" id="adminTwoFactorSetup" ${securityResult.twoFactorEnabled?'disabled':''}>Ativar autenticação em duas etapas</button>${securityResult.twoFactorEnabled&&!securityResult.managedByEnvironment?'<button class="button button-outline button-small" type="button" id="adminTwoFactorDisable">Desativar 2FA</button>':''}</div>
+          ${securityResult.twoFactorEnabled&&securityResult.recoveryCodesRemaining!==null?'<small class="field-hint">Códigos de recuperação disponíveis: '+Number(securityResult.recoveryCodesRemaining)+'</small>':''}
+          <p class="field-hint" id="adminSecurityMessage" role="status" aria-live="polite"></p>
+        </div>
+      </section>
       <section class="admin-panel menu-general-qr-panel"><div class="admin-panel-head"><div><h2>QR Code geral do cardápio</h2><small>Um único código para divulgar o cardápio inteiro, sem associação a mesas.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('grid',20)}</span></div><p>Baixe ou imprima o QR para colocar na entrada, balcão, embalagens e materiais de divulgação. O código permanece igual enquanto o endereço público do sistema não mudar.</p><div class="settings-actions"><button class="button button-dark button-small" type="button" data-action="show-menu-qr">Gerar QR Code do cardápio</button></div><div id="menuQrModalRoot"></div></section>
       <section class="admin-panel accessibility-settings-panel" aria-labelledby="accessibilitySettingsTitle">
         <div class="admin-panel-head"><div><h2 id="accessibilitySettingsTitle">Acessibilidade e aparência</h2><small>Personalize a leitura e a navegação em todo o Menuza. As escolhas ficam salvas neste dispositivo.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('info',20)}</span></div>
@@ -1972,6 +1983,45 @@ async function renderSettingsAdmin(){
         else control.checked=ACCESSIBILITY_DEFAULTS[key];
       }
       syncAccessibility();
+    });
+
+    const securityContent=root.getElementById('adminSecurityContent'),setupTwoFactor=root.getElementById('adminTwoFactorSetup'),disableTwoFactor=root.getElementById('adminTwoFactorDisable'),securityMessage=root.getElementById('adminSecurityMessage');
+    async function loadSecurityQrLibrary(){
+      if(window.QRCode?.toCanvas)return;
+      await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('Não foi possível carregar o gerador de QR Code. Use a chave manual exibida abaixo.'));document.head.appendChild(script);});
+      if(!window.QRCode?.toCanvas)throw new Error('Gerador de QR Code indisponível. Use a chave manual exibida abaixo.');
+    }
+    if(setupTwoFactor)setupTwoFactor.addEventListener('click',async()=>{
+      const password=window.prompt('Confirme sua senha administrativa para configurar o autenticador:');if(password===null)return;
+      setupTwoFactor.disabled=true;securityMessage.textContent='Preparando configuração segura…';
+      try{
+        const setup=await api('/api/admin/security/setup',{method:'POST',body:JSON.stringify({password})});
+        securityContent.innerHTML='<div class="settings-note"><span>1</span><p>Escaneie o QR Code com Google Authenticator, Microsoft Authenticator ou outro aplicativo TOTP. A chave também pode ser cadastrada manualmente.</p></div><div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin:18px 0"><canvas id="adminTwoFactorQr" width="220" height="220" aria-label="QR Code para configurar autenticação em duas etapas"></canvas><div style="min-width:220px;flex:1"><strong>Chave de configuração manual</strong><p id="adminTwoFactorSecret" style="font-family:monospace;overflow-wrap:anywhere;letter-spacing:1px"></p><button type="button" class="button button-outline button-small" id="adminCopyTwoFactorSecret">Copiar chave</button><p class="field-hint">Esta chave é exibida somente durante a configuração. Não compartilhe com ninguém.</p></div></div><form id="adminTwoFactorConfirmForm" class="settings-form"><label class="form-field"><span>2. Código de seis dígitos do aplicativo</span><input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></label><p class="error-text" id="adminTwoFactorConfirmError" role="alert"></p><div class="settings-actions"><button class="button button-dark button-small" type="submit">Confirmar e ativar 2FA</button><button class="button button-outline button-small" type="button" id="adminTwoFactorCancel">Cancelar</button></div></form>';
+        root.getElementById('adminTwoFactorSecret').textContent=setup.secret;
+        root.getElementById('adminCopyTwoFactorSecret').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(setup.secret);toast('Chave copiada.');}catch{toast('Não foi possível copiar automaticamente.');}});
+        root.getElementById('adminTwoFactorCancel').addEventListener('click',()=>renderSettingsAdmin());
+        try{await loadSecurityQrLibrary();await window.QRCode.toCanvas(root.getElementById('adminTwoFactorQr'),setup.otpauthUri,{width:220,margin:2});}
+        catch(error){root.getElementById('adminTwoFactorQr').insertAdjacentHTML('afterend','<p class="field-hint">'+esc(error.message)+'</p>');}
+        root.getElementById('adminTwoFactorConfirmForm').addEventListener('submit',async event=>{
+          event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('adminTwoFactorConfirmError');
+          button.disabled=true;button.textContent='Validando…';errorNode.textContent='';
+          try{
+            const result=await api('/api/admin/security/confirm',{method:'POST',body:JSON.stringify({otp:String(new FormData(form).get('otp')||'').trim()})});
+            securityContent.innerHTML='<h3>Autenticação em duas etapas ativada</h3><p>Guarde estes códigos em um local seguro. Cada código pode ser usado uma única vez e eles não serão exibidos novamente.</p><pre id="adminRecoveryCodes" style="white-space:pre-wrap;padding:14px;background:var(--surface-muted,#f4f4f5);border-radius:10px;font-family:monospace;line-height:1.8"></pre><div class="settings-actions"><button type="button" class="button button-dark button-small" id="adminCopyRecoveryCodes">Copiar códigos de recuperação</button><button type="button" class="button button-outline button-small" id="adminFinishTwoFactor">Concluir</button></div>';
+            const recoveryText=result.recoveryCodes.join('\n');root.getElementById('adminRecoveryCodes').textContent=recoveryText;
+            root.getElementById('adminCopyRecoveryCodes').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(recoveryText);toast('Códigos de recuperação copiados.');}catch{toast('Não foi possível copiar automaticamente.');}});
+            root.getElementById('adminFinishTwoFactor').addEventListener('click',()=>renderAdminLogin('2FA ativado. Entre novamente com sua senha e o código do autenticador.'));
+            toast('Autenticação em duas etapas ativada.');
+          }catch(error){errorNode.textContent=error.message;button.disabled=false;button.textContent='Tentar novamente';}
+        });
+      }catch(error){securityMessage.textContent=error.message;setupTwoFactor.disabled=false;}
+    });
+    if(disableTwoFactor)disableTwoFactor.addEventListener('click',async()=>{
+      const password=window.prompt('Confirme sua senha administrativa:');if(password===null)return;
+      const factor=window.prompt('Informe o código atual de 6 dígitos ou um código de recuperação:');if(factor===null)return;
+      disableTwoFactor.disabled=true;securityMessage.textContent='Validando…';
+      try{const value=factor.trim(),body={password,...(/^\d{6}$/.test(value)?{otp:value}:{recoveryCode:value})};await api('/api/admin/security/disable',{method:'POST',body:JSON.stringify(body)});toast('2FA desativado. Entre novamente para iniciar uma nova sessão.');renderAdminLogin('A autenticação em duas etapas foi desativada. Entre novamente.');}
+      catch(error){securityMessage.textContent=error.message;disableTwoFactor.disabled=false;}
     });
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;

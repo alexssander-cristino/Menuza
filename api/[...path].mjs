@@ -1,8 +1,8 @@
-import { randomBytes, createHash, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
+import { randomBytes, createHash, createHmac, createCipheriv, createDecipheriv, timingSafeEqual, scryptSync } from 'node:crypto';
 import { consumeRateLimit } from '../src/security/rate-limit.mjs';
 import { query, withTransaction } from '../src/db/postgres.mjs';
 import { calculateItemPrice, CRUST_OPTIONS, inferIngredientVisual, isBuildYourOwnPizza, SIZE_OPTIONS, STATUS, STATUS_FLOW, slugify } from '../src/catalog.mjs';
-import { verifyTotp } from '../src/auth-totp.mjs';
+import { verifyTotp, generateTotpSecret } from '../src/auth-totp.mjs';
 import { sanitizeUploadFileName, validateFiscalDocument } from '../src/security/file-validation.mjs';
 import { imageReferenceToDataUrl, isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl, storeImageList } from '../src/storage/neon.mjs';
 
@@ -54,6 +54,31 @@ function sign(payload) {
   return body + '.' + sig;
 }
 let authSessionsSchemaPromise;
+let adminTwoFactorSchemaPromise;
+async function ensureAdminTwoFactorSchema() {
+  if (!adminTwoFactorSchemaPromise) adminTwoFactorSchemaPromise = query('CREATE TABLE IF NOT EXISTS admin_two_factor (restaurant_id TEXT PRIMARY KEY, secret_encrypted TEXT, pending_secret_encrypted TEXT, pending_expires_at TIMESTAMPTZ, recovery_codes_hashes JSONB NOT NULL DEFAULT \'[]\'::jsonb, enabled_at TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').then(() => query('CREATE INDEX IF NOT EXISTS admin_two_factor_updated_idx ON admin_two_factor(updated_at)')).catch(error => { adminTwoFactorSchemaPromise = null; throw error; });
+  await adminTwoFactorSchemaPromise;
+}
+function twoFactorEncryptionKey() { if (SECRET.length < 32) throw fail('APP_SECRET precisa ter pelo menos 32 caracteres.', 503); return createHash('sha256').update('menuza:admin-2fa:v1:').update(SECRET).digest(); }
+function encryptTwoFactorSecret(secret) { const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',twoFactorEncryptionKey(),iv),encrypted=Buffer.concat([cipher.update(secret,'utf8'),cipher.final()]); return [iv.toString('base64url'),cipher.getAuthTag().toString('base64url'),encrypted.toString('base64url')].join('.'); }
+function decryptTwoFactorSecret(value) { try { const [ivText,tagText,encryptedText]=String(value||'').split('.'); if(!ivText||!tagText||!encryptedText)throw new Error('Formato inválido'); const decipher=createDecipheriv('aes-256-gcm',twoFactorEncryptionKey(),Buffer.from(ivText,'base64url')); decipher.setAuthTag(Buffer.from(tagText,'base64url')); return Buffer.concat([decipher.update(Buffer.from(encryptedText,'base64url')),decipher.final()]).toString('utf8'); } catch { throw fail('Não foi possível abrir a configuração 2FA. Confira se APP_SECRET permanece igual ao usado na ativação.',503); } }
+function recoveryCodeHash(code) { return createHmac('sha256',SECRET).update('menuza-admin-2fa-recovery:').update(String(code||'').replace(/[^a-z0-9]/gi,'').toUpperCase()).digest('hex'); }
+function recoveryCodeMatches(stored,candidate) { const a=Buffer.from(String(stored||''),'hex'),b=Buffer.from(recoveryCodeHash(candidate),'hex'); return a.length===b.length&&timingSafeEqual(a,b); }
+async function getAdminTwoFactor() { await ensureAdminTwoFactorSchema(); return (await query('SELECT secret_encrypted AS "secretEncrypted",pending_secret_encrypted AS "pendingSecretEncrypted",pending_expires_at AS "pendingExpiresAt",recovery_codes_hashes AS "recoveryCodesHashes",enabled_at AS "enabledAt" FROM admin_two_factor WHERE restaurant_id=$1',[RESTAURANT_ID])).rows[0]||null; }
+function validAdminPassword(password) { if(typeof password!=='string'||password.length>128||!ADMIN_PASSWORD||SECRET.length<32)return false; const candidate=createHmac('sha256',SECRET).update(password).digest(),expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest(); return timingSafeEqual(candidate,expected); }
+async function verifyAdminSecondFactor(body) {
+  if(ADMIN_TOTP_SECRET)return verifyTotp(ADMIN_TOTP_SECRET,String(body.otp||''));
+  const row=await getAdminTwoFactor(); if(!row?.enabledAt)return true; if(!row.secretEncrypted)throw fail('A configuração 2FA está inconsistente. Procure o suporte antes de tentar entrar.',503);
+  if(verifyTotp(decryptTwoFactorSecret(row.secretEncrypted),String(body.otp||'')))return true;
+  const recoveryCode=String(body.recoveryCode||'').trim(); if(!recoveryCode)return false;
+  return withTransaction(async client=>{
+    const locked=await client.query('SELECT recovery_codes_hashes FROM admin_two_factor WHERE restaurant_id=$1 FOR UPDATE',[RESTAURANT_ID]);
+    const hashes=Array.isArray(locked.rows[0]?.recovery_codes_hashes)?locked.rows[0].recovery_codes_hashes:[];
+    const index=hashes.findIndex(hash=>recoveryCodeMatches(hash,recoveryCode)); if(index<0)return false;
+    hashes.splice(index,1); await client.query('UPDATE admin_two_factor SET recovery_codes_hashes=$1::jsonb,updated_at=NOW() WHERE restaurant_id=$2',[JSON.stringify(hashes),RESTAURANT_ID]); return true;
+  });
+}
+function createRecoveryCodes() { return Array.from({length:10},()=>{const raw=randomBytes(6).toString('hex').toUpperCase();return raw.slice(0,6)+'-'+raw.slice(6)}); }
 async function ensureAuthSessionsSchema(){
   if(!authSessionsSchemaPromise)authSessionsSchemaPromise=(async()=>{
     await query(`CREATE TABLE IF NOT EXISTS auth_sessions(token_hash TEXT PRIMARY KEY,role TEXT NOT NULL CHECK(role IN ('admin','customer')),subject_id TEXT NOT NULL,restaurant_id TEXT NOT NULL,expires_at TIMESTAMPTZ NOT NULL,revoked_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
@@ -833,7 +858,7 @@ export default async function handler(req, res) {
       const candidate=createHmac('sha256',SECRET).update(body.password).digest();
       const expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest();
       if (!timingSafeEqual(candidate,expected)) return json(res,401,{error:'Não foi possível entrar. Confira os dados e tente novamente.'});
-      if (ADMIN_TOTP_SECRET&&!verifyTotp(ADMIN_TOTP_SECRET,body.otp)) return json(res,401,{error:'A verificação em duas etapas está ativada neste ambiente. Informe o código atual de 6 dígitos do autenticador.'});
+      if (!(await verifyAdminSecondFactor(body))) return json(res,401,{error:'A verificação em duas etapas falhou. Informe o código atual ou um código de recuperação válido.'});
       const expiresAt=Date.now()+SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:expiresAt});
       await storeSession(token,'admin',RESTAURANT_ID,expiresAt);
       return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(SESSION_MS/1000))});
@@ -910,7 +935,41 @@ export default async function handler(req, res) {
       return json(res,200,{authenticated,...(authenticated?{restaurantId:RESTAURANT_ID}:{})});
     }
     if (path.startsWith('/api/admin/')) await requireAdmin(req);
-    if (method==='GET'&&path==='/api/admin/security') return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET)});
+    if (method==='GET'&&path==='/api/admin/security') { const row=ADMIN_TOTP_SECRET?null:await getAdminTwoFactor(); return json(res,200,{twoFactorEnabled:Boolean(ADMIN_TOTP_SECRET||row?.enabledAt),managedByEnvironment:Boolean(ADMIN_TOTP_SECRET),recoveryCodesRemaining:Array.isArray(row?.recoveryCodesHashes)?row.recoveryCodesHashes.length:null}); }
+    if (method==='POST'&&path==='/api/admin/security/setup') {
+      const retry=await limit(req,'admin-2fa-setup',5,900000); if(retry)return json(res,429,{error:'Muitas tentativas de configuração. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      const body=await bodyOf(req); if(!validAdminPassword(body.password))return json(res,401,{error:'Confirme sua senha administrativa para iniciar a configuração.'});
+      if(ADMIN_TOTP_SECRET)return json(res,409,{error:'O 2FA está sendo controlado por ADMIN_TOTP_SECRET no ambiente. Remova essa variável antes de migrar para a configuração pelo painel.'});
+      const current=await getAdminTwoFactor(); if(current?.enabledAt)return json(res,409,{error:'A autenticação em duas etapas já está ativa.'});
+      const secret=generateTotpSecret(),encrypted=encryptTwoFactorSecret(secret),expiresAt=new Date(Date.now()+600000);
+      await query('INSERT INTO admin_two_factor(restaurant_id,pending_secret_encrypted,pending_expires_at,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(restaurant_id) DO UPDATE SET pending_secret_encrypted=EXCLUDED.pending_secret_encrypted,pending_expires_at=EXCLUDED.pending_expires_at,updated_at=NOW()',[RESTAURANT_ID,encrypted,expiresAt.toISOString()]);
+      const label=encodeURIComponent('Menuza:Administrador'),issuer=encodeURIComponent('Menuza');
+      return json(res,200,{ok:true,secret,expiresAt:expiresAt.toISOString(),otpauthUri:'otpauth://totp/'+label+'?secret='+secret+'&issuer='+issuer+'&algorithm=SHA1&digits=6&period=30'});
+    }
+    if (method==='POST'&&path==='/api/admin/security/confirm') {
+      const retry=await limit(req,'admin-2fa-confirm',8,900000); if(retry)return json(res,429,{error:'Muitas tentativas de confirmação. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      const body=await bodyOf(req),recoveryCodes=createRecoveryCodes(),hashes=recoveryCodes.map(recoveryCodeHash);
+      await ensureAuthSessionsSchema();
+      await withTransaction(async client=>{
+        const locked=await client.query('SELECT pending_secret_encrypted,pending_expires_at FROM admin_two_factor WHERE restaurant_id=$1 FOR UPDATE',[RESTAURANT_ID]);
+        const pending=locked.rows[0];
+        if(!pending?.pending_secret_encrypted||!pending.pending_expires_at||new Date(pending.pending_expires_at).getTime()<=Date.now())throw fail('A configuração expirou. Gere uma nova chave para continuar.',410);
+        if(!verifyTotp(decryptTwoFactorSecret(pending.pending_secret_encrypted),String(body.otp||'')))throw fail('Código inválido. Confira o autenticador e tente novamente.',401);
+        await client.query('UPDATE admin_two_factor SET secret_encrypted=$1,pending_secret_encrypted=NULL,pending_expires_at=NULL,recovery_codes_hashes=$2::jsonb,enabled_at=NOW(),updated_at=NOW() WHERE restaurant_id=$3',[pending.pending_secret_encrypted,JSON.stringify(hashes),RESTAURANT_ID]);
+        await client.query("UPDATE auth_sessions SET revoked_at=NOW() WHERE role='admin' AND subject_id=$1 AND revoked_at IS NULL",[RESTAURANT_ID]);
+      });
+      return json(res,200,{ok:true,twoFactorEnabled:true,recoveryCodes});
+    }
+    if (method==='POST'&&path==='/api/admin/security/disable') {
+      const retry=await limit(req,'admin-2fa-disable',5,900000); if(retry)return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
+      const body=await bodyOf(req); if(!validAdminPassword(body.password))return json(res,401,{error:'Senha administrativa incorreta.'});
+      if(ADMIN_TOTP_SECRET)return json(res,409,{error:'O 2FA está sendo controlado por ADMIN_TOTP_SECRET. Remova a variável no ambiente para gerenciar pelo painel.'});
+      const current=await getAdminTwoFactor(); if(!current?.enabledAt)return json(res,409,{error:'A autenticação em duas etapas já está desativada.'});
+      if(!(await verifyAdminSecondFactor(body)))return json(res,401,{error:'Código autenticador ou código de recuperação inválido.'});
+      await ensureAuthSessionsSchema();
+      await withTransaction(async client=>{await client.query("UPDATE admin_two_factor SET secret_encrypted=NULL,pending_secret_encrypted=NULL,pending_expires_at=NULL,recovery_codes_hashes='[]'::jsonb,enabled_at=NULL,updated_at=NOW() WHERE restaurant_id=$1",[RESTAURANT_ID]);await client.query("UPDATE auth_sessions SET revoked_at=NOW() WHERE role='admin' AND subject_id=$1 AND revoked_at IS NULL",[RESTAURANT_ID]);});
+      return json(res,200,{ok:true,twoFactorEnabled:false});
+    }
     if (method==='GET'&&path==='/api/admin/events') {
       res.setHeader('Content-Type','text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control','no-cache, no-transform');

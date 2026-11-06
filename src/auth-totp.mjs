@@ -1,6 +1,18 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+export function generateTotpSecret() {
+  const bytes = randomBytes(20);
+  let bits = 0, buffer = 0, output = '';
+  for (const byte of bytes) {
+    buffer = (buffer << 8) | byte;
+    bits += 8;
+    while (bits >= 5) { output += BASE32[(buffer >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  if (bits) output += BASE32[(buffer << (5 - bits)) & 31];
+  return output;
+}
 
 function decodeBase32(value) {
   const input = String(value || '').replace(/\s+/g, '').replace(/=+$/g, '').toUpperCase();
