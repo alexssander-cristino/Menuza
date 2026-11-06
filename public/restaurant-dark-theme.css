@@ -631,3 +631,111 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .ad
   border-radius: 20px;
 }
 .admin-shell-v2[data-mz-admin-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--mz-night-red); }
+
+
+/* FIX REAL DA TELA DE PEDIDOS — seletores com a mesma especificidade
+   das regras antigas que estavam mantendo os botões creme. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] {
+  --mz-night-bg: #130D10 !important;
+  --mz-night-sidebar: #211319 !important;
+  --mz-night-card: #321A23 !important;
+  --mz-night-raised: #48232F !important;
+  --mz-night-border: #603340 !important;
+  --mz-night-red: #E04458 !important;
+  --mz-night-red-hover: #F36B7B !important;
+  --mz-night-text: #FFF0F2 !important;
+  --mz-night-muted: #D0B2B8 !important;
+  --mz-night-placeholder: #B18B94 !important;
+}
+
+/* Nenhum botão creme/amarelo no painel escuro. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] a.button {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-dark,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-primary,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button[type="submit"] {
+  background: #E04458 !important;
+  background-color: #E04458 !important;
+  color: #FFFFFF !important;
+  border: 1px solid #E04458 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-dark:hover,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-primary:hover,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button[type="submit"]:hover {
+  background: #F36B7B !important;
+  background-color: #F36B7B !important;
+  color: #211319 !important;
+  border-color: #F36B7B !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-outline,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.btn-secondary,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] a.button.button-outline {
+  background: #48232F !important;
+  background-color: #48232F !important;
+  color: #FFF0F2 !important;
+  border: 1px solid #603340 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.button-outline:hover,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] button.button.btn-secondary:hover,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] a.button.button-outline:hover {
+  background: #603340 !important;
+  background-color: #603340 !important;
+  color: #FFFFFF !important;
+  border-color: #F36B7B !important;
+}
+
+/* Status de conexão: substitui a cápsula branca/amarela. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-connection-status {
+  color: #F36B7B !important;
+  background: rgba(224, 68, 88, .14) !important;
+  border: 1px solid rgba(224, 68, 88, .42) !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-connection-status *,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-connection-status.is-connecting,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-connection-status.is-connected {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .connection-status-dot {
+  background: #E04458 !important;
+  box-shadow: 0 0 0 3px rgba(224, 68, 88, .16) !important;
+}
+
+/* O estado Recebido e os chips de pedido também usam a paleta. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-status,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-status-badge,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-status-label,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .order-card .status-badge {
+  color: #FFF0F2 !important;
+  background: #48232F !important;
+  border: 1px solid #603340 !important;
+}
+
+/* Textos dos pedidos: contraste consistente, sem cinza esverdeado antigo. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel p,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel li,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel span,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel label,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel small {
+  color: #D0B2B8;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel h1,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel h2,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel h3,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel strong,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .admin-panel b {
+  color: #FFF0F2 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search input,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field select {
+  color: #FFF0F2 !important;
+  background: #211319 !important;
+  border-color: #603340 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search input::placeholder {
+  color: #B18B94 !important;
+}
