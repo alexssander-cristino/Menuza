@@ -2465,3 +2465,49 @@ button[data-action="view-generated-3d"],
 .ingredient-select-all:has(input:checked){border-color:#edcba9;background:#fff1e2}
 .ingredient-select-all input:indeterminate{accent-color:#f5a14c}
 .ingredient-select-all input:disabled{cursor:not-allowed;opacity:.45}
+
+
+/* Horários de funcionamento do restaurante */
+.restaurant-hours-banner{margin:-10px 0 24px}
+.restaurant-hours-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 18px;background:var(--paper);border:1px solid var(--line);border-radius:var(--mz-radius-md);box-shadow:var(--mz-shadow-sm)}
+.restaurant-hours-status{display:flex;align-items:center;gap:11px}
+.restaurant-hours-status strong,.restaurant-hours-status small{display:block}
+.restaurant-hours-status strong{font-size:13px}
+.restaurant-hours-status small{margin-top:3px;color:var(--muted);font-size:11px}
+.restaurant-hours-dot{width:10px;height:10px;border-radius:50%;background:#b45309;box-shadow:0 0 0 4px #b4530918}
+.restaurant-hours-card.is-open .restaurant-hours-dot{background:#16834b;box-shadow:0 0 0 4px #16834b18}
+.restaurant-hours-card.is-open .restaurant-hours-status strong{color:#16834b}
+.restaurant-hours-card.is-closed .restaurant-hours-status strong{color:#a33b32}
+.restaurant-hours-details{min-width:240px}
+.restaurant-hours-details summary{cursor:pointer;color:var(--mz-primary);font-size:11px;font-weight:700;list-style:none}
+.restaurant-hours-details summary::-webkit-details-marker{display:none}
+.restaurant-hours-list{display:grid;gap:6px;margin-top:12px}
+.restaurant-hours-row{display:flex;justify-content:space-between;gap:16px;font-size:11px;color:var(--muted)}
+.restaurant-hours-row b{color:var(--ink);font-weight:600;text-align:right}
+.restaurant-closed-notice{padding:13px 14px;margin-bottom:12px;background:#fff1ef;border:1px solid #f0c5c0;border-radius:10px;color:#8b2f28}
+.restaurant-closed-notice strong{font-size:12px}
+.restaurant-closed-notice p{margin:4px 0;font-size:12px}
+.restaurant-closed-notice small{font-size:11px;line-height:1.5}
+.opening-hours-panel{max-width:900px}
+.opening-hours-help{margin-bottom:20px}
+.opening-hours-help strong{font-size:14px}
+.opening-hours-help p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+.opening-hours-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.opening-hours-day{padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--paper);min-width:0}
+.opening-hours-day-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.opening-hours-day-head>label{display:flex;align-items:center;gap:9px;cursor:pointer}
+.opening-hours-day-head strong{font-size:13px}
+.opening-hours-day-state{font-size:10px;color:var(--muted);font-weight:700}
+.opening-hours-periods{display:grid;gap:8px;margin-bottom:10px}
+.opening-hours-period{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px;gap:8px;align-items:end}
+.opening-hours-period label span{display:block;margin-bottom:4px;font-size:10px;color:var(--muted)}
+.opening-hours-period input{width:100%;min-width:0;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--cream);color:var(--ink);font-size:12px}
+.opening-hours-remove{width:28px;height:34px;border:1px solid var(--line);border-radius:8px;background:transparent;color:#a33b32;font-size:18px;cursor:pointer}
+.opening-hours-day>.button{min-height:32px}
+.opening-hours-panel .settings-actions{margin-top:22px}
+@media(max-width:700px){
+ .restaurant-hours-card{align-items:flex-start;flex-direction:column}
+ .restaurant-hours-details{width:100%;min-width:0}
+ .opening-hours-days{grid-template-columns:1fr}
+ .opening-hours-period{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px}
+}
