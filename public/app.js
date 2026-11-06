@@ -195,11 +195,10 @@ async function api(path, options = {}) {
 }
 function defaultIngredients(product, catalog) {
   const available = catalog.ingredients.filter(item => item.type === product.type && item.active !== 0);
-  const configuredQuantity = id => ['burger','plate'].includes(product.type) ? Math.max(1,Math.min(20,Number(product.ingredientQuantities?.[id])||1)) : 1;
   if (product.ingredientsConfigured) {
-    return (product.defaultIngredientIds || []).filter(id => available.some(item => item.id === id)).map(id => ({ id, quantity: configuredQuantity(id) }));
+    return (product.defaultIngredientIds || []).filter(id => available.some(item => item.id === id)).map(id => ({ id, quantity: 1 }));
   }
-  const selected = available.filter(item => item.included).map(item => ({ id: item.id, quantity: configuredQuantity(item.id) }));
+  const selected = available.filter(item => item.included).map(item => ({ id: item.id, quantity: 1 }));
   const presets = { 'pizza-da-horta':['tomate','champignon','oregano'], 'pizza-calabresa':['calabresa','cebola'], 'pizza-quatro-queijos':['requeijao'], 'burger-defumado':['bacon-burger','cebola-burger','picles'] };
   for (const id of presets[product.id] || []) if (available.some(item => item.id === id) && !selected.some(item => item.id === id)) selected.push({ id, quantity: 1 });
   return selected;
@@ -464,8 +463,8 @@ function selectedEntries(builder=app.builder) {
   const ingredientProduct=buildYourOwnFlavorProduct(product,builder.flavorProductIds||[product?.id])||product;
   return builder.ingredients.map(entry=>{
     const ingredient=app.catalog.ingredients.find(item=>item.id===entry.id);if(!ingredient)return null;
-    if(ingredientProduct?.ingredientsConfigured){const included=(ingredientProduct.defaultIngredientIds||[]).includes(ingredient.id);return {...ingredient,included,cents:included?0:ingredient.cents,quantity:entry.quantity}}
-    return {...ingredient,quantity:entry.quantity};
+    if(ingredientProduct?.ingredientsConfigured){const included=(ingredientProduct.defaultIngredientIds||[]).includes(ingredient.id);return {...ingredient,included,cents:included?0:ingredient.cents,quantity:1}}
+    return {...ingredient,quantity:1};
   }).filter(Boolean);
 }
 function builderPrice(builder=app.builder) {
@@ -473,7 +472,7 @@ function builderPrice(builder=app.builder) {
   const product=app.catalog.products.find(item=>item.id===builder.productId);if(!product)return 0;
   const size=app.catalog.sizes[product.type].find(s=>s.key===builder.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===builder.crustKey):{priceCents:0};
-  const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents*item.quantity,0);
+  const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents,0);
   const flavorProducts=(builder.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
   const baseSizePrice=Math.max(...(flavorProducts.length?flavorProducts:[product]).map(p=>effectiveProductSizePrice(p,builder.sizeKey,size)));
   return Math.max(0,baseSizePrice+(crust?.priceCents||0)+extras);
@@ -605,7 +604,7 @@ function renderBuilder() {
   for (const [group, items] of ingredientGroups) {
     ingredientHtml += '<div class="step-row"><b>•</b> ' + esc(group) + '</div><div class="ingredient-list">' + items.map(item => {
       const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), ingredientProduct = buildYourOwnProduct || product, included = ingredientProduct.ingredientsConfigured ? (ingredientProduct.defaultIngredientIds || []).includes(item.id) : item.included, required = isBuildYourOwn ? included : (included || item.included), lockedAtLimit = isBuildYourOwn && !active && !included && buildYourOwnAddonCount >= ingredientLimit, price = included ? 'incluído' : item.cents ? '+ ' + money(item.cents) : 'grátis';
-      return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + (required ? ' ingredient-required' : '') + '" type="button" ' + ((required || lockedAtLimit) ? 'disabled aria-label="' + esc(item.name) + (required ? ', ingrediente padrão obrigatório' : ', limite de 3 ingredientes atingido') + '"' : 'aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"') + '><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + (required ? 'Padrão · ' : '') + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + (active && !isBuildYourOwn && (!included || ['burger','plate'].includes(product.type)) ? '<div class="ingredient-stepper" aria-label="Quantidade de ' + esc(item.name) + '"><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="-1" aria-label="Diminuir ' + esc(item.name) + '">−</button><span>' + entry.quantity + '×</span><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="1" aria-label="Aumentar ' + esc(item.name) + '">+</button></div>' : '') + '</div>';
+      return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + (required ? ' ingredient-required' : '') + '" type="button" ' + ((required || lockedAtLimit) ? 'disabled aria-label="' + esc(item.name) + (required ? ', ingrediente padrão obrigatório' : ', limite de 3 ingredientes atingido') + '"' : 'aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"') + '><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + (required ? 'Padrão · ' : '') + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + '</div>';
     }).join('') + '</div>';
   }
   const buildYourOwnHint = isBuildYourOwn ? '<p class="ingredient-help" role="status">' + (buildYourOwnAddonCount === 3 ? 'Os 3 adicionais foram selecionados.' : 'Você pode escolher mais ' + (3 - buildYourOwnAddonCount) + ' adicional(is).') + '</p>' : '';
@@ -2432,7 +2431,7 @@ async function repeatCustomerOrder(orderId){
       const sizeKey=options.some(option=>option.key===old.sizeKey)?old.sizeKey:(options.find(option=>option.key==='medium')||options[0])?.key;
       if(!sizeKey)continue;
       const crustKey=product.type==='pizza'?(app.catalog.crusts.some(item=>item.key===old.crustKey)?old.crustKey:(app.catalog.crusts.find(item=>item.key==='tradicional')||app.catalog.crusts[0])?.key):'';
-      const ingredients=(old.ingredients||[]).filter(entry=>validIngredients.has(entry.id)&&validIngredients.get(entry.id).type===product.type).map(entry=>({id:entry.id,quantity:Math.max(1,Math.min(3,Number(entry.quantity)||1))})).slice(0,12);
+      const ingredients=(old.ingredients||[]).filter(entry=>validIngredients.has(entry.id)&&validIngredients.get(entry.id).type===product.type).map(entry=>({id:entry.id,quantity:1})).slice(0,12);
       rebuilt.push({cartId:randomId(),productId:product.id,name:product.name,type:product.type,quantity:Math.max(1,Math.min(10,Number(old.quantity)||1)),sizeKey,crustKey,ingredients,notes:typeof old.notes==='string'?old.notes.slice(0,500):''});
     }
     if(!rebuilt.length)return toast('Os produtos desse pedido não estão mais disponíveis.');
@@ -2466,7 +2465,7 @@ function openMobileSiteMenu(){
   menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
 }
 async function handleClick(event){
-  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
+  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
   if(target.dataset.action==='mobile-site-menu-go'){
     const destination=target.dataset.destination;
@@ -2495,11 +2494,6 @@ async function handleClick(event){
   if(target.dataset.size&&app.builder){app.builder.sizeKey=target.dataset.size;renderBuilder();return}
   if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
   if(target.dataset.flavorProduct&&app.builder){const product=app.catalog.products.find(p=>p.id===app.builder.productId),size=app.catalog.sizes.pizza.find(x=>x.key===app.builder.sizeKey),limit=Number(size?.maxFlavors)||1,ids=app.builder.flavorProductIds||[product.id],index=ids.indexOf(target.dataset.flavorProduct),beforeByo=buildYourOwnFlavorProduct(product,ids);if(index>=0){if(ids.length===1)return toast('Selecione pelo menos um sabor.');ids.splice(index,1)}else if(ids.length<limit)ids.push(target.dataset.flavorProduct);else return toast('Esse tamanho permite até '+limit+' sabor(es).');const afterByo=buildYourOwnFlavorProduct(product,ids);if((beforeByo?.id||null)!==(afterByo?.id||null))app.builder.ingredients=defaultIngredients(afterByo||product,app.catalog);app.builder.flavorProductIds=ids;renderBuilder();return}
-  if(target.dataset.ingredientQty&&app.builder){
-    const entry=app.builder.ingredients.find(i=>i.id===target.dataset.ingredientQty);
-    if(entry){entry.quantity=Math.max(1,Math.min(['burger','plate'].includes(app.catalog.products.find(item=>item.id===app.builder.productId)?.type)?20:3,entry.quantity+Number(target.dataset.delta)));app.builder.lastAdded=entry.id;renderBuilder()}
-    return;
-  }
   if(target.dataset.ingredient&&app.builder){
     const id=target.dataset.ingredient,index=app.builder.ingredients.findIndex(i=>i.id===id),product=app.catalog.products.find(item=>item.id===app.builder.productId),ingredient=app.catalog.ingredients.find(item=>item.id===id);
     const byoFlavor=buildYourOwnFlavorProduct(product,app.builder.flavorProductIds||[product.id]),buildYourOwn=Boolean(byoFlavor),defaults=buildYourOwn?(byoFlavor.defaultIngredientIds||[]):(product?.defaultIngredientIds||[]);
