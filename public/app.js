@@ -822,6 +822,7 @@ function clearCheckoutKey(){
   try{sessionStorage.removeItem('menuza-checkout-key')}catch{}
 }
 async function openCheckout(){
+  if(!restaurantCanOrder())return toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
   for(const item of app.cart){const product=item.productId?app.catalog?.products.find(p=>p.id===item.productId):null;const combo=item.comboId?app.catalog?.combos?.find(c=>c.id===item.comboId):null;const restrictedProduct=product?.ageRestricted?product:(combo?.items||[]).find(entry=>entry.ageRestricted);if(restrictedProduct&&!await ensureAgeForProduct(restrictedProduct.productId?{id:restrictedProduct.productId,ageRestricted:true}:restrictedProduct))return;}
   ensureCheckoutKey();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
@@ -2500,9 +2501,10 @@ async function handleClick(event){
     const day=target.closest('[data-hours-day]'),box=day?.querySelector('.opening-hours-periods');
     if(!box)return;
     if(box.querySelectorAll('[data-hours-period]').length>=4){toast('Cada dia permite até quatro períodos.');return}
-    const first=box.querySelector('[data-hours-period]'),last=box.lastElementChild;
-    const open=last?.querySelector('[data-hours-close]')?.value||'18:00';
-    const close=open<'22:00'?'22:00':'23:00';
+    const existing=[...box.querySelectorAll('[data-hours-period]')],previousClose=existing.at(-1)?.querySelector('[data-hours-close]')?.value;
+    const open=previousClose||'18:00',[hour,minute]=open.split(':').map(Number),startMinutes=hour*60+minute,closeMinutes=Math.min(1439,startMinutes+240);
+    if(closeMinutes<=startMinutes){toast('Não há espaço para outro período depois do último horário. Ajuste os períodos existentes.');return}
+    const close=String(Math.floor(closeMinutes/60)).padStart(2,'0')+':'+String(closeMinutes%60).padStart(2,'0');
     box.insertAdjacentHTML('beforeend','<div class="opening-hours-period" data-hours-period><label><span>Abertura</span><input type="time" data-hours-open value="'+esc(open)+'" required></label><label><span>Fechamento</span><input type="time" data-hours-close value="'+close+'" required></label><button type="button" class="opening-hours-remove" data-action="remove-hours-period" aria-label="Remover período">×</button></div>');
     const enabled=day.querySelector('[data-hours-enabled]');if(enabled)enabled.checked=true;
     day.querySelector('.opening-hours-day-state')?.replaceChildren(document.createTextNode('Aberto'));
