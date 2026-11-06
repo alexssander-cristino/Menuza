@@ -22,7 +22,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDog
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '93';
+const MENUZA_APP_BUILD = '94';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
@@ -1172,7 +1172,7 @@ function renderAdmin(){
   const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['daily-closing','Fechamento diário','▤'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['pizza-config','Tamanhos e bordas',uiIcon('pizza',18)],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['opening-hours','Horários','◷'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Restaurante','⚙']] }];
   const tabs=groups.flatMap(group=>group.items);
   const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+(item[0]==='ingredients'?uiIcon('utensils',18):item[2])+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody">'+skeletonMarkup('dashboard')+'</div></main></div>';
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2" data-mz-admin-theme="' +(getAccessibilityPreferences().theme==='dark'?'dark':'light') + '"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody">'+skeletonMarkup('dashboard')+'</div></main></div>';
   if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='daily-closing')renderDailyClosingAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='pizza-config')renderPizzaConfigAdmin();else if(app.admin.tab==='beverages')renderBeveragesAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='promotions')renderPromotionsAdmin();else if(app.admin.tab==='delivery')renderDeliveryAdmin();else if(app.admin.tab==='opening-hours')renderOpeningHoursAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
 }
 let orderAlertAudioContext=null;
@@ -1818,7 +1818,8 @@ function getAccessibilityPreferences(){
 }
 function applyAccessibilityPreferences(preferences=getAccessibilityPreferences()){
   const html=root.documentElement;
-  html.dataset.mzTheme=preferences.theme;
+  // O tema visual é exclusivo do painel autenticado do restaurante.
+  // A página pública do cardápio e a experiência do cliente permanecem claras.
   html.dataset.mzPalette=preferences.palette;
   html.dataset.mzContrast=preferences.contrast?'high':'normal';
   html.dataset.mzFont=preferences.readableFont?'readable':'default';
@@ -1826,6 +1827,11 @@ function applyAccessibilityPreferences(preferences=getAccessibilityPreferences()
   html.dataset.mzLinks=preferences.underlineLinks?'underlined':'default';
   html.dataset.mzMotion=preferences.reduceMotion?'reduced':'default';
   html.style.setProperty('--mz-access-font-scale',String(preferences.fontScale));
+  applyRestaurantTheme(preferences.theme);
+}
+function applyRestaurantTheme(theme=getAccessibilityPreferences().theme){
+  const shell=root.querySelector('.admin-shell-v2');
+  if(shell)shell.dataset.mzAdminTheme=theme==='dark'?'dark':'light';
 }
 function saveAccessibilityPreferences(preferences){
   try{localStorage.setItem(ACCESSIBILITY_STORAGE_KEY,JSON.stringify(preferences));applyAccessibilityPreferences(preferences);return true}
