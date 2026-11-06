@@ -270,7 +270,6 @@
 html body.admin-route .announcement,
 html body.admin-route .site-header,
 html body.admin-route .mobile-site-menu { display:none!important; }
-html body.admin-route #adminView,
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] {
   background:var(--mz-night-bg,#171014)!important;
   color:var(--mz-night-text,#FFF1F5)!important;
