@@ -1226,26 +1226,46 @@ function scaleFoodGeometry(geometry, sx, sy, sz) {
 
 // Pão próprio para cachorro-quente: volume de pão macio e arredondado,
 // com laterais altas e topo abaulado, sem aparência de fatia achatada.
+// Pão de hot dog em formato de bisnaga: base plana, laterais arredondadas,
+// topo abaulado e canal longitudinal real para acomodar a salsicha.
 function hotDogBunMesh(R, H, seed, detail) {
-  const m = new Mesh(), prof = superPuck(R, H, 2.15, 64, .16);
+  const m = new Mesh(), pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    pts.push([t * R * .96, .012 * H * (1 - t * t)]);
+  }
+  const N = 52;
+  for (let i = 1; i <= N; i++) {
+    const a = Math.PI * .5 * i / N;
+    pts.push([
+      i === N ? 0 : R * Math.cos(a) ** (2 / 2.35),
+      H * Math.sin(a) ** (2 / 2.35)
+    ]);
+  }
+  const prof = profile(pts);
+  const radial = a => 1
+    + .018 * Math.sin(a * 3 + seed)
+    + .012 * (noise3(Math.cos(a) * 1.6, Math.sin(a) * 1.6, seed) - .5);
+  const displacement = (a, r, y) => {
+    const z = Math.sin(a) * r;
+    const groove = Math.exp(-((z / (R * .19)) ** 2)) * sstep(H * .12, H * .58, y);
+    const texture = (fbm(Math.cos(a) * r * 52, y * 52, Math.sin(a) * r * 52, seed + 2, 3) - .5) * .0007;
+    return [texture * .35, -H * .19 * groove + texture];
+  };
   m.revolve(prof, {
-    nu: 144, nv: 64, detail,
-    R: a => 1 + .018 * Math.sin(a * 3 + seed) + .012 * (noise3(Math.cos(a) * 1.6, Math.sin(a) * 1.6, seed) - .5),
-    disp: (a, r, y) => {
-      const d = (fbm(Math.cos(a) * r * 48, y * 48, Math.sin(a) * r * 48, seed + 2, 3) - .5) * .0011;
-      return [d * .55, d];
-    },
+    nu: 160, nv: 64, detail, R: radial, disp: displacement,
     shade: (u, v, p, n, [r, y]) => {
-      const grain = 1 + (nz(p, 58, seed + 4) - .5) * .12;
-      const top = sstep(-.05, H * .85, y);
-      const toasted = mix(C.bunSide, C.bunCrown, top * .68);
-      const freckles = sstep(.66, .8, nz(p, 34, seed + 7));
-      return MAT(mul(mix(toasted, C.bunDeep, freckles * .12), grain), .34, .12, .52, .88);
+      const grain = 1 + (nz(p, 58, seed + 4) - .5) * .13;
+      const top = sstep(-.02, H * .82, y);
+      const toasted = mix(C.bunSide, C.bunCrown, top * .72);
+      const freckles = sstep(.67, .81, nz(p, 34, seed + 7));
+      const grooveShade = Math.exp(-((p[2] / (R * .2)) ** 2)) * sstep(H * .12, H * .55, p[1]);
+      const color = mix(mix(toasted, C.bunDeep, freckles * .1), C.bunToast, grooveShade * .18);
+      return MAT(mul(color, grain), .38, .12, .58, .9);
     }
   });
   return m.finish();
 }
-
 function hotDogLayout(product, ings, o) {
   // Proporções de um cachorro-quente real: pão comprido, salsicha quase do
   // comprimento do pão e ingredientes no centro. Todas as medidas em metros.
@@ -1255,14 +1275,14 @@ function hotDogLayout(product, ings, o) {
   const bunX = length * .94 / (bunRadius * 2);
   const sausageR = bunRadius * .39;
   const sausageX = length * .88 / (sausageR * 2);
-  const key = kind => `hotdog-v6|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v7|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
   // Pão comprido, fofo e arredondado, com volume de pão de hot dog real.
   parts.push({
     kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
-    build: stretch(() => hotDogBunMesh(bunRadius, .019, seed + 1, detail), bunX, 1.08)
+    build: stretch(() => hotDogBunMesh(bunRadius, .027, seed + 1, detail), bunX, 1.08)
   });
 
   // Salsicha longa, cilíndrica e com pontas arredondadas. A escala longitudinal
