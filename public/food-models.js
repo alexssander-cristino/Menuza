@@ -983,7 +983,7 @@ const DEFAULT_BURGER = ['pao-brioche', 'carne', 'queijo-cheddar', 'alface', 'tom
 
 function burgerLayout(product, ings, size, o, kH) {
   const R = (Number(product.widthCm) || 12) / 200, seed = hash(product.id || 'burger'), detail = o.detail;
-  const q = new Map(ings.map(i => [i.id, clamp(Number(i.quantity) || 1, 1, 20)]));
+  const q = new Map(ings.map(i => [i.id, clamp(Number(i.quantity) || 1, 1, 3)]));
   const has = id => q.has(id), qty = id => q.get(id) || 0;
   const parts = []; let y = 0;
   const key = (kind, extra = '') => `burger|${kind}|${extra}|${R.toFixed(4)}|${kH.toFixed(3)}|${detail}|${seed}`;
@@ -995,7 +995,7 @@ function burgerLayout(product, ings, size, o, kH) {
   if (has('tomate-burger')) { const n = qty('tomate-burger'); add('tomato', n, () => tomatoMesh(R, kH, seed + 4, detail, n), (.0072 * n + .0008) * kH); }
   if (has('picles')) { const n = qty('picles'); add('pickles', n, () => pickleMesh(R, kH, seed + 5, detail, n), .0034 * n * kH); }
   if (has('cebola-burger')) { const n = qty('cebola-burger'); add('onion', n, () => onionMesh(R, kH, seed + 6, detail, n), .0046 * n * kH); }
-  const patties = has('carne') ? Math.min(20, Math.max(size?.key === 'duplo' ? 2 : 1, qty('carne'))) : 0;
+  const patties = has('carne') ? Math.min(3, Math.max(size?.key === 'duplo' ? 2 : 1, qty('carne'))) : 0;
   const cheeseStyleById = {
     'queijo-cheddar': 'cheddar', 'queijo-extra': 'generic',
     'queijo-mussarela-burger': 'mozzarella', 'queijo-parmesao-burger': 'parmesan',
@@ -1006,7 +1006,7 @@ function burgerLayout(product, ings, size, o, kH) {
     const style = cheeseStyleById[id];
     if (style) for (let i = 0; i < count; i++) cheeseStyles.push(style);
   }
-  const slices = Math.min(20, cheeseStyles.length);
+  const slices = Math.min(4, cheeseStyles.length);
   let remainingCheese = slices;
   const Hp = .017 * (patties === 2 ? .88 : 1) * kH, Rpat = R * .92;
   let cheeseCursor = 0;
@@ -1278,7 +1278,7 @@ function hotDogLayout(product, ings, o) {
   const bunX = length * .94 / (bunRadius * 2);
   const sausageR = bunRadius * .39;
   const sausageX = length * .88 / (sausageR * 2);
-  const key = (kind, quantity = 1) => `hotdog-v10|${kind}|q${quantity}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v9|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
@@ -1320,30 +1320,28 @@ function hotDogLayout(product, ings, o) {
     name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
   }));
   const has = pattern => names.some(x => pattern.test(x.name));
-  const qty = pattern => Math.min(20, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 20), 0)));
-  const add = (kind, build, y, xScale, zScale, zOffset = 0, quantity = 1) => parts.push({
-    kind: 'hotdog-' + kind, key: key(kind, quantity), y, z: zOffset, build: stretch(build, xScale, zScale)
+  const qty = pattern => Math.min(3, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 3), 0)));
+  const add = (kind, build, y, xScale, zScale, zOffset = 0) => parts.push({
+    kind: 'hotdog-' + kind, key: key(kind), y, z: zOffset, build: stretch(build, xScale, zScale)
   });
 
   // Complementos aparecem sobre a salsicha, em escala menor e sem cobrir o pão inteiro.
-  if (has(/queijo|cheddar|mussarela|catupiry|cream/)) {
-    const cheeseQty = qty(/queijo|cheddar|mussarela|catupiry|cream/);
-    add('cheese', () => scaleFoodGeometry(cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), 1, 1 + Math.min(2.5, (cheeseQty - 1) * .16), 1), .0198, sausageX * .82, .48, 0, cheeseQty);
-  }
+  if (has(/queijo|cheddar|mussarela|catupiry|cream/))
+    add('cheese', () => cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198, sausageX * .82, .48);
   if (has(/bacon|calabresa|linguica/))
-    add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48, 0, qty(/bacon|calabresa|linguica/));
+    add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
-    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(22, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54, 0, qty(/alface|rucula|repolho|salada/));
+    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(5, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54);
   if (has(/tomate|pimentao|pimenta/))
-    add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0201, sausageX * .76, .48, 0, qty(/tomate|pimentao|pimenta/));
+    add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0201, sausageX * .76, .48);
   if (has(/cebola|onion/))
-    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion/)), .0203, sausageX * .78, .5, 0, qty(/cebola|onion/));
+    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion/)), .0203, sausageX * .78, .5);
   if (has(/picles|pepino|pickle/))
-    add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48, 0, qty(/picles|pepino|pickle/));
+    add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
 
   // Molhos em fios finos e compridos, separados por cor.
-  const sauceRibbon = (color, ribbonSeed, zShift, quantity = 1) => {
-    const m = new Mesh(), L = length * .72, W = .00125 * Math.min(2.6, 1 + (quantity - 1) * .08), T = .00065 * Math.min(2.2, 1 + (quantity - 1) * .06);
+  const sauceRibbon = (color, ribbonSeed, zShift) => {
+    const m = new Mesh(), L = length * .72, W = .00125, T = .00065;
     const P = (u, v) => {
       const x = (u - .5) * L;
       const wave = Math.sin(u * Math.PI * 4 + ribbonSeed) * .0008 + Math.sin(u * Math.PI * 9 + ribbonSeed * .7) * .00025;
@@ -1361,10 +1359,8 @@ function hotDogLayout(product, ings, o) {
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
     { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.0014 }
   ];
-  for (const sauce of sauceTypes) if (has(sauce.pattern)) {
-    const sauceQty = qty(sauce.pattern);
-    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z, sauceQty), .0212, 1, 1, 0, sauceQty);
-  }
+  for (const sauce of sauceTypes) if (has(sauce.pattern))
+    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0212, 1, 1);
 
   return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
 }
@@ -1543,10 +1539,9 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
   const combined = new Map();
   for (const original of (ingredients || [])) {
     const item = resolveVisualIngredient(type, original);
-    const quantityLimit = type === 'burger' || type === 'plate' ? 20 : 3;
     const previous = combined.get(item.id);
-    if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, quantityLimit);
-    else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, quantityLimit) });
+    if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, 3);
+    else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, 3) });
   }
   const list = Array.from(combined.values());
   let layout, bounds;
