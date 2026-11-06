@@ -910,11 +910,21 @@ export default async function handler(req, res) {
       return json(res,200,{orders:await Promise.all(rows.rows.map(r=>orderById(r.id)))});
     }
     if (method==='DELETE'&&path==='/api/customer/account') {
-      const c=await requireCustomer(req), body=await bodyOf(req), row=(await query('SELECT * FROM customers WHERE id=$1',[c.customerId])).rows[0];
+      const c=await requireCustomer(req), body=await bodyOf(req);
+      const retry=await limit(req,'customer-account-delete:'+c.customerId,5,3600000);
+      if(retry) return json(res,429,{error:'Muitas tentativas de exclusão. Aguarde antes de tentar novamente.'},{'Retry-After':String(Math.ceil(retry/1000))});
+      const row=(await query('SELECT * FROM customers WHERE id=$1',[c.customerId])).rows[0];
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'Senha incorreta. A conta não foi excluída.'});
       await ensureAuthSessionsSchema();
-      await withTransaction(async client=>{await client.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE role=$1 AND subject_id=$2 AND revoked_at IS NULL',['customer',c.customerId]);await client.query('UPDATE orders SET customer_id=NULL WHERE customer_id=$1',[c.customerId]);await client.query('DELETE FROM customers WHERE id=$1',[c.customerId]);});
-      return json(res,200,{ok:true,message:'Conta excluída. Registros de pedidos mantidos por obrigações legais ou operacionais foram desvinculados da conta.'},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)});
+      await withTransaction(async client=>{
+        await client.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE role=$1 AND subject_id=$2 AND revoked_at IS NULL',['customer',c.customerId]);
+        // Mantém somente o registro transacional que possa ter de ser conservado.
+        // Remove os dados de contato/endereço e textos livres que identificam o titular.
+        await client.query("UPDATE order_items SET notes='' WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id=$1 AND customer_id=$2)",[RESTAURANT_ID,c.customerId]);
+        await client.query("UPDATE orders SET customer_id=NULL, customer_name='Cliente removido', phone='', delivery_address=NULL, note='', tracking_token='deleted-'||id WHERE restaurant_id=$1 AND customer_id=$2",[RESTAURANT_ID,c.customerId]);
+        await client.query('DELETE FROM customers WHERE id=$1',[c.customerId]);
+      });
+      return json(res,200,{ok:true,message:'Conta e dados pessoais excluídos. Apenas registros transacionais necessários podem permanecer, sem vínculo com sua conta e sem os dados pessoais removidos.'},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)});
     }
     if (method==='POST'&&path==='/api/privacy-requests') {
       await ensurePrivacyRequestFields();
