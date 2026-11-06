@@ -2527,5 +2527,5 @@ button[data-action="view-generated-3d"],
 .ingredient-choice{flex-wrap:wrap}
 .ingredient-quantity-wrap{display:inline-flex;align-items:center;gap:5px;margin-left:auto!important;white-space:nowrap}
 .ingredient-quantity-wrap small{margin:0!important;color:inherit;font-size:10px}
-.ingredient-choice .ingredient-quantity-input{width:54px;min-width:54px;height:30px;padding:3px 5px;border:1px solid #d9cfc5;border-radius:7px;background:#fff;color:#29232a;font:600 12px inherit;text-align:center;accent-color:auto}
+.ingredient-choice .ingredient-quantity-input{width:54px;min-width:54px;height:30px;padding:3px 5px;border:1px solid #d9cfc5;border-radius:7px;background:#fff;color:#29232a;font:inherit;font-size:12px;font-weight:600;text-align:center;accent-color:auto}
 .ingredient-choice .ingredient-quantity-input:focus{outline:2px solid #d69a62;outline-offset:1px}
