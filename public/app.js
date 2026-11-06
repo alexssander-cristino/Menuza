@@ -1169,7 +1169,7 @@ async function renderPizzaConfigAdmin(){
  }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar tamanhos e bordas</h2><p>'+esc(error.message)+'</p></section>'}
 }
 function renderAdmin(){
-  const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['daily-closing','Fechamento diário','▤'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['pizza-config','Tamanhos e bordas',uiIcon('pizza',18)],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['opening-hours','Horários','◷'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Configurações','⚙']] }];
+  const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['daily-closing','Fechamento diário','▤'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['pizza-config','Tamanhos e bordas',uiIcon('pizza',18)],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['opening-hours','Horários','◷'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Restaurante','⚙']] }];
   const tabs=groups.flatMap(group=>group.items);
   const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+(item[0]==='ingredients'?uiIcon('utensils',18):item[2])+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
   root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2"><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody">'+skeletonMarkup('dashboard')+'</div></main></div>';
@@ -1876,9 +1876,19 @@ async function renderSettingsAdmin(){
     const initialLogoUrl=String(restaurant.logoUrl||'').trim();
     target.innerHTML=`
       <div class="settings-intro">
-        <div><div class="eyebrow">PERSONALIZE SUA EXPERIÊNCIA</div><h2>Seu restaurante, do seu jeito.</h2><p>Atualize as informações que seus clientes veem no cardápio.</p></div>
+        <div><div class="eyebrow">RESTAURANTE E SEGURANÇA</div><h2>Configurações do restaurante.</h2><p>Gerencie os dados exibidos aos clientes e proteja o acesso administrativo nesta mesma aba.</p></div>
         <span class="settings-status" id="settingsStatus"><span></span> Tudo salvo</span>
       </div>
+      <section class="admin-panel menu-general-qr-panel" id="adminSecuritySettings">
+        <div class="admin-panel-head"><div><h2>Autenticação em duas etapas</h2><small>Proteja o acesso administrativo com um aplicativo autenticador.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('shield',20)}</span></div>
+        <div id="adminSecurityContent">
+          <p id="adminSecurityStatus">${securityResult.twoFactorEnabled?'A autenticação em duas etapas está ativa.':'A autenticação em duas etapas está desativada.'}</p>
+          ${securityResult.managedByEnvironment?'<p class="field-hint">A configuração atual vem da variável ADMIN_TOTP_SECRET. Para migrar o gerenciamento para esta tela, remova essa variável do ambiente após planejar a migração.</p>':''}
+          <div class="settings-actions"><button class="button button-dark button-small" type="button" id="adminTwoFactorSetup" ${securityResult.twoFactorEnabled?'disabled':''}>Ativar autenticação em duas etapas</button>${securityResult.twoFactorEnabled&&!securityResult.managedByEnvironment?'<button class="button button-outline button-small" type="button" id="adminTwoFactorDisable">Desativar 2FA</button>':''}</div>
+          ${securityResult.twoFactorEnabled&&securityResult.recoveryCodesRemaining!==null?'<small class="field-hint">Códigos de recuperação disponíveis: '+Number(securityResult.recoveryCodesRemaining)+'</small>':''}
+          <p class="field-hint" id="adminSecurityMessage" role="status" aria-live="polite"></p>
+        </div>
+      </section>
       <div class="settings-layout">
         <section class="admin-panel settings-panel">
           <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('sparkles',20)}</span></div>
@@ -1899,16 +1909,7 @@ async function renderSettingsAdmin(){
           <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">${uiIcon('shield',22)}</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
         </aside>
       </div>
-      <section class="admin-panel menu-general-qr-panel" id="adminSecuritySettings">
-        <div class="admin-panel-head"><div><h2>Autenticação em duas etapas</h2><small>Proteja o acesso administrativo com um aplicativo autenticador.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('shield',20)}</span></div>
-        <div id="adminSecurityContent">
-          <p id="adminSecurityStatus">${securityResult.twoFactorEnabled?'A autenticação em duas etapas está ativa.':'A autenticação em duas etapas está desativada.'}</p>
-          ${securityResult.managedByEnvironment?'<p class="field-hint">A configuração atual vem da variável ADMIN_TOTP_SECRET. Para migrar o gerenciamento para esta tela, remova essa variável do ambiente após planejar a migração.</p>':''}
-          <div class="settings-actions"><button class="button button-dark button-small" type="button" id="adminTwoFactorSetup" ${securityResult.twoFactorEnabled?'disabled':''}>Ativar autenticação em duas etapas</button>${securityResult.twoFactorEnabled&&!securityResult.managedByEnvironment?'<button class="button button-outline button-small" type="button" id="adminTwoFactorDisable">Desativar 2FA</button>':''}</div>
-          ${securityResult.twoFactorEnabled&&securityResult.recoveryCodesRemaining!==null?'<small class="field-hint">Códigos de recuperação disponíveis: '+Number(securityResult.recoveryCodesRemaining)+'</small>':''}
-          <p class="field-hint" id="adminSecurityMessage" role="status" aria-live="polite"></p>
-        </div>
-      </section>
+
       <section class="admin-panel menu-general-qr-panel"><div class="admin-panel-head"><div><h2>QR Code geral do cardápio</h2><small>Um único código para divulgar o cardápio inteiro, sem associação a mesas.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('grid',20)}</span></div><p>Baixe ou imprima o QR para colocar na entrada, balcão, embalagens e materiais de divulgação. O código permanece igual enquanto o endereço público do sistema não mudar.</p><div class="settings-actions"><button class="button button-dark button-small" type="button" data-action="show-menu-qr">Gerar QR Code do cardápio</button></div><div id="menuQrModalRoot"></div></section>
       <section class="admin-panel accessibility-settings-panel" aria-labelledby="accessibilitySettingsTitle">
         <div class="admin-panel-head"><div><h2 id="accessibilitySettingsTitle">Acessibilidade e aparência</h2><small>Personalize a leitura e a navegação em todo o Menuza. As escolhas ficam salvas neste dispositivo.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('info',20)}</span></div>
