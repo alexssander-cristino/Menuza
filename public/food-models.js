@@ -1326,8 +1326,10 @@ function hotDogLayout(product, ings, o) {
   });
 
   // Complementos aparecem sobre a salsicha, em escala menor e sem cobrir o pão inteiro.
-  if (has(/queijo|cheddar|mussarela|catupiry|cream/))
-    add('cheese', () => cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198, sausageX * .82, .48);
+  if (has(/queijo|cheddar|mussarela|catupiry|cream/)) {
+    const cheeseQty = qty(/queijo|cheddar|mussarela|catupiry|cream/);
+    add('cheese', () => scaleFoodGeometry(cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), 1, 1 + Math.min(2.5, (cheeseQty - 1) * .16), 1), .0198, sausageX * .82, .48, 0, cheeseQty);
+  }
   if (has(/bacon|calabresa|linguica/))
     add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48, 0, qty(/bacon|calabresa|linguica/));
   if (has(/alface|rucula|repolho|salada/))
@@ -1340,8 +1342,8 @@ function hotDogLayout(product, ings, o) {
     add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48, 0, qty(/picles|pepino|pickle/));
 
   // Molhos em fios finos e compridos, separados por cor.
-  const sauceRibbon = (color, ribbonSeed, zShift) => {
-    const m = new Mesh(), L = length * .72, W = .00125, T = .00065;
+  const sauceRibbon = (color, ribbonSeed, zShift, quantity = 1) => {
+    const m = new Mesh(), L = length * .72, W = .00125 * Math.min(2.6, 1 + (quantity - 1) * .08), T = .00065 * Math.min(2.2, 1 + (quantity - 1) * .06);
     const P = (u, v) => {
       const x = (u - .5) * L;
       const wave = Math.sin(u * Math.PI * 4 + ribbonSeed) * .0008 + Math.sin(u * Math.PI * 9 + ribbonSeed * .7) * .00025;
@@ -1359,8 +1361,10 @@ function hotDogLayout(product, ings, o) {
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
     { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.0014 }
   ];
-  for (const sauce of sauceTypes) if (has(sauce.pattern))
-    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0212, 1, 1);
+  for (const sauce of sauceTypes) if (has(sauce.pattern)) {
+    const sauceQty = qty(sauce.pattern);
+    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z, sauceQty), .0212, 1, 1, 0, sauceQty);
+  }
 
   return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
 }
