@@ -739,3 +739,64 @@ html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .or
 html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search input::placeholder {
   color: #B18B94 !important;
 }
+
+
+/* Correção de bordas duplicadas nos filtros de pedidos.
+   .orders-search já é o campo visual; o input interno deve ser invisível.
+   O seletor genérico de inputs estava desenhando uma segunda caixa dentro dele. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 44px !important;
+  padding: 0 13px !important;
+  background: #211319 !important;
+  border: 1px solid #603340 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search input,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search input:focus {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: #FFF0F2 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-search:focus-within {
+  border-color: #E04458 !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 2px rgba(224, 68, 88, .16) !important;
+}
+
+/* Cada filtro mantém somente a borda do próprio select, sem contorno extra
+   no label que o envolve. */
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field select,
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field select:focus {
+  width: 100% !important;
+  min-height: 44px !important;
+  color: #FFF0F2 !important;
+  background: #211319 !important;
+  border: 1px solid #603340 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+html body.admin-route #adminView .admin-shell-v2[data-mz-admin-theme="dark"] .orders-filter-field select:focus {
+  border-color: #E04458 !important;
+  box-shadow: 0 0 0 2px rgba(224, 68, 88, .16) !important;
+}
