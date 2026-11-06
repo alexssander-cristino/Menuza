@@ -458,40 +458,36 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
     + out + '</svg>';
 }
 
-/* ───────────────────────────── PORÇÃO (BATATAS) ───────────────────────────── */
+/* ───────────────────────────── HOT DOG ───────────────────────────── */
 
-export function plateArt(seed = 'plate', ingredients = []) {
-  if (Array.isArray(seed)) { const first = seed; seed = typeof ingredients === 'string' ? ingredients : 'plate'; ingredients = first; }
-  const id = 'pl' + (++uidCounter), rng = rngFrom('plate:' + seed);
-  let fries = '';
-  for (let i = 0; i < 34; i++) {
-    const t = i / 34, x = 250 + (t - .5) * 220 + (rng() - .5) * 24, y = 214 + Math.sin(t * Math.PI) * -10 + (rng() - .5) * 30;
-    const len = 104 + rng() * 52, rot = -70 + rng() * 140 + (t - .5) * 50, w = 15 + rng() * 5;
-    fries += '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(rot) + ')"><rect x="' + f(-w / 2) + '" y="' + f(-len / 2) + '" width="' + f(w) + '" height="' + f(len) + '" rx="3" fill="url(#' + id + 'fry)" stroke="#a96d26" stroke-width="1.6"/><path d="M' + f(-w / 2 + 3) + ' ' + f(-len / 2 + 4) + 'v' + f(len - 8) + '" stroke="#fbe3a1" stroke-width="2" opacity=".7" stroke-linecap="round"/>' + (rng() > .5 ? '<ellipse cx="0" cy="' + f((rng() - .5) * len * .6) + '" rx="' + f(w / 2) + '" ry="2.5" fill="#8c5518" opacity=".35"/>' : '') + '</g>';
-  }
-  let salt = '';
-  for (let i = 0; i < 40; i++) salt += '<circle cx="' + f(150 + rng() * 200) + '" cy="' + f(150 + rng() * 110) + '" r="' + f(.8 + rng() * 1.1) + '" fill="#fff" opacity=".85"/>';
-  let herbs = '';
-  for (let i = 0; i < 6; i++) herbs += '<path transform="translate(' + f(170 + rng() * 160) + ' ' + f(165 + rng() * 80) + ') rotate(' + f(rng() * 360) + ')" d="M0 0q9-14 19-6q-8 13-19 6z" fill="#5f7d3f"/>';
-  const garnish = (ingredients || []).filter(item => item && item.id && !['batatas', 'batata-frita', 'fritas'].includes(String(item.id).toLowerCase())).slice(0, 10).map((item, index) => {
-    const name = normalizeName(item.name || item.id);
-    const x = 160 + (index % 5) * 45 + (rng() - .5) * 12, y = 175 + Math.floor(index / 5) * 56 + (rng() - .5) * 10;
-    if (/molho|maionese|ketchup|mostarda|barbecue/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="17" ry="9" fill="#d88b48" stroke="#a85d2c" stroke-width="2"/>';
-    if (/queijo|cheddar|mussarela|catupiry/.test(name)) return '<path d="M' + f(x - 17) + ' ' + f(y - 7) + 'q17-8 34 0l-4 16q-14 6-26 0z" fill="#f4d16d" stroke="#c49a3f" stroke-width="2"/>';
-    if (/frango|carne|hamburguer|bacon|calabresa|linguica/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="18" ry="11" fill="' + (/bacon|calabresa|linguica/.test(name) ? '#b94c36' : '#b98558') + '" stroke="#77452d" stroke-width="2"/><path d="M' + f(x - 9) + ' ' + f(y) + 'q9-7 18 0" fill="none" stroke="#e8bc8b" stroke-width="2"/>';
-    if (/tomate|pimentao|pimenta/.test(name)) return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="13" fill="#d84a33" stroke="#a52f20" stroke-width="2"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="5" fill="#f7c7a2"/>';
-    if (/milho|ervilha/.test(name)) return '<g fill="#f1c84e">' + [0, 1, 2, 3, 4].map(n => '<circle cx="' + f(x - 8 + n * 4) + '" cy="' + f(y + (n % 2) * 4) + '" r="3"/>').join('') + '</g>';
-    if (/alface|rucula|salada|salsinha|cebolinha|oregano|erva|manjericao/.test(name)) return '<path d="M' + f(x - 18) + ' ' + f(y + 6) + 'q4-24 20-15q16-6 17 12q-18 14-37 3z" fill="#5f8b43" stroke="#3f6531" stroke-width="2"/>';
-    if (/cebola|cogumelo|champignon|azeitona|picles|pepino/.test(name)) return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="15" ry="9" fill="' + (/azeitona|picles|pepino/.test(name) ? '#4d6d3b' : '#e5d0b2') + '" stroke="#7e6548" stroke-width="2"/>';
-    return '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="16" ry="10" fill="#c99059" stroke="#8b5a31" stroke-width="2"/><ellipse cx="' + f(x - 4) + '" cy="' + f(y - 3) + '" rx="5" ry="2" fill="#f1d4a8" opacity=".7"/>';
-  }).join('');
-  return '<svg viewBox="0 0 500 420" role="img" aria-label="Porção personalizada com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg"><defs>'
-    + '<linearGradient id="' + id + 'fry" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#f2c15f"/><stop offset=".6" stop-color="#e0a043"/><stop offset="1" stop-color="#c98a32"/></linearGradient>'
-    + '<radialGradient id="' + id + 'pl" cx="40%" cy="30%" r="85%"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcdae4"/></radialGradient>'
-    + '<filter id="' + id + 'blur"><feGaussianBlur stdDeviation="9"/></filter>'
-    + '<filter id="' + id + 'ts"><feDropShadow dx="1.5" dy="3" stdDeviation="2" flood-color="#2a1608" flood-opacity=".35"/></filter></defs>'
-    + '<ellipse cx="258" cy="262" rx="216" ry="134" fill="#1b1530" opacity=".22" filter="url(#' + id + 'blur)"/>'
-    + '<ellipse cx="250" cy="236" rx="206" ry="130" fill="url(#' + id + 'pl)" stroke="#cfcddb" stroke-width="3"/>'
-    + '<ellipse cx="250" cy="238" rx="150" ry="88" fill="#efedf5" stroke="#d9d7e3" stroke-width="2"/>'
-    + '<g filter="url(#' + id + 'ts)">' + fries + '</g>' + salt + herbs + '<g class="plate-custom-ingredients">' + garnish + '</g></svg>';
+export function hotDogArt(seed = 'hotdog', ingredients = []) {
+  if (Array.isArray(seed)) { const first = seed; seed = typeof ingredients === 'string' ? ingredients : 'hotdog'; ingredients = first; }
+  const id = 'hd' + (++uidCounter), rng = rngFrom('hotdog:' + seed);
+  const list = (ingredients || []).filter(Boolean);
+  const has = pattern => list.some(item => pattern.test(normalizeName(item.name || item.id)));
+  const toppings = [];
+  if (has(/queijo|cheddar|mussarela|catupiry/)) toppings.push('<path d="M105 190Q250 148 395 190L382 213Q250 181 118 213Z" fill="#f2c34d" stroke="#c58a29" stroke-width="3"/>');
+  if (has(/bacon|calabresa|linguica/)) toppings.push('<path d="M115 184q24-18 48 0t48 0t48 0t48 0t48 0t48 0" fill="none" stroke="#9d3d2d" stroke-width="13" stroke-linecap="round"/>');
+  if (has(/alface|rucula|repolho|salada/)) toppings.push('<path d="M112 187q15-28 35-8t34-8t36 9t37-9t37 8t37-8t39 17" fill="none" stroke="#57913e" stroke-width="15" stroke-linecap="round"/>');
+  if (has(/tomate|pimentao/)) toppings.push('<g fill="#d94a35" stroke="#a62d22" stroke-width="2"><ellipse cx="165" cy="181" rx="22" ry="10"/><ellipse cx="230" cy="174" rx="22" ry="10"/><ellipse cx="300" cy="174" rx="22" ry="10"/><ellipse cx="365" cy="181" rx="22" ry="10"/></g>');
+  if (has(/cebola|onion/)) toppings.push('<path d="M130 178q22-18 44 0t44 0t44 0t44 0t44 0t44 0" fill="none" stroke="#f3e4cf" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/picles|pepino/)) toppings.push('<g fill="#789b43" stroke="#49682b" stroke-width="2"><ellipse cx="180" cy="170" rx="24" ry="8"/><ellipse cx="260" cy="165" rx="24" ry="8"/><ellipse cx="340" cy="170" rx="24" ry="8"/></g>');
+  const sauces = [];
+  if (has(/ketchup|molho|tomate/)) sauces.push('<path d="M120 165q32-15 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#c83d2c" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/mostarda/)) sauces.push('<path d="M120 154q32-14 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#e9b52e" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/maionese|barbecue|bbq/)) sauces.push('<path d="M125 176q32-12 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#e8d3ae" stroke-width="6" stroke-linecap="round"/>');
+  const sesame = Array.from({length:22},(_,i)=>'<ellipse cx="'+(142+(i*37)%220)+'" cy="'+(116+(i*19)%24)+'" rx="4" ry="2" transform="rotate(-18 '+(142+(i*37)%220)+' '+(116+(i*19)%24)+')" fill="#f7e5bd"/>').join('');
+  return '<svg viewBox="0 0 500 320" role="img" aria-label="Hot dog personalizado com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg"><defs>'
+    + '<linearGradient id="'+id+'bun" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f4c77f"/><stop offset=".55" stop-color="#d99448"/><stop offset="1" stop-color="#a85e2b"/></linearGradient>'
+    + '<linearGradient id="'+id+'sausage" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b85b35"/><stop offset=".5" stop-color="#87351f"/><stop offset="1" stop-color="#5b2518"/></linearGradient>'
+    + '<filter id="'+id+'shadow"><feGaussianBlur stdDeviation="9"/></filter></defs>'
+    + '<ellipse cx="250" cy="258" rx="190" ry="24" fill="#24180f" opacity=".2" filter="url(#'+id+'shadow)"/>'
+    + '<path d="M68 195Q65 115 132 103Q250 70 368 103Q435 115 432 195Q428 250 360 255H140Q72 250 68 195Z" fill="url(#'+id+'bun)" stroke="#985322" stroke-width="5"/>'
+    + '<path d="M91 192Q95 135 145 125Q250 101 355 125Q405 135 409 192Q402 218 355 222H145Q98 218 91 192Z" fill="#f5d69b" opacity=".75"/>'
+    + sesame
+    + '<path d="M105 190Q105 143 150 139H350Q395 143 395 190Q390 216 350 219H150Q110 216 105 190Z" fill="url(#'+id+'sausage)" stroke="#672817" stroke-width="4"/>'
+    + '<path d="M130 157Q250 139 370 157" fill="none" stroke="#e18b5c" stroke-width="6" opacity=".6" stroke-linecap="round"/>'
+    + toppings.join('') + sauces.join('')
+    + '<path d="M83 202Q250 236 417 202" fill="none" stroke="#8d4b25" stroke-width="4" opacity=".6"/>'
+    + '</svg>';
 }
