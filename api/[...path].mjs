@@ -319,7 +319,55 @@ async function validateSizePrices(type, value, fallbackCents) {
   if (!options.length) throw fail('Este produto não possui tamanhos configuráveis.',422);
   return result;
 }
+const DEFAULT_OPENING_HOURS = { configured: false, days: {} };
+let openingHoursSchemaPromise;
+async function ensureOpeningHoursSchema() {
+  if (!openingHoursSchemaPromise) openingHoursSchemaPromise = query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS opening_hours_json TEXT NOT NULL DEFAULT '{\"configured\":false,\"days\":{}}'").catch(error => { openingHoursSchemaPromise = null; throw error; });
+  await openingHoursSchemaPromise;
+}
+function normalizeOpeningHours(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !value.days || typeof value.days !== 'object' || Array.isArray(value.days)) throw fail('Informe os horários de funcionamento.',422);
+  const days = {};
+  for (let day=1; day<=7; day++) {
+    const source=value.days[String(day)] || {};
+    const enabled=Boolean(source.enabled);
+    const periods=Array.isArray(source.periods)?source.periods:[];
+    if (periods.length>4) throw fail('Cada dia permite até quatro períodos de funcionamento.',422);
+    const normalized=(enabled?periods:[]).map(period=>{
+      const open=String(period?.open||''),close=String(period?.close||'');
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(open)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(close)||open>=close) throw fail('Confira os horários: o encerramento deve ser depois da abertura.',422);
+      return {open,close};
+    }).sort((a,b)=>a.open.localeCompare(b.open));
+    for(let i=1;i<normalized.length;i++) if(normalized[i].open<normalized[i-1].close) throw fail('Os períodos do mesmo dia não podem se sobrepor.',422);
+    if(enabled&&!normalized.length) throw fail('Adicione ao menos um período para cada dia aberto.',422);
+    days[String(day)]={enabled,periods:enabled?normalized:[]};
+  }
+  return {configured:true,days};
+}
+function openingHoursState(schedule) {
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const values=Object.fromEntries(parts.filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+  const day=({Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6,Sun:7})[values.weekday]||1;
+  const now=values.hour+':'+values.minute;
+  const today=schedule?.days?.[String(day)]||{enabled:false,periods:[]};
+  const isOpen=!schedule?.configured||Boolean(today.enabled&&today.periods?.some(period=>now>=period.open&&now<period.close));
+  const next=today.periods?.find(period=>now<period.open);
+  const message=!schedule?.configured?'Horários ainda não configurados':isOpen?'Aberto agora':next?'Fechado agora · abre às '+next.open:'Fechado agora';
+  return {configured:Boolean(schedule?.configured),isOpen,day,message,timezone:'America/Sao_Paulo'};
+}
+async function getOpeningHours() {
+  await ensureOpeningHoursSchema();
+  const row=(await query('SELECT opening_hours_json AS "openingHoursJson" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
+  let schedule=DEFAULT_OPENING_HOURS;
+  try { const parsed=JSON.parse(row?.openingHoursJson||'{}'); if(parsed&&typeof parsed==='object')schedule={...DEFAULT_OPENING_HOURS,...parsed}; } catch {}
+  return {schedule,status:openingHoursState(schedule)};
+}
+function assertRestaurantOpen(schedule) {
+  const status=openingHoursState(schedule);
+  if(!status.isOpen) throw fail('O restaurante está fechado neste momento. Confira os horários de funcionamento no cardápio.',403);
+}
 async function catalogFor(admin = false) {
+  await ensureOpeningHoursSchema();
   await ensurePizzaConfigSchema();
   await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
@@ -372,6 +420,8 @@ async function catalogFor(admin = false) {
   }));
   await ensurePromoDeliverySchema();
   const restaurantRow = await migrateRestaurantImageFields(restaurant.rows[0] || null);
+  const openingHours=await getOpeningHours();
+  if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
     const promotion=promotionRows.find(p=>p.product_id===product.id);
@@ -495,6 +545,8 @@ async function priceItems(input) {
   return { subtotal, priced, requiresAdult: priced.some(item=>item.product.ageRestricted===true || Number(item.product.ageRestricted)===1) };
 }
 async function createOrder(body, customer) {
+  const openingHours=await getOpeningHours();
+  assertRestaurantOpen(openingHours.schedule);
   const customerName=clean(body.customerName,100), phone=clean(body.phone,30), fulfillment=body.fulfillment;
   if (customerName.length<2) throw fail('Informe seu nome.',422);
   if (phone.replace(/\D/g,'').length<8) throw fail('Informe um telefone válido.',422);
@@ -516,6 +568,10 @@ async function createOrder(body, customer) {
   const id='BM-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+randomBytes(3).toString('hex').toUpperCase();
   const token=randomBytes(24).toString('base64url'), now=new Date().toISOString();
   await withTransaction(async client => {
+    const lockedRestaurant=await client.query('SELECT opening_hours_json AS "openingHoursJson" FROM restaurants WHERE id=$1 FOR SHARE',[RESTAURANT_ID]);
+    let lockedSchedule=DEFAULT_OPENING_HOURS;
+    try { lockedSchedule=JSON.parse(lockedRestaurant.rows[0]?.openingHoursJson||'{}'); } catch {}
+    assertRestaurantOpen(lockedSchedule);
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[RESTAURANT_ID+':'+key]);
     const duplicate=await client.query('SELECT id,customer_id AS "customerId" FROM orders WHERE restaurant_id=$1 AND idempotency_key=$2 FOR UPDATE',[RESTAURANT_ID,key]);
     if (duplicate.rows[0]) {
@@ -725,6 +781,18 @@ export default async function handler(req, res) {
     if (method==='GET'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
     if (method==='PATCH'&&path==='/api/admin/promotion-banner') { requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
     if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
+    if (method==='GET'&&path==='/api/admin/opening-hours') {
+      requireAdmin(req);
+      const result=await getOpeningHours();
+      return json(res,200,{openingHours:result.schedule,status:result.status});
+    }
+    if (method==='PATCH'&&path==='/api/admin/opening-hours') {
+      requireAdmin(req);
+      await ensureOpeningHoursSchema();
+      const schedule=normalizeOpeningHours(await bodyOf(req));
+      await query('UPDATE restaurants SET opening_hours_json=$1 WHERE id=$2',[JSON.stringify(schedule),RESTAURANT_ID]);
+      return json(res,200,{openingHours:schedule,status:openingHoursState(schedule)});
+    }
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
     if (method==='GET'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,promotions:c.products.filter(p=>p.promotion).map(p=>({productId:p.id,name:p.name,...p.promotion}))}); }
     if (method==='POST'&&path==='/api/admin/promotions') { requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
