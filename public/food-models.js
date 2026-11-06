@@ -1224,6 +1224,28 @@ function scaleFoodGeometry(geometry, sx, sy, sz) {
   return geometry;
 }
 
+// Pão próprio para cachorro-quente: volume de pão macio e arredondado,
+// com laterais altas e topo abaulado, sem aparência de fatia achatada.
+function hotDogBunMesh(R, H, seed, detail) {
+  const m = new Mesh(), prof = superPuck(R, H, 2.15, 64, .16);
+  m.revolve(prof, {
+    nu: 144, nv: 64, detail,
+    R: a => 1 + .018 * Math.sin(a * 3 + seed) + .012 * (noise3(Math.cos(a) * 1.6, Math.sin(a) * 1.6, seed) - .5),
+    disp: (a, r, y) => {
+      const d = (fbm(Math.cos(a) * r * 48, y * 48, Math.sin(a) * r * 48, seed + 2, 3) - .5) * .0011;
+      return [d * .55, d];
+    },
+    shade: (u, v, p, n, [r, y]) => {
+      const grain = 1 + (nz(p, 58, seed + 4) - .5) * .12;
+      const top = sstep(-.05, H * .85, y);
+      const toasted = mix(C.bunSide, C.bunCrown, top * .68);
+      const freckles = sstep(.66, .8, nz(p, 34, seed + 7));
+      return MAT(mul(mix(toasted, C.bunDeep, freckles * .12), grain), .34, .12, .52, .88);
+    }
+  });
+  return m.finish();
+}
+
 function hotDogLayout(product, ings, o) {
   // Proporções de um cachorro-quente real: pão comprido, salsicha quase do
   // comprimento do pão e ingredientes no centro. Todas as medidas em metros.
@@ -1233,16 +1255,14 @@ function hotDogLayout(product, ings, o) {
   const bunX = length * .94 / (bunRadius * 2);
   const sausageR = bunRadius * .39;
   const sausageX = length * .88 / (sausageR * 2);
-  const key = kind => `hotdog-v5|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v6|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
-  // Pão de hot dog como um único pão inferior: base arredondada, laterais
-  // macias e miolo superior plano para a salsicha ficar encaixada, sem uma
-  // cúpula cobrindo o recheio nem paredes artificiais nas laterais.
+  // Pão comprido, fofo e arredondado, com volume de pão de hot dog real.
   parts.push({
     kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
-    build: stretch(() => bunBottomMesh(bunRadius, .012, seed + 1, detail), bunX, 1.12)
+    build: stretch(() => hotDogBunMesh(bunRadius, .019, seed + 1, detail), bunX, 1.08)
   });
 
   // Salsicha longa, cilíndrica e com pontas arredondadas. A escala longitudinal
