@@ -34,3 +34,5 @@ jobs:
           node --check src/storage/neon.mjs
           node --check src/storage/image-validation.mjs
           node --check src/security/file-validation.mjs
+          node --check src/security/rate-limit.mjs
+          node --check api/catalog.mjs
