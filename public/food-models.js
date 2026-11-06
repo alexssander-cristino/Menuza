@@ -1228,7 +1228,7 @@ function hotDogLayout(product, ings, o) {
   const length = clamp((Number(product.widthCm) || 20) / 100, .18, .24);
   const radius = length * .225, seed = hash(product.id || 'hotdog'), detail = o.detail;
   const sx = length / (radius * 2);
-  const key = kind => `hotdog-v2|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
+  const key = kind => `hotdog-v3|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
   const parts = [];
 
@@ -1242,8 +1242,10 @@ function hotDogLayout(product, ings, o) {
     parts.push({
       kind: side < 0 ? 'hotdog-bun-wall-left' : 'hotdog-bun-wall-right',
       key: key(side < 0 ? 'bun-wall-left' : 'bun-wall-right'),
-      y: .0035, z: side * radius * .53, base: true,
-      build: stretch(() => bunBottomMesh(radius * .57, .0125, seed + (side < 0 ? 21 : 22), detail), sx * 1.72, .72)
+      y: .0022, z: side * radius * .55, base: true,
+      // Laterais feitas com a casca superior do pão: ficam douradas e arredondadas,
+      // em vez de parecerem duas bolas ou uma borda artificial.
+      build: stretch(() => bunTopMesh(radius * .49, .0115, seed + (side < 0 ? 21 : 22), detail), sx * 1.9, .72)
     });
   }
 
