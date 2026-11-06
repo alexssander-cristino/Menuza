@@ -493,7 +493,8 @@ async function catalogFor(admin = false) {
 }
 async function validateIngredientQuantities(value, type, selectedIds = []) {
   if (!['burger','plate'].includes(type)) return {};
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('Informe quantidades válidas para os ingredientes.',422);
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw fail('Informe quantidades válidas para os ingredientes.',422);
   const allowed = new Set(selectedIds), result = {};
   for (const [id, raw] of Object.entries(value)) {
     if (!allowed.has(id)) continue;
