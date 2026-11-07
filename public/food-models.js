@@ -1033,6 +1033,21 @@ function burgerHamMesh(R, seed, quantity = 1) {
   for (let i = 0; i < count; i++) hamInto(m, (i % 2 ? 1 : -1) * R * .12, .001 + i * .0007, (i % 3 - 1) * R * .1, R * .48, seed + i * 9, rnd);
   return m.finish();
 }
+function burgerCustomMesh(R, seed, detail, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count * 5; i++) {
+    const angle = i * 2.39996 + rnd() * .25, radius = Math.sqrt(rnd()) * R * .68;
+    const size = R * (.055 + rnd() * .035);
+    blobInto(m, {
+      rx: size * 1.35, ry: size * .48, rz: size,
+      seed: seed + i * 3, amp: .24, nu: seg(10, detail, 6), nv: 7,
+      xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .3, roll: (rnd() - .5) * .3,
+        t: [Math.cos(angle) * radius, .001 + Math.floor(i / 5) * .0012, Math.sin(angle) * radius] }),
+      shade: () => MAT(mix(lin('#a66a36'), lin('#d2a06a'), rnd() * .65), .48, .22, .12, 1)
+    });
+  }
+  return m.finish();
+}
 
     // Segmentos sempre inteiros: com detail < 1 (celulares) valores como 74,4 deixavam uma fenda na costura da malha.
 const seg = (n, detail, min = 6) => Math.max(min, Math.round(n * detail));
@@ -1120,6 +1135,15 @@ function burgerLayout(product, ings, size, o, kH) {
     const h = item.height * kH * (item.single ? 1 : count);
     add(item.kind, `${item.id}-quantity-${count}`,
       () => item.build(count), h, item.id.includes('molho') || item.id.includes('ketchup') || item.id.includes('maionese') ? -.0007 : 0);
+  }
+  // Ingredientes personalizados sem correspondência conhecida ganham uma cobertura
+  // própria de pedaços tostados; nunca são convertidos silenciosamente em queijo.
+  for (const item of ings) {
+    if (!String(item.id).startsWith('burger-custom-')) continue;
+    const count = qty(item.id);
+    if (!count) continue;
+    add('custom:' + item.id, `${item.id}-quantity-${count}`,
+      () => burgerCustomMesh(R, seed + hash(item.id), detail, count), .0042 * kH * count);
   }
 
   if (buns) add('bun-top', '', () => bunTopMesh(R, .036 * kH, seed + 30, detail), .036 * kH, -.0012);
@@ -1651,15 +1675,56 @@ function resolveVisualIngredient(type, ingredient) {
     chicken: 'frango-burger', frango: 'frango-burger', ribs: 'costela-burger',
     alcatra: 'alcatra-burger', 'hamburguer-140g': 'hamburguer-140g'
   } : {};
-  if (visualAliases[visual]) return { ...ingredient, id: visualAliases[visual] };
-  const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const name = raw.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
-  // Correspondência por palavras inteiras: includes() confundia "conserva" com "erva"
-  // e classificava ingredientes sem relação com ervas como orégano.
+  // O nome/id do ingrediente sempre vence um visual genérico herdado do cadastro.
+  // Isso evita que alface, tomate, bacon etc. sejam transformados em queijo.
   const has = (...terms) => terms.some(term => {
-    const normalized = String(term).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const normalized = String(term).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     return normalized && (' ' + text + ' ').includes(' ' + normalized + ' ');
   });
+  if (type === 'burger') {
+    let burgerId = '';
+    if (has('pao', 'brioche', 'bun', 'bread')) burgerId = 'pao-brioche';
+    else if (has('hamburguer 140g')) burgerId = 'hamburguer-140g';
+    else if (has('costela', 'ribs')) burgerId = 'costela-burger';
+    else if (has('alcatra')) burgerId = 'alcatra-burger';
+    else if (has('frango', 'crispy chicken', 'chicken')) burgerId = 'frango-burger';
+    else if (has('carne', 'hamburguer', 'burger', 'patty', 'bovina', 'blend')) burgerId = 'carne';
+    else if (has('cheddar')) burgerId = 'queijo-cheddar';
+    else if (has('mussarela', 'mozzarella', 'mozzarela', 'bufala')) burgerId = 'queijo-mussarela-burger';
+    else if (has('parmesao', 'parmesan')) burgerId = 'queijo-parmesao-burger';
+    else if (has('gorgonzola', 'queijo azul', 'roquefort')) burgerId = 'queijo-gorgonzola-burger';
+    else if (has('provolone')) burgerId = 'queijo-provolone-burger';
+    else if (has('queijo', 'cheese', 'prato', 'catupiry', 'requeijao')) burgerId = 'queijo-extra';
+    else if (has('alface', 'lettuce', 'rucula', 'folha')) burgerId = 'alface';
+    else if (has('tomate', 'tomato')) burgerId = 'tomate-burger';
+    else if (has('bacon', 'panceta')) burgerId = 'bacon-burger';
+    else if (has('ovo', 'egg')) burgerId = 'ovo';
+    else if (has('cebola', 'onion')) burgerId = 'cebola-burger';
+    else if (has('picles', 'pickle', 'pepino')) burgerId = 'picles';
+    else if (has('molho especial', 'molho da casa', 'sauce')) burgerId = 'molho-especial';
+    else if (has('catchup', 'ketchup')) burgerId = 'ketchup-burger';
+    else if (has('maionese', 'mayonnaise', 'mayo', 'aioli')) burgerId = 'maionese-burger';
+    else if (has('calabresa', 'pepperoni', 'salame')) burgerId = 'calabresa-burger';
+    else if (has('presunto', 'ham')) burgerId = 'presunto-burger';
+    else if (has('batata palha', 'potato straw')) burgerId = 'batata-palha-burger';
+    else if (has('milho', 'corn')) burgerId = 'milho-burger';
+    else if (has('ervilha', 'peas')) burgerId = 'ervilha-burger';
+    if (burgerId) return { ...ingredient, id: burgerId };
+    // Só aceita visual de queijo quando o nome realmente identifica um queijo.
+    if (/queij|cheese|cheddar|mussarel|mozzarella|catupiry|requeij|provolone|gorgonzola|parmesan/.test(name) && visualAliases[visual]) {
+      return { ...ingredient, id: visualAliases[visual] };
+    }
+    const group = String(ingredient?.groupName || ingredient?.group || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+    if (/queij|latic/.test(group)) return { ...ingredient, id: 'queijo-extra' };
+    if (/carne|prote/.test(group)) return { ...ingredient, id: 'carne' };
+    if (/molho|crem/.test(group)) return { ...ingredient, id: 'molho-especial' };
+    if (/veget|verde|hort/.test(group)) return { ...ingredient, id: 'alface' };
+    const customId = 'burger-custom-' + (id || name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+    return { ...ingredient, id: customId || 'burger-custom-item' };
+  }
+  if (visualAliases[visual]) return { ...ingredient, id: visualAliases[visual] };
   const knownPizza = new Set(['molho-tomate', 'mussarela', ...Object.keys(TOPPINGS)]);
   const knownBurger = new Set(['pao-brioche', 'carne', 'queijo-cheddar', 'queijo-extra', 'queijo-mussarela-burger', 'queijo-parmesao-burger', 'queijo-gorgonzola-burger', 'queijo-provolone-burger', 'alface', 'tomate-burger', 'molho-especial', 'picles', 'cebola-burger', 'bacon-burger', 'ovo']);
   if ((type === 'pizza' && knownPizza.has(id)) || (type === 'burger' && knownBurger.has(id))) return { ...ingredient };
