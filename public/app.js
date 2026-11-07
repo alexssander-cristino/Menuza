@@ -320,8 +320,16 @@ function renderCatalog() {
   if (!app.catalog) return;
   renderRestaurantHours();
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
-  const drinkCategoryIds=new Set(app.catalog.products.filter(product=>product.type==='drink').map(product=>product.categoryId));
-  const orderedCategories=app.catalog.categories.slice().sort((a,b)=>Number(drinkCategoryIds.has(a.id))-Number(drinkCategoryIds.has(b.id)));
+  // No cardápio do cliente, mantenha todas as categorias de pizza primeiro,
+  // depois hambúrgueres e, por último, hot dogs. Bebidas continuam no fim.
+  const categoryPriority = new Map();
+  const productTypePriority = { pizza: 0, burger: 1, plate: 2, drink: 3 };
+  for (const product of app.catalog.products) {
+    const priority = productTypePriority[product.type] ?? 2;
+    const current = categoryPriority.get(product.categoryId);
+    if (current === undefined || priority < current) categoryPriority.set(product.categoryId, priority);
+  }
+  const orderedCategories=app.catalog.categories.slice().sort((a,b)=>(categoryPriority.get(a.id) ?? 2)-(categoryPriority.get(b.id) ?? 2));
   root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
   const featuredProducts=app.catalog.products.filter(p=>p.featured&&p.type!=='drink').slice(0,4);
   root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
