@@ -2715,3 +2715,13 @@ button[data-action="view-generated-3d"],
 .ingredient-create-panel .ingredient-type-option:has(input:checked){
   background:color-mix(in srgb,var(--mz-violet-500) 8%,transparent)!important;
 }
+
+
+/* Correção definitiva: o fundo amarelo vinha do próprio formulário, não do painel externo. */
+.ingredient-create-panel .ingredient-create-form{
+  background:transparent!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
