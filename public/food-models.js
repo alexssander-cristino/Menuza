@@ -1414,8 +1414,7 @@ function hotDogLayout(product, ings, o) {
   const names = ings.map(item => ({
     item,
     name: normalizeIngredientName([
-      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey,
-      item.groupName, item.group
+      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey
     ].filter(Boolean).join(' '))
   }));
   const matching = pattern => names.filter(x => pattern.test(x.name));
