@@ -338,7 +338,8 @@ async function migrateRestaurantImageFields(restaurant) {
 }
 
 async function validateSizePrices(type, value, fallbackCents) {
-  if (type === 'drink') return {};
+  // Hambúrguer e hot dog usam preço-base próprio; não exigem tabela de preços por tamanho.
+  if (['drink', 'burger', 'plate'].includes(type)) return {};
   if (value === undefined || value === null) return {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('Informe um preço para cada tamanho.',422);
   await ensurePizzaConfigSchema();
