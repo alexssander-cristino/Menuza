@@ -1358,7 +1358,7 @@ export default async function handler(req, res) {
       const b=await bodyOf(req),name=clean(b.name,80),types=[...new Set((Array.isArray(b.types)?b.types:[b.type]).map(value=>clean(value,20)))],groupName=clean(b.groupName,50)||'Adicionais',price=Number(b.cents);
       if(name.length<2||!types.length||types.some(type=>!['pizza','burger','plate'].includes(type))||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipos de alimento e preço válido para o ingrediente.',422);
       const existing=(await query('SELECT id,name,type FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
-      const normalizeIngredientName=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+      const normalizeIngredientName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
       const duplicate=existing.find(item=>types.includes(item.type)&&normalizeIngredientName(item.name)===normalizeIngredientName(name));
       if(duplicate) throw fail('Já existe "'+duplicate.name+'" cadastrado para '+({pizza:'pizza',burger:'hambúrguer',plate:'hot dog'}[duplicate.type])+'. Não é permitido repetir o ingrediente dentro do mesmo tipo.',409);
       const created=[];
