@@ -1443,12 +1443,15 @@ function hotDogLayout(product, ings, o) {
     add('peas', () => burgerPeasMesh(sausageR * .7, seed + 17, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
   if (has(/batata.?palha|crispy potato/))
     add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail, qty(/batata.?palha|crispy potato/)), .022, sausageX * .72, .58);
-  if (has(/pure|purê|mashed potato/))
-    add('mashed-potato', () => cheeseMesh(sausageR * .78, .003, seed + 19, detail, 0, 'generic'), .0215, sausageX * .82, .58);
-  if (has(/ovo|egg/))
-    add('egg', () => eggMesh(sausageR * .7, 1, seed + 20, detail), .021, sausageX * .68, .58);
-  if (has(/frango|costela|carne|alcatra|proteina|protein/))
-    add('protein', () => pattyMesh(sausageR * .58, .0045, seed + 21, detail), .021, sausageX * .72, .5);
+  const pureeCount = qty(/pure|purê|mashed potato/);
+  for (let i = 0; i < pureeCount; i++)
+    add('mashed-potato-' + i, () => cheeseMesh(sausageR * .78, .003, seed + 19 + i, detail, 0, 'generic'), .0215 + i * .0015, sausageX * .82, .58);
+  const eggCount = qty(/ovo|egg/);
+  for (let i = 0; i < eggCount; i++)
+    add('egg-' + i, () => eggMesh(sausageR * .7, 1, seed + 20 + i, detail), .021 + i * .0015, sausageX * .68, .58, (i % 2 ? 1 : -1) * .001);
+  const proteinCount = qty(/frango|costela|carne|alcatra|proteina|protein/);
+  for (let i = 0; i < proteinCount; i++)
+    add('protein-' + i, () => pattyMesh(sausageR * .58, .0045, seed + 21 + i, detail), .021 + i * .0016, sausageX * .72, .5, (i % 2 ? 1 : -1) * .001);
 
   // Molhos em fios finos e compridos, separados por cor.
   const sauceRibbon = (color, ribbonSeed, zShift) => {
