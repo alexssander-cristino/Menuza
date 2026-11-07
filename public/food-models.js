@@ -1623,10 +1623,14 @@ function resolveVisualIngredient(type, ingredient) {
       if (/queij|latic/.test(group)) visualId = 'queijo-extra';
       else if (/carne|prote/.test(group)) visualId = 'carne';
       else if (/molho|crem/.test(group)) visualId = 'molho-especial';
-      else if (/veget|verde/.test(group)) visualId = 'alface';
-      else visualId = 'queijo-extra'; // peça genérica para nomes livres sem correspondência conhecida
+      else if (/veget|verde|hort/.test(group)) visualId = 'alface';
+      else visualId = 'queijo-extra';
     }
   }
+  // Todo ingrediente selecionado no hambúrguer precisa gerar uma peça.
+  // Cadastros personalizados sem palavra-chave ou grupo também aparecem
+  // usando uma camada neutra como representação visual.
+  if (!visualId && type === 'burger') visualId = 'queijo-extra';
   return visualId ? { ...ingredient, id: visualId } : { ...ingredient };
 }
 
