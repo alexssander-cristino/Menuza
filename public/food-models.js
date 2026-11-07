@@ -928,10 +928,10 @@ function plateMesh(R, seed, detail) {
   });
   return m.finish();
 }
-function friesMesh(R, seed, detail) {
+function friesMesh(R, seed, detail, quantity = 1) {
   const m = new Mesh(), rnd = randomFor(seed), cell = .006, N = Math.ceil(R * 2 / cell), hm = new Float32Array(N * N).fill(.0072);
   const hAt = (x, z) => { const i = clamp(Math.floor((x + R) / cell), 0, N - 1), j = clamp(Math.floor((z + R) / cell), 0, N - 1); return hm[j * N + i]; };
-  const count = Math.round(30 * (R / .115) ** 2), cx = R * .14, cz = -R * .06;
+  const count = Math.round(30 * (R / .115) ** 2 * clamp(Number(quantity) || 1, 1, 10)), cx = R * .14, cz = -R * .06;
   for (let i = 0; i < count; i++) {
     const L = .062 + rnd() * .028, r = .0072 + rnd() * .0022, yaw = rnd() * TAU, ph = rnd() * TAU, bend = (rnd() - .5) * .006;
     let gx = 0, gz = 0, ytop = 1e9, samples = [];
@@ -990,30 +990,33 @@ function burgerSauceMesh(R, kH, seed, detail, color) {
   });
   return m.finish();
 }
-function burgerChickenMesh(R, seed) {
-  const m = new Mesh(), rnd = randomFor(seed);
-  chickenInto(m, 0, .001, 0, R * .48, seed, rnd);
+function burgerChickenMesh(R, seed, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count; i++) {
+    const a = i * 2.39996, rr = R * (count > 1 ? .18 : 0);
+    chickenInto(m, Math.cos(a) * rr, .001 + i * .0008, Math.sin(a) * rr, R * .42, seed + i * 11, rnd);
+  }
   return m.finish();
 }
-function burgerCalabresaMesh(R, seed, detail) {
-  const m = new Mesh(), rnd = randomFor(seed);
-  for (let i = 0; i < 4; i++) {
+function burgerCalabresaMesh(R, seed, detail, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = 4 * clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count; i++) {
     const a = i * TAU / 4 + rnd() * .35, rr = R * (.25 + rnd() * .22);
     pepperoniInto(m, Math.cos(a) * rr, .001, Math.sin(a) * rr, R * .17, seed + i, rnd, detail);
   }
   return m.finish();
 }
-function burgerCornMesh(R, seed) {
-  const m = new Mesh(), rnd = randomFor(seed);
-  for (let i = 0; i < 7; i++) {
+function burgerCornMesh(R, seed, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = 7 * clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count; i++) {
     const a = i * 2.39996 + rnd() * .25, rr = R * (.15 + rnd() * .55);
     cornInto(m, Math.cos(a) * rr, .001, Math.sin(a) * rr, R * .075, seed + i, rnd);
   }
   return m.finish();
 }
-function burgerPeasMesh(R, seed) {
-  const m = new Mesh(), rnd = randomFor(seed);
-  for (let i = 0; i < 8; i++) {
+function burgerPeasMesh(R, seed, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = 8 * clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count; i++) {
     const a = i * 2.39996 + rnd() * .2, rr = R * (.12 + rnd() * .58), radius = R * .065;
     blobInto(m, { rx: radius, ry: radius * .82, rz: radius, seed: seed + i, amp: .08, nu: 10, nv: 8,
       xf: rigid({ t: [Math.cos(a) * rr, .001 + radius * .25, Math.sin(a) * rr] }),
@@ -1021,9 +1024,9 @@ function burgerPeasMesh(R, seed) {
   }
   return m.finish();
 }
-function burgerHamMesh(R, seed) {
-  const m = new Mesh(), rnd = randomFor(seed);
-  hamInto(m, 0, .001, 0, R * .52, seed, rnd);
+function burgerHamMesh(R, seed, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), count = clamp(Number(quantity) || 1, 1, 10);
+  for (let i = 0; i < count; i++) hamInto(m, (i % 2 ? 1 : -1) * R * .12, .001 + i * .0007, (i % 3 - 1) * R * .1, R * .48, seed + i * 9, rnd);
   return m.finish();
 }
 
@@ -1084,12 +1087,12 @@ function burgerLayout(product, ings, size, o, kH) {
     { id: 'picles', kind: 'pickles', height: .0034, build: n => pickleMesh(R, kH, seed + 5, detail, n) },
     { id: 'cebola-burger', kind: 'onion', height: .0046, build: n => onionMesh(R, kH, seed + 6, detail, n) },
     { id: 'bacon-burger', kind: 'bacon', height: .0042, build: n => baconMesh(R, kH, seed + 20, detail, n) },
-    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail) },
-    { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => burgerHamMesh(R, seed + 52) },
-    { id: 'frango-burger', kind: 'chicken', height: .009, build: n => burgerChickenMesh(R, seed + 56) },
-    { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => friesMesh(R * .72, seed + 53, detail) },
-    { id: 'milho-burger', kind: 'corn', height: .0035, build: n => burgerCornMesh(R, seed + 54) },
-    { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => burgerPeasMesh(R, seed + 55) },
+    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail, n) },
+    { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => burgerHamMesh(R, seed + 52, n) },
+    { id: 'frango-burger', kind: 'chicken', height: .009, build: n => burgerChickenMesh(R, seed + 56, n) },
+    { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => friesMesh(R * .72, seed + 53, detail, n) },
+    { id: 'milho-burger', kind: 'corn', height: .0035, build: n => burgerCornMesh(R, seed + 54, n) },
+    { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => burgerPeasMesh(R, seed + 55, n) },
     { id: 'ovo', kind: 'egg', height: .0085, build: n => eggMesh(R, kH, seed + 21, detail) }
   ];
   for (const item of toppings) {
@@ -1439,7 +1442,7 @@ function hotDogLayout(product, ings, o) {
   if (has(/ervilha|erivlha|peas/))
     add('peas', () => burgerPeasMesh(sausageR * .7, 1, seed + 17, detail, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
   if (has(/batata.?palha|crispy potato/))
-    add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail), .022, sausageX * .72, .58);
+    add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail, qty(/batata.?palha|crispy potato/)), .022, sausageX * .72, .58);
   if (has(/pure|purê|mashed potato/))
     add('mashed-potato', () => cheeseMesh(sausageR * .78, .003, seed + 19, detail, 0, 'generic'), .0215, sausageX * .82, .58);
   if (has(/ovo|egg/))
