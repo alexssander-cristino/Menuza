@@ -1481,7 +1481,7 @@ async function renderCatalogAdmin(){
       updateRecipePreview(newRecipeSelect,newRecipePreview);
       updateRecipeArtwork(root.getElementById('newProductForm'),newRecipeArt,{id:'admin-new-product-preview',name:'Prévia',type:typeSelect.value,baseCents:0});
     };
-    newRecipeSelect?.addEventListener('change',event=>{const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;refreshNewRecipePreview()});
+    newRecipeSelect?.addEventListener('change',event=>{if(event.target.matches('input[type="checkbox"]')){const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;}refreshNewRecipePreview()});
     newRecipeSelect?.addEventListener('input',refreshNewRecipePreview);
     target.querySelector('[data-product-select="addons"]')?.addEventListener('change',refreshNewRecipePreview);
     target.querySelectorAll('.product-admin-entry').forEach(row=>{
@@ -1493,7 +1493,7 @@ async function renderCatalogAdmin(){
         updateRecipePreview(recipeSelect,preview,'Descrição automática: Ingredientes: ');
         updateRecipeArtwork(recipeSelect,row.querySelector('[data-product-recipe-art]'),product);
       };
-      recipeSelect?.addEventListener('change',event=>{const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;refreshProductRecipe()});
+      recipeSelect?.addEventListener('change',event=>{if(event.target.matches('input[type="checkbox"]')){const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;}refreshProductRecipe()});
       recipeSelect?.addEventListener('input',refreshProductRecipe);
       row.querySelector('.product-addons-input')?.addEventListener('change',refreshProductRecipe);
       refreshProductRecipe();
