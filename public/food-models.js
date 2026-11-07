@@ -1362,7 +1362,7 @@ const CHEESE_PALETTES = {
 // Pão em duas metades (cada uma um tubo elíptico fechado). As metades se sobrepõem embaixo e abrem um vale
 // no topo onde a salsicha se encaixa. Construído direto no tamanho final: sem esticar a malha.
 function hotDogBunMesh(L, W, H, seed, detail) {
-  const m = new Mesh(), b = H / 2, a = W * .56, zc = W - a;
+  const m = new Mesh(), b = H / 2, a = W * .42, zc = W * .68;
   const capAt = x => { const e = clamp((Math.abs(x) / (L / 2) - .78) / .22, 0, 1); return Math.sqrt(Math.max(0, 1 - e * e)); };
   for (const side of [-1, 1]) {
     const ph = seed * .37 + side;
@@ -1419,17 +1419,19 @@ function hotDogLayout(product, ings, o) {
   const seed = hash(product.id || 'hotdog'), detail = o.detail;
   // O pão acompanha o volume do recheio: mais unidades sólidas ampliam o vale e as laterais.
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  const bulkPattern = /queijo|cheddar|mussarela|catupiry|cream|cheese|bacon|panceta|calabresa|linguica|pepperoni|salame|presunto|ham|peito de peru|alface|rucula|repolho|salada|lettuce|tomate|tomato|pimentao|bell pepper|cebola|onion|picles|pepino|pickle|azeitona|oliva|olive|milho|corn|ervilha|peas|batata|potato|fries|palha|pure|mashed potato|ovo|ovos|egg|frango|chicken|costela|carne|alcatra|proteina|protein|patty|custom/i;
+  const bulkPattern = /^(?!.*(?:pao|bread|bun|salsicha|vina|viena|sausage|ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|molho|sauce)).+/i;
   const fillingUnits = ings.reduce((sum, item) => {
     const name = normalize([item.name, item.label, item.id].filter(Boolean).join(' '));
     return bulkPattern.test(name) ? sum + clamp(Number(item.quantity) || 1, 1, 10) : sum;
   }, 0);
-  const load = clamp((fillingUnits - 3) / 9, 0, 1);
-  const bunL = length * .94, bunW = length * (.14 + load * .035), bunH = .034 + load * .009;
+  const load = clamp((fillingUnits - 1) / 10, 0, 1);
+  // A receita altera a estrutura do pão, não apenas alguns milímetros:
+  // as duas abas se afastam para formar um berço aberto e as laterais ganham corpo.
+  const bunL = length * .94, bunW = length * (.15 + load * .085), bunH = .034 + load * .014;
   const sausageR = length * .066, sausageL = length * .9;
   const sausageY = bunH - sausageR * .45;           // encaixada no vale; ~1/4 do diâmetro acima do pão
   const bt = .014, boardR = length * .62;
-  const baseKey = `hotdog-v13|${length.toFixed(3)}|${detail}|${seed}`;
+  const baseKey = `hotdog-v14|${length.toFixed(3)}|${detail}|${seed}`;
 
   // Classificação pelo nome real, pelo id e pelos aliases visuais.
   const names = ings.map(item => ({ item, name: normalize([item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey].filter(Boolean).join(' ')) }));
