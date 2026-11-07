@@ -110,7 +110,8 @@ function normalizeCartForCatalog(value, catalog) {
     const product = products.get(item.productId);
     if (!product || Number(product.active) === 0) return false;
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) return false;
-    if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
+    if (product.type === 'plate') item.sizeKey = 'unico';
+    else if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
     if (!Array.isArray(item.ingredients) || item.ingredients.length > 12) return false;
     const byoFlavor = buildYourOwnFlavorProduct(product, item.flavorProductIds?.length ? item.flavorProductIds : [product.id]);
     if (byoFlavor) { const defaults = new Set(byoFlavor.defaultIngredientIds || []); if ([...defaults].some(id => !item.ingredients.some(entry => entry?.id === id)) || item.ingredients.filter(entry => !defaults.has(entry?.id)).length > 3) return false; }
@@ -138,7 +139,7 @@ function normalizeCartForCatalog(value, catalog) {
     return {
       cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(),
       productId: product.id, name: product.name, type: product.type,
-      quantity: item.quantity, sizeKey: item.sizeKey,
+      quantity: item.quantity, sizeKey: product.type === 'plate' ? 'unico' : item.sizeKey,
       crustKey: product.type === 'pizza' ? item.crustKey : '',
       flavorProductIds: product.type === 'pizza' && Array.isArray(item.flavorProductIds) ? item.flavorProductIds.filter(id=>products.has(id)&&products.get(id).type==='pizza').slice(0,8) : [product.id],
       ingredients: item.ingredients.map(entry => ({ id: entry.id, quantity: entry.quantity })),
@@ -472,7 +473,7 @@ function selectedEntries(builder=app.builder) {
 function builderPrice(builder=app.builder) {
   if(!builder)return 0;
   const product=app.catalog.products.find(item=>item.id===builder.productId);if(!product)return 0;
-  const size=app.catalog.sizes[product.type].find(s=>s.key===builder.sizeKey);
+  const size=product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(s=>s.key===builder.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===builder.crustKey):{priceCents:0};
   const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents,0);
   const flavorProducts=(builder.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
@@ -564,7 +565,7 @@ function renderBuilder() {
   const selected = new Set(builder.ingredients.map(i => i.id));
   const selectedIngredientDescription = ingredientDescription(product, builder.ingredients);
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
-  const selectedSize = app.catalog.sizes[product.type].find(item => item.key === builder.sizeKey);
+  const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
   const sceneCanvas = app.scene?.canvas || null;
   const diameter = selectedSize?.diameterCm || 0;
   const sizeScale = isPizza && diameter ? (0.72 + 0.28 * (diameter / 40)).toFixed(3) : (builder.sizeKey === 'duplo' ? '1' : '0.94');
@@ -592,7 +593,7 @@ function renderBuilder() {
   const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined, flavors: sceneFlavors };
   const artContent = productImageCarouselMarkup(product,'modal','contain',layered);
   const visual = '<div class="food-stage ' + (artMode ? 'view-art' : generatedMode ? 'view-generated' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + (!artMode && !generatedMode) + '">3D interativo</button>' + (product.model3dUrl ? '<button type="button" data-action="view-generated-3d" aria-pressed="' + generatedMode + '">Modelo real</button>' : '') + '</div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div>' + (product.model3dUrl ? '<model-viewer class="generated-food-model" src="' + esc(product.model3dUrl) + '" alt="Modelo 3D de ' + esc(product.name) + '" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ' + (generatedMode ? '' : 'hidden') + '></model-viewer>' : '') + '<canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D interativo de ' + esc(product.name) + '" ' + (artMode || generatedMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (artMode || generatedMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
-  const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(effectiveProductSizePrice(product,size.key,size)))) + '</small></button>').join('');
+  const sizeHtml = product.type==='plate'?'':(app.catalog.sizes[product.type]||[]).map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(effectiveProductSizePrice(product,size.key,size)))) + '</small></button>').join('');
   const flavorLimit=Number(selectedSize?.maxFlavors)||1;
   const flavorProducts=app.catalog.products.filter(p=>p.type==='pizza'&&Number(p.active)!==0&&Number(p.available)!==0);
   const flavorCategories=app.catalog.categories.filter(category=>flavorProducts.some(p=>p.categoryId===category.id));
@@ -679,7 +680,7 @@ async function addBuilderToCart() {
   const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
   if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
   if(!(await ensureAgeForProduct(product)))return;
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
@@ -704,7 +705,7 @@ function productPriceMarkup(product){const promo=product?.promotionalPriceCents!
 function cartItemPrice(item){
   if(item.comboId){return Number(app.catalog.combos?.find(combo=>combo.id===item.comboId)?.priceCents)||0;}
   const product=app.catalog.products.find(p=>p.id===item.productId);if(!product)return 0;
-  const size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey);
+  const size=product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(s=>s.key===item.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
   const ingredientProduct=buildYourOwnFlavorProduct(product,item.flavorProductIds?.length?item.flavorProductIds:[product.id])||product;
   const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);const included=ingredientProduct.ingredientsConfigured&&(ingredientProduct.defaultIngredientIds||[]).includes(entry.id);return sum+(included?0:(ingredient?.cents||0))*entry.quantity;},0);
@@ -718,7 +719,7 @@ function renderCart(){
     if(item.comboId){const combo=app.catalog.combos?.find(entry=>entry.id===item.comboId);const contents=(combo?.items||[]).map(entry=>(entry.quantity>1?entry.quantity+'× ':'')+entry.name).join(', ');return '<article class="cart-item combo-cart-item"><div class="cart-thumb combo-thumb">'+uiIcon('plus',22)+'</div><div><h3>'+esc(combo?.name||item.name)+'</h3><p>Combo promocional<br>'+esc(contents)+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';}
     const product=app.catalog.products.find(p=>p.id===item.productId),names=new Map(app.catalog.ingredients.map(i=>[i.id,i.name]));
     const isDrink=product.type==='drink';
-    const components=item.ingredients.map(i=>(Number(i.quantity)>1?Number(i.quantity)+'× ':'')+(names.get(i.id)||'')).filter(Boolean).join(', '),flavorNames=(item.flavorProductIds||[]).map(id=>app.catalog.products.find(p=>p.id===id)?.name).filter(Boolean),size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey)?.label||'';
+    const components=item.ingredients.map(i=>(Number(i.quantity)>1?Number(i.quantity)+'× ':'')+(names.get(i.id)||'')).filter(Boolean).join(', '),flavorNames=(item.flavorProductIds||[]).map(id=>app.catalog.products.find(p=>p.id===id)?.name).filter(Boolean),size=product.type==='plate'?'Hot Dog':(app.catalog.sizes[product.type]||[]).find(s=>s.key===item.sizeKey)?.label||'';
     const thumb=isDrink&&product.imageUrl?productPhotoOrArt(product,[],{},'cart-thumb-photo','contain'):productSvg(product,item.ingredients.map(entry=>({...app.catalog.ingredients.find(ingredient=>ingredient.id===entry.id),quantity:entry.quantity})).filter(entry=>entry.id));
     const detail=isDrink?(product.description||'Bebida'):(size+(flavorNames.length>1?' · Sabores: '+flavorNames.join(' / '):'')+(item.crustKey&&item.crustKey!=='tradicional'?' · '+(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+' · '+(components||'Composição da casa'));
     return '<article class="cart-item"><div class="cart-thumb">'+thumb+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(detail)+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div>'+(isDrink?'':'<button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button>')+'<button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';
