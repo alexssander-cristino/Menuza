@@ -173,7 +173,7 @@ function lettuceMesh(R, kH, seed, detail, leaves) {
       const y = v ** 1.6 * .0058 * kH * wave - .0058 * kH * sstep(.7, 1, v) ** 2 + .0014 * (1 - v) * kH;
       return [Math.cos(a) * rr, y, Math.sin(a) * rr];
     };
-    m.grid(120 * detail, 26 * detail, P, (u, v, p) => {
+    m.grid(seg(120, detail, 24), seg(26, detail, 8), P, (u, v, p) => {      
       const a = u * TAU, crest = .5 + .5 * Math.sin(a * k1 + ph * 2), vein = Math.abs(Math.cos(a * 7 + ph)) ** 24 * sstep(.1, .9, v);
       let c = mix(mix(C.lettuceA, C.lettuceB, sstep(.08, .55, v)), C.lettuceC, sstep(.55, 1, v));
       c = mix(c, C.lettuceVein, vein * .3 + crest * .14);
@@ -245,7 +245,7 @@ function onionMesh(R, kH, seed, detail, layers) {
   const m = new Mesh(), rnd = randomFor(seed);
   for (let l = 0; l < layers; l++) for (const f of [.24, .46, .68]) {
     m.ringTube({
-      R: R * f, y: .0022 * kH + l * .0042 * kH, rw: .0042 * kH, rh: .0025 * kH, seed: seed + l * 5 + Math.round(f * 10), wob: .05, nu: 72 * detail, nv: 14,
+      R: R * f, y: .0022 * kH + l * .0042 * kH, rw: .0042 * kH, rh: .0025 * kH, seed: seed + l * 5 + Math.round(f * 10), wob: .05, nu: seg(72, detail, 24), nv: 14,
       xf: rigid({ yaw: rnd() * TAU, t: [(rnd() - .5) * .006, 0, (rnd() - .5) * .006] }),
       shade: (u, v, p) => MAT(mul(mix(mix(C.onionGold, C.onionPale, .25), C.onionBrown, sstep(.4, .75, nz(p, 45, seed)) * .8), .95 + rnd() * .1), .3, .55, .35, .9)
     });
@@ -259,7 +259,7 @@ function baconStripInto(m, { L, W, t, seed, xf, curl = .003, detail = 1 }) {
     const x = (u - .5) * L, zw = (v - .5) * W, wave = Math.sin(u * Math.PI * 3 + ph) * .0042 + Math.sin(u * Math.PI * 7 + ph * 2) * .0009;
     return [x + Math.sin(v * 3 + ph) * .0005, Math.sin(u * Math.PI * 2.2 + ph) * .0022 + (Math.abs(v - .5) * 2) ** 2 * curl, zw + wave];
   };
-  m.slab(40 * detail, 10, P, t, (u, v, p, n, part) => {
+ m.slab(seg(40, detail, 8), 10, P, t, (u, v, p, n, part) => {
     const band = .5 + .5 * Math.sin(v * Math.PI * 4 + ph + (u - .5) * 2) + (noise3(u * 9, v * 9, 0, seed) - .5) * .35;
     const fat = sstep(.5, .7, band), edge = sstep(.08, 0, Math.min(u, 1 - u)) * .8;
     let c = mix(C.baconLean, C.baconFat, fat); c = mix(c, C.baconCrisp, edge + (part === 1 ? .4 : 0));
@@ -275,18 +275,22 @@ function baconMesh(R, kH, seed, detail, q) {
   return m.finish();
 }
 
-function eggMesh(R, kH, seed, detail) {
-  const m = new Mesh(), Re = R * .62, ph = (seed % 37) / 37 * TAU, Rw = a => 1 + .28 * (fbm(Math.cos(a) * 1.6 + 2, Math.sin(a) * 1.6, seed, 2) - .5) * 2 + .06 * Math.sin(a * 3 + ph);
-  m.revolve(superPuck(Re, .0042 * kH, 3, 40), {
-    nu: 96, nv: 28, detail, R: Rw,
-    shade: (u, v, p, n, [r]) => MAT(mix(C.eggWhite, C.eggCrisp, sstep(.88, 1, r / Re) * .8), .17, .35, .1, lerp(1, .85, sstep(.85, 1, r / Re)))
-  });
-  const Ry = Re * .33, Hy = .0092 * kH, pts = [[0, .002 * kH], [Ry * .96, .002 * kH]];
-  for (let i = 1; i <= 28; i++) { const th = (Math.PI / 2) * i / 28; pts.push([i === 28 ? 0 : Ry * Math.cos(th), .002 * kH + Hy * Math.sin(th) ** 1.05]); }
-  m.revolve(profile(pts), {
-    nu: 48, nv: 36, detail, xf: rigid({ t: [Re * .12, .0012 * kH, Re * .08] }),
-    shade: (u, v, p, n, [r, y]) => MAT(mix(C.yolkB, C.yolkA, sstep(.2, 1, y / (Hy + .002 * kH))), .1, .5, 0, 1)
-  });
+function eggMesh(R, kH, seed, detail, count = 1) {
+  const m = new Mesh(), Re = R * .62, ph = (seed % 37) / 37 * TAU, n = clamp(Number(count) || 1, 1, 10);
+  const Rw = a => 1 + .28 * (fbm(Math.cos(a) * 1.6 + 2, Math.sin(a) * 1.6, seed, 2) - .5) * 2 + .06 * Math.sin(a * 3 + ph);
+  for (let k = 0; k < n; k++) {
+    const dy = k * .0085 * kH, jx = k ? Math.sin(k * 2.1 + seed) * R * .05 : 0, jz = k ? Math.cos(k * 1.7 + seed) * R * .05 : 0;
+    m.revolve(superPuck(Re, .0042 * kH, 3, 40), {
+      nu: 96, nv: 28, detail, R: Rw, xf: rigid({ yaw: k * 1.3, t: [jx, dy, jz] }),
+      shade: (u, v, p, nn, [r]) => MAT(mix(C.eggWhite, C.eggCrisp, sstep(.88, 1, r / Re) * .8), .17, .35, .1, lerp(1, .85, sstep(.85, 1, r / Re)))
+    });
+    const Ry = Re * .33, Hy = .0092 * kH, pts = [[0, .002 * kH], [Ry * .96, .002 * kH]];
+    for (let i = 1; i <= 28; i++) { const th = (Math.PI / 2) * i / 28; pts.push([i === 28 ? 0 : Ry * Math.cos(th), .002 * kH + Hy * Math.sin(th) ** 1.05]); }
+    m.revolve(profile(pts), {
+      nu: 48, nv: 36, detail, xf: rigid({ t: [Re * .12 + jx, .0012 * kH + dy, Re * .08 + jz] }),
+      shade: (u, v, p, nn, [r, y]) => MAT(mix(C.yolkB, C.yolkA, sstep(.2, 1, y / (Hy + .002 * kH))), .1, .5, 0, 1)
+    });
+  }
   return m.finish();
 }
 
@@ -998,11 +1002,11 @@ function burgerChickenMesh(R, seed, quantity = 1) {
   }
   return m.finish();
 }
-function burgerCalabresaMesh(R, seed, detail, quantity = 1) {
-  const m = new Mesh(), rnd = randomFor(seed), count = 4 * clamp(Number(quantity) || 1, 1, 10);
-  for (let i = 0; i < count; i++) {
-    const a = i * TAU / 4 + rnd() * .35, rr = R * (.25 + rnd() * .22);
-    pepperoniInto(m, Math.cos(a) * rr, .001, Math.sin(a) * rr, R * .17, seed + i, rnd, detail);
+function burgerCalabresaMesh(R, seed, detail, quantity = 1, kH = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), layers = clamp(Number(quantity) || 1, 1, 10);
+  for (let l = 0; l < layers; l++) for (let i = 0; i < 4; i++) {
+    const a = i * TAU / 4 + l * .6 + rnd() * .25, rr = R * (.38 + rnd() * .06);
+    pepperoniInto(m, Math.cos(a) * rr, .001 + l * .0042 * kH, Math.sin(a) * rr, R * .2, seed + i + l * 9, rnd, detail);
   }
   return m.finish();
 }
@@ -1030,10 +1034,32 @@ function burgerHamMesh(R, seed, quantity = 1) {
   return m.finish();
 }
 
+    // Segmentos sempre inteiros: com detail < 1 (celulares) valores como 74,4 deixavam uma fenda na costura da malha.
+const seg = (n, detail, min = 6) => Math.max(min, Math.round(n * detail));
+
+// Batata palha: fios finos e dourados. (Antes era usada a malha de batata frita rústica, com alecrim e tudo.)
+function strawPotatoInto(m, x, y, z, len, seed, rnd) {
+  const r = .0007, arch = .0006 + rnd() * .0016, bendZ = (rnd() - .5) * len * .3, tone = rnd(), k = .92 + rnd() * .1;
+  const mid = p => { const s = Math.sin(Math.PI * (p[0] / len + .5)); return [p[0], arch * s, bendZ * s]; };
+  m.grid(6, 9, (u, v) => {
+    const phi = u * TAU, taper = Math.sqrt(Math.max(0, 1 - Math.abs(2 * v - 1) ** 6)), s = Math.sin(Math.PI * v);
+    return [(v - .5) * len, arch * s + r * taper * Math.sin(phi), bendZ * s + r * taper * Math.cos(phi)];
+  }, () => MAT(mul(mix(C.potato, lin('#cf9a3f'), tone * .7), k), .42, .12, .25, .95),
+  { wrapV: false, xf: rigid({ yaw: rnd() * TAU, roll: (rnd() - .5) * .5, t: [x, y, z] }), ref: mid });
+}
+function burgerStrawPotatoMesh(R, kH, seed, quantity = 1) {
+  const m = new Mesh(), rnd = randomFor(seed), q = clamp(Number(quantity) || 1, 1, 10);
+  const count = Math.min(420, Math.round(70 * q * (R / .06) ** 2));
+  for (let i = 0; i < count; i++) {
+    const a = rnd() * TAU, rr = Math.sqrt(rnd()) * R * .74;
+    strawPotatoInto(m, Math.cos(a) * rr, .0008 + rnd() * .0034 * kH * q, Math.sin(a) * rr, (.019 + rnd() * .012) * (R / .06), seed + i, rnd);
+  }
+  return m.finish();
+}
+
 function burgerLayout(product, ings, size, o, kH) {
   const R = (Number(product.widthCm) || 12) / 200, seed = hash(product.id || 'burger'), detail = o.detail;
-  // A quantidade vem do cadastro/seleção do cliente. Não limitar a três:
-  // cada unidade precisa aparecer fisicamente na montagem.
+  const isDouble = size?.key === 'duplo';
   const q = new Map(ings.map(i => [i.id, clamp(Number(i.quantity) || 1, 1, 10)]));
   const has = id => q.has(id), qty = id => q.get(id) || 0;
   const parts = []; let y = 0;
@@ -1045,21 +1071,18 @@ function burgerLayout(product, ings, size, o, kH) {
   const buns = has('pao-brioche');
   if (buns) add('bun-bottom', '', () => bunBottomMesh(R, .022 * kH, seed + 1, detail), .022 * kH);
 
-  // Proteínas: a quantidade selecionada vira unidades reais no empilhamento.
+  // Proteínas: cada unidade é um disco real. O tamanho "Duplo" (2 carnes) agora também aparece no 3D.
   const proteinIds = ['carne', 'costela-burger', 'alcatra-burger', 'hamburguer-140g'];
-  let proteinIndex = 0;
-  for (const id of proteinIds) {
-    const count = qty(id);
-    for (let i = 0; i < count; i++) {
-      const proteinSeed = seed + 7 + proteinIndex * 13;
-      add('patty', `${id}-${i}`,
-        () => pattyMesh(R * .92, .017 * kH, proteinSeed, detail),
-        .0164 * kH);
-      proteinIndex++;
-    }
-  }
+  const patties = [];
+  for (const id of proteinIds) for (let i = 0; i < qty(id); i++) patties.push(id);
+  if (isDouble && patties.length) patties.push(patties[0]);
+  patties.forEach((id, index) => {
+    const proteinSeed = seed + 7 + index * 13;
+    add('patty', `${id}-${index}-${proteinSeed}`, () => pattyMesh(R * .92, .017 * kH, proteinSeed, detail), .0164 * kH);
+  });
 
-  // Queijos diferentes mantêm sua aparência e cada quantidade adiciona uma fatia.
+  // Queijos: cada fatia guarda sua própria rotação. Antes a rotação era lida só na hora de construir
+  // (variável já alterada pelo laço), então todas as fatias saíam iguais e o cache podia ficar velho.
   const cheeseStyleById = {
     'queijo-cheddar': 'cheddar', 'queijo-extra': 'generic',
     'queijo-mussarela-burger': 'mozzarella', 'queijo-parmesao-burger': 'parmesan',
@@ -1068,39 +1091,33 @@ function burgerLayout(product, ings, size, o, kH) {
   let cheeseIndex = 0;
   for (const [id, style] of Object.entries(cheeseStyleById)) {
     for (let i = 0; i < qty(id); i++) {
-      const cheeseSeed = seed + 31 + cheeseIndex * 7;
-      add('cheese', `${id}-${i}`,
-        () => cheeseMesh(R * .92, .017 * kH, cheeseSeed, detail, (cheeseIndex % 4) * Math.PI / 4, style),
-        .0031 * kH, .0005);
-      cheeseIndex++;
+      const idx = cheeseIndex++, cheeseSeed = seed + 31 + idx * 7, yaw = (idx % 4) * Math.PI / 4;
+      add('cheese', `${id}-${i}-${idx}`, () => cheeseMesh(R * .92, .017 * kH, cheeseSeed, detail, yaw, style), .0031 * kH, .0005);
     }
   }
 
-  // Coberturas e acompanhamentos. Cada quantidade altera tanto a geometria
-  // quanto a altura da camada seguinte, evitando ingredientes sobrepostos.
+  // single: molhos são uma única camada; a quantidade não cria vão de ar entre as peças.
   const toppings = [
-    { id: 'molho-especial', kind: 'sauce', height: .0032, build: n => burgerSauceMesh(R * .86, kH, seed + 41, detail, '#d58a43') },
-    { id: 'ketchup-burger', kind: 'ketchup', height: .0028, build: n => burgerSauceMesh(R * .82, kH, seed + 42, detail, '#bd2922') },
-    { id: 'maionese-burger', kind: 'mayonnaise', height: .0028, build: n => burgerSauceMesh(R * .82, kH, seed + 43, detail, '#f3e9cf') },
+    { id: 'molho-especial', kind: 'sauce', height: .0032, single: true, build: n => burgerSauceMesh(R * .86, kH, seed + 41, detail, '#d58a43') },
+    { id: 'ketchup-burger', kind: 'ketchup', height: .0028, single: true, build: n => burgerSauceMesh(R * .82, kH, seed + 42, detail, '#bd2922') },
+    { id: 'maionese-burger', kind: 'mayonnaise', height: .0028, single: true, build: n => burgerSauceMesh(R * .82, kH, seed + 43, detail, '#f3e9cf') },
     { id: 'alface', kind: 'lettuce', height: .0085, build: n => lettuceMesh(R, kH, seed + 3, detail, 2 + n) },
     { id: 'tomate-burger', kind: 'tomato', height: .0072, build: n => tomatoMesh(R, kH, seed + 4, detail, n) },
     { id: 'picles', kind: 'pickles', height: .0034, build: n => pickleMesh(R, kH, seed + 5, detail, n) },
     { id: 'cebola-burger', kind: 'onion', height: .0046, build: n => onionMesh(R, kH, seed + 6, detail, n) },
     { id: 'bacon-burger', kind: 'bacon', height: .0042, build: n => baconMesh(R, kH, seed + 20, detail, n) },
-    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail, n) },
+    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail, n, kH) },
     { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => burgerHamMesh(R, seed + 52, n) },
     { id: 'frango-burger', kind: 'chicken', height: .009, build: n => burgerChickenMesh(R, seed + 56, n) },
-    { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => friesMesh(R * .72, seed + 53, detail, n) },
+    { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => burgerStrawPotatoMesh(R, kH, seed + 53, n) },
     { id: 'milho-burger', kind: 'corn', height: .0035, build: n => burgerCornMesh(R, seed + 54, n) },
     { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => burgerPeasMesh(R, seed + 55, n) },
-    { id: 'ovo', kind: 'egg', height: .0085, build: n => eggMesh(R, kH, seed + 21, detail) }
+    { id: 'ovo', kind: 'egg', height: .0085, build: n => eggMesh(R, kH, seed + 21, detail, n) }
   ];
   for (const item of toppings) {
     const count = qty(item.id);
     if (!count) continue;
-    // Uma peça composta por ingrediente; a quantidade controla as camadas e a altura.
-    // Evita multiplicar a mesma cobertura duas vezes (loop + parâmetro de camadas).
-    const h = item.height * kH * count;
+    const h = item.height * kH * (item.single ? 1 : count);
     add(item.kind, `${item.id}-quantity-${count}`,
       () => item.build(count), h, item.id.includes('molho') || item.id.includes('ketchup') || item.id.includes('maionese') ? -.0007 : 0);
   }
@@ -1310,137 +1327,146 @@ function scaleFoodGeometry(geometry, sx, sy, sz) {
 
 // Pão de cachorro-quente em formato de bisnaga, com pontas arredondadas
 // e um corte/canaleta profunda para a salsicha ficar visivelmente encaixada.
-function hotDogBunMesh(R, H, seed, detail) {
-  const m = new Mesh();
-  const P = (u, v) => {
-    const theta = v * TAU;
-    const longitudinal = Math.abs(u * 2 - 1);
-    // Mantém o corpo cheio e arredonda apenas os dois extremos, como pão de hot dog.
-    const endT = clamp((longitudinal - .76) / .24, 0, 1);
-    const cap = Math.sqrt(Math.max(.0001, 1 - endT * endT));
-    const wobble = 1
-      + .009 * Math.sin(u * Math.PI * 5 + seed)
-      + .006 * (noise3(u * 2.4, Math.cos(theta) * 1.4, seed) - .5);
-    const width = R * cap * wobble;
-    const z = Math.cos(theta) * width;
-    const upper = Math.max(0, Math.sin(theta));
-    const lower = Math.max(0, -Math.sin(theta));
-    const bottom = H * .075 * cap;
-    const crown = H * .96 * cap * upper;
-    const underside = H * .075 * cap * lower;
-    // A canaleta é larga e funda: deixa a salsicha aparente, sem engolir o recheio.
-    const groove = H * .52 * cap
-      * Math.exp(-((z / (R * .39)) ** 2))
-      * sstep(.04, .42, upper);
-    const crumb = (fbm(u * 42, Math.cos(theta) * 35, Math.sin(theta) * 35, seed + 2, 3) - .5) * .00022;
-    return [
-      (u - .5) * 2 * R,
-      bottom + crown - underside - groove + crumb,
-      z
-    ];
-  };
-  m.grid(192, 96, P, (u, v, p, n) => {
-    const theta = v * TAU;
-    const upper = Math.max(0, Math.sin(theta));
-    const groove = Math.exp(-((p[2] / (R * .41)) ** 2)) * sstep(.04, .42, upper);
-    const side = sstep(-.2, .5, n[1]);
-    const crown = mix(C.bunSide, C.bunCrown, side * .86);
-    const channel = mix(crown, C.bunCrumb, groove * .9);
-    const toast = sstep(.78, .91, nz(p, 34, seed + 7)) * upper * (1 - groove * .5);
-    const grain = 1 + (nz(p, 62, seed + 4) - .5) * .09;
-    const color = mix(mix(channel, C.bunToast, toast * .3), C.bunDeep, toast * .12);
-    return MAT(mul(color, grain), .43, .11, .5, .92);
-  }, { wrapU: false, wrapV: true, ref: [0, H * .2, 0] });
+// ===================== HOT DOG =====================
+const CHEESE_PALETTES = {
+  cheddar: ['#e99622', '#f3b73e', '#d98310'], mozzarella: ['#dfc99b', '#f0dfb8', '#b99a68'],
+  parmesan: ['#d9c58f', '#f4e4b7', '#bba16b'], gorgonzola: ['#e8dfc9', '#f5eddc', '#aeb69a'],
+  provolone: ['#ead9a8', '#fff0c9', '#c9b77f'], generic: ['#eadfc7', '#f7efdf', '#cdbf9f'],
+  mash: ['#f0dca0', '#f8ebc2', '#d6bd78']
+};
+
+// Pão em duas metades (cada uma um tubo elíptico fechado). As metades se sobrepõem embaixo e abrem um vale
+// no topo onde a salsicha se encaixa. Construído direto no tamanho final: sem esticar a malha.
+function hotDogBunMesh(L, W, H, seed, detail) {
+  const m = new Mesh(), b = H / 2, a = W * .56, zc = W - a;
+  const capAt = x => { const e = clamp((Math.abs(x) / (L / 2) - .78) / .22, 0, 1); return Math.sqrt(Math.max(0, 1 - e * e)); };
+  for (const side of [-1, 1]) {
+    const ph = seed * .37 + side;
+    m.grid(seg(72, detail, 28), seg(150, detail, 48), (u, v) => {
+      const th = u * TAU, x = (v - .5) * L, cap = capAt(x);
+      const wob = 1 + .014 * Math.sin(v * Math.PI * 6 + ph) + .03 * (fbm(Math.cos(th) * 1.4 + side * 3, Math.sin(th) * 1.4, v * 4, seed, 2) - .5);
+      return [x, cap * wob * b * (1 + Math.sin(th)), side * zc * cap + cap * wob * a * Math.cos(th)];
+    }, (u, v, p, n) => {
+      const hy = clamp(p[1] / H, 0, 1), toward = -side * n[2];
+      const toast = sstep(.76, .9, nz(p, 34, seed + 7)) * sstep(.35, .8, hy);
+      let c = mix(C.bunSide, C.bunCrown, sstep(.15, .85, hy));
+      c = mix(c, C.bunToast, toast * .35);
+      const inner = sstep(.5, .85, toward);
+      c = mix(c, mix(C.bunCrumb, lin('#f6e6bf'), nz(p, 90, seed + 9) * .5), inner);
+      return MAT(mul(c, 1 + (nz(p, 62, seed + 4) - .5) * .1), inner > .5 ? .8 : .43, .11, inner > .5 ? 1 : .5, hy < .12 ? .75 : .95);
+    }, { wrapV: false, ref: p => { const c = capAt(p[0]); return [p[0], b * c, side * zc * c]; } });
+  }
   return m.finish();
 }
-function hotDogLayout(product, ings, o) {
-  // Proporções de um cachorro-quente real: pão comprido, salsicha quase do
-  // comprimento do pão e ingredientes no centro. Todas as medidas em metros.
-  const length = clamp((Number(product.widthCm) || 20) / 100, .18, .24);
-  const bunRadius = length * .135;
-  const seed = hash(product.id || 'hotdog'), detail = o.detail;
-  const bunX = length * .94 / (bunRadius * 2);
-  // Salsicha mais encorpada, proporcional ao canal do pão.
-  const sausageR = bunRadius * .49;
-  const sausageX = length * .88 / (sausageR * 2);
-  // A composição entra na chave: trocar ingrediente ou quantidade força a reconstrução
-  // da geometria, em vez de reaproveitar uma peça antiga do cache.
-  const compositionKey = ings.map(item => [
-    item.id, item.name, item.label, item.visual, item.visual_key, item.visualKey,
-    Number(item.quantity) || 1
-  ].map(value => String(value ?? '').trim().toLowerCase()).join(':')).sort().join('|');
-  const key = kind => `hotdog-v11|${kind}|${length.toFixed(3)}|${detail}|${seed}|${compositionKey}`;
-  const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
-  const parts = [];
 
-  // Pão comprido, fofo e arredondado, com volume de pão de hot dog real.
-  parts.push({
-    kind: 'hotdog-bun', key: key('bun'), y: 0, base: true,
-    build: stretch(() => hotDogBunMesh(bunRadius, .034, seed + 1, detail), bunX, 1.04)
-  });
+// Salsicha: cilindro de verdade com pontas arredondadas e marcas de grelha.
+// (Antes era um disco achatado esticado, com ~7,5 mm de altura, quase invisível dentro do pão.)
+function hotDogSausageMesh(L, R, seed, detail) {
+  const m = new Mesh(), bend = R * .06;
+  m.grid(seg(56, detail, 24), seg(120, detail, 40), (u, v) => {
+    const phi = u * TAU, t = Math.abs(2 * v - 1), taper = Math.sqrt(Math.max(0, 1 - t ** 6));
+    const rho = R * taper * (1 + .012 * Math.sin(v * Math.PI * 7 + seed));
+    return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
+  }, (u, v, p, n) => {
+    const s = (p[0] + p[2] * 1.7) / .011, mark = (1 - sstep(.08, .16, Math.abs(s - Math.round(s)))) * sstep(.1, .5, n[1]);
+    const meat = mix(lin('#b3482f'), lin('#d9805a'), .4 + .2 * (nz(p, 42, seed + 11) - .5));
+    return MAT(mul(mix(meat, lin('#5e2a1d'), mark * .8), 1 + (nz(p, 70, seed + 12) - .5) * .08), .3, .18, .5, .98);
+  }, { wrapV: false, ref: p => [p[0], 0, 0] });
+  return m.finish();
+}
 
-  // Salsicha longa, cilíndrica e com pontas arredondadas. A escala longitudinal
-  // é calculada pelo próprio raio da salsicha (não pelo raio do pão).
-  const sausageMesh = () => {
-    const m = new Mesh(), prof = superPuck(sausageR, .0075, 3.0, 64, .045);
-    m.revolve(prof, {
-      nu: 160, nv: 52, detail,
-      R: a => 1 + .012 * Math.sin(a * 5 + seed) + .006 * (noise3(Math.cos(a) * 2, Math.sin(a) * 2, seed + 8) - .5),
-      disp: (a, r, y) => {
-        const d = (fbm(Math.cos(a) * r * 150, y * 120, Math.sin(a) * r * 150, seed + 9, 3) - .5) * .00022;
-        return [d, d * .4];
-      },
-      shade: (u, v, p, n) => {
-        const grill = sstep(.86, .96, nz(p, 95, seed + 10)) * .12;
-        const meat = mix(lin('#a9442e'), lin('#d87952'), .38 + .18 * (nz(p, 42, seed + 11) - .5));
-        const angle = Math.atan2(p[2], p[0]);
-        const grillLine = (1 - sstep(.035, .12, Math.abs(Math.sin(angle * 5 + seed * .17)))) * .16;
-        const sear = Math.max(grill, grillLine);
-        return MAT(mul(mix(meat, lin('#6f3024'), sear), 1 + (nz(p, 70, seed + 12) - .5) * .08), .3, .18, .62, .98);
-      }
-    });
-    return m.finish();
+// Faixa que acompanha a curva da salsicha (queijo, purê). ls(z) = altura da superfície em relação ao topo.
+function drapeStripMesh({ L, w, t, ls, palette, seed, detail, lift = .0006, ruffle = .0005 }) {
+  const m = new Mesh(), [base, light, deep] = palette.map(lin);
+  const P = (u, v) => {
+    const x = (u - .5) * L, z = (v - .5) * 2 * w, edge = sstep(.7, 1, Math.abs(2 * v - 1)), endDrop = sstep(.9, 1, Math.abs(2 * u - 1));
+    return [x, ls(z) + lift - edge * .0006 - endDrop * .0008 + (fbm(u * 8, v * 4, 0, seed, 2) - .5) * ruffle * 2, z];
   };
-  parts.push({
-    kind: 'hotdog-sausage', key: key('sausage'), y: .0115, base: true,
-    build: stretch(sausageMesh, sausageX, 1.02)
-  });
+  m.slab(seg(96, detail, 32), 14, P, t, (u, v, p, n, part) => {
+    const edge = sstep(.8, 1, Math.abs(2 * v - 1));
+    const c = mix(mix(base, light, sstep(.2, .6, nz(p, 25, seed + 4)) * .5), deep, edge * .35 + (part === 2 ? .25 : 0));
+    return MAT(mul(c, 1 + (nz(p, 60, seed + 1) - .5) * .1), .28, .6, .1, part === 1 ? .6 : 1);
+  }, { ref: () => [0, 0, 0] });
+  return m.finish();
+}
 
-  // A classificação usa o nome real e também o ID/alias visual. Assim, itens
-  // cadastrados pelo restaurante funcionam mesmo quando seus IDs são aleatórios.
-  const normalizeIngredientName = value => String(value || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ').trim();
-  const names = ings.map(item => ({
-    item,
-    name: normalizeIngredientName([
-      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey
-    ].filter(Boolean).join(' '))
-  }));
+function hotDogLayout(product, ings, o) {
+  const length = clamp((Number(product.widthCm) || 20) / 100, .18, .24);
+  const seed = hash(product.id || 'hotdog'), detail = o.detail;
+  const bunL = length * .94, bunW = length * .14, bunH = .034;
+  const sausageR = length * .066, sausageL = length * .9;
+  const sausageY = bunH - sausageR * .45;           // encaixada no vale; ~1/4 do diâmetro acima do pão
+  const bt = .014, boardR = length * .62;
+  const baseKey = `hotdog-v12|${length.toFixed(3)}|${detail}|${seed}`;
+
+  // Classificação pelo nome real, pelo id e pelos aliases visuais.
+  const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const names = ings.map(item => ({ item, name: normalize([item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey].filter(Boolean).join(' ')) }));
   const matching = pattern => names.filter(x => pattern.test(x.name));
   const has = pattern => matching(pattern).length > 0;
-  const qty = pattern => matching(pattern).reduce(
-    (sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 8), 0
-  );
-  const add = (kind, build, y, xScale, zScale, zOffset = 0) => parts.push({
-    kind: 'hotdog-' + kind, key: key(kind + '-' + parts.length), y, z: zOffset, build: stretch(build, xScale, zScale)
-  });
+  const qty = pattern => matching(pattern).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 10), 0);
 
-  // A quantidade de salsichas escolhida também altera o modelo, sem retirar a
-  // salsicha padrão do hot dog. As extras ficam lado a lado dentro do pão.
-  const sausageCount = qty(/salsicha|vina|viena|hot.?dog sausage/);
-  for (let i = 1; i < sausageCount; i++) {
-    const offset = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * sausageR * .72;
-    parts.push({
-      kind: 'hotdog-sausage-extra', key: key('sausage-extra-' + i),
-      y: .0115, z: offset,
-      build: stretch(sausageMesh, sausageX * .94, 1.02)
+  // Salsichas (1 a 4), lado a lado; o resto das coberturas acompanha a superfície delas.
+  const sausageCount = clamp(qty(/salsicha|vina|viena|sausage|hot.?dog sausage/), 1, 4);
+  const spacing = sausageCount > 1 ? Math.min(sausageR * 1.96, bunW * 1.5 / (sausageCount - 1)) : 0;
+  const sausages = Array.from({ length: sausageCount }, (_, k) => ({ z: (k - (sausageCount - 1) / 2) * spacing, y: sausageY + (sausageCount > 1 ? sausageR * .1 : 0) }));
+  const topY = Math.max(...sausages.map(s => s.y)) + sausageR;
+  const ls = z => {
+    let best = -Infinity;
+    for (const s of sausages) { const d = z - s.z; if (Math.abs(d) < sausageR) best = Math.max(best, s.y + Math.sqrt(sausageR * sausageR - d * d)); }
+    return (best === -Infinity ? sausageY - sausageR * .2 : best) - topY;
+  };
+
+  const parts = [
+    { kind: 'board', key: `hotdog-board|${boardR.toFixed(4)}|${detail}`, y: -bt + .0004, base: true, build: () => boardMesh(boardR, bt, seed, detail) },
+    { kind: 'hotdog-bun', key: `${baseKey}|bun`, y: 0, base: true, build: () => hotDogBunMesh(bunL, bunW, bunH, seed + 1, detail) }
+  ];
+  sausages.forEach((s, k) => parts.push({
+    kind: k ? 'hotdog-sausage-extra' : 'hotdog-sausage', key: `${baseKey}|sausage|${k ? 'extra' + k : 'main'}`,
+    y: s.y, z: s.z, base: k === 0, build: () => hotDogSausageMesh(sausageL * (1 - k * .02), sausageR, seed + 3 + k * 7, detail)
+  }));
+
+  // Coberturas empilhadas na ordem em que são adicionadas. A chave não depende da composição inteira,
+  // só da própria cobertura e do número de salsichas (que muda o formato da superfície).
+  const sig = 's' + sausageCount;
+  let stack = 0;
+  const add = (kind, id, build, h = .0016, dy = 0) => {
+    parts.push({ kind: 'hotdog-' + kind, key: `${baseKey}|${sig}|${kind}|${id}`, y: topY + stack + dy, base: false, build });
+    stack += h;
+  };
+  // Posições em 1 a 3 fileiras ao longo da salsicha (quantidade = mais fileiras/densidade).
+  const rowPlaces = (span, r, count, sd) => {
+    const rnd = randomFor(sd), lanes = count <= 1 ? [0] : count === 2 ? [-.38, .38] : [-.62, 0, .62];
+    const perRow = Math.max(3, Math.round(span / (r * 2 * (count > 3 ? .7 : .98)))), sites = [];
+    lanes.forEach((lane, li) => {
+      for (let i = 0; i < perRow; i++) {
+        const t = (i + .5 + (li % 2 ? .45 : 0)) / (perRow + .45);
+        sites.push({ x: (t - .5) * span + (rnd() - .5) * r * .2, z: lane * sausageR + (rnd() - .5) * r * .2 });
+      }
     });
-  }
+    return { sites, rnd };
+  };
+  const rowTopping = (kind, count, r, make, h = .0018, sink = -.0008) => {
+    if (!count) return;
+    add(kind, `q${count}`, () => {
+      const m = new Mesh(), sd = seed + hash(kind), { sites, rnd } = rowPlaces(sausageL * .82, r, count, sd);
+      sites.forEach((s, i) => make(m, s.x, ls(s.z) + sink, s.z, r, sd + i * 13, rnd));
+      return m.finish();
+    }, h);
+  };
+  const scatter = (kind, count, perQty, make, h = .0018) => {
+    if (!count) return;
+    add(kind, `q${count}`, () => {
+      const m = new Mesh(), sd = seed + hash(kind), rnd = randomFor(sd), n = Math.min(140, perQty * count);
+      for (let i = 0; i < n; i++) {
+        const z = (rnd() * 2 - 1) * sausageR * .82, x = (rnd() - .5) * sausageL * .8;
+        make(m, x, ls(z), z, sd + i, rnd);
+      }
+      return m.finish();
+    }, h);
+  };
 
-  // Complementos: cada família tem uma geometria própria e a quantidade
-  // cadastrada aumenta as camadas/peças visíveis no cachorro-quente.
-  // Cada queijo mantém sua própria aparência; quantidade vira fatias/camadas.
+  // Queijos: fatia que acompanha a curva da salsicha; cada tipo mantém a própria cor.
   const cheeseTypes = [
     { pattern: /cheddar/, style: 'cheddar', kind: 'cheddar' },
     { pattern: /mussarela|mozzarella|mozzarela/, style: 'mozzarella', kind: 'mozzarella' },
@@ -1449,88 +1475,105 @@ function hotDogLayout(product, ings, o) {
     { pattern: /provolone/, style: 'provolone', kind: 'provolone' },
     { pattern: /^(?!.*(?:cheddar|mussarela|mozzarella|parmesao|parmesan|gorgonzola|queijo azul|roquefort|provolone)).*(?:catupiry|requeijao|cream cheese|creme de queijo|queijo|cheese)/, style: 'generic', kind: 'generic' }
   ];
-  let cheeseIndex = 0;
+  let cheeseIdx = 0;
   for (const cheese of cheeseTypes) {
     const count = qty(cheese.pattern);
     for (let i = 0; i < count; i++) {
-      const index = cheeseIndex++;
-      add('cheese-' + cheese.kind + '-' + i,
-        () => cheeseMesh(sausageR * .82, .0021, seed + 10 + index, detail, 0, cheese.style),
-        .0198 + index * .0018, sausageX * .82, .48);
+      const idx = cheeseIdx++;
+      add('cheese-' + cheese.kind, `${i}-${idx}`, () => drapeStripMesh({
+        L: sausageL * (.86 - (idx % 3) * .04), w: sausageR * .98, t: .0017, ls, palette: CHEESE_PALETTES[cheese.style], seed: seed + 10 + idx, detail
+      }), .0016);
     }
   }
-  const baconCount = qty(/bacon|panceta/);
-  if (baconCount)
-    add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, baconCount), .0202, sausageX * .78, .48);
-  const calabresaCount = qty(/calabresa|linguica|linguica calabresa/);
-  if (calabresaCount)
-    add('calabresa', () => burgerCalabresaMesh(sausageR * .72, seed + 111, detail, calabresaCount), .0205, sausageX * .78, .5);
-  if (has(/alface|rucula|repolho|salada|lettuce|herb/))
-    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, qty(/alface|rucula|repolho|salada/)), .0192, sausageX * .82, .54);
-  // Molho de tomate é uma cobertura líquida, não fatias de tomate.
-  const tomatoCount = Math.max(0, qty(/tomate|tomato/) - qty(/molho.*tomate|tomato.*sauce/));
-  if (tomatoCount)
-    add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, tomatoCount), .0201, sausageX * .76, .48);
-  const pepperCount = qty(/pimentao|bell pepper/);
-  if (pepperCount)
-    add('pepper', () => burgerCalabresaMesh(sausageR * .62, seed + 131, detail, pepperCount), .0202, sausageX * .74, .48);
-  if (has(/cebola|onion/))
-    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion|alho/)), .0203, sausageX * .78, .5);
-  if (has(/picles|pepino|pickle/))
-    add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
-  if (has(/milho|corn/))
-    add('corn', () => burgerCornMesh(sausageR * .72, seed + 16, qty(/milho|corn/)), .0205, sausageX * .78, .55);
-  if (has(/ervilha|erivlha|peas/))
-    add('peas', () => burgerPeasMesh(sausageR * .7, seed + 17, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
-  if (has(/batata.?palha|crispy potato|potato|fries/))
-    add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail, qty(/batata.?palha|crispy potato/)), .022, sausageX * .72, .58);
-  const pureeCount = qty(/pure|purê|mashed potato/);
-  for (let i = 0; i < pureeCount; i++)
-    add('mashed-potato-' + i, () => cheeseMesh(sausageR * .78, .003, seed + 19 + i, detail, 0, 'generic'), .0215 + i * .0015, sausageX * .82, .58);
-  const eggCount = qty(/ovo|egg/);
-  for (let i = 0; i < eggCount; i++)
-    add('egg-' + i, () => eggMesh(sausageR * .7, 1, seed + 20 + i, detail), .021 + i * .0015, sausageX * .68, .58, (i % 2 ? 1 : -1) * .001);
-  const proteinCount = qty(/frango|chicken|costela|carne|alcatra|proteina|protein|patty/);
-  for (let i = 0; i < proteinCount; i++)
-    add('protein-' + i, () => pattyMesh(sausageR * .58, .0045, seed + 21 + i, detail), .021 + i * .0016, sausageX * .72, .5, (i % 2 ? 1 : -1) * .001);
 
-  // Molhos em fios finos e compridos, separados por cor.
-  const sauceRibbon = (color, ribbonSeed, zShift) => {
-    const m = new Mesh(), L = length * .72, W = .00125, T = .00065;
+  const baconCount = qty(/bacon|panceta/);
+  if (baconCount) add('bacon', `q${baconCount}`, () => {
+    const m = new Mesh(), rnd = randomFor(seed + 11), strips = Math.min(6, baconCount * 2);
+    for (let i = 0; i < strips; i++) {
+      const lane = [-.34, .34, -.62, .62, 0, 0][i] * sausageR, tier = i >= 4 ? 1 : 0;
+      baconStripInto(m, { L: sausageL * .9, W: .0092, t: .0022, seed: seed + i * 5, detail, curl: .0014,
+        xf: rigid({ yaw: (rnd() - .5) * .08, t: [(rnd() - .5) * .01, ls(lane) + .0018 + tier * .0026, lane] }) });
+    }
+    return m.finish();
+  }, .0026 + (baconCount > 1 ? .0026 : 0));
+
+  rowTopping('calabresa', qty(/calabresa|linguica|pepperoni|salame/), sausageR * .6, (m, x, y, z, r, sd, rnd) => pepperoniInto(m, x, y, z, r, sd, rnd, detail), .0026);
+  rowTopping('ham', qty(/presunto|ham|peito de peru/), sausageR * .7, (m, x, y, z, r, sd, rnd) => hamInto(m, x, y, z, r, sd, rnd), .0026);
+  rowTopping('chicken', qty(/frango|chicken/), sausageR * .7, (m, x, y, z, r, sd, rnd) => chickenInto(m, x, y, z, r, sd, rnd), .003);
+  rowTopping('beef', qty(/costela|carne|alcatra|proteina|protein|patty/), sausageR * .7, (m, x, y, z, r, sd, rnd) => {
+    for (let n = 0; n < 3; n++) toppingBlob(m, x + (rnd() - .5) * r, y, z + (rnd() - .5) * r, r * .7, .0022, r * .55, lin(['#6a3a22', '#7d4a2c', '#5a2f1b'][n]), sd + n, rnd);
+  }, .003);
+
+  if (has(/alface|rucula|repolho|salada|lettuce|herb/)) {
+    const leaves = 1 + Math.min(2, qty(/alface|rucula|repolho|salada|lettuce/)), R0 = sausageR * .7;
+    add('greens', `q${leaves}`, () => scaleFoodGeometry(lettuceMesh(R0, 1, seed + 12, detail, leaves), sausageL * .84 / (2 * R0), 1, sausageR * 2.1 / (2 * R0)), .0026, -.0016);
+  }
+
+  // Molho de tomate é líquido, não vira fatia de tomate.
+  const tomatoCount = Math.max(0, qty(/tomate|tomato/) - qty(/molho.*tomate|tomato.*sauce/));
+  rowTopping('tomato', tomatoCount, sausageR * .62, (m, x, y, z, r, sd, rnd) => tomatoSlicePizza(m, x, y + .0012, z, r, sd, rnd, detail), .002);
+  rowTopping('pepper', qty(/pimentao|bell pepper/), sausageR * .75, (m, x, y, z, r, sd, rnd) => pepperRingInto(m, x, y, z, r, sd, rnd), .0018);
+  rowTopping('onion', qty(/cebola|onion/), sausageR * .55, (m, x, y, z, r, sd, rnd) => onionInto(m, x, y, z, r, sd, rnd, detail), .002);
+  rowTopping('pickles', qty(/picles|pepino|pickle/), sausageR * .5, (m, x, y, z, r, sd, rnd) => toppingBlob(m, x, y, z, r, .0013, r * .95, lin('#7d9a34'), sd, rnd), .0016);
+  rowTopping('olive', qty(/azeitona|oliva|olive/), sausageR * .45, (m, x, y, z, r, sd, rnd) => oliveInto(m, x, y, z, r, sd, rnd, detail), .003);
+  rowTopping('egg', qty(/ovo|egg/), sausageR * .7, (m, x, y, z, r, sd, rnd) => quailEggInto(m, x, y, z, r, sd, rnd), .003);
+
+  scatter('corn', qty(/milho|corn/), 26, (m, x, y, z, sd, rnd) => cornInto(m, x, y - .0004, z, sausageR * .2, sd, rnd));
+  scatter('peas', qty(/ervilha|erivlha|peas/), 18, (m, x, y, z, sd, rnd) => {
+    const r = sausageR * .17, tone = rnd() * .35;
+    blobInto(m, { rx: r, ry: r * .85, rz: r, seed: sd, amp: .08, nu: 10, nv: 8, xf: rigid({ t: [x, y + r * .35, z] }), shade: () => MAT(mix(C.lettuceB, C.lettuceC, tone), .3, .35, .2, 1) });
+  });
+
+  const mashCount = qty(/pure|mashed potato/);
+  for (let i = 0; i < mashCount; i++) add('mashed-potato', `${i}`, () => drapeStripMesh({
+    L: sausageL * .8, w: sausageR, t: .0034, ls, palette: CHEESE_PALETTES.mash, seed: seed + 19 + i, detail, lift: .0016, ruffle: .0011
+  }), .003);
+
+  // Batata palha: fios finos (sem purê, que é outra cobertura).
+  const strawCount = names.filter(x => /batata|potato|fries|palha/.test(x.name) && !/pure|mashed/.test(x.name))
+    .reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 10), 0);
+  if (strawCount) add('potato-straw', `q${strawCount}`, () => {
+    const m = new Mesh(), sd = seed + 18, rnd = randomFor(sd), n = Math.min(260, 60 * strawCount);
+    for (let i = 0; i < n; i++) {
+      const z = (rnd() * 2 - 1) * sausageR * .85, x = (rnd() - .5) * sausageL * .78;
+      strawPotatoInto(m, x, ls(z) + .0004 + rnd() * .0026 * Math.min(strawCount, 3), z, .016 + rnd() * .012, sd + i, rnd);
+    }
+    return m.finish();
+  }, .004);
+
+  // Molhos: fio em zigue-zague sobre a salsicha, uma cor por molho.
+  const sauceRibbon = (color, rs, zoff) => {
+    const m = new Mesh(), L = sausageL * .84, W = .0028, T = .0007, ph = rs * .7, amp = sausageR * .34;
     const P = (u, v) => {
-      const x = (u - .5) * L;
-      const wave = Math.sin(u * Math.PI * 4 + ribbonSeed) * .0008 + Math.sin(u * Math.PI * 9 + ribbonSeed * .7) * .00025;
-      return [x, wave + Math.sin(v * Math.PI) * .0002, (v - .5) * W];
+      const x = (u - .5) * L, z = zoff + amp * Math.sin(u * Math.PI * 9 + ph) + (v - .5) * W;
+      return [x, ls(z) + .0003 + Math.sin(v * Math.PI) * .0004, z];
     };
-    m.slab(84 * detail, 8, P, T, (u, v, p, n, face) =>
-      MAT(mul(lin(color), .95 + .05 * Math.sin(u * Math.PI * 8 + ribbonSeed)), .18, .42, .12, face === 1 ? .7 : 1),
-      { xf: rigid({ t: [0, 0, zShift] }), ref: () => [0, 0, 0] });
+    m.slab(seg(150, detail, 60), 6, P, T, (u, v, p, n, face) => MAT(mul(lin(color), .95 + .05 * Math.sin(u * Math.PI * 8 + rs)), .18, .42, .12, face === 1 ? .7 : 1), { ref: () => [0, 0, 0] });
     return m.finish();
   };
   const sauceTypes = [
-    { pattern: /ketchup|catchup/, kind: 'ketchup', color: '#c52f2f', z: -.0022 },
-    { pattern: /mostarda|mustard/, kind: 'mustard', color: '#e5b52f', z: .0022 },
+    { pattern: /ketchup|catchup/, kind: 'ketchup', color: '#c52f2f', z: -.35 },
+    { pattern: /mostarda|mustard/, kind: 'mustard', color: '#e5b52f', z: .35 },
     { pattern: /maionese|mayo|mayonnaise/, kind: 'mayo', color: '#f1e4bd', z: 0 },
-    { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
-    { pattern: /^(?!.*(?:ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|tomate)).*(?:molho|sauce)/, kind: 'special-sauce', color: '#cf7132', z: -.0014 },
-    { pattern: /molho de tomate|tomate sauce/, kind: 'tomato-sauce', color: '#b52b20', z: -.0007 }
+    { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .15 },
+    { pattern: /^(?!.*(?:ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|tomate)).*(?:molho|sauce)/, kind: 'special-sauce', color: '#cf7132', z: -.15 },
+    { pattern: /molho de tomate|tomate sauce/, kind: 'tomato-sauce', color: '#b52b20', z: -.5 }
   ];
   for (const sauce of sauceTypes) {
     const count = qty(sauce.pattern);
     for (let i = 0; i < count; i++)
-      add(sauce.kind + '-' + i, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13 + i * 17, sauce.z + (i % 2 ? .0007 : 0)), .0212 + i * .00035, 1, 1);
+      add(sauce.kind, `${i}`, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13 + i * 17, (sauce.z + (i % 2 ? .12 : 0)) * sausageR), .0007);
   }
 
-  // Qualquer ingrediente personalizado que ainda não tenha uma família visual
-  // recebe uma camada neutra visível, em vez de desaparecer do modelo.
-  const recognized = /queijo|cheddar|mussarela|catupiry|cream|cheese|bacon|panceta|calabresa|linguica|pepperoni|alface|rucula|repolho|salada|lettuce|herb|tomate|tomato|pimentao|bell pepper|cebola|onion|picles|pepino|pickle|milho|corn|ervilha|erivlha|peas|batata|potato|fries|crispy|pure|mashed potato|ovo|ovos|egg|frango|chicken|costela|carne|alcatra|proteina|protein|patty|ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce|salsicha|vina|viena|sausage|pao|bread|bun/i;
+  // Ingrediente cadastrado sem família visual: pequenas peças neutras, para não sumir do modelo.
+  const recognized = /queijo|cheddar|mussarela|catupiry|cream|cheese|bacon|panceta|calabresa|linguica|pepperoni|salame|presunto|ham|peito de peru|alface|rucula|repolho|salada|lettuce|herb|tomate|tomato|pimentao|bell pepper|cebola|onion|picles|pepino|pickle|azeitona|oliva|olive|milho|corn|ervilha|erivlha|peas|batata|potato|fries|palha|crispy|pure|mashed potato|ovo|ovos|egg|frango|chicken|costela|carne|alcatra|proteina|protein|patty|ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce|salsicha|vina|viena|sausage|pao|bread|bun/i;
   names.forEach((entry, index) => {
     if (recognized.test(entry.name)) return;
-    const count = clamp(Number(entry.item.quantity) || 1, 1, 8);
-    add('custom-' + index, () => burgerCornMesh(sausageR * .62, seed + 300 + index, count), .0208 + index * .00015, sausageX * .72, .52, (index % 2 ? 1 : -1) * .0015);
+    scatter('custom-' + index, clamp(Number(entry.item.quantity) || 1, 1, 10), 14,
+      (m, x, y, z, sd, rnd) => toppingBlob(m, x, y, z, sausageR * .2, .0016, sausageR * .17, lin('#b8894c'), sd, rnd), .0014);
   });
 
-  return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
+  return { parts, total: .036, radius: boardR * .9, extentH: [-bt, Math.max(.048, topY + stack + .01)] };
 }
 function plateLayout(product, ings, size, o) {
   const W = (Number(product.widthCm) || 20) / 100, R = W / 2 * 1.2, detail = o.detail, seed = hash(product.id || 'plate');
@@ -1725,7 +1768,7 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
   for (const original of (ingredients || [])) {
     const item = resolveVisualIngredient(type, original);
     const previous = combined.get(item.id);
-    const maxQuantity = type === 'burger' ? 10 : 3;
+    const maxQuantity = (type === 'burger' || type === 'plate') ? 10 : 3;
     if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, maxQuantity);
     else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, maxQuantity) });
   }
