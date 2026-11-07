@@ -1401,24 +1401,49 @@ function hotDogLayout(product, ings, o) {
     name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
   }));
   const has = pattern => names.some(x => pattern.test(x.name));
-  const qty = pattern => Math.min(3, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 3), 0)));
+  const qty = pattern => Math.min(8, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 8), 0)));
   const add = (kind, build, y, xScale, zScale, zOffset = 0) => parts.push({
-    kind: 'hotdog-' + kind, key: key(kind), y, z: zOffset, build: stretch(build, xScale, zScale)
+    kind: 'hotdog-' + kind, key: key(kind + '-' + parts.length), y, z: zOffset, build: stretch(build, xScale, zScale)
   });
 
-  // Complementos aparecem sobre a salsicha, em escala menor e sem cobrir o pão inteiro.
+  // A quantidade de salsichas escolhida também altera o modelo, sem retirar a
+  // salsicha padrão do hot dog. As extras ficam lado a lado dentro do pão.
+  const sausageCount = qty(/salsicha|vina|viena|hot.?dog sausage/);
+  for (let i = 1; i < sausageCount; i++) {
+    const offset = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * sausageR * .72;
+    parts.push({
+      kind: 'hotdog-sausage-extra', key: key('sausage-extra-' + i),
+      y: .0115, z: offset,
+      build: stretch(sausageMesh, sausageX * .78, 1.02)
+    });
+  }
+
+  // Complementos: cada família tem uma geometria própria e a quantidade
+  // cadastrada aumenta as camadas/peças visíveis no cachorro-quente.
   if (has(/queijo|cheddar|mussarela|catupiry|cream/))
     add('cheese', () => cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198, sausageX * .82, .48);
   if (has(/bacon|calabresa|linguica/))
     add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
-    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(5, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54);
+    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(8, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54);
   if (has(/tomate|pimentao|pimenta/))
     add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0201, sausageX * .76, .48);
-  if (has(/cebola|onion/))
-    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion/)), .0203, sausageX * .78, .5);
+  if (has(/cebola|onion|alho/))
+    add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion|alho/)), .0203, sausageX * .78, .5);
   if (has(/picles|pepino|pickle/))
     add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
+  if (has(/milho|corn/))
+    add('corn', () => burgerCornMesh(sausageR * .72, 1, seed + 16, detail, qty(/milho|corn/)), .0205, sausageX * .78, .55);
+  if (has(/ervilha|peas/))
+    add('peas', () => burgerPeasMesh(sausageR * .7, 1, seed + 17, detail, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
+  if (has(/batata.?palha|crispy potato/))
+    add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail), .022, sausageX * .72, .58);
+  if (has(/pure|purê|mashed potato/))
+    add('mashed-potato', () => cheeseMesh(sausageR * .78, .003, seed + 19, detail, 0, 'generic'), .0215, sausageX * .82, .58);
+  if (has(/ovo|egg/))
+    add('egg', () => eggMesh(sausageR * .7, 1, seed + 20, detail), .021, sausageX * .68, .58);
+  if (has(/frango|costela|carne|alcatra|proteina|protein/))
+    add('protein', () => pattyMesh(sausageR * .58, .0045, seed + 21, detail), .021, sausageX * .72, .5);
 
   // Molhos em fios finos e compridos, separados por cor.
   const sauceRibbon = (color, ribbonSeed, zShift) => {
@@ -1442,6 +1467,15 @@ function hotDogLayout(product, ings, o) {
   ];
   for (const sauce of sauceTypes) if (has(sauce.pattern))
     add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0212, 1, 1);
+
+  // Qualquer ingrediente personalizado que ainda não tenha uma família visual
+  // recebe uma camada neutra visível, em vez de desaparecer do modelo.
+  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|calabresa|linguica|alface|rucula|repolho|salada|tomate|pimentao|pimenta|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|peas|batata.?palha|crispy potato|pure|purê|mashed potato|ovo|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
+  names.forEach((entry, index) => {
+    if (recognized.test(entry.name)) return;
+    const count = clamp(Number(entry.item.quantity) || 1, 1, 8);
+    add('custom-' + index, () => cheeseMesh(sausageR * (.48 + Math.min(count, 5) * .035), .0018 + Math.min(count, 5) * .00025, seed + 30 + index, detail, 0, 'generic'), .0208 + index * .00015, sausageX * .72, .52, (index % 2 ? 1 : -1) * .0015);
+  });
 
   return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
 }
