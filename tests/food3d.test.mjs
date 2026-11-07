@@ -252,3 +252,26 @@ test('hot dog: ingredientes de cadastro livre não herdam visual de batata nem v
   const custom = layout.parts.find(part => part.kind === 'hotdog-custom-0').build();
   assert.ok(custom.positions.length > 0);
 });
+
+
+test('hambúrguer: nome do ingrediente prevalece sobre visual genérico de queijo', () => {
+  const cases = [
+    [{ id: 'alface-crocante', name: 'Alface crocante', type: 'burger', visual: 'cheese', groupName: 'Vegetais' }, 'alface'],
+    [{ id: 'tomate-fresco', name: 'Tomate fresco', type: 'burger', visual: 'cheese', groupName: 'Vegetais' }, 'tomate-burger'],
+    [{ id: 'bacon-defumado', name: 'Bacon defumado', type: 'burger', visual: 'cheese', groupName: 'Favoritos' }, 'bacon-burger'],
+    [{ id: 'molho-especial-casa', name: 'Molho especial da casa', type: 'burger', visual: 'cheese', groupName: 'Molhos' }, 'molho-especial'],
+    [{ id: 'queijo-cheddar-caseiro', name: 'Queijo cheddar', type: 'burger', visual: 'lettuce', groupName: 'Queijos' }, 'queijo-cheddar']
+  ];
+  for (const [ingredient, expected] of cases) {
+    const layout = buildFoodLayout(burger, [ingredient], { key: 'classico' });
+    assert.ok(layout.parts.some(part => part.kind === (expected === 'queijo-cheddar' ? 'cheese' : expected === 'alface' ? 'lettuce' : expected === 'tomate-burger' ? 'tomato' : expected === 'bacon-burger' ? 'bacon' : 'sauce')), ingredient.name + ' deve gerar ' + expected);
+  }
+});
+
+test('hambúrguer: ingrediente personalizado desconhecido não vira queijo', () => {
+  const layout = buildFoodLayout(burger, [
+    { id: 'abacaxi-da-casa', name: 'Abacaxi grelhado', type: 'burger', visual: 'cheese', groupName: 'Adicionais', quantity: 2 }
+  ], { key: 'classico' });
+  assert.ok(layout.parts.some(part => part.kind.startsWith('custom:burger-custom-')));
+  assert.equal(layout.parts.filter(part => part.kind === 'cheese').length, 0);
+});
