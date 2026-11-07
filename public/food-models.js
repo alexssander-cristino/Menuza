@@ -1497,7 +1497,7 @@ function hotDogLayout(product, ings, o) {
     { pattern: /mostarda|mustard/, kind: 'mustard', color: '#e5b52f', z: .0022 },
     { pattern: /maionese|mayo|mayonnaise/, kind: 'mayo', color: '#f1e4bd', z: 0 },
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
-    { pattern: /molho especial|molho da casa|sauce/, kind: 'special-sauce', color: '#cf7132', z: -.0014 },
+    { pattern: /^(?!.*(?:ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|tomate)).*(?:molho|sauce)/, kind: 'special-sauce', color: '#cf7132', z: -.0014 },
     { pattern: /molho de tomate|tomate sauce/, kind: 'tomato-sauce', color: '#b52b20', z: -.0007 }
   ];
   for (const sauce of sauceTypes) {
