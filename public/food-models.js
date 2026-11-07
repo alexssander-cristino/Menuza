@@ -1400,12 +1400,22 @@ function hotDogLayout(product, ings, o) {
     build: stretch(sausageMesh, sausageX, 1.02)
   });
 
+  // A classificação usa o nome real e também o ID/alias visual. Assim, itens
+  // cadastrados pelo restaurante funcionam mesmo quando seus IDs são aleatórios.
+  const normalizeIngredientName = value => String(value || '')
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim();
   const names = ings.map(item => ({
     item,
-    name: String(item.name || item.label || item.id || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()
+    name: normalizeIngredientName([
+      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey
+    ].filter(Boolean).join(' '))
   }));
-  const has = pattern => names.some(x => pattern.test(x.name));
-  const qty = pattern => Math.min(8, Math.max(1, names.filter(x => pattern.test(x.name)).reduce((sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 8), 0)));
+  const matching = pattern => names.filter(x => pattern.test(x.name));
+  const has = pattern => matching(pattern).length > 0;
+  const qty = pattern => matching(pattern).reduce(
+    (sum, x) => sum + clamp(Number(x.item.quantity) || 1, 1, 8), 0
+  );
   const add = (kind, build, y, xScale, zScale, zOffset = 0) => parts.push({
     kind: 'hotdog-' + kind, key: key(kind + '-' + parts.length), y, z: zOffset, build: stretch(build, xScale, zScale)
   });
@@ -1424,9 +1434,25 @@ function hotDogLayout(product, ings, o) {
 
   // Complementos: cada família tem uma geometria própria e a quantidade
   // cadastrada aumenta as camadas/peças visíveis no cachorro-quente.
-  const cheeseCount = qty(/queijo|cheddar|mussarela|catupiry|cream/);
-  for (let i = 0; i < cheeseCount; i++)
-    add('cheese-' + i, () => cheeseMesh(sausageR * .82, .0021, seed + 10 + i, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198 + i * .0018, sausageX * .82, .48);
+  // Cada queijo mantém sua própria aparência; quantidade vira fatias/camadas.
+  const cheeseTypes = [
+    { pattern: /cheddar/, style: 'cheddar', kind: 'cheddar' },
+    { pattern: /mussarela|mozzarella|mozzarela/, style: 'mozzarella', kind: 'mozzarella' },
+    { pattern: /parmesao|parmesan/, style: 'parmesan', kind: 'parmesan' },
+    { pattern: /gorgonzola|queijo azul|roquefort/, style: 'gorgonzola', kind: 'gorgonzola' },
+    { pattern: /provolone/, style: 'provolone', kind: 'provolone' },
+    { pattern: /catupiry|requeijao|cream cheese|creme de queijo|queijo|cheese/, style: 'generic', kind: 'generic' }
+  ];
+  let cheeseIndex = 0;
+  for (const cheese of cheeseTypes) {
+    const count = qty(cheese.pattern);
+    for (let i = 0; i < count; i++) {
+      const index = cheeseIndex++;
+      add('cheese-' + cheese.kind + '-' + i,
+        () => cheeseMesh(sausageR * .82, .0021, seed + 10 + index, detail, 0, cheese.style),
+        .0198 + index * .0018, sausageX * .82, .48);
+    }
+  }
   if (has(/bacon|calabresa|linguica/))
     add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
@@ -1468,10 +1494,11 @@ function hotDogLayout(product, ings, o) {
   };
   const sauceTypes = [
     { pattern: /ketchup|catchup/, kind: 'ketchup', color: '#c52f2f', z: -.0022 },
-    { pattern: /mostarda/, kind: 'mustard', color: '#e5b52f', z: .0022 },
-    { pattern: /maionese|mayo/, kind: 'mayo', color: '#f1e4bd', z: 0 },
+    { pattern: /mostarda|mustard/, kind: 'mustard', color: '#e5b52f', z: .0022 },
+    { pattern: /maionese|mayo|mayonnaise/, kind: 'mayo', color: '#f1e4bd', z: 0 },
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
-    { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.0014 }
+    { pattern: /molho especial|molho da casa|sauce/, kind: 'special-sauce', color: '#cf7132', z: -.0014 },
+    { pattern: /molho de tomate|tomate sauce/, kind: 'tomato-sauce', color: '#b52b20', z: -.0007 }
   ];
   for (const sauce of sauceTypes) {
     const count = qty(sauce.pattern);
