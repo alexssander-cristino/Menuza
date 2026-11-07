@@ -1729,7 +1729,10 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     const H = (Number(product.heightCm) || 10) / 100;
     const ref = burgerLayout(product, DEFAULT_BURGER.map(id => ({ id, quantity: 1 })), { key: 'classico' }, o, 1).total;
     layout = burgerLayout(product, list, size, o, H / ref);
-    bounds = [(Number(product.widthCm) || 12) / 100, H, (Number(product.depthCm) || 12) / 100];
+    // A caixa de enquadramento acompanha a altura real da montagem. Antes ela
+    // ficava presa à altura cadastrada e cortava/achatava lanches com adicionais.
+    const fittedHeight = Math.max(H, layout.extentH[1] - layout.extentH[0]);
+    bounds = [(Number(product.widthCm) || 12) / 100, fittedHeight, (Number(product.depthCm) || 12) / 100];
   } else {
     layout = hotDogLayout(product, list, o);
     bounds = [Math.max(.17, Math.min(.25, (Number(product.widthCm) || 20) / 100)), .055, .085];
