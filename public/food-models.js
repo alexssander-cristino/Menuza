@@ -1430,7 +1430,7 @@ function hotDogLayout(product, ings, o) {
   if (has(/bacon|calabresa|linguica/))
     add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
-    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, Math.min(8, 2 + qty(/alface|rucula|repolho|salada/))), .0192, sausageX * .82, .54);
+    add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, qty(/alface|rucula|repolho|salada/)), .0192, sausageX * .82, .54);
   if (has(/tomate|pimentao|pimenta/))
     add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, qty(/tomate|pimentao|pimenta/)), .0201, sausageX * .76, .48);
   if (has(/cebola|onion|alho/))
@@ -1438,9 +1438,9 @@ function hotDogLayout(product, ings, o) {
   if (has(/picles|pepino|pickle/))
     add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
   if (has(/milho|corn/))
-    add('corn', () => burgerCornMesh(sausageR * .72, 1, seed + 16, detail, qty(/milho|corn/)), .0205, sausageX * .78, .55);
+    add('corn', () => burgerCornMesh(sausageR * .72, seed + 16, qty(/milho|corn/)), .0205, sausageX * .78, .55);
   if (has(/ervilha|erivlha|peas/))
-    add('peas', () => burgerPeasMesh(sausageR * .7, 1, seed + 17, detail, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
+    add('peas', () => burgerPeasMesh(sausageR * .7, seed + 17, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
   if (has(/batata.?palha|crispy potato/))
     add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail, qty(/batata.?palha|crispy potato/)), .022, sausageX * .72, .58);
   if (has(/pure|purê|mashed potato/))
