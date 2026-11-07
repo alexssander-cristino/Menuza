@@ -2373,10 +2373,10 @@ async function deleteProduct(id,kind='product',button=null){
 }
 async function createIngredient(form){
   const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.')),types=[...new Set(data.getAll('types').map(value=>String(value)))];
-  const priceInput=form.querySelector('[name="price"]'),normalizedName=normalizeSearch(name).replace(/\\s+/g,' ');
+  const priceInput=form.querySelector('[name="price"]'),normalizedName=normalizeSearch(name).replace(/\s+/g,' ');
   if(!types.length){toast('Selecione pelo menos um tipo de alimento.');return}
   if(types.some(type=>!['pizza','burger','plate'].includes(type))){toast('Tipo de alimento inválido.');return}
-  const duplicate=(app.admin.ingredientsCache||[]).find(item=>types.includes(item.type)&&normalizeSearch(item.name).replace(/\\s+/g,' ')===normalizedName);
+  const duplicate=(app.admin.ingredientsCache||[]).find(item=>types.includes(item.type)&&normalizeSearch(item.name).replace(/\s+/g,' ')===normalizedName);
   if(duplicate){toast('Já existe "'+duplicate.name+'" para '+({pizza:'pizza',burger:'hambúrguer',plate:'hot dog'}[duplicate.type])+'. Remova esse tipo da seleção ou escolha outro nome.');form.querySelector('[name="name"]').setAttribute('aria-invalid','true');form.querySelector('[name="name"]').focus();return}
   if(!name||name.length<2){toast('Informe um nome com pelo menos 2 caracteres.');return}
   if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
