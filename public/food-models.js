@@ -1143,7 +1143,7 @@ function burgerLayout(product, ings, size, o, kH) {
     const count = qty(item.id);
     if (!count) continue;
     add('custom:' + item.id, `${item.id}-quantity-${count}`,
-      () => burgerCustomMesh(R, seed + hash(item.id), detail, count), .0042 * kH * count);
+      () => burgerCustomMesh(R, seed + Array.from(item.id).reduce((value, char) => value + char.charCodeAt(0), 0), detail, count), .0042 * kH * count);
   }
 
   if (buns) add('bun-top', '', () => bunTopMesh(R, .036 * kH, seed + 30, detail), .036 * kH, -.0012);
