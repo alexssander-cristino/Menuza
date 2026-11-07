@@ -1434,7 +1434,7 @@ function hotDogLayout(product, ings, o) {
     add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
   if (has(/milho|corn/))
     add('corn', () => burgerCornMesh(sausageR * .72, 1, seed + 16, detail, qty(/milho|corn/)), .0205, sausageX * .78, .55);
-  if (has(/ervilha|peas/))
+  if (has(/ervilha|erivlha|peas/))
     add('peas', () => burgerPeasMesh(sausageR * .7, 1, seed + 17, detail, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
   if (has(/batata.?palha|crispy potato/))
     add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail), .022, sausageX * .72, .58);
@@ -1459,7 +1459,7 @@ function hotDogLayout(product, ings, o) {
     return m.finish();
   };
   const sauceTypes = [
-    { pattern: /ketchup/, kind: 'ketchup', color: '#c52f2f', z: -.0022 },
+    { pattern: /ketchup|catchup/, kind: 'ketchup', color: '#c52f2f', z: -.0022 },
     { pattern: /mostarda/, kind: 'mustard', color: '#e5b52f', z: .0022 },
     { pattern: /maionese|mayo/, kind: 'mayo', color: '#f1e4bd', z: 0 },
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
@@ -1470,7 +1470,7 @@ function hotDogLayout(product, ings, o) {
 
   // Qualquer ingrediente personalizado que ainda não tenha uma família visual
   // recebe uma camada neutra visível, em vez de desaparecer do modelo.
-  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|calabresa|linguica|alface|rucula|repolho|salada|tomate|pimentao|pimenta|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|peas|batata.?palha|crispy potato|pure|purê|mashed potato|ovo|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
+  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|calabresa|linguica|alface|rucula|repolho|salada|tomate|pimentao|pimenta|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|peas|batata.?palha|crispy potato|pure|purê|mashed potato|ovo|ovos|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
   names.forEach((entry, index) => {
     if (recognized.test(entry.name)) return;
     const count = clamp(Number(entry.item.quantity) || 1, 1, 8);
@@ -1634,13 +1634,19 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('bacon', 'panceta')) visualId = 'bacon-burger';
     else if (has('ovo', 'egg')) visualId = 'ovo';
   } else if (type === 'plate') {
-    if (has('queijo', 'cheddar', 'mussarela', 'catupiry', 'cream')) visualId = 'plate-cheese';
+    // Somente os ingredientes type=plate do cadastro do hot dog.
+    if (has('pao hotdog', 'pao de hotdog', 'hot dog bread')) visualId = 'hotdog-bun';
+    else if (has('salsicha', 'vina', 'viena')) visualId = 'hotdog-sausage';
+    else if (has('queijo', 'cheddar', 'mussarela', 'catupiry', 'cream')) visualId = 'plate-cheese';
     else if (has('tomate', 'tomato', 'pimentao', 'pimenta')) visualId = 'plate-tomato';
     else if (has('bacon', 'calabresa', 'linguica', 'salame')) visualId = 'plate-bacon';
+    else if (has('batata palha', 'crispy potato')) visualId = 'hotdog-potato-straw';
+    else if (has('milho', 'corn')) visualId = 'hotdog-corn';
+    else if (has('ervilha', 'erivlha', 'peas')) visualId = 'hotdog-peas';
     else if (has('alface', 'rucula', 'salada', 'salsinha', 'cebolinha', 'oregano', 'erva', 'verde')) visualId = 'plate-greens';
-    else if (has('molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'bbq', 'sauce')) visualId = 'plate-sauce';
-    else if (has('carne', 'hamburguer', 'frango', 'chicken', 'proteina')) visualId = 'plate-protein';
-    else if (has('ovo', 'egg')) visualId = 'plate-egg';
+    else if (has('molho', 'maionese', 'ketchup', 'catchup', 'mostarda', 'barbecue', 'bbq', 'sauce')) visualId = 'plate-sauce';
+    else if (has('alcatra', 'costela', 'carne', 'hamburguer', 'frango', 'chicken', 'proteina')) visualId = 'plate-protein';
+    else if (has('ovo', 'ovos', 'egg')) visualId = 'plate-egg';
     else if (has('cebola', 'picles', 'pepino', 'azeitona', 'cogumelo', 'champignon')) visualId = 'plate-vegetable';
     else visualId = 'plate-piece';
   }
