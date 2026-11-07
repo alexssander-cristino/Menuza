@@ -14,7 +14,7 @@ const UI_ICON_PATHS = {
 };
 function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
 
-import { FoodScene } from './food-scene.js?v=94';
+import { FoodScene } from './food-scene.js?v=95';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDogArtSvg } from './food-art.js?v=6';
