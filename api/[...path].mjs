@@ -586,7 +586,8 @@ async function priceItems(input) {
     }:product;
     if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
     if(product.type==='pizza'&&flavorProducts.length>1){const priceFor=p=>{const raw=Number(p.sizePrices?.[entry.sizeKey]);return Number.isInteger(raw)&&raw>0?raw:Number(p.baseCents)||0};effectiveProduct.sizePrices={...(effectiveProduct.sizePrices||{}),[entry.sizeKey]:Math.max(...flavorProducts.map(priceFor))};}
-    try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:entry.sizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog, sizes:cat.sizes, crusts:cat.crusts }); }
+    const normalizedSizeKey = product.type === 'plate' ? 'unico' : entry.sizeKey;
+    try { pricedItem = calculateItemPrice({ product:effectiveProduct, sizeKey:normalizedSizeKey, crustKey:entry.crustKey, ingredients:entry.ingredients, quantity:Number(entry.quantity), catalog:productIngredientCatalog, sizes:cat.sizes, crusts:cat.crusts }); }
     catch (error) { throw fail(error.message,422); }
     subtotal += pricedItem.linePriceCents;
     priced.push({ product, quantity:Number(entry.quantity), notes:clean(entry.notes,300), flavorProducts:flavorProducts.map(p=>({id:p.id,name:p.name})), priced:pricedItem });
