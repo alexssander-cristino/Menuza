@@ -1441,7 +1441,7 @@ function hotDogLayout(product, ings, o) {
     { pattern: /parmesao|parmesan/, style: 'parmesan', kind: 'parmesan' },
     { pattern: /gorgonzola|queijo azul|roquefort/, style: 'gorgonzola', kind: 'gorgonzola' },
     { pattern: /provolone/, style: 'provolone', kind: 'provolone' },
-    { pattern: /catupiry|requeijao|cream cheese|creme de queijo|queijo|cheese/, style: 'generic', kind: 'generic' }
+    { pattern: /^(?!.*(?:cheddar|mussarela|mozzarella|parmesao|parmesan|gorgonzola|queijo azul|roquefort|provolone)).*(?:catupiry|requeijao|cream cheese|creme de queijo|queijo|cheese)/, style: 'generic', kind: 'generic' }
   ];
   let cheeseIndex = 0;
   for (const cheese of cheeseTypes) {
