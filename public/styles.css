@@ -2591,3 +2591,101 @@ button[data-action="view-generated-3d"],
 .ingredient-create-submit{min-height:40px!important;margin:0!important;padding:0 16px!important;border-radius:8px!important;font-size:12px!important;white-space:nowrap!important}
 .ingredient-create-note{margin:0!important;padding:0!important;border:0!important;background:none!important;color:var(--mz-muted)!important;font-size:11px!important;line-height:1.45!important}
 @media(max-width:700px){.ingredient-create-fields{grid-template-columns:1fr!important}.ingredient-create-footer{align-items:stretch!important;flex-direction:column!important}.ingredient-price-field{flex:auto!important}.ingredient-create-submit{width:100%!important}.ingredient-type-options{gap:7px!important}.ingredient-type-option{flex:1 1 auto!important;justify-content:center!important}}
+
+
+/* Ajuste final: cadastro integrado ao padrão visual do painel administrativo. */
+.ingredient-create-panel{
+  padding:20px!important;
+  margin-bottom:18px!important;
+  border:1px solid var(--mz-line)!important;
+  border-radius:10px!important;
+  background:var(--mz-surface)!important;
+  box-shadow:none!important;
+}
+.ingredient-create-heading{
+  padding:0 0 14px!important;
+  margin:0 0 16px!important;
+  border:0!important;
+  border-bottom:1px solid var(--mz-line)!important;
+  background:transparent!important;
+}
+.ingredient-create-heading h2{
+  font-size:17px!important;
+  font-weight:650!important;
+  letter-spacing:-.02em!important;
+}
+.ingredient-create-heading p{
+  margin-top:4px!important;
+  font-size:12px!important;
+}
+.ingredient-create-form{gap:16px!important}
+.ingredient-create-fields{gap:14px!important}
+.ingredient-create-form .form-field>span,
+.ingredient-type-picker legend{
+  font-size:12px!important;
+  font-weight:600!important;
+  color:var(--mz-ink)!important;
+}
+.ingredient-create-form .form-field input:not([type=checkbox]){
+  min-height:42px!important;
+  border-radius:7px!important;
+  background:var(--mz-background)!important;
+  font-size:13px!important;
+}
+.ingredient-type-picker legend{margin-bottom:9px!important}
+.ingredient-type-options{gap:8px!important}
+.ingredient-type-option{
+  min-height:40px!important;
+  justify-content:flex-start!important;
+  padding:8px 12px!important;
+  border-radius:7px!important;
+  background:var(--mz-background)!important;
+}
+.ingredient-type-option input{
+  width:15px!important;
+  height:15px!important;
+  accent-color:var(--mz-violet-500)!important;
+}
+.ingredient-type-option>span{
+  font-size:12px!important;
+  font-weight:550!important;
+}
+.ingredient-type-option:has(input:checked){
+  border-color:var(--mz-violet-500)!important;
+  background:color-mix(in srgb,var(--mz-violet-500) 7%,var(--mz-surface))!important;
+  box-shadow:none!important;
+}
+.ingredient-create-footer{gap:12px!important}
+.ingredient-price-field{flex:0 0 190px!important}
+.ingredient-price-control{
+  min-height:42px!important;
+  border-radius:7px!important;
+  background:var(--mz-background)!important;
+}
+.ingredient-create-form .ingredient-price-control input:not([type=checkbox]){
+  min-height:40px!important;
+}
+.ingredient-create-submit{
+  min-height:42px!important;
+  border-radius:7px!important;
+  padding:0 18px!important;
+  font-size:12px!important;
+  font-weight:650!important;
+}
+.ingredient-create-note{
+  font-size:11px!important;
+  color:var(--mz-muted)!important;
+}
+@media(max-width:700px){
+  .ingredient-create-panel{padding:15px!important}
+  .ingredient-create-fields{grid-template-columns:1fr!important}
+  .ingredient-create-footer{align-items:stretch!important;flex-direction:column!important}
+  .ingredient-price-field{flex:auto!important}
+  .ingredient-create-submit{width:100%!important}
+  .ingredient-type-options{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .ingredient-type-option{justify-content:center!important;padding:8px 5px!important}
+}
+@media(max-width:390px){
+  .ingredient-type-options{grid-template-columns:1fr!important}
+  .ingredient-type-option{justify-content:flex-start!important;padding:8px 11px!important}
+}
