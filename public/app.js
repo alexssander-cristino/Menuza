@@ -2135,11 +2135,11 @@ async function renderIngredientsAdmin(){
   try{
     const catalog=await api('/api/admin/catalog');
     app.admin.ingredientsCache=catalog.ingredients||[];
-    target.innerHTML=['pizza','burger','plate'].map(type=>{
+    target.innerHTML='<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>Cadastro de ingredientes e adicionais</h2><small>Cadastre uma vez e disponibilize em vários tipos de alimento.</small></div><form class="ingredient-create-form" data-new-ingredient><label class="form-field"><span>Nome do ingrediente</span><input name="name" required minlength="2" maxlength="80" placeholder="Ex.: Pão, queijo, bacon..."></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos, molhos, base"></label><fieldset class="form-field ingredient-type-picker"><legend>Disponibilizar em</legend><label><input type="checkbox" name="types" value="pizza"> Pizza</label><label><input type="checkbox" name="types" value="burger"> Hambúrguer</label><label><input type="checkbox" name="types" value="plate"> Hot dog</label></fieldset><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Cadastrar ingrediente +</button><p class="ingredient-create-note">O mesmo nome pode ser usado em alimentos diferentes, mas não pode ser duplicado dentro do mesmo tipo.</p></form></section>'+['pizza','burger','plate'].map(type=>{
       const items=catalog.ingredients.filter(i=>i.type===type);
-      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de hot dogs')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><form class="ingredient-create-form" data-new-ingredient-type="'+type+'"><label class="form-field"><span>Nome do adicional</span><input name="name" required minlength="2" maxlength="80" placeholder="'+(type==='pizza'?'Ex.: Catupiry extra':type==='burger'?'Ex.: Cheddar extra':'Ex.: Bacon extra')+'"></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos"></label><label class="form-field"><span>Preço extra (R$)</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></label><button class="button button-dark button-small" type="submit">Adicionar adicional +</button><p class="ingredient-create-note">O cliente só paga se selecionar esse adicional no cardápio.</p></form><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':type==='burger'?'adicional':'ingrediente')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':type==='burger'?'adicionais':'ingredientes')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><div class="ingredient-admin-actions"><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button><button class="tiny-link button-danger" data-action="delete-ingredient" data-id="'+esc(i.id)+'">Excluir</button></div></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de hot dogs')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar ingrediente..." aria-label="Buscar ingredientes"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><div class="ingredient-admin-actions"><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button><button class="tiny-link button-danger" data-action="delete-ingredient" data-id="'+esc(i.id)+'">Excluir</button></div></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
     }).join('');
-    target.querySelectorAll('[data-new-ingredient-type]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();createIngredient(form.dataset.newIngredientType,form)}));
+    target.querySelector('[data-new-ingredient]').addEventListener('submit',event=>{event.preventDefault();createIngredient(target.querySelector('[data-new-ingredient]'))});
     target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
       const type=input.dataset.ingredientSearch,query=normalizeSearch(input.value);
       let visible=0;
@@ -2371,23 +2371,21 @@ async function deleteProduct(id,kind='product',button=null){
     if(actionButton){actionButton.disabled=false;actionButton.textContent='Excluir '+label}
   }
 }
-async function createIngredient(type,form){
-  const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.'));
-  const priceInput=form.querySelector('[name="price"]');
-  const normalizedName=normalizeSearch(name).replace(/\\s+/g,' ');
-  const duplicate=(app.admin.ingredientsCache||[]).find(item=>normalizeSearch(item.name).replace(/\\s+/g,' ')===normalizedName);
-  if(duplicate){toast('Já existe um ingrediente com esse nome: '+duplicate.name+'.');form.querySelector('[name="name"]').setAttribute('aria-invalid','true');form.querySelector('[name="name"]').focus();return}
-
+async function createIngredient(form){
+  const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.')),types=[...new Set(data.getAll('types').map(value=>String(value)))];
+  const priceInput=form.querySelector('[name="price"]'),normalizedName=normalizeSearch(name).replace(/\\s+/g,' ');
+  if(!types.length){toast('Selecione pelo menos um tipo de alimento.');return}
+  if(types.some(type=>!['pizza','burger','plate'].includes(type))){toast('Tipo de alimento inválido.');return}
+  const duplicate=(app.admin.ingredientsCache||[]).find(item=>types.includes(item.type)&&normalizeSearch(item.name).replace(/\\s+/g,' ')===normalizedName);
+  if(duplicate){toast('Já existe "'+duplicate.name+'" para '+({pizza:'pizza',burger:'hambúrguer',plate:'hot dog'}[duplicate.type])+'. Remova esse tipo da seleção ou escolha outro nome.');form.querySelector('[name="name"]').setAttribute('aria-invalid','true');form.querySelector('[name="name"]').focus();return}
   if(!name||name.length<2){toast('Informe um nome com pelo menos 2 caracteres.');return}
   if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
   priceInput.removeAttribute('aria-invalid');
-  const button=form.querySelector('button[type="submit"]'),original=button.textContent;
-  button.disabled=true;button.textContent='Adicionando…';
+  const button=form.querySelector('button[type="submit"]'),original=button.textContent;button.disabled=true;button.textContent='Cadastrando…';
   try{
-    await api('/api/admin/ingredients',{method:'POST',body:JSON.stringify({name,type,groupName,cents:Math.round(price*100)})});
-    toast('Adicional cadastrado. Ele já aparece na personalização do cardápio e não é selecionado automaticamente.');
-    await renderIngredientsAdmin();
-  }catch(e){button.disabled=false;button.textContent=original;toast(e.message||'Não foi possível cadastrar o adicional.')}
+    await api('/api/admin/ingredients',{method:'POST',body:JSON.stringify({name,types,groupName,cents:Math.round(price*100)})});
+    toast('Ingrediente cadastrado nos tipos selecionados.');await renderIngredientsAdmin();
+  }catch(e){button.disabled=false;button.textContent=original;toast(e.message||'Não foi possível cadastrar o ingrediente.')}
 }
 async function saveIngredient(id){
   const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');if(!row)return;
