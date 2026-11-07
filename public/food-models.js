@@ -1675,12 +1675,12 @@ function resolveVisualIngredient(type, ingredient) {
     chicken: 'frango-burger', frango: 'frango-burger', ribs: 'costela-burger',
     alcatra: 'alcatra-burger', 'hamburguer-140g': 'hamburguer-140g'
   } : {};
-  const name = raw.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const name = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const text = (id + ' ' + name).replace(/[^a-z0-9]+/g, ' ').trim();
   // O nome/id do ingrediente sempre vence um visual genérico herdado do cadastro.
   // Isso evita que alface, tomate, bacon etc. sejam transformados em queijo.
   const has = (...terms) => terms.some(term => {
-    const normalized = String(term).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const normalized = String(term).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     return normalized && (' ' + text + ' ').includes(' ' + normalized + ' ');
   });
   if (type === 'burger') {
@@ -1716,7 +1716,7 @@ function resolveVisualIngredient(type, ingredient) {
     if (/queij|cheese|cheddar|mussarel|mozzarella|catupiry|requeij|provolone|gorgonzola|parmesan/.test(name) && visualAliases[visual]) {
       return { ...ingredient, id: visualAliases[visual] };
     }
-    const group = String(ingredient?.groupName || ingredient?.group || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+    const group = String(ingredient?.groupName || ingredient?.group || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     if (/queij|latic/.test(group)) return { ...ingredient, id: 'queijo-extra' };
     if (/carne|prote/.test(group)) return { ...ingredient, id: 'carne' };
     if (/molho|crem/.test(group)) return { ...ingredient, id: 'molho-especial' };
