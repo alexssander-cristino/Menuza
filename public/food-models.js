@@ -1470,7 +1470,7 @@ function hotDogLayout(product, ings, o) {
 
   // Qualquer ingrediente personalizado que ainda não tenha uma família visual
   // recebe uma camada neutra visível, em vez de desaparecer do modelo.
-  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|calabresa|linguica|alface|rucula|repolho|salada|tomate|pimentao|pimenta|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|peas|batata.?palha|crispy potato|pure|purê|mashed potato|ovo|ovos|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
+  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|calabresa|linguica|alface|rucula|repolho|salada|tomate|pimentao|pimenta|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|erivlha|peas|batata.?palha|crispy potato|pure|purê|mashed potato|ovo|ovos|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
   names.forEach((entry, index) => {
     if (recognized.test(entry.name)) return;
     const count = clamp(Number(entry.item.quantity) || 1, 1, 8);
