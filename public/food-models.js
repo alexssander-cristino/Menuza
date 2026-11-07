@@ -1634,21 +1634,12 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('bacon', 'panceta')) visualId = 'bacon-burger';
     else if (has('ovo', 'egg')) visualId = 'ovo';
   } else if (type === 'plate') {
-    // Somente os ingredientes type=plate do cadastro do hot dog.
-    if (has('pao hotdog', 'pao de hotdog', 'hot dog bread')) visualId = 'hotdog-bun';
-    else if (has('salsicha', 'vina', 'viena')) visualId = 'hotdog-sausage';
-    else if (has('queijo', 'cheddar', 'mussarela', 'catupiry', 'cream')) visualId = 'plate-cheese';
-    else if (has('tomate', 'tomato', 'pimentao', 'pimenta')) visualId = 'plate-tomato';
-    else if (has('bacon', 'calabresa', 'linguica', 'salame')) visualId = 'plate-bacon';
-    else if (has('batata palha', 'crispy potato')) visualId = 'hotdog-potato-straw';
-    else if (has('milho', 'corn')) visualId = 'hotdog-corn';
-    else if (has('ervilha', 'erivlha', 'peas')) visualId = 'hotdog-peas';
-    else if (has('alface', 'rucula', 'salada', 'salsinha', 'cebolinha', 'oregano', 'erva', 'verde')) visualId = 'plate-greens';
-    else if (has('molho', 'maionese', 'ketchup', 'catchup', 'mostarda', 'barbecue', 'bbq', 'sauce')) visualId = 'plate-sauce';
-    else if (has('alcatra', 'costela', 'carne', 'hamburguer', 'frango', 'chicken', 'proteina')) visualId = 'plate-protein';
-    else if (has('ovo', 'ovos', 'egg')) visualId = 'plate-egg';
-    else if (has('cebola', 'picles', 'pepino', 'azeitona', 'cogumelo', 'champignon')) visualId = 'plate-vegetable';
-    else visualId = 'plate-piece';
+    // Hot dog (type=plate) is classified by its original ingredient name
+    // inside hotDogLayout. Do not replace IDs with shared visual IDs here:
+    // that merged different ingredients (e.g. ketchup and mayonnaise)
+    // before the hot dog builder could render them separately.
+    return { ...ingredient };
+
   }
   if (!visualId) {
     const group = String(ingredient?.groupName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
