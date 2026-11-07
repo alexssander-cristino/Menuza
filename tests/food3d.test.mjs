@@ -71,6 +71,23 @@ test('pizza: o diâmetro escolhido define a escala real e a quantidade de ingred
   assert.ok(big.extent[3] - big.extent[0] > (small.extent[3] - small.extent[0]) * 1.8);
 });
 
+test('hot dog: o pão aumenta de largura e altura conforme a quantidade de recheio', () => {
+  const hotdog = { id: 'hotdog-volume', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const light = buildFoodLayout(hotdog, [
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 },
+    { id: 'bacon', name: 'Bacon', quantity: 1 }
+  ], { key: 'hotdog' }).parts.find(part => part.kind === 'hotdog-bun').build();
+  const loaded = buildFoodLayout(hotdog, [
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 },
+    { id: 'bacon', name: 'Bacon', quantity: 4 },
+    { id: 'queijo', name: 'Queijo', quantity: 3 },
+    { id: 'batata-palha', name: 'Batata palha', quantity: 3 },
+    { id: 'milho', name: 'Milho', quantity: 2 }
+  ], { key: 'hotdog' }).parts.find(part => part.kind === 'hotdog-bun').build();
+  assert.ok(loaded.box[5] - loaded.box[2] > light.box[5] - light.box[2], 'o pão deve ficar mais largo');
+  assert.ok(loaded.box[4] - loaded.box[1] > light.box[4] - light.box[1], 'o pão deve ficar mais alto');
+});
+
 test('hot dog: pão oval único, salsicha longa e molhos separados', () => {
   const hotdog = { id: 'hotdog-classico', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
   const layout = buildFoodLayout(hotdog, [
