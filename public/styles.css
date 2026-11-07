@@ -2725,3 +2725,44 @@ button[data-action="view-generated-3d"],
   border:0!important;
   box-shadow:none!important;
 }
+
+
+/* Quantidade dos ingredientes da receita padrão — somente hambúrguer e hot dog. */
+.ingredient-checkbox-list .ingredient-choice{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:9px;
+  min-width:0;
+}
+.ingredient-checkbox-list .ingredient-choice>label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1 1 auto;
+  min-width:0;
+  margin:0;
+  cursor:pointer;
+}
+.ingredient-checkbox-list .ingredient-choice>label span{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.ingredient-checkbox-list .ingredient-choice .ingredient-quantity-input{
+  flex:0 0 58px;
+  width:58px;
+  min-width:58px;
+  min-height:31px;
+  padding:4px 5px;
+  border:1px solid #e7dfd6;
+  border-radius:7px;
+  background:#fff;
+  color:#4d455e;
+  font:inherit;
+  font-size:11px;
+  text-align:center;
+}
+.ingredient-checkbox-list .ingredient-choice .ingredient-quantity-input:disabled{
+  opacity:.42;
+  cursor:not-allowed;
+}
