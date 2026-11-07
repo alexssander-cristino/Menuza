@@ -83,13 +83,26 @@ export function inferIngredientVisual(ingredient) {
     }
   }
   if (type === 'plate') {
-    if (has('queijo', 'cheese', 'cheddar', 'mussarela', 'mozzarella', 'parmesao', 'gorgonzola', 'provolone')) return 'cheese';
-    if (has('batata', 'frita', 'rustica', 'potato')) return 'potato';
-    if (has('molho', 'maionese', 'aioli', 'creme')) return 'sauce';
-    if (has('carne', 'frango', 'proteina', 'hamburguer')) return 'patty';
+    if (has('queijo', 'cheese', 'cheddar', 'mussarela', 'mozzarella', 'parmesao', 'gorgonzola', 'provolone', 'catupiry', 'requeijao')) return 'cheese';
+    if (has('ketchup', 'catchup')) return 'ketchup';
+    if (has('mostarda', 'mustard')) return 'mustard';
+    if (has('maionese', 'mayonnaise', 'mayo', 'aioli')) return 'mayonnaise';
+    if (has('barbecue', 'bbq')) return 'barbecue';
+    if (has('molho', 'sauce', 'creme')) return 'sauce';
+    if (has('salsicha', 'vina', 'viena', 'sausage')) return 'sausage';
+    if (has('calabresa', 'linguica', 'pepperoni')) return 'pepperoni';
+    if (has('bacon', 'panceta')) return 'bacon';
+    if (has('frango', 'chicken', 'carne', 'costela', 'proteina', 'patty')) return 'chicken';
     if (has('ovo', 'egg')) return 'egg';
-    if (has('cebola', 'picles', 'pepino', 'azeitona', 'cogumelo', 'champignon')) return 'vegetable';
-    return 'potato';
+    if (has('alface', 'rucula', 'repolho', 'salada', 'lettuce')) return 'lettuce';
+    if (has('tomate', 'tomato')) return 'tomato';
+    if (has('pimentao', 'bell pepper')) return 'pepper';
+    if (has('cebola', 'onion')) return 'onion';
+    if (has('picles', 'pepino', 'pickle')) return 'pickle';
+    if (has('milho', 'corn')) return 'corn';
+    if (has('ervilha', 'peas')) return 'peas';
+    if (has('batata', 'frita', 'rustica', 'potato', 'fries')) return 'potato';
+    return 'custom';
   }
   return 'cheese';
 }
