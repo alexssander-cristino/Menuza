@@ -981,6 +981,20 @@ function ramekinMesh(seed, detail) {
 // ===================== LAYOUT =====================
 const DEFAULT_BURGER = ['pao-brioche', 'carne', 'queijo-cheddar', 'alface', 'tomate-burger', 'molho-especial'];
 
+function burgerSauceMesh(R, kH, seed, detail, color) {
+  const m = new Mesh(), tint = lin(color);
+  m.revolve(superPuck(R, .0028 * kH, 3, 32), {
+    nu: 80, nv: 20, detail,
+    R: a => 1 + .12 * Math.sin(a * 5 + seed) + .06 * Math.sin(a * 9 + seed * .7),
+    shade: () => MAT(tint, .14, .48, .12, 1)
+  });
+  return m.finish();
+}
+function burgerChickenMesh(R, seed) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  chickenInto(m, 0, .001, 0, R * .48, seed, rnd);
+  return m.finish();
+}
 function burgerCalabresaMesh(R, seed, detail) {
   const m = new Mesh(), rnd = randomFor(seed);
   for (let i = 0; i < 4; i++) {
@@ -1029,15 +1043,14 @@ function burgerLayout(product, ings, size, o, kH) {
   if (buns) add('bun-bottom', '', () => bunBottomMesh(R, .022 * kH, seed + 1, detail), .022 * kH);
 
   // Proteínas: a quantidade selecionada vira unidades reais no empilhamento.
-  const proteinIds = ['carne', 'frango-burger', 'costela-burger', 'alcatra-burger', 'hamburguer-140g'];
+  const proteinIds = ['carne', 'costela-burger', 'alcatra-burger', 'hamburguer-140g'];
   let proteinIndex = 0;
   for (const id of proteinIds) {
     const count = qty(id);
     for (let i = 0; i < count; i++) {
       const proteinSeed = seed + 7 + proteinIndex * 13;
-      const chicken = id === 'frango-burger';
-      add(chicken ? 'chicken-patty' : 'patty', `${id}-${i}`,
-        () => pattyMesh(R * (chicken ? .88 : .92), .017 * kH, proteinSeed, detail),
+      add('patty', `${id}-${i}`,
+        () => pattyMesh(R * .92, .017 * kH, proteinSeed, detail),
         .0164 * kH);
       proteinIndex++;
     }
@@ -1063,9 +1076,9 @@ function burgerLayout(product, ings, size, o, kH) {
   // Coberturas e acompanhamentos. Cada quantidade altera tanto a geometria
   // quanto a altura da camada seguinte, evitando ingredientes sobrepostos.
   const toppings = [
-    { id: 'molho-especial', kind: 'sauce', height: .0032, build: n => sauceMesh(R * .86, kH, seed + 41, detail) },
-    { id: 'ketchup-burger', kind: 'ketchup', height: .0028, build: n => sauceMesh(R * .82, kH, seed + 42, detail) },
-    { id: 'maionese-burger', kind: 'mayonnaise', height: .0028, build: n => sauceMesh(R * .82, kH, seed + 43, detail) },
+    { id: 'molho-especial', kind: 'sauce', height: .0032, build: n => burgerSauceMesh(R * .86, kH, seed + 41, detail, '#d58a43') },
+    { id: 'ketchup-burger', kind: 'ketchup', height: .0028, build: n => burgerSauceMesh(R * .82, kH, seed + 42, detail, '#bd2922') },
+    { id: 'maionese-burger', kind: 'mayonnaise', height: .0028, build: n => burgerSauceMesh(R * .82, kH, seed + 43, detail, '#f3e9cf') },
     { id: 'alface', kind: 'lettuce', height: .0085, build: n => lettuceMesh(R, kH, seed + 3, detail, 2 + n) },
     { id: 'tomate-burger', kind: 'tomato', height: .0072, build: n => tomatoMesh(R, kH, seed + 4, detail, n) },
     { id: 'picles', kind: 'pickles', height: .0034, build: n => pickleMesh(R, kH, seed + 5, detail, n) },
@@ -1073,6 +1086,7 @@ function burgerLayout(product, ings, size, o, kH) {
     { id: 'bacon-burger', kind: 'bacon', height: .0042, build: n => baconMesh(R, kH, seed + 20, detail, n) },
     { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail) },
     { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => burgerHamMesh(R, seed + 52) },
+    { id: 'frango-burger', kind: 'chicken', height: .009, build: n => burgerChickenMesh(R, seed + 56) },
     { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => friesMesh(R * .72, seed + 53, detail) },
     { id: 'milho-burger', kind: 'corn', height: .0035, build: n => burgerCornMesh(R, seed + 54) },
     { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => burgerPeasMesh(R, seed + 55) },
