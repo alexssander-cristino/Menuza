@@ -981,6 +981,38 @@ function ramekinMesh(seed, detail) {
 // ===================== LAYOUT =====================
 const DEFAULT_BURGER = ['pao-brioche', 'carne', 'queijo-cheddar', 'alface', 'tomate-burger', 'molho-especial'];
 
+function burgerCalabresaMesh(R, seed, detail) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  for (let i = 0; i < 4; i++) {
+    const a = i * TAU / 4 + rnd() * .35, rr = R * (.25 + rnd() * .22);
+    pepperoniInto(m, Math.cos(a) * rr, .001, Math.sin(a) * rr, R * .17, seed + i, rnd, detail);
+  }
+  return m.finish();
+}
+function burgerCornMesh(R, seed) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  for (let i = 0; i < 7; i++) {
+    const a = i * 2.39996 + rnd() * .25, rr = R * (.15 + rnd() * .55);
+    cornInto(m, Math.cos(a) * rr, .001, Math.sin(a) * rr, R * .075, seed + i, rnd);
+  }
+  return m.finish();
+}
+function burgerPeasMesh(R, seed) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  for (let i = 0; i < 8; i++) {
+    const a = i * 2.39996 + rnd() * .2, rr = R * (.12 + rnd() * .58), radius = R * .065;
+    blobInto(m, { rx: radius, ry: radius * .82, rz: radius, seed: seed + i, amp: .08, nu: 10, nv: 8,
+      xf: rigid({ t: [Math.cos(a) * rr, .001 + radius * .25, Math.sin(a) * rr] }),
+      shade: () => MAT(mix(C.lettuceB, C.lettuceC, rnd() * .35), .3, .35, .2, 1) });
+  }
+  return m.finish();
+}
+function burgerHamMesh(R, seed) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  hamInto(m, 0, .001, 0, R * .52, seed, rnd);
+  return m.finish();
+}
+
 function burgerLayout(product, ings, size, o, kH) {
   const R = (Number(product.widthCm) || 12) / 200, seed = hash(product.id || 'burger'), detail = o.detail;
   // A quantidade vem do cadastro/seleção do cliente. Não limitar a três:
@@ -1039,11 +1071,11 @@ function burgerLayout(product, ings, size, o, kH) {
     { id: 'picles', kind: 'pickles', height: .0034, build: n => pickleMesh(R, kH, seed + 5, detail, n) },
     { id: 'cebola-burger', kind: 'onion', height: .0046, build: n => onionMesh(R, kH, seed + 6, detail, n) },
     { id: 'bacon-burger', kind: 'bacon', height: .0042, build: n => baconMesh(R, kH, seed + 20, detail, n) },
-    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => baconMesh(R, kH, seed + 51, detail, n) },
-    { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => baconMesh(R, kH, seed + 52, detail, n) },
+    { id: 'calabresa-burger', kind: 'calabresa', height: .0042, build: n => burgerCalabresaMesh(R, seed + 51, detail) },
+    { id: 'presunto-burger', kind: 'ham', height: .0038, build: n => burgerHamMesh(R, seed + 52) },
     { id: 'batata-palha-burger', kind: 'potato-straw', height: .0045, build: n => friesMesh(R * .72, seed + 53, detail) },
-    { id: 'milho-burger', kind: 'corn', height: .0035, build: n => pickleMesh(R * .48, kH, seed + 54, detail, n) },
-    { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => pickleMesh(R * .42, kH, seed + 55, detail, n) },
+    { id: 'milho-burger', kind: 'corn', height: .0035, build: n => burgerCornMesh(R, seed + 54) },
+    { id: 'ervilha-burger', kind: 'peas', height: .0035, build: n => burgerPeasMesh(R, seed + 55) },
     { id: 'ovo', kind: 'egg', height: .0085, build: n => eggMesh(R, kH, seed + 21, detail) }
   ];
   for (const item of toppings) {
