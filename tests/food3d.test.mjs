@@ -239,3 +239,16 @@ test('hot dog: pimenta do reino não pode ser confundida com tomate', () => {
   ], { key: 'hotdog' });
   assert.ok(!layout.parts.some(part => part.kind === 'hotdog-tomato'));
 });
+
+
+test('hot dog: ingredientes de cadastro livre não herdam visual de batata nem viram creme branco', () => {
+  assert.equal(inferIngredientVisual({ id: 'abacaxi-custom', name: 'Abacaxi', type: 'plate', groupName: 'Adicionais' }), 'custom');
+  assert.equal(inferIngredientVisual({ id: 'molho-ketchup', name: 'Ketchup', type: 'plate', groupName: 'Molhos' }), 'ketchup');
+  const hotdog = { id: 'hotdog-custom', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const layout = buildFoodLayout(hotdog, [
+    { id: 'abacaxi-custom', name: 'Abacaxi', visual_key: 'custom', quantity: 1 }
+  ], { key: 'hotdog' });
+  assert.ok(layout.parts.some(part => part.kind === 'hotdog-custom-0'));
+  const custom = layout.parts.find(part => part.kind === 'hotdog-custom-0').build();
+  assert.ok(custom.positions.length > 0);
+});
