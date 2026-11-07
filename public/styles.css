@@ -2697,3 +2697,21 @@ button[data-action="view-generated-3d"],
 .ingredient-type-option,
 .ingredient-price-control{background:var(--surface,#fff)!important}
 .ingredient-type-option:has(input:checked){background:color-mix(in srgb,var(--mz-violet-500) 8%,var(--surface,#fff))!important}
+
+
+/* Cadastro de ingredientes: remover o bloco amarelo e deixar os controles neutros. */
+.admin-panel.ingredient-admin-panel.ingredient-create-panel,
+.ingredient-create-panel{
+  background:transparent!important;
+}
+.ingredient-create-panel .ingredient-create-heading{
+  background:transparent!important;
+}
+.ingredient-create-panel .ingredient-create-form .form-field input:not([type=checkbox]),
+.ingredient-create-panel .ingredient-type-option,
+.ingredient-create-panel .ingredient-price-control{
+  background:transparent!important;
+}
+.ingredient-create-panel .ingredient-type-option:has(input:checked){
+  background:color-mix(in srgb,var(--mz-violet-500) 8%,transparent)!important;
+}
