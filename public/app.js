@@ -14,7 +14,7 @@ const UI_ICON_PATHS = {
 };
 function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
 
-import { FoodScene } from './food-scene.js?v=85';
+import { FoodScene } from './food-scene.js?v=86';
 import { formatOrderStatusTime } from './order-status-time.js';
 import QRCode from './qrcode.js';
 import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDogArtSvg } from './food-art.js?v=6';
@@ -22,7 +22,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDog
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '98';
+const MENUZA_APP_BUILD = '99';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
