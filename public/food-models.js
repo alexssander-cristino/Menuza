@@ -1418,7 +1418,7 @@ function hotDogLayout(product, ings, o) {
     parts.push({
       kind: 'hotdog-sausage-extra', key: key('sausage-extra-' + i),
       y: .0115, z: offset,
-      build: stretch(sausageMesh, sausageX * .78, 1.02)
+      build: stretch(sausageMesh, sausageX * .94, 1.02)
     });
   }
 
