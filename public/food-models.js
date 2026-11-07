@@ -1468,7 +1468,7 @@ function hotDogLayout(product, ings, o) {
   if (has(/alface|rucula|repolho|salada|lettuce|herb/))
     add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, qty(/alface|rucula|repolho|salada/)), .0192, sausageX * .82, .54);
   // Molho de tomate é uma cobertura líquida, não fatias de tomate.
-  const tomatoCount = qty(/(?<!molho de )tomate(?! sauce)|tomato(?! sauce)/);
+  const tomatoCount = Math.max(0, qty(/tomate|tomato/) - qty(/molho.*tomate|tomato.*sauce/));
   if (tomatoCount)
     add('tomato', () => tomatoMesh(sausageR * .58, 1, seed + 13, detail, tomatoCount), .0201, sausageX * .76, .48);
   const pepperCount = qty(/pimentao|bell pepper/);
