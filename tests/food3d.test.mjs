@@ -211,3 +211,31 @@ test('pizza: todos os ingredientes de cobertura continuam presentes e geram geom
   assert.ok(geometry.positions.length > 0);
   assert.ok(geometry.positions.every(Number.isFinite));
 });
+
+
+test('hot dog: molho de tomate não pode virar fatias de tomate', () => {
+  const hotdog = { id: 'hotdog-molho-tomate', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const layout = buildFoodLayout(hotdog, [
+    { id: 'molho-tomate-casa', name: 'Molho de tomate', quantity: 1 }
+  ], { key: 'hotdog' });
+  assert.ok(layout.parts.some(part => part.kind === 'hotdog-tomato-sauce-0'));
+  assert.ok(!layout.parts.some(part => part.kind === 'hotdog-tomato'));
+});
+
+test('hot dog: bacon e calabresa têm peças visuais separadas', () => {
+  const hotdog = { id: 'hotdog-carnes', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const layout = buildFoodLayout(hotdog, [
+    { id: 'bacon-01', name: 'Bacon', quantity: 2 },
+    { id: 'calabresa-01', name: 'Calabresa', quantity: 1 }
+  ], { key: 'hotdog' });
+  assert.ok(layout.parts.some(part => part.kind === 'hotdog-bacon'));
+  assert.ok(layout.parts.some(part => part.kind === 'hotdog-calabresa'));
+});
+
+test('hot dog: pimenta do reino não pode ser confundida com tomate', () => {
+  const hotdog = { id: 'hotdog-tempero', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const layout = buildFoodLayout(hotdog, [
+    { id: 'pimenta-reino', name: 'Pimenta do reino', quantity: 1 }
+  ], { key: 'hotdog' });
+  assert.ok(!layout.parts.some(part => part.kind === 'hotdog-tomato'));
+});
