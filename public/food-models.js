@@ -1414,7 +1414,8 @@ function hotDogLayout(product, ings, o) {
   const names = ings.map(item => ({
     item,
     name: normalizeIngredientName([
-      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey
+      item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey,
+      item.groupName, item.group
     ].filter(Boolean).join(' '))
   }));
   const matching = pattern => names.filter(x => pattern.test(x.name));
@@ -1465,7 +1466,7 @@ function hotDogLayout(product, ings, o) {
   const calabresaCount = qty(/calabresa|linguica|linguica calabresa/);
   if (calabresaCount)
     add('calabresa', () => burgerCalabresaMesh(sausageR * .72, seed + 111, detail, calabresaCount), .0205, sausageX * .78, .5);
-  if (has(/alface|rucula|repolho|salada/))
+  if (has(/alface|rucula|repolho|salada|lettuce|herb/))
     add('greens', () => lettuceMesh(sausageR * .66, 1, seed + 12, detail, qty(/alface|rucula|repolho|salada/)), .0192, sausageX * .82, .54);
   // Molho de tomate é uma cobertura líquida, não fatias de tomate.
   const tomatoCount = qty(/(?<!molho de )tomate(?! sauce)|tomato(?! sauce)/);
@@ -1474,7 +1475,7 @@ function hotDogLayout(product, ings, o) {
   const pepperCount = qty(/pimentao|bell pepper/);
   if (pepperCount)
     add('pepper', () => burgerCalabresaMesh(sausageR * .62, seed + 131, detail, pepperCount), .0202, sausageX * .74, .48);
-  if (has(/cebola|onion|alho/))
+  if (has(/cebola|onion/))
     add('onion', () => onionMesh(sausageR * .62, 1, seed + 14, detail, qty(/cebola|onion|alho/)), .0203, sausageX * .78, .5);
   if (has(/picles|pepino|pickle/))
     add('pickles', () => pickleMesh(sausageR * .58, 1, seed + 15, detail, qty(/picles|pepino|pickle/)), .0201, sausageX * .76, .48);
@@ -1482,7 +1483,7 @@ function hotDogLayout(product, ings, o) {
     add('corn', () => burgerCornMesh(sausageR * .72, seed + 16, qty(/milho|corn/)), .0205, sausageX * .78, .55);
   if (has(/ervilha|erivlha|peas/))
     add('peas', () => burgerPeasMesh(sausageR * .7, seed + 17, qty(/ervilha|peas/)), .0206, sausageX * .78, .55);
-  if (has(/batata.?palha|crispy potato/))
+  if (has(/batata.?palha|crispy potato|potato|fries/))
     add('potato-straw', () => friesMesh(sausageR * .78, seed + 18, detail, qty(/batata.?palha|crispy potato/)), .022, sausageX * .72, .58);
   const pureeCount = qty(/pure|purê|mashed potato/);
   for (let i = 0; i < pureeCount; i++)
@@ -1490,7 +1491,7 @@ function hotDogLayout(product, ings, o) {
   const eggCount = qty(/ovo|egg/);
   for (let i = 0; i < eggCount; i++)
     add('egg-' + i, () => eggMesh(sausageR * .7, 1, seed + 20 + i, detail), .021 + i * .0015, sausageX * .68, .58, (i % 2 ? 1 : -1) * .001);
-  const proteinCount = qty(/frango|costela|carne|alcatra|proteina|protein/);
+  const proteinCount = qty(/frango|chicken|costela|carne|alcatra|proteina|protein|patty/);
   for (let i = 0; i < proteinCount; i++)
     add('protein-' + i, () => pattyMesh(sausageR * .58, .0045, seed + 21 + i, detail), .021 + i * .0016, sausageX * .72, .5, (i % 2 ? 1 : -1) * .001);
 
@@ -1523,11 +1524,11 @@ function hotDogLayout(product, ings, o) {
 
   // Qualquer ingrediente personalizado que ainda não tenha uma família visual
   // recebe uma camada neutra visível, em vez de desaparecer do modelo.
-  const recognized = /queijo|cheddar|mussarela|catupiry|cream|bacon|panceta|calabresa|linguica|alface|rucula|repolho|salada|tomate|tomato|pimentao|bell pepper|cebola|onion|alho|picles|pepino|pickle|milho|corn|ervilha|erivlha|peas|batata.?palha|crispy potato|pure|mashed potato|ovo|ovos|egg|frango|costela|carne|alcatra|proteina|protein|ketchup|catchup|mostarda|maionese|mayo|barbecue|bbq|molho|sauce|salsicha|vina|viena|hot.?dog sausage|pao|bread|bun/i;
+  const recognized = /queijo|cheddar|mussarela|catupiry|cream|cheese|bacon|panceta|calabresa|linguica|pepperoni|alface|rucula|repolho|salada|lettuce|herb|tomate|tomato|pimentao|bell pepper|cebola|onion|picles|pepino|pickle|milho|corn|ervilha|erivlha|peas|batata|potato|fries|crispy|pure|mashed potato|ovo|ovos|egg|frango|chicken|costela|carne|alcatra|proteina|protein|patty|ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce|salsicha|vina|viena|sausage|pao|bread|bun/i;
   names.forEach((entry, index) => {
     if (recognized.test(entry.name)) return;
     const count = clamp(Number(entry.item.quantity) || 1, 1, 8);
-    add('custom-' + index, () => cheeseMesh(sausageR * (.48 + Math.min(count, 5) * .035), .0018 + Math.min(count, 5) * .00025, seed + 30 + index, detail, 0, 'generic'), .0208 + index * .00015, sausageX * .72, .52, (index % 2 ? 1 : -1) * .0015);
+    add('custom-' + index, () => burgerCornMesh(sausageR * .62, seed + 300 + index, count), .0208 + index * .00015, sausageX * .72, .52, (index % 2 ? 1 : -1) * .0015);
   });
 
   return { parts, total: .036, radius: length * .40, extentH: [-.006, .038] };
