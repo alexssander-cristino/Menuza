@@ -1417,14 +1417,21 @@ function drapeStripMesh({ L, w, t, ls, palette, seed, detail, lift = .0006, ruff
 function hotDogLayout(product, ings, o) {
   const length = clamp((Number(product.widthCm) || 20) / 100, .18, .24);
   const seed = hash(product.id || 'hotdog'), detail = o.detail;
-  const bunL = length * .94, bunW = length * .14, bunH = .034;
+  // O pão acompanha o volume do recheio: mais unidades sólidas ampliam o vale e as laterais.
+  const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const bulkPattern = /queijo|cheddar|mussarela|catupiry|cream|cheese|bacon|panceta|calabresa|linguica|pepperoni|salame|presunto|ham|peito de peru|alface|rucula|repolho|salada|lettuce|tomate|tomato|pimentao|bell pepper|cebola|onion|picles|pepino|pickle|azeitona|oliva|olive|milho|corn|ervilha|peas|batata|potato|fries|palha|pure|mashed potato|ovo|ovos|egg|frango|chicken|costela|carne|alcatra|proteina|protein|patty|custom/i;
+  const fillingUnits = ings.reduce((sum, item) => {
+    const name = normalize([item.name, item.label, item.id].filter(Boolean).join(' '));
+    return bulkPattern.test(name) ? sum + clamp(Number(item.quantity) || 1, 1, 10) : sum;
+  }, 0);
+  const load = clamp((fillingUnits - 3) / 9, 0, 1);
+  const bunL = length * .94, bunW = length * (.14 + load * .035), bunH = .034 + load * .009;
   const sausageR = length * .066, sausageL = length * .9;
   const sausageY = bunH - sausageR * .45;           // encaixada no vale; ~1/4 do diâmetro acima do pão
   const bt = .014, boardR = length * .62;
-  const baseKey = `hotdog-v12|${length.toFixed(3)}|${detail}|${seed}`;
+  const baseKey = `hotdog-v13|${length.toFixed(3)}|${detail}|${seed}`;
 
   // Classificação pelo nome real, pelo id e pelos aliases visuais.
-  const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const names = ings.map(item => ({ item, name: normalize([item.name, item.label, item.id, item.visual, item.visual_key, item.visualKey].filter(Boolean).join(' ')) }));
   const matching = pattern => names.filter(x => pattern.test(x.name));
   const has = pattern => matching(pattern).length > 0;
