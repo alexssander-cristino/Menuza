@@ -145,7 +145,9 @@ export function makeSeed(now = new Date().toISOString()) {
 export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS, sizes = SIZE_OPTIONS, crusts = CRUST_OPTIONS }) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw new Error('A quantidade deve ficar entre 1 e 10.');
   const type = product.type;
-  const size = (sizes[type] || sizes.plate || []).find(option => option.key === sizeKey);
+  const size = type === 'plate'
+    ? { key: 'unico', label: 'Hot Dog', deltaCents: 0 }
+    : (sizes[type] || []).find(option => option.key === sizeKey);
   if (!size) throw new Error('Tamanho inválido.');
   const crust = type === 'pizza' ? crusts.find(option => option.key === crustKey) : { priceCents: 0, key: '' };
   if (!crust) throw new Error('Massa ou borda inválida.');
