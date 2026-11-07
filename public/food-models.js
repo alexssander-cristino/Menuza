@@ -1095,11 +1095,11 @@ function burgerLayout(product, ings, size, o, kH) {
   for (const item of toppings) {
     const count = qty(item.id);
     if (!count) continue;
-    for (let i = 0; i < count; i++) {
-      const h = item.height * kH;
-      add(item.kind, `${item.id}-${i}-of-${count}`,
-        () => item.build(count), h, item.id.includes('molho') || item.id.includes('ketchup') || item.id.includes('maionese') ? -.0007 : 0);
-    }
+    // Uma peça composta por ingrediente; a quantidade controla as camadas e a altura.
+    // Evita multiplicar a mesma cobertura duas vezes (loop + parâmetro de camadas).
+    const h = item.height * kH * count;
+    add(item.kind, `${item.id}-quantity-${count}`,
+      () => item.build(count), h, item.id.includes('molho') || item.id.includes('ketchup') || item.id.includes('maionese') ? -.0007 : 0);
   }
 
   if (buns) add('bun-top', '', () => bunTopMesh(R, .036 * kH, seed + 30, detail), .036 * kH, -.0012);
@@ -1357,7 +1357,8 @@ function hotDogLayout(product, ings, o) {
   const bunRadius = length * .135;
   const seed = hash(product.id || 'hotdog'), detail = o.detail;
   const bunX = length * .94 / (bunRadius * 2);
-  const sausageR = bunRadius * .39;
+  // Salsicha mais encorpada, proporcional ao canal do pão.
+  const sausageR = bunRadius * .49;
   const sausageX = length * .88 / (sausageR * 2);
   const key = kind => `hotdog-v9|${kind}|${length.toFixed(3)}|${detail}|${seed}`;
   const stretch = (builder, x = 1, z = 1) => () => scaleFoodGeometry(builder(), x, 1, z);
@@ -1420,8 +1421,9 @@ function hotDogLayout(product, ings, o) {
 
   // Complementos: cada família tem uma geometria própria e a quantidade
   // cadastrada aumenta as camadas/peças visíveis no cachorro-quente.
-  if (has(/queijo|cheddar|mussarela|catupiry|cream/))
-    add('cheese', () => cheeseMesh(sausageR * .76, .0021, seed + 10, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198, sausageX * .82, .48);
+  const cheeseCount = qty(/queijo|cheddar|mussarela|catupiry|cream/);
+  for (let i = 0; i < cheeseCount; i++)
+    add('cheese-' + i, () => cheeseMesh(sausageR * .82, .0021, seed + 10 + i, detail, 0, has(/cheddar/) ? 'cheddar' : 'generic'), .0198 + i * .0018, sausageX * .82, .48);
   if (has(/bacon|calabresa|linguica/))
     add('bacon', () => baconMesh(sausageR * .66, 1, seed + 11, detail, qty(/bacon|calabresa|linguica/)), .0202, sausageX * .78, .48);
   if (has(/alface|rucula|repolho|salada/))
@@ -1465,8 +1467,11 @@ function hotDogLayout(product, ings, o) {
     { pattern: /barbecue|bbq/, kind: 'barbecue', color: '#71351f', z: .0014 },
     { pattern: /molho|sauce/, kind: 'sauce', color: '#cf3d32', z: -.0014 }
   ];
-  for (const sauce of sauceTypes) if (has(sauce.pattern))
-    add(sauce.kind, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13, sauce.z), .0212, 1, 1);
+  for (const sauce of sauceTypes) {
+    const count = qty(sauce.pattern);
+    for (let i = 0; i < count; i++)
+      add(sauce.kind + '-' + i, () => sauceRibbon(sauce.color, seed + sauce.kind.length * 13 + i * 17, sauce.z + (i % 2 ? .0007 : 0)), .0212 + i * .00035, 1, 1);
+  }
 
   // Qualquer ingrediente personalizado que ainda não tenha uma família visual
   // recebe uma camada neutra visível, em vez de desaparecer do modelo.
