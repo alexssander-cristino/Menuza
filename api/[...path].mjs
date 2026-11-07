@@ -1355,15 +1355,21 @@ export default async function handler(req, res) {
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
-      const b=await bodyOf(req), name=clean(b.name,80), type=clean(b.type,20), groupName=clean(b.groupName,50)||'Adicionais', price=Number(b.cents);
-      if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipo e preço válido para o adicional.',422);
-      const existingNames=(await query('SELECT id,name FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
+      const b=await bodyOf(req),name=clean(b.name,80),types=[...new Set((Array.isArray(b.types)?b.types:[b.type]).map(value=>clean(value,20)))],groupName=clean(b.groupName,50)||'Adicionais',price=Number(b.cents);
+      if(name.length<2||!types.length||types.some(type=>!['pizza','burger','plate'].includes(type))||!Number.isInteger(price)||price<0||price>999999) throw fail('Informe nome, tipos de alimento e preço válido para o ingrediente.',422);
+      const existing=(await query('SELECT id,name,type FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
       const normalizeIngredientName=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
-      if(existingNames.some(item=>normalizeIngredientName(item.name)===normalizeIngredientName(name))) throw fail('Já existe um ingrediente ou adicional com esse nome. Use outro nome ou exclua o cadastro existente.',409);
-      const id=slugify(name)+'-'+randomBytes(3).toString('hex');
-      const orderResult=await query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID]);
-      await query('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,1,$7)',[id,RESTAURANT_ID,name,type,groupName,price,Number(orderResult.rows[0]?.next_order)||0]);
-      return json(res,201,{ingredient:(await catalogFor(true)).ingredients.find(i=>i.id===id)});
+      const duplicate=existing.find(item=>types.includes(item.type)&&normalizeIngredientName(item.name)===normalizeIngredientName(name));
+      if(duplicate) throw fail('Já existe "'+duplicate.name+'" cadastrado para '+({pizza:'pizza',burger:'hambúrguer',plate:'hot dog'}[duplicate.type])+'. Não é permitido repetir o ingrediente dentro do mesmo tipo.',409);
+      const created=[];
+      for(const type of types){
+        const id=slugify(name)+'-'+randomBytes(4).toString('hex');
+        const orderResult=await query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM ingredients WHERE restaurant_id=$1',[RESTAURANT_ID]);
+        await query('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,1,$7)',[id,RESTAURANT_ID,name,type,groupName,price,Number(orderResult.rows[0]?.next_order)||0]);
+        created.push(id);
+      }
+      const updated=await catalogFor(true),createdIngredients=updated.ingredients.filter(item=>created.includes(item.id));
+      return json(res,201,{ingredients:createdIngredients,ingredient:createdIngredients[0]||null});
     }
     if (method==='DELETE'&&path.startsWith('/api/admin/ingredients/')) {
       const found=(await query('SELECT id,name FROM ingredients WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0];
