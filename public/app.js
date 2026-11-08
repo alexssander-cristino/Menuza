@@ -1498,6 +1498,49 @@ async function renderCatalogAdmin(){
       recipeSelect.dataset.previewProductId=row.dataset.productAdmin;
       const preview=row.querySelector('[data-product-recipe-preview]');
       const product=catalog.products.find(item=>item.id===row.dataset.productAdmin);
+      const productPhotosInput=row.querySelector('.product-photos-input');
+      const productPhotosPreview=row.querySelector('.product-images-preview');
+      let productPreviewUrls=[];
+      productPhotosInput?.addEventListener('change',()=>{
+        productPreviewUrls.forEach(url=>URL.revokeObjectURL(url));
+        productPreviewUrls=[];
+        let savedImages=[];
+        try{savedImages=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
+        const selectedFiles=[...(productPhotosInput.files||[])];
+        productPhotosPreview.replaceChildren();
+        savedImages.forEach((url,index)=>{
+          const thumb=document.createElement('span');
+          thumb.className='product-image-admin-thumb';
+          const image=document.createElement('img');
+          image.src=url;
+          image.alt='Foto cadastrada '+(index+1);
+          const remove=document.createElement('button');
+          remove.type='button';
+          remove.dataset.action='remove-product-image';
+          remove.dataset.index=String(index);
+          remove.setAttribute('aria-label','Remover foto '+(index+1));
+          remove.textContent='×';
+          thumb.append(image,remove);
+          productPhotosPreview.append(thumb);
+        });
+        selectedFiles.slice(0,Math.max(0,8-savedImages.length)).forEach((file,index)=>{
+          const url=URL.createObjectURL(file);
+          productPreviewUrls.push(url);
+          const thumb=document.createElement('span');
+          thumb.className='product-image-admin-thumb';
+          const image=document.createElement('img');
+          image.src=url;
+          image.alt='Prévia da nova foto '+(index+1);
+          thumb.append(image);
+          productPhotosPreview.append(thumb);
+        });
+        if(!savedImages.length&&!selectedFiles.length)productPhotosPreview.innerHTML='<small>Nenhuma foto cadastrada.</small>';
+        if(savedImages.length+selectedFiles.length>8){
+          const warning=document.createElement('small');
+          warning.textContent='O limite é de 8 fotos no total. Remova alguma foto cadastrada ou selecione menos arquivos.';
+          productPhotosPreview.append(warning);
+        }
+      });
       const refreshProductRecipe=()=>{
         updateRecipePreview(recipeSelect,preview,'Descrição automática: Ingredientes: ');
         updateRecipeArtwork(recipeSelect,row.querySelector('[data-product-recipe-art]'),product);
