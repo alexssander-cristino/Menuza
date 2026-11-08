@@ -1,3 +1,4 @@
+// Regras compartilhadas do domínio: status, tamanhos, bordas e ingredientes usados por API e interface.
 export const STATUS = Object.freeze({ received: 'Recebido', confirmed: 'Confirmado', preparing: 'Em preparação', ready: 'Pronto', delivering: 'Saiu para entrega', completed: 'Concluído', cancelled: 'Cancelado' });
 export const STATUS_FLOW = Object.freeze(['received', 'confirmed', 'preparing', 'ready', 'delivering', 'completed', 'cancelled']);
 export const SIZE_OPTIONS = Object.freeze({
@@ -9,6 +10,7 @@ export const SIZE_OPTIONS = Object.freeze({
 export const CRUST_OPTIONS = Object.freeze([{ key: 'tradicional', label: 'Tradicional', priceCents: 0 }, { key: 'fina', label: 'Massa fina', priceCents: 0 }, { key: 'recheada', label: 'Borda de requeijão', priceCents: 850 }]);
 
 // O sabor especial usa o nome exato cadastrado pelo restaurante.
+// Identifica produtos configurados como pizza montável pelo cliente.
 export function isBuildYourOwnPizza(product) {
   const name = String(product?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
   return product?.type === 'pizza' && name === 'monte a sua';
@@ -16,6 +18,7 @@ export function isBuildYourOwnPizza(product) {
 // Determina a peça 3D de ingredientes cadastrados livremente no painel.
  // A informação é calculada no servidor para que o painel e o cardápio público
  // recebam exatamente o mesmo visual, sem depender de IDs pré-definidos.
+// Relaciona o cadastro do ingrediente a uma categoria visual para as ilustrações/modelos 3D.
 export function inferIngredientVisual(ingredient) {
   const type = String(ingredient?.type || '').toLowerCase();
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -134,9 +137,11 @@ export const INGREDIENTS = Object.freeze([
   { id: 'picles', name: 'Picles agridoce', type: 'burger', group: 'Complementos', cents: 240, included: false, visual: 'pickle' },
   { id: 'queijo-extra', name: 'Queijo extra', type: 'burger', group: 'Queijos', cents: 350, included: false, visual: 'cheddar' }
 ]);
+// Converte nomes em identificadores amigáveis para URLs e categorias.
 export function slugify(value) {
   return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
+// Cria o conjunto inicial de dados do restaurante demonstrativo.
 export function makeSeed(now = new Date().toISOString()) {
   const restaurantId = 'rest-bela-mesa';
   const categories = [{ id: 'pizzas', name: 'Pizzas', slug: 'pizzas', sort: 1 }, { id: 'hamburgueres', name: 'Hambúrgueres', slug: 'hamburgueres', sort: 2 }, { id: 'acompanhamentos', name: 'Para acompanhar', slug: 'acompanhamentos', sort: 3 }];
@@ -155,6 +160,7 @@ export function makeSeed(now = new Date().toISOString()) {
     ingredients: INGREDIENTS.map((i, idx) => ({ ...i, restaurantId, groupName: i.group, addonCents: i.cents, includedByDefault: i.included ? 1 : 0, active: 1, sortOrder: idx }))
   };
 }
+// Calcula o preço final de um item a partir do produto e das escolhas feitas pelo cliente.
 export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, quantity = 1, catalog = INGREDIENTS, sizes = SIZE_OPTIONS, crusts = CRUST_OPTIONS }) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw new Error('A quantidade deve ficar entre 1 e 10.');
   const type = product.type;
