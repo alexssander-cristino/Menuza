@@ -1,3 +1,4 @@
+// Formatação do tempo de cada etapa do pedido para exibição no acompanhamento do cliente e no painel.
 export function formatOrderStatusTime(history, status, locale = 'pt-BR') {
   if (!Array.isArray(history) || typeof status !== 'string') return '';
   const event = [...history].reverse().find(item => item?.status === status);
