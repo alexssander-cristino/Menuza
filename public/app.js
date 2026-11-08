@@ -1272,6 +1272,9 @@ function trackNewOrders(orders){
   if(app.admin.lastOrderIds===null){app.admin.lastOrderIds=ids;return}
   const newOrders=list.filter(order=>!app.admin.lastOrderIds.has(String(order.id))&&order.status==='received');
   app.admin.lastOrderIds=ids;
+  // Um novo pedido recebido é atividade operacional: mantém o painel aberto
+  // mesmo quando chega automaticamente, sem interação manual no computador.
+  if(newOrders.length)recordAdminActivity();
   if(newOrders.length&&app.admin.soundEnabled)playOrderAlert();
   for(const order of newOrders)sendOrderToLocalPrinter(order);
 }
