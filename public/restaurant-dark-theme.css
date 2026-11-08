@@ -1,3 +1,6 @@
+/* Tema escuro do painel do restaurante.
+   Sobrescreve tokens e componentes administrativos quando o tema escuro está ativo;
+   não deve alterar a aparência do cardápio público do cliente. */
 /* Menuza — tema escuro Cherry Red. Aplicado somente ao painel do restaurante. */
 .admin-shell-v2[data-mz-admin-theme="dark"]{
   color-scheme:dark;
