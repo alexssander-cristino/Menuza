@@ -1,3 +1,6 @@
+// Formulário de contato e privacidade.
+// Valida os campos no navegador, envia a solicitação para a API e apresenta o resultado
+// sem recarregar a página. Não armazena dados sensíveis no frontend.
 // Initialize Vercel Speed Insights
 import { injectSpeedInsights } from './speed-insights.js';
 injectSpeedInsights();
