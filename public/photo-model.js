@@ -1,3 +1,5 @@
+// Integração auxiliar de modelos/fotos de produtos no navegador.
+// Centraliza a preparação da referência visual usada pelos componentes de produto.
 const cache = new Map();
 let removerPromise;
 async function isolateImage(source) {
