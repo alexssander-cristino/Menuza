@@ -1,4 +1,5 @@
 import test from 'node:test';
+// Testes de segurança de imagens: verificam formatos aceitos, assinaturas binárias e rejeição de arquivos inválidos.
 import assert from 'node:assert/strict';
 import { inspectImageBuffer } from '../src/storage/image-validation.mjs';
 
