@@ -1,3 +1,6 @@
+// Armazenamento de imagens no Neon Object Storage (API compatível com S3).
+// Assina as requisições com AWS Signature V4, valida o conteúdo real do arquivo,
+// envia imagens para o bucket e converte referências armazenadas para uso na geração 3D.
 import { inspectImageBuffer } from './image-validation.mjs';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 
@@ -28,6 +31,7 @@ function encodedKey(key) {
   return String(key).split('/').map(part => encodeURIComponent(part)).join('/');
 }
 
+// Monta a assinatura AWS V4 e executa uma operação autenticada no bucket.
 async function signedS3Request(method, key, body = Buffer.alloc(0), contentType = '') {
   const config = storageConfig();
   const url = new URL(config.endpoint + '/' + config.bucket + '/' + encodedKey(key));
@@ -84,6 +88,7 @@ export function isStoredImageUrl(value) {
   return typeof value === 'string' && /^https:\/\/[^\s<>"']+$/i.test(value);
 }
 
+// Valida uma imagem recebida em Data URL e salva os bytes no armazenamento remoto.
 export async function storeImageDataUrl(dataUrl, prefix = 'products') {
   if (dataUrl === '' || dataUrl == null) return '';
   if (!isImageDataUrl(dataUrl)) {
@@ -117,6 +122,7 @@ export async function storeImageList(images, prefix = 'products') {
   return Promise.all(images.map(image => storeImageDataUrl(image, prefix)));
 }
 
+// Baixa uma imagem do bucket permitido após conferir origem, tipo e tamanho.
 export async function imageReferenceToDataUrl(reference) {
   if (isImageDataUrl(reference)) return reference;
   if (!isStoredImageUrl(reference)) throw new Error('Imagem do produto inválida para geração 3D.');
@@ -147,6 +153,7 @@ export async function imageReferenceToDataUrl(reference) {
   return 'data:' + contentType + ';base64,' + bytes.toString('base64');
 }
 
+// Migra referências antigas em Data URL para URLs persistentes do bucket.
 export async function migrateImageReferences(images, prefix = 'products') {
   const list = Array.isArray(images) ? images : [];
   return Promise.all(list.map(image => isImageDataUrl(image) ? storeImageDataUrl(image, prefix) : image));
