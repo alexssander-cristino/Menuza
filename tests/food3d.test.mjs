@@ -1,4 +1,5 @@
 import test from 'node:test';
+// Testes de integração do visualizador 3D: validam montagem, dimensões e geometria dos alimentos.
 import assert from 'node:assert/strict';
 import { inferIngredientVisual, INGREDIENTS, SIZE_OPTIONS } from '../src/catalog.mjs';
 import { buildFoodLayout, buildFoodGeometry } from '../public/food-models.js';
