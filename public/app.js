@@ -1012,6 +1012,7 @@ function scheduleAdminInactivityCheck(){
 function recordAdminActivity(){
   if(!app.admin.authenticated || location.hash !== '#admin')return;
   const now = Date.now();
+  if(now - app.admin.lastActivityAt < 1000)return;
   app.admin.lastActivityAt = now;
   try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(now))}catch{}
   scheduleAdminInactivityCheck();
@@ -1021,7 +1022,7 @@ function startAdminInactivityMonitor(){
   try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(app.admin.lastActivityAt))}catch{}
   scheduleAdminInactivityCheck();
 }
-['pointerdown','pointermove','keydown','input','change','submit','scroll','wheel','touchstart'].forEach(type=>{
+['pointerdown','keydown','input','change','submit','scroll','wheel','touchstart'].forEach(type=>{
   document.addEventListener(type, recordAdminActivity, {capture:true, passive:true});
 });
 window.addEventListener('storage',event=>{
