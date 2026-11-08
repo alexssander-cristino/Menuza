@@ -2976,7 +2976,7 @@ async function start(){
  
   let activeUploadDropZone=null;
   const uploadDropZone=element=>element?.closest?.('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])')||null;
-  const uploadDropZoneAtPointer=event=>uploadDropZone(document.elementFromPoint(event.clientX,event.clientY)||event.target);
+  const uploadDropZoneAtPointer=event=>uploadDropZone(event.target)||uploadDropZone(document.elementFromPoint(event.clientX,event.clientY));
   const setActiveUploadDropZone=zone=>{
     if(activeUploadDropZone===zone)return;
     activeUploadDropZone?.classList.remove('is-dragover');
