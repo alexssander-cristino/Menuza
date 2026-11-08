@@ -1,3 +1,6 @@
+// Inspeção estrutural de imagens.
+// Confere assinatura binária, dimensões e formato real do conteúdo; não confia apenas
+// na extensão ou no Content-Type informado pelo navegador.
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_DIMENSION = 8000;
 const MAX_PIXELS = 24_000_000;
