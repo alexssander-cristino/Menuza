@@ -2894,3 +2894,37 @@ button[data-action="view-generated-3d"],
   .beverage-admin-fields>label:has(input[type="file"]),
   .logo-upload-control{transition:none}
 }
+/* MENUZA — rodapé renovado do cardápio */
+.site-footer{--footer-muted:#b9b3b8;--footer-line:rgba(255,255,255,.13);position:relative;isolation:isolate;overflow:hidden;padding:0;color:#fff8f2;background:linear-gradient(135deg,#21151a 0%,#171014 58%,#241319 100%)}
+.site-footer:before,.site-footer:after{content:"";position:absolute;z-index:-1;border-radius:50%;pointer-events:none}
+.site-footer:before{width:560px;height:360px;right:-170px;top:-230px;background:radial-gradient(circle,rgba(210,20,4,.22),rgba(234,97,19,.08) 42%,transparent 70%)}
+.site-footer:after{width:380px;height:260px;left:-210px;bottom:-180px;background:radial-gradient(circle,rgba(248,143,34,.12),transparent 70%)}
+.footer-shell{position:relative}
+.site-footer .footer-main{display:grid;grid-template-columns:minmax(240px,1.7fr) repeat(3,minmax(130px,1fr));gap:clamp(28px,5vw,76px);align-items:start;padding-top:62px;padding-bottom:52px;border-bottom:1px solid var(--footer-line)}
+.footer-brand-column{max-width:330px}
+.site-footer .brand-footer{display:inline-flex;gap:12px;align-items:center;text-decoration:none}
+.site-footer .brand-footer .brand-mark{width:46px;height:46px;flex:none;display:grid;place-items:center;border:1px solid rgba(255,255,255,.24);border-radius:14px;background:linear-gradient(145deg,rgba(210,20,4,.2),rgba(248,143,34,.12));box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.site-footer .brand-footer .brand-mark img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.site-footer .brand-footer .brand-mark [data-restaurant-initials]{font-size:13px;font-weight:800;color:#ffe3b3}
+.site-footer .brand-footer b{display:block;color:#fff8f2;font-size:17px;letter-spacing:-.02em}
+.site-footer .brand-footer small{display:block;margin-top:3px;color:#c8b9b7;font-size:10px;letter-spacing:.09em;text-transform:uppercase}
+.footer-brand-description{max-width:290px;margin:20px 0 19px;color:var(--footer-muted);font-size:12px;line-height:1.85}
+.footer-back-to-menu{display:inline-flex;align-items:center;gap:18px;padding:10px 0;color:#ffd3a4!important;font-size:11px;font-weight:700;text-decoration:none;transition:gap .22s ease,color .22s ease}
+.footer-back-to-menu span{color:#f88f22;font-size:16px;transition:transform .22s ease}
+.footer-back-to-menu:hover{gap:23px;color:#fff!important}.footer-back-to-menu:hover span{transform:translate(2px,-2px)}
+.footer-nav-column{display:flex;flex-direction:column;align-items:flex-start;gap:13px;padding-top:5px}
+.footer-nav-column h2{margin:0 0 7px;color:#fff8f2;font-size:11px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
+.footer-nav-column a,.footer-nav-column button{position:relative;padding:0;border:0;background:none;color:var(--footer-muted);font:inherit;font-size:11px;line-height:1.5;text-align:left;text-decoration:none;cursor:pointer;transition:color .2s ease,transform .2s ease}
+.footer-nav-column a:before,.footer-nav-column button:before{content:"";position:absolute;left:0;bottom:-4px;width:0;height:1px;background:linear-gradient(90deg,#d21404,#f88f22);transition:width .22s ease}
+.footer-nav-column a:hover,.footer-nav-column button:hover{color:#fff;transform:translateX(3px)}
+.footer-nav-column a:hover:before,.footer-nav-column button:hover:before{width:100%}
+.site-footer .footer-bottom{min-height:68px;padding:18px 0;display:flex;align-items:center;justify-content:space-between;gap:18px;color:#a79ba1;font-size:10px;line-height:1.6}
+.site-footer .footer-bottom b{color:#f5e8df;font-weight:700}
+.site-footer .footer-credit{color:#a79ba1}
+.site-footer .footer-credit b{background:linear-gradient(90deg,#f88f22,#fbb931);-webkit-background-clip:text;background-clip:text;color:transparent}
+.site-footer .footer-back-top{display:inline-flex;align-items:center;gap:9px;color:#d8c7c2!important;font-size:10px;text-decoration:none;white-space:nowrap;transition:color .2s ease,gap .2s ease}
+.site-footer .footer-back-top span{color:#f88f22;font-size:15px}.site-footer .footer-back-top:hover{gap:13px;color:#fff!important}
+@media(max-width:900px){.site-footer .footer-main{grid-template-columns:1.4fr 1fr 1fr;gap:34px}.footer-brand-column{grid-column:1/-1;max-width:520px}.footer-brand-description{max-width:430px;margin:14px 0 8px}}
+@media(max-width:600px){.site-footer .footer-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px 22px;padding-top:42px;padding-bottom:34px}.footer-brand-column{grid-column:1/-1}.site-footer .brand-footer .brand-mark{width:43px;height:43px}.footer-brand-description{font-size:11px;max-width:330px;margin:14px 0 7px}.footer-nav-column{gap:12px}.footer-nav-column h2{font-size:10px;margin-bottom:5px}.footer-nav-column a,.footer-nav-column button{font-size:10px}.site-footer .footer-bottom{min-height:0;padding:18px 0 22px;display:grid;grid-template-columns:1fr auto;gap:9px 14px;font-size:9px}.site-footer .footer-credit{grid-column:1}.site-footer .footer-back-top{grid-column:2;grid-row:1/3;align-self:center;font-size:9px}}
+@media(max-width:360px){.site-footer .footer-main{gap:28px 14px}.site-footer .footer-bottom{grid-template-columns:1fr}.site-footer .footer-back-top{grid-column:1;grid-row:auto;margin-top:4px}}
+@media(prefers-reduced-motion:reduce){.site-footer *, .site-footer *:before, .site-footer *:after{transition:none!important}}
