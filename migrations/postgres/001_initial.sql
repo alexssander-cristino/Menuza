@@ -3,6 +3,9 @@
 -- Apply to a NEW PostgreSQL database; this file does not migrate existing SQLite data.
 BEGIN;
 
+-- Schema inicial do Postgres/Neon.
+-- Estrutura persistente usada pela API hospedada; as migrações seguintes acrescentam
+-- campos e recursos sem recriar as tabelas existentes.
 CREATE TABLE IF NOT EXISTS restaurants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
