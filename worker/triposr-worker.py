@@ -1,3 +1,9 @@
+"""Worker de geração de modelos 3D com TripoSR.
+
+Consulta a API do Menuza por trabalhos pendentes, baixa a imagem de referência,
+executa a inferência no modelo e envia o resultado para o armazenamento configurado.
+Este processo roda separadamente do servidor web e pode exigir GPU compatível.
+"""
 import base64, os, subprocess, sys, tempfile, time
 from pathlib import Path
 from urllib.parse import quote
