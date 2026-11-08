@@ -1,4 +1,5 @@
 import test from 'node:test';
+// Testes das malhas 3D procedurais: conferem presença de peças, integridade das coordenadas e comportamento por ingrediente.
 import assert from 'node:assert/strict';
 import { buildFoodLayout } from '../public/food-models.js';
 
