@@ -1,3 +1,6 @@
+/* Camada de ícones e microinterações.
+   Converte símbolos de texto em SVGs Lucide e aplica animações discretas aos ícones
+   encontrados no DOM, respeitando as preferências de movimento do navegador. */
 /* Converte glifos usados como ícones em SVGs Lucide e aplica microanimações.
    Mantém o Menuza sem React/Motion, pois o frontend público é JavaScript nativo. */
 (() => {
