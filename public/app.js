@@ -2976,13 +2976,7 @@ async function start(){
  
   let activeUploadDropZone=null;
   const uploadDropZone=element=>element?.closest?.('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])')||null;
-  const uploadDropZoneAtPointer=event=>{
-    // No arraste vindo do Windows/macOS, o target pode continuar sendo o body.
-    // A pilha de elementos sob o ponteiro encontra a área real mesmo nesses casos.
-    const stack=document.elementsFromPoint?.(event.clientX,event.clientY)||[];
-    for(const element of stack){const zone=uploadDropZone(element);if(zone)return zone;}
-    return uploadDropZone(event.target);
-  };
+  const uploadDropZoneAtPointer=event=>uploadDropZone(document.elementFromPoint(event.clientX,event.clientY)||event.target);
   const setActiveUploadDropZone=zone=>{
     if(activeUploadDropZone===zone)return;
     activeUploadDropZone?.classList.remove('is-dragover');
@@ -2990,11 +2984,10 @@ async function start(){
     activeUploadDropZone?.classList.add('is-dragover');
   };
   const isFileDrag=event=>{
-    const types=Array.from(event.dataTransfer?.types||[]);
-    return types.includes('Files')||types.includes('application/x-moz-file')||(!types.length&&Boolean(event.dataTransfer));
+    const types=event.dataTransfer?.types;
+    return Boolean(types&&(types.includes?.('Files')||types.contains?.('Files')||types.includes?.('application/x-moz-file')||types.contains?.('application/x-moz-file')));
   };
-  // Captura no window: o feedback começa durante a passagem do arquivo,
-  // antes do drop, mesmo quando o evento não chega ao elemento interno do input.
+  // Um único elemento sob o cursor: evita percorrer toda a pilha a cada dragover.
   window.addEventListener('dragenter',event=>{
     if(!isFileDrag(event))return;
     event.preventDefault();
@@ -3007,9 +3000,7 @@ async function start(){
     setActiveUploadDropZone(uploadDropZoneAtPointer(event));
   },true);
   window.addEventListener('dragleave',event=>{
-    if(event.relatedTarget)return;
-    // Não apaga o destaque ao cruzar elementos filhos; só limpa ao sair da janela.
-    if(event.clientX<=0||event.clientY<=0||event.clientX>=window.innerWidth||event.clientY>=window.innerHeight)setActiveUploadDropZone(null);
+    if(!event.relatedTarget&&(event.clientX<=0||event.clientY<=0||event.clientX>=innerWidth||event.clientY>=innerHeight))setActiveUploadDropZone(null);
   },true);
   window.addEventListener('drop',event=>{
     if(!isFileDrag(event))return;
@@ -3017,10 +3008,10 @@ async function start(){
     event.preventDefault();
     setActiveUploadDropZone(null);
     const input=zone?.querySelector('input[type="file"]');
-    const dropped=[...(event.dataTransfer?.files||[])];
-    if(!input||!dropped.length)return;
+    const dropped=event.dataTransfer?.files;
+    if(!input||!dropped?.length)return;
     const accept=(input.accept||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);
-    const valid=dropped.filter(file=>!accept.length||accept.some(rule=>rule.startsWith('.')?file.name.toLowerCase().endsWith(rule):rule.endsWith('/*')?file.type.startsWith(rule.slice(0,-1)):file.type===rule));
+    const valid=Array.from(dropped).filter(file=>!accept.length||accept.some(rule=>rule.startsWith('.')?file.name.toLowerCase().endsWith(rule):rule.endsWith('/*')?file.type.startsWith(rule.slice(0,-1)):file.type===rule));
     if(!valid.length){toast('Tipo de arquivo não permitido neste campo.');return}
     const transfer=new DataTransfer();
     (input.multiple?valid:valid.slice(0,1)).forEach(file=>transfer.items.add(file));
