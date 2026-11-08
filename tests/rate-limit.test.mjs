@@ -1,4 +1,5 @@
 import test from 'node:test';
+// Testes do limitador de requisições: verificam janela temporal, contagem de tentativas e tempo de bloqueio.
 import assert from 'node:assert/strict';
 import { activeTimestamps, resolveClientIp, retryAfterSeconds } from '../src/security/rate-limit.mjs';
 test('uses trusted proxy address and the rightmost forwarded address as fallback',()=>{
