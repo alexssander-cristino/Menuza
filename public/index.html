@@ -119,7 +119,28 @@
   <main id="trackingView" class="wrap hidden"></main>
   <main id="adminView" class="hidden"></main>
 
-  <footer class="site-footer"><div class="wrap footer-main"><a class="brand brand-footer restaurant-brand" data-restaurant-brand href="#"><span class="brand-mark"><img data-restaurant-logo alt="" width="39" height="39" loading="lazy" decoding="async" hidden><span data-restaurant-initials>BM</span></span><span><b data-restaurant-name>Bela Mesa</b><small>cardápio digital</small></span></a><span>Veja. Monte. Experimente.</span><a href="#menu">Voltar ao cardápio ↑</a></div><div class="wrap footer-legal-links"><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-cookies.html">Política de cookies</a><a href="/ajuda.html">Ajuda e dúvidas</a><a href="/contato.html">Contato e dados pessoais</a><a href="/acessibilidade.html">Acessibilidade</a><button type="button" data-privacy-open>Aviso de privacidade</button></div><div class="wrap footer-bottom"><span>© Bela Mesa · Cardápio digital com Menuza / Desenvolvido por Alexssander C. C. Cristino</span><span>Todos os valores em reais</span></div></footer>
+  <footer class="site-footer" aria-label="Rodapé do cardápio">
+  <div class="wrap footer-shell">
+    <div class="footer-main">
+      <div class="footer-brand-column">
+        <a class="brand brand-footer restaurant-brand" data-restaurant-brand href="#top" aria-label="Voltar ao início do cardápio">
+          <span class="brand-mark"><img data-restaurant-logo alt="" width="42" height="42" loading="lazy" decoding="async" hidden><span data-restaurant-initials>BM</span></span>
+          <span><b data-restaurant-name>Bela Mesa</b><small>cardápio digital</small></span>
+        </a>
+        <p class="footer-brand-description">Seu próximo pedido favorito começa por aqui. Explore o cardápio, escolha com carinho e aproveite.</p>
+        <a class="footer-back-to-menu" href="#menu">Explorar cardápio <span aria-hidden="true">↗</span></a>
+      </div>
+      <nav class="footer-nav-column" aria-label="Navegação"><h2>Explore</h2><a href="#menu">Cardápio</a><a href="#favoritos">Mais pedidos</a><a href="#sobre">Como funciona</a></nav>
+      <nav class="footer-nav-column" aria-label="Ajuda e suporte"><h2>Precisa de ajuda?</h2><a href="/ajuda.html">Ajuda e dúvidas</a><a href="/contato.html">Fale conosco</a><a href="/acessibilidade.html">Acessibilidade</a></nav>
+      <nav class="footer-nav-column" aria-label="Informações legais"><h2>Informações</h2><a href="/politica-de-privacidade.html">Privacidade</a><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-cookies.html">Política de cookies</a><button type="button" data-privacy-open>Aviso de privacidade</button></nav>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span data-footer-year>2026</span> <b data-restaurant-name>Bela Mesa</b>. Todos os direitos reservados.</span>
+      <span class="footer-credit">Cardápio digital desenvolvido com <b>Menuza</b></span>
+      <a href="#top" class="footer-back-top" aria-label="Voltar ao topo">Voltar ao topo <span aria-hidden="true">↑</span></a>
+    </div>
+  </div>
+</footer>
 
   <div id="builderRoot"></div>
   <div id="cartRoot"></div>
