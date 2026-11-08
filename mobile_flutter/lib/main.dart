@@ -1,3 +1,6 @@
+// Aplicativo Android do Menuza.
+// Inicializa a conexão com o servidor configurado, exibe a aplicação web em uma WebView
+// e trata navegação, permissões e estados de carregamento/erro do conteúdo remoto.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
