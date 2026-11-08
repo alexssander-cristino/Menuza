@@ -2850,3 +2850,56 @@ button[data-action="view-generated-3d"],
   }
 }
 
+/* MENUZA — feedback visual de arrastar e soltar arquivos */
+.form-field:has(input[type="file"]),
+.product-gallery-config>label:has(input[type="file"]),
+.beverage-admin-fields>label:has(input[type="file"]),
+.logo-upload-control{
+  position:relative;
+  transition:border-color .2s ease,background .2s ease,box-shadow .2s ease,transform .2s ease;
+}
+.form-field:has(input[type="file"]).is-dragover,
+.product-gallery-config>label.is-dragover,
+.beverage-admin-fields>label.is-dragover,
+.logo-upload-control.is-dragover{
+  border:2px dashed var(--mz-accent,#b52b2b)!important;
+  border-radius:14px;
+  background:color-mix(in srgb,var(--mz-accent,#b52b2b) 10%,var(--mz-surface,#fffaf4))!important;
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--mz-accent,#b52b2b) 13%,transparent),0 12px 28px rgba(118,29,37,.12);
+  transform:translateY(-2px);
+  animation:mz-upload-drop-pulse 1.15s ease-in-out infinite;
+}
+.form-field:has(input[type="file"]).is-dragover::after,
+.product-gallery-config>label.is-dragover::after,
+.beverage-admin-fields>label.is-dragover::after,
+.logo-upload-control.is-dragover::after{
+  content:"↓  Solte o arquivo aqui";
+  position:absolute;
+  z-index:8;
+  inset:5px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  border:1px dashed var(--mz-accent,#b52b2b);
+  border-radius:10px;
+  background:color-mix(in srgb,var(--mz-surface,#fffaf4) 91%,transparent);
+  color:var(--mz-accent,#b52b2b);
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.01em;
+  pointer-events:none;
+  backdrop-filter:blur(5px);
+}
+.logo-upload-control.is-dragover::after{inset:-5px}
+@keyframes mz-upload-drop-pulse{
+  0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--mz-accent,#b52b2b) 10%,transparent),0 10px 24px rgba(118,29,37,.08)}
+  50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--mz-accent,#b52b2b) 17%,transparent),0 12px 30px rgba(118,29,37,.15)}
+}
+@media(prefers-reduced-motion:reduce){
+  .form-field:has(input[type="file"]).is-dragover,
+  .product-gallery-config>label.is-dragover,
+  .beverage-admin-fields>label.is-dragover,
+  .logo-upload-control.is-dragover{animation:none;transform:none}
+}
+
