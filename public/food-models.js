@@ -6,6 +6,10 @@ import {
   profile, smoothPoly, superPuck, loopProfile, Mesh, MAT, poissonDisc
 } from './food-geo.js';
 
+// Biblioteca de malhas 3D dos alimentos.
+// Cada função abaixo constrói a geometria de uma peça (pão, queijo, carne, molho etc.).
+// A composição final é montada conforme o tipo de produto e os ingredientes escolhidos;
+// mantenha as funções de geometria independentes para permitir cache e reconstrução parcial.
 const C = {
   bunCrown: lin('#b9702c'), bunSide: lin('#cf9448'), bunCrumb: lin('#efd6a2'), bunToast: lin('#d8a458'), bunDeep: lin('#a8662a'), bunUnder: lin('#c98b45'),
   seed: lin('#f1e2ba'),
