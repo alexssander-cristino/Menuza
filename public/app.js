@@ -2977,8 +2977,11 @@ async function start(){
   let activeUploadDropZone=null;
   const uploadDropZone=element=>element?.closest?.('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])')||null;
   const uploadDropZoneAtPointer=event=>{
-    const pointed=document.elementFromPoint(event.clientX,event.clientY);
-    return uploadDropZone(pointed)||uploadDropZone(event.target);
+    // No arraste vindo do Windows/macOS, o target pode continuar sendo o body.
+    // A pilha de elementos sob o ponteiro encontra a área real mesmo nesses casos.
+    const stack=document.elementsFromPoint?.(event.clientX,event.clientY)||[];
+    for(const element of stack){const zone=uploadDropZone(element);if(zone)return zone;}
+    return uploadDropZone(event.target);
   };
   const setActiveUploadDropZone=zone=>{
     if(activeUploadDropZone===zone)return;
@@ -2986,25 +2989,29 @@ async function start(){
     activeUploadDropZone=zone||null;
     activeUploadDropZone?.classList.add('is-dragover');
   };
-  const isFileDrag=event=>!event.dataTransfer?.types?.length||Array.from(event.dataTransfer.types).includes('Files');
-  root.addEventListener('dragenter',event=>{
+  const isFileDrag=event=>{
+    const types=Array.from(event.dataTransfer?.types||[]);
+    return types.includes('Files')||types.includes('application/x-moz-file')||(!types.length&&Boolean(event.dataTransfer));
+  };
+  // Captura no window: o feedback começa durante a passagem do arquivo,
+  // antes do drop, mesmo quando o evento não chega ao elemento interno do input.
+  window.addEventListener('dragenter',event=>{
     if(!isFileDrag(event))return;
     event.preventDefault();
     setActiveUploadDropZone(uploadDropZoneAtPointer(event));
-  });
-  root.addEventListener('dragover',event=>{
+  },true);
+  window.addEventListener('dragover',event=>{
     if(!isFileDrag(event))return;
     event.preventDefault();
     if(event.dataTransfer)event.dataTransfer.dropEffect='copy';
-    // elementFromPoint acompanha o cursor mesmo quando o navegador aponta o evento
-    // para o document/body durante o arraste de arquivos vindos do sistema.
     setActiveUploadDropZone(uploadDropZoneAtPointer(event));
-  });
-  root.addEventListener('dragleave',event=>{
+  },true);
+  window.addEventListener('dragleave',event=>{
     if(event.relatedTarget)return;
-    setActiveUploadDropZone(null);
-  });
-  root.addEventListener('drop',event=>{
+    // Não apaga o destaque ao cruzar elementos filhos; só limpa ao sair da janela.
+    if(event.clientX<=0||event.clientY<=0||event.clientX>=window.innerWidth||event.clientY>=window.innerHeight)setActiveUploadDropZone(null);
+  },true);
+  window.addEventListener('drop',event=>{
     if(!isFileDrag(event))return;
     const zone=uploadDropZoneAtPointer(event)||activeUploadDropZone;
     event.preventDefault();
@@ -3018,8 +3025,8 @@ async function start(){
     const transfer=new DataTransfer();
     (input.multiple?valid:valid.slice(0,1)).forEach(file=>transfer.items.add(file));
     try{input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}catch{toast('Não foi possível carregar os arquivos arrastados.')}
-  });
-  window.addEventListener('dragend',()=>setActiveUploadDropZone(null));
+  },true);
+  window.addEventListener('dragend',()=>setActiveUploadDropZone(null),true);
   window.addEventListener('blur',()=>setActiveUploadDropZone(null));
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
