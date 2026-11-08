@@ -1,3 +1,6 @@
+// Migração do schema para Neon/Postgres.
+// Executa os arquivos SQL versionados em migrations/postgres e registra quais
+// versões já foram aplicadas para evitar executar a mesma migração novamente.
 import { randomBytes } from 'node:crypto';
 import { makeSeed } from '../src/catalog.mjs';
 import { withTransaction } from '../src/db/postgres.mjs';
