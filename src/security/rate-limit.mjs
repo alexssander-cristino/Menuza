@@ -1,5 +1,9 @@
+// Limitador persistente de requisições.
+// Registra horários de acesso por chave protegida por HMAC e calcula quanto tempo
+// o cliente precisa aguardar quando ultrapassa o limite configurado.
 import { createHmac } from 'node:crypto';
 let schemaPromise;
+// Cria a tabela e o índice uma única vez por instância do servidor.
 async function ensureRateLimitSchema(query){
   if(!schemaPromise)schemaPromise=(async()=>{
     await query(`CREATE TABLE IF NOT EXISTS security_rate_buckets(bucket_key TEXT PRIMARY KEY,timestamps_json TEXT NOT NULL DEFAULT '[]',updated_at BIGINT NOT NULL DEFAULT 0)`);
@@ -20,6 +24,7 @@ export function activeTimestamps(value,now,windowMs){
 export function retryAfterSeconds(timestamps,now,windowMs,maximum){
   return timestamps.length<maximum?0:Math.max(1,Math.ceil((timestamps[0]+windowMs-now)/1000));
 }
+// Remove tentativas expiradas, registra a atual e retorna segundos de bloqueio ou null.
 export async function consumeRateLimit({req,key,maximum,windowMs,secret,query,withTransaction}){
   if(!Number.isInteger(maximum)||maximum<1||!Number.isInteger(windowMs)||windowMs<1)throw new TypeError('Parâmetros inválidos para o limitador.');
   if(typeof withTransaction!=='function')throw new TypeError('O limitador exige transação PostgreSQL.');
