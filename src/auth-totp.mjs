@@ -1,3 +1,5 @@
+// Autenticação TOTP (códigos temporários de uso único).
+// Implementa geração/validação de códigos e segredos Base32 compatíveis com aplicativos autenticadores.
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
