@@ -1,10 +1,14 @@
 import { query, withTransaction } from '../src/db/postgres.mjs';
 import { consumeRateLimit } from '../src/security/rate-limit.mjs';
 import { inferIngredientVisual, SIZE_OPTIONS } from '../src/catalog.mjs';
+// Endpoint público do cardápio na Vercel.
+// Consulta os dados ativos no Postgres, normaliza imagens e opções de produtos,
+// calcula promoções vigentes e devolve o formato esperado pelo cardápio do cliente.
 import { isImageDataUrl, isStoredImageUrl, migrateImageReferences, storeImageDataUrl } from '../src/storage/neon.mjs';
 
 const RESTAURANT_ID = 'rest-bela-mesa';
 
+// Garante que as tabelas de tamanhos e bordas existam antes de montar o catálogo.
 async function ensurePizzaConfigSchema() {
   await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (
     id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL,
@@ -28,6 +32,7 @@ function saoPauloWeekday() {
   return ({ Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 })[day] || 1;
 }
 
+// Retorna o preço promocional somente quando a promoção está ativa no dia atual e reduz o preço base.
 function promotionPrice(product, promotion) {
   if (!promotion || Number(promotion.active) !== 1) return null;
   let weekdays = [];
@@ -40,6 +45,7 @@ function promotionPrice(product, promotion) {
   return Number.isInteger(price) && price >= 0 && price < base ? price : null;
 }
 
+// Rota somente de leitura: limita consultas públicas, carrega os dados e responde com cache curto.
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
