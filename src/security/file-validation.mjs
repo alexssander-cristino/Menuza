@@ -1,3 +1,6 @@
+// Validação de anexos administrativos.
+// Normaliza nomes de arquivos e verifica documentos recebidos antes de aceitá-los,
+// reduzindo riscos de nomes malformados e formatos não permitidos.
 const MAX_DOCUMENT_BYTES = 1_300_000;
 
 function decodeBase64(value) {
