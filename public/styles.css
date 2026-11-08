@@ -1,3 +1,6 @@
+/* Estilos base do Menuza.
+   Contém layout global, componentes do cardápio, painel, modais, formulários,
+   estados responsivos e componentes compartilhados. Arquivos CSS menores refinam áreas específicas. */
 :root{
 /* Menuza — identidade visual vinho, terracota e dourado */
 --mz-primary:#761d25;
