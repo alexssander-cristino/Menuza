@@ -8,6 +8,10 @@ import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypt
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
 import { restaurantLocalDatePrefix } from './src/time.mjs';
+// Menuza — servidor HTTP local e backend principal.
+// Reúne inicialização do SQLite, autenticação, regras de pedidos, rotas administrativas
+// e públicas, entrega dos arquivos estáticos e comunicação em tempo real com o painel.
+// A API hospedada na Vercel possui um adaptador próprio em api/[...path].mjs.
 import { verifyTotp } from './src/auth-totp.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +39,7 @@ const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 let lastRateCleanup = 0;
 const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
+// Banco de dados: cria o diretório, abre o SQLite e aplica o schema/migrações compatíveis.
 await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
@@ -103,6 +108,7 @@ for (const table of db.prepare("SELECT id FROM restaurant_tables WHERE restauran
   db.prepare('UPDATE restaurant_tables SET qr_token=? WHERE id=? AND restaurant_id=?').run(randomBytes(24).toString('base64url'), table.id, RESTAURANT_ID);
 }
 
+// Dados iniciais: popula o restaurante demonstrativo somente quando o banco ainda está vazio.
 function seedDatabase() {
   const seed = makeSeed();
   db.exec('BEGIN');
@@ -119,6 +125,7 @@ function seedDatabase() {
 }
 
 const statement = sql => db.prepare(sql);
+// Leitura do cardápio: converte registros do banco para o formato usado pelo frontend.
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
   const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.size_prices_json AS sizePricesJson,p.ingredient_ids_json AS ingredientIdsJson,p.default_ingredient_ids_json AS defaultIngredientIdsJson,p.ingredients_configured AS ingredientsConfigured,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
@@ -143,6 +150,7 @@ function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   });
   return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
+// Sessões: assina os dados com HMAC para impedir alterações no conteúdo do cookie.
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = createHmac('sha256', SECRET).update(body).digest('base64url');
@@ -163,11 +171,13 @@ function readSession(request, cookieName = ADMIN_SESSION_COOKIE) {
     return session.exp > Date.now() ? session : null;
   } catch { return null; }
 }
+// Autorização: bloqueia rotas administrativas sem sessão válida do restaurante configurado.
 function requireAdmin(request) {
   const session = readSession(request);
   if (!session || session.role !== 'admin' || session.restaurantId !== RESTAURANT_ID) throw Object.assign(new Error('Entre no painel para continuar.'), { status: 401 });
   return session;
 }
+// Cliente autenticado: recupera a sessão do cliente sem tornar a autenticação obrigatória.
 function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
@@ -238,6 +248,7 @@ function clientIp(request) {
 function rateBucketKey(value) {
   return createHmac('sha256', SECRET).update(String(value)).digest('hex');
 }
+// Proteção contra abuso: agrupa tentativas por origem/rota e aplica limites temporais.
 function consumeRateLimits(rules) {
   const now = Date.now();
   if (now - lastRateCleanup > RATE_CLEANUP_INTERVAL_MS) {
@@ -320,7 +331,8 @@ function fail(response, error) {
   if (status >= 500) console.error(error);
   send(response, status, { error: status >= 500 ? 'O servidor não conseguiu concluir a solicitação.' : error.message });
 }
-async function bodyOf(request, maxBytes = MAX_BODY) {
+async // Entrada HTTP: lê o corpo da requisição respeitando o limite de bytes permitido.
+function bodyOf(request, maxBytes = MAX_BODY) {
   let raw = '';
   let bytes = 0;
   for await (const chunk of request) {
@@ -343,6 +355,7 @@ function assertSameOrigin(request) {
   const expectedSecure = 'https://' + request.headers.host;
   if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
 }
+// Pedidos: monta a representação completa de um pedido a partir do identificador.
 function orderById(id, restaurantId = RESTAURANT_ID) {
   const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt,(SELECT prep_minutes FROM restaurants WHERE id=orders.restaurant_id) AS prepMinutes FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
   if (!order) return null;
@@ -353,6 +366,7 @@ function orderById(id, restaurantId = RESTAURANT_ID) {
   const history = statement('SELECT status,changed_at AS changedAt,changed_by AS changedBy FROM order_status_history WHERE order_id=? ORDER BY id').all(id);
   return { ...order, items, history };
 }
+// Eventos: publica atualizações para os painéis conectados via Server-Sent Events.
 function emit(restaurantId, event) {
   const clients = streams.get(restaurantId);
   if (!clients) return;
@@ -390,6 +404,7 @@ function couponEligibility(coupon, subtotalCents, now = new Date()) {
   if (subtotalCents < coupon.minimum_subtotal_cents) throw Object.assign(new Error('O pedido mínimo para esse cupom é '+(coupon.minimum_subtotal_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'.'), { status: 422 });
   return Math.min(subtotalCents, coupon.discount_type === 'percent' ? Math.round(subtotalCents * coupon.discount_value / 100) : coupon.discount_value);
 }
+// Precificação: valida opções e calcula valores dos itens antes de persistir o pedido.
 function priceOrderItems(itemsInput) {
   if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
   const catalog = catalogFor(RESTAURANT_ID);
@@ -496,6 +511,7 @@ function saveCoupon(payload, id = null) {
   return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(newId,RESTAURANT_ID));
 }
 
+// Criação de pedido: valida cliente, itens, cupom e valores e grava a operação no banco.
 function createOrder(payload, customer = null) {
   const customerId = customer?.id || null;
   const customerName = cleanText(payload.customerName, 100);
@@ -571,6 +587,7 @@ function createOrder(payload, customer = null) {
   emit(RESTAURANT_ID, { type: 'order-created', orderId });
   return created;
 }
+// Indicadores: agrega os números usados na página inicial do painel administrativo.
 function dashboard() {
   const counts = statement('SELECT status,COUNT(*) AS count FROM orders WHERE restaurant_id=? GROUP BY status').all(RESTAURANT_ID);
   const today = restaurantLocalDatePrefix(new Date()) + '%';
@@ -604,7 +621,8 @@ function validateProductIngredientIdsLocal(value,type){
   if(value.some(id=>!allowed.has(id)))throw Object.assign(new Error('Um ingrediente selecionado não está disponível para este produto.'),{status:422});
   return value;
 }
-async function patchProduct(productId, patch) {
+async // Produtos: valida e salva alterações do cadastro sem aceitar campos fora das regras.
+function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
@@ -647,6 +665,7 @@ async function patchRestaurantSettings(patch) {
   emit(RESTAURANT_ID, { type: 'settings-updated' });
   return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
 }
+// Ingredientes: cadastra um ingrediente após validar nome, tipo e preço adicional.
 function createIngredient(payload) {
   const name=cleanText(payload.name,80),type=cleanText(payload.type,20),groupName=cleanText(payload.groupName,50)||'Adicionais',cents=Number(payload.cents);
   if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(cents)||cents<0||cents>999999) throw Object.assign(new Error('Informe nome, tipo e preço válido para o adicional.'),{status:422});
@@ -694,6 +713,7 @@ statement('INSERT INTO products (id,restaurant_id,category_id,name,description,t
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
+// Fluxo de atendimento: valida a transição de status e registra a atualização do pedido.
 function updateStatus(orderId, nextStatus) {
   if (!STATUS_FLOW.includes(nextStatus)) throw Object.assign(new Error('Estado de pedido inválido.'), { status: 422 });
   const order = statement('SELECT * FROM orders WHERE id=? AND restaurant_id=?').get(orderId, RESTAURANT_ID);
@@ -717,6 +737,7 @@ function updateStatus(orderId, nextStatus) {
   emit(RESTAURANT_ID, { type: 'order-updated', orderId });
   return updated;
 }
+// Arquivos públicos: resolve caminhos com segurança e entrega somente arquivos da pasta public.
 async function serveStatic(pathname, response) {
   let relative;
   try { relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1)); }
@@ -738,6 +759,7 @@ async function serveStatic(pathname, response) {
     } catch { send(response, 404, { error: 'Página não encontrada.' }); }
   }
 }
+// Roteador HTTP: aplica cabeçalhos, valida origem, identifica a rota e encaminha a operação.
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://' + (request.headers.host || 'localhost'));
@@ -1000,6 +1022,7 @@ server.requestTimeout = 15_000;
 server.headersTimeout = 10_000;
 server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 1_000;
+// Inicialização e encerramento: abre a porta configurada e fecha conexões/banco ao receber sinais do sistema.
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Mesa Studio disponível em http://localhost:' + PORT);
 });
