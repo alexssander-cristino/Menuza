@@ -1,3 +1,6 @@
+// Backup do banco SQLite.
+// Cria uma cópia consistente do arquivo de dados, valida o snapshot gerado
+// e aplica a política de retenção configurada para não acumular backups indefinidamente.
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
