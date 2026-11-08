@@ -1,3 +1,6 @@
+// Funções de data/hora do restaurante.
+// Centraliza a conversão para o fuso de São Paulo para que datas operacionais
+// não dependam do fuso configurado no computador ou na função serverless.
 const RESTAURANT_TIME_ZONE = 'America/Sao_Paulo';
 
 /**
