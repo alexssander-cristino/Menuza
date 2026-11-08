@@ -1,3 +1,6 @@
+// Conexão com o Postgres/Neon.
+// Carrega variáveis locais no desenvolvimento, mantém um pool reutilizável e expõe
+// helpers para consultas parametrizadas e transações com commit/rollback.
 import { Pool } from '@neondatabase/serverless';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -63,10 +66,12 @@ export const pool = new Pool({
   connectionTimeoutMillis: 10_000
 });
 
+// Executa SQL parametrizado e devolve o resultado normalizado do driver.
 export async function query(text, values = []) {
   return pool.query(text, values);
 }
 
+// Executa um conjunto de operações na mesma transação; em erro, desfaz todas as alterações.
 export async function withTransaction(work) {
   const client = await pool.connect();
   try {
