@@ -10,6 +10,9 @@
 // detail:'lite' remove os filtros feTurbulence (texturas), que são os mais pesados
 // em celulares e WebViews. O desenho continua igual, só sem o "grão" da massa.
 
+// Ilustrações 2D procedurais em SVG.
+// Constrói pizzas, hambúrgueres e hot dogs a partir dos ingredientes cadastrados,
+// usando sementes determinísticas para manter o desenho consistente entre renderizações.
 const TAU = Math.PI * 2;
 let uidCounter = 0;
 
