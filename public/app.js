@@ -2216,7 +2216,7 @@ function applyRestaurantBranding(name,logoUrl=''){
     brand.setAttribute('aria-label',clean+' — início');
   }
   const footer=root.querySelector('.footer-bottom');
-  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© '+clean+' · Cardápio digital com Menuza';
+  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© '+clean+' · Cardápio digital com Menuza / Desenvolvido por Alexssander C. C. Cristino';
   const announcement=root.querySelector('.announcement');
   if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
