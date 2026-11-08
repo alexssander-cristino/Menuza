@@ -6,6 +6,9 @@
 import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=33';
 export { buildFoodGeometry };
 
+// Motor de visualização 3D do cardápio.
+// Converte as malhas de food-models.js em buffers WebGL, aplica materiais/iluminação,
+// desenha a cena e controla câmera, zoom, rotação, gestos e ciclo de renderização.
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
