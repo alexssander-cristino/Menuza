@@ -1,6 +1,9 @@
 // Menuza — ferramentas de geometria procedural para os modelos 3D de alimentos.
 // Sem dependências e sem acesso a DOM: pode ser executado no navegador e em testes Node.
 
+// Núcleo matemático da geometria 3D procedural.
+// Fornece vetores, interpolação, ruído, perfis de superfície e distribuição de pontos.
+// Não acessa DOM nem WebGL: é uma biblioteca de cálculos usada por food-models.js.
 export const TAU = Math.PI * 2;
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
