@@ -2766,3 +2766,87 @@ button[data-action="view-generated-3d"],
   opacity:.42;
   cursor:not-allowed;
 }
+
+/* MENUZA — padrão visual para todos os campos de envio de arquivos e imagens */
+.form-field input[type="file"],
+.product-gallery-config input[type="file"],
+.beverage-admin-fields input[type="file"]{
+  display:block;
+  width:100%;
+  min-width:0;
+  min-height:58px;
+  padding:9px;
+  border:1px dashed var(--mz-line,#d8c7b4);
+  border-radius:12px;
+  background:var(--mz-surface,#fffaf4);
+  color:var(--mz-ink,#38231e);
+  font:inherit;
+  font-size:12px;
+  cursor:pointer;
+  transition:border-color .18s ease,background .18s ease,box-shadow .18s ease;
+}
+.form-field input[type="file"]:hover,
+.product-gallery-config input[type="file"]:hover,
+.beverage-admin-fields input[type="file"]:hover{
+  border-color:var(--mz-accent,#b52b2b);
+  background:color-mix(in srgb,var(--mz-accent,#b52b2b) 5%,var(--mz-surface,#fffaf4));
+}
+.form-field input[type="file"]:focus-visible,
+.product-gallery-config input[type="file"]:focus-visible,
+.beverage-admin-fields input[type="file"]:focus-visible{
+  outline:2px solid var(--mz-accent,#b52b2b);
+  outline-offset:2px;
+}
+.form-field input[type="file"]::file-selector-button,
+.product-gallery-config input[type="file"]::file-selector-button,
+.beverage-admin-fields input[type="file"]::file-selector-button{
+  min-height:36px;
+  margin:0 12px 0 0;
+  padding:0 14px;
+  border:0;
+  border-radius:8px;
+  background:var(--mz-accent,#b52b2b);
+  color:#fff;
+  font:inherit;
+  font-size:12px;
+  font-weight:750;
+  cursor:pointer;
+  transition:filter .18s ease,transform .18s ease;
+}
+.form-field input[type="file"]::file-selector-button:hover,
+.product-gallery-config input[type="file"]::file-selector-button:hover,
+.beverage-admin-fields input[type="file"]::file-selector-button:hover{
+  filter:brightness(1.1);
+}
+.logo-upload-button{
+  min-height:44px;
+  padding:0 17px;
+  border:1px dashed var(--mz-accent,#b52b2b);
+  border-radius:10px;
+  background:var(--mz-surface,#fffaf4);
+  color:var(--mz-ink,#38231e);
+  font-weight:750;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.logo-upload-button:hover{
+  border-color:var(--mz-accent,#b52b2b);
+  background:color-mix(in srgb,var(--mz-accent,#b52b2b) 8%,var(--mz-surface,#fffaf4));
+  transform:translateY(-1px);
+}
+.product-gallery-config>label:has(input[type="file"]),
+.beverage-admin-fields>label:has(input[type="file"]){
+  display:grid;
+  gap:8px;
+  color:var(--mz-ink,#38231e);
+  font-size:12px;
+  font-weight:700;
+}
+@media(max-width:600px){
+  .form-field input[type="file"]::file-selector-button,
+  .product-gallery-config input[type="file"]::file-selector-button,
+  .beverage-admin-fields input[type="file"]::file-selector-button{
+    margin-right:8px;
+    padding:0 10px;
+  }
+}
+
