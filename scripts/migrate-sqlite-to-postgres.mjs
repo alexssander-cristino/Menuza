@@ -1,3 +1,6 @@
+// Migração de dados SQLite → Postgres.
+// Lê os registros locais, converte os formatos necessários e grava os dados no destino;
+// execute somente após backup e validação do banco de origem e do destino.
 import { DatabaseSync } from 'node:sqlite';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
