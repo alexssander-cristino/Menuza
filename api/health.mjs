@@ -1,3 +1,6 @@
+// Verificação de saúde da API.
+// Confirma que a função serverless consegue executar uma consulta no Postgres;
+// útil para monitoramento e diagnóstico da conexão com o banco.
 import { query } from '../src/db/postgres.mjs';
 
 export default async function handler(request, response) {
