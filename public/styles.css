@@ -3079,3 +3079,7 @@ button[data-action="view-generated-3d"],
   .admin-main .admin-footer-author .footer-author-copy p{font-size:9px}
   .admin-main .admin-footer-author .footer-author-signature{display:none}
 }
+
+
+/* O rodapé público não deve aparecer junto da assinatura no painel administrativo. */
+body.admin-route .site-footer{display:none!important}
