@@ -1,3 +1,6 @@
+// Testes de integração do backend e dos fluxos principais do Menuza.
+// Cada cenário inicia uma instância isolada com banco temporário para validar rotas,
+// autenticação, pedidos, catálogo e regras operacionais sem depender de dados reais.
 import test from 'node:test';
 import { formatOrderStatusTime } from '../public/order-status-time.js';
 import assert from 'node:assert/strict';
