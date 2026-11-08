@@ -2974,31 +2974,42 @@ async function start(){
 
 );
  
-  const uploadDropZone=element=>element?.closest('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])');
+  let activeUploadDropZone=null;
+  const uploadDropZone=element=>element?.closest?.('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])')||null;
+  const uploadDropZoneAtPointer=event=>{
+    const pointed=document.elementFromPoint(event.clientX,event.clientY);
+    return uploadDropZone(pointed)||uploadDropZone(event.target);
+  };
+  const setActiveUploadDropZone=zone=>{
+    if(activeUploadDropZone===zone)return;
+    activeUploadDropZone?.classList.remove('is-dragover');
+    activeUploadDropZone=zone||null;
+    activeUploadDropZone?.classList.add('is-dragover');
+  };
+  const isFileDrag=event=>!event.dataTransfer?.types?.length||Array.from(event.dataTransfer.types).includes('Files');
   root.addEventListener('dragenter',event=>{
-    const zone=uploadDropZone(event.target);
-    if(!zone)return;
+    if(!isFileDrag(event))return;
     event.preventDefault();
-    zone.classList.add('is-dragover');
+    setActiveUploadDropZone(uploadDropZoneAtPointer(event));
   });
   root.addEventListener('dragover',event=>{
-    const zone=uploadDropZone(event.target);
-    if(!zone)return;
+    if(!isFileDrag(event))return;
     event.preventDefault();
     if(event.dataTransfer)event.dataTransfer.dropEffect='copy';
-    zone.classList.add('is-dragover');
+    // elementFromPoint acompanha o cursor mesmo quando o navegador aponta o evento
+    // para o document/body durante o arraste de arquivos vindos do sistema.
+    setActiveUploadDropZone(uploadDropZoneAtPointer(event));
   });
   root.addEventListener('dragleave',event=>{
-    const zone=uploadDropZone(event.target);
-    if(!zone||zone.contains(event.relatedTarget))return;
-    zone.classList.remove('is-dragover');
+    if(event.relatedTarget)return;
+    setActiveUploadDropZone(null);
   });
   root.addEventListener('drop',event=>{
-    const zone=uploadDropZone(event.target);
-    if(!zone)return;
+    if(!isFileDrag(event))return;
+    const zone=uploadDropZoneAtPointer(event)||activeUploadDropZone;
     event.preventDefault();
-    zone.classList.remove('is-dragover');
-    const input=zone.querySelector('input[type="file"]');
+    setActiveUploadDropZone(null);
+    const input=zone?.querySelector('input[type="file"]');
     const dropped=[...(event.dataTransfer?.files||[])];
     if(!input||!dropped.length)return;
     const accept=(input.accept||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);
@@ -3008,7 +3019,8 @@ async function start(){
     (input.multiple?valid:valid.slice(0,1)).forEach(file=>transfer.items.add(file));
     try{input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}catch{toast('Não foi possível carregar os arquivos arrastados.')}
   });
-  root.addEventListener('dragend',event=>uploadDropZone(event.target)?.classList.remove('is-dragover'));
+  window.addEventListener('dragend',()=>setActiveUploadDropZone(null));
+  window.addEventListener('blur',()=>setActiveUploadDropZone(null));
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
     if(event.target.id==='fiscalMonth'){app.admin.fiscalMonth=event.target.value;renderFiscalAdmin();return}
