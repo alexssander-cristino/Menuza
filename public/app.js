@@ -49,7 +49,7 @@ try {
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, inactivityTimer: null, lastActivityAt: 0, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
@@ -987,13 +987,60 @@ async function renderCustomerDashboard(){const content=root.querySelector('.cust
 function renderCustomerOrders(orders){const list=root.querySelector('.customer-orders-list');if(!list)return;const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};if(!orders.length){list.innerHTML='<div class="customer-orders-empty"><span class="customer-empty-mark">▱</span><h2>Ainda não há pedidos na sua conta</h2><p>Faça seu próximo pedido enquanto estiver conectado e ele ficará salvo no seu histórico pessoal.</p><a class="button button-dark" href="#menu" data-action="back-home">Explorar cardápio <span>'+uiIcon('arrow',14)+'</span></a></div>';return}list.innerHTML=orders.map(order=>{const status=order.history?.length?order.history[order.history.length-1].status:order.status;const fulfillment=order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel||''): 'Retirada';const date=order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'medium',timeStyle:'short'}):'Data não disponível';const items=(order.items||[]).map(item=>`${item.quantity}× ${esc(item.name)}`).join(' · ');const discount=Number(order.discountCents)>0?'<div class="customer-order-discount">Cupom '+esc(order.couponCode)+' · você economizou '+money(order.discountCents)+'</div>':'';return '<article class="customer-order-card"><div class="customer-order-card-top"><div><span class="customer-order-number">PEDIDO '+esc(order.id)+'</span><span class="customer-order-date">'+esc(date)+'</span></div><span class="customer-status status-'+esc(status)+'">'+esc(labels[status]||status)+'</span></div><div class="customer-order-items">'+items+'</div><div class="customer-order-card-bottom"><span>'+fulfillment+'</span><strong>'+money(order.totalCents)+'</strong></div><div class="customer-order-actions"><a class="customer-order-link" href="#pedido/'+encodeURIComponent(order.trackingToken)+'">Acompanhar pedido <span>'+uiIcon('arrow',14)+'</span></a><button class="button button-outline button-small" type="button" data-action="repeat-order" data-order-id="'+esc(order.id)+'">Repetir pedido ↻</button></div></article>'}).join('')}
 async function logoutCustomer(){try{await api('/api/customer/logout',{method:'POST'})}catch{}app.customer=null;app.customerMode='login';app.catalog=null;app.cart=[];setCart();toast('Você saiu da sua conta.');location.hash='';showCustomerAccount()}
 
+const ADMIN_INACTIVITY_LIMIT = 2 * 60 * 60 * 1000;
+const ADMIN_ACTIVITY_STORAGE_KEY = 'menuza-admin-last-activity';
+
+function stopAdminInactivityMonitor(){
+  clearTimeout(app.admin.inactivityTimer);
+  app.admin.inactivityTimer = null;
+  app.admin.lastActivityAt = 0;
+  try{localStorage.removeItem(ADMIN_ACTIVITY_STORAGE_KEY)}catch{}
+}
+function scheduleAdminInactivityCheck(){
+  clearTimeout(app.admin.inactivityTimer);
+  if(!app.admin.authenticated || location.hash !== '#admin')return;
+  let lastActivity = app.admin.lastActivityAt || Date.now();
+  try{lastActivity = Math.max(lastActivity, Number(localStorage.getItem(ADMIN_ACTIVITY_STORAGE_KEY)) || 0)}catch{}
+  app.admin.lastActivityAt = lastActivity;
+  const remaining = ADMIN_INACTIVITY_LIMIT - (Date.now() - lastActivity);
+  if(remaining <= 0){
+    logoutAdmin(true);
+    return;
+  }
+  app.admin.inactivityTimer = window.setTimeout(()=>scheduleAdminInactivityCheck(), remaining + 1);
+}
+function recordAdminActivity(){
+  if(!app.admin.authenticated || location.hash !== '#admin')return;
+  const now = Date.now();
+  app.admin.lastActivityAt = now;
+  try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(now))}catch{}
+  scheduleAdminInactivityCheck();
+}
+function startAdminInactivityMonitor(){
+  app.admin.lastActivityAt = Date.now();
+  try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(app.admin.lastActivityAt))}catch{}
+  scheduleAdminInactivityCheck();
+}
+['pointerdown','pointermove','keydown','input','change','submit','scroll','wheel','touchstart'].forEach(type=>{
+  document.addEventListener(type, recordAdminActivity, {capture:true, passive:true});
+});
+window.addEventListener('storage',event=>{
+  if(event.key === ADMIN_ACTIVITY_STORAGE_KEY && app.admin.authenticated && location.hash === '#admin'){
+    const timestamp = Number(event.newValue) || 0;
+    if(timestamp > app.admin.lastActivityAt){
+      app.admin.lastActivityAt = timestamp;
+      scheduleAdminInactivityCheck();
+    }
+  }
+});
+
 async function showAdmin(){
   clearInterval(app.trackingTimer);stopPromotionCarousel();root.body.classList.add('admin-route');root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
   try{
     const session=await api('/api/admin/me');
-    if(!session.authenticated){app.admin.authenticated=false;renderAdminLogin();return}
-    app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents();
-  }catch{app.admin.authenticated=false;renderAdminLogin()}
+    if(!session.authenticated){app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin();return}
+    app.admin.authenticated=true;startAdminInactivityMonitor();renderAdmin();refreshAdmin();connectAdminEvents();
+  }catch{app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
   stopPromotionCarousel();root.body.classList.add('admin-route');
@@ -2372,9 +2419,10 @@ function connectAdminEvents(){
     app.admin.networkListenersBound=true;
   }
 }
-async function logoutAdmin(){
+async function logoutAdmin(inactivity=false){
+  stopAdminInactivityMonitor();
   try{await api('/api/admin/logout',{method:'POST'})}catch{}
-  app.admin.authenticated=false;if(app.admin.eventSource)app.admin.eventSource.close();clearInterval(app.admin.refreshTimer);location.hash='';showHome();toast('Sessão encerrada.');
+  app.admin.authenticated=false;if(app.admin.eventSource)app.admin.eventSource.close();clearInterval(app.admin.refreshTimer);location.hash='';showHome();toast(inactivity?'Sessão encerrada após 2 horas sem atividade.':'Sessão encerrada.');
 }
 function renderCheckoutMode(form,mode){
   form.querySelector('[name=fulfillment]').value=mode;form.querySelectorAll('.fulfillment-option').forEach(button=>button.classList.toggle('active',button.dataset.fulfillment===mode));
