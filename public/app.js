@@ -1,3 +1,7 @@
+// Menuza — aplicação principal do navegador.
+// Este arquivo coordena as telas do cliente e do restaurante, o carrinho, checkout,
+// acompanhamento dos pedidos e as chamadas à API. Os módulos food-* cuidam da parte visual 2D/3D;
+// aqui ficam os estados da interface, renderização das telas e eventos do usuário.
 import { injectSpeedInsights } from './speed-insights.js';
 
 const UI_ICON_PATHS = {
@@ -12,6 +16,7 @@ const UI_ICON_PATHS = {
  pizza:'<path d="M5.6 3.4A19 19 0 0 1 21 19.2L4.8 22A19 19 0 0 1 5.6 3.4Z"/><path d="M5.6 3.4 21 19.2M10 8h.01M14 12h.01M8 15h.01"/>',
  utensils:'<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M18 2v20M18 2a4 4 0 0 0-4 4v4h4"/>'
 };
+// Ícones e pequenas animações reutilizadas pela interface.
 function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
 
 import { FoodScene } from './food-scene.js?v=96';
@@ -71,6 +76,7 @@ const safeCssImageUrl = value => {
   if(!/^https:\/\/[^\s"'<>]+$/i.test(raw)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(raw))return '';
   return esc(raw.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n\f]/g,char=>'\\'+char.charCodeAt(0).toString(16)+' '));
 };
+// Carrinho: normaliza itens, mantém quantidades e sincroniza o resumo exibido.
 function setCart() {
   const serializedCart = JSON.stringify(app.cart);
   // Uma chave idempotente só pode ser reutilizada para o mesmo carrinho.
@@ -166,7 +172,8 @@ function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
 }
-async function api(path, options = {}) {
+async // Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
+function api(path, options = {}) {
   let requestPath = path;
   if (typeof path === 'string' && path.startsWith('/api/')) {
     const requestUrl = new URL(path, location.origin);
@@ -216,7 +223,8 @@ function ingredientDescription(product, entries = defaultIngredients(product,app
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
 const hotDogArt = (seed, ingredients) => hotDogArtSvg(seed, ingredients || []);
-async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
+async // Imagens: converte arquivos enviados pelo usuário para um formato otimizado antes do upload.
+function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
   if(!file)return '';
   if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
   const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file)});
@@ -316,6 +324,7 @@ function renderRestaurantHours(){
   const hours=days.map(day=>'<div class="restaurant-hours-row"><span>'+names[day.key]+'</span><b>'+(!day.enabled?'Fechado':(day.periods||[]).map(period=>period.open+'–'+period.close).join(' · '))+'</b></div>').join('');
   target.innerHTML='<div class="restaurant-hours-card '+(status.isOpen?'is-open':'is-closed')+'"><div class="restaurant-hours-status"><span class="restaurant-hours-dot"></span><div><strong>'+(status.configured?(status.isOpen?'Estamos abertos':'Estamos fechados'):'Horários de funcionamento')+'</strong><small>'+(status.configured?esc(status.message||''):'Consulte os dias e horários de atendimento.')+'</small></div></div>'+(status.configured?'<div class="restaurant-hours-details"><strong class="restaurant-hours-label">HORÁRIOS DA SEMANA</strong><div class="restaurant-hours-list">'+hours+'</div></div>':'<p class="restaurant-hours-unconfigured">O restaurante ainda não cadastrou os horários.</p>')+'</div>';
 }
+// Cardápio público: monta categorias, produtos, busca e filtros visíveis ao cliente.
 function renderCatalog() {
   if (!app.catalog) return;
   renderRestaurantHours();
@@ -547,6 +556,7 @@ async function detectAR() {
   const node = root.getElementById('arStatus');
   if (node) node.textContent = arStatusText();
 }
+// Personalização: controla as opções do produto e recalcula a composição/preço selecionado.
 function renderBuilder() {
   if (app.arLite?.active) stopCameraAR();
   const builderRoot = root.getElementById('builderRoot');
@@ -721,6 +731,7 @@ function cartItemPrice(item){
   const base=Math.max(...(flavors.length?flavors:[product]).map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
   return base+(crust?.priceCents||0)+extras;
 }
+// Carrinho e checkout: apresenta os itens e prepara os dados que serão enviados como pedido.
 function renderCart(){
   const total=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
   const items=app.cart.map(item=>{
@@ -961,6 +972,7 @@ async function launchAR(productId) {
 
   await startCameraAR(productId);
 }
+// Acompanhamento: abre a tela pública do pedido e consulta seu status atualizado.
 function showTracking(token){
   root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('trackingView').classList.remove('hidden');
   clearInterval(app.trackingTimer);loadTracking(token);app.trackingTimer=setInterval(()=>loadTracking(token),5000);
@@ -979,6 +991,7 @@ async function loadTracking(token){
     target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><div class="checkmark">'+(isCancelled?'×':'✓')+'</div><div class="eyebrow" style="justify-content:center">ACOMPANHAMENTO DO PEDIDO</div><h1>'+(isCancelled?'Pedido cancelado.':'Estamos cuidando de tudo.')+'</h1><p>Este acompanhamento reflete as atualizações feitas pelo restaurante.<br>O número do pedido é <b>'+esc(order.id)+'</b>.</p></div><div class="tracking-card"><div class="tracking-meta"><div><small>STATUS AGORA</small><b>'+esc(labels[current]||current)+'</b></div><div class="status-pill">'+(order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):'Retirada')+'</div></div>'+(isCancelled?'<div class="ready-banner tracking-cancelled-banner">Este pedido foi cancelado.</div>':'<div class="status-timeline" style="grid-template-columns:repeat('+flow.length+',minmax(0,1fr))">'+timeline+'</div>')+(prepEstimate?'<div class="ready-banner tracking-estimate">'+esc(prepEstimate)+'</div>':'')+(canCustomerCancel?'<div class="tracking-cancel-actions"><div><strong>Precisa desistir do pedido?</strong><small>Você pode cancelar enquanto o restaurante ainda não iniciou o preparo.</small></div><button type="button" class="tracking-cancel-button" data-action="cancel-order" data-token="'+esc(token)+'">Cancelar pedido</button></div>':'')+'<div class="tracking-items"><h3>Itens do pedido</h3>'+rows+'<div class="tracking-order-item" style="border-top:1px solid #e5e8df;margin-top:5px;padding-top:13px"><b>Total</b><b>'+money(order.totalCents)+'</b></div></div>'+(current==='ready'?'<div class="ready-banner">Seu pedido está pronto. Bom apetite!</div>':current==='completed'?'<div class="ready-banner">Pedido concluído. Esperamos que tenha gostado!</div>':'')+'<p class="tracking-note">Pagamento combinado diretamente com o restaurante. O status acompanha as atualizações reais da equipe.</p></div></section>';
   }catch(e){target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><h1>Não encontramos esse pedido.</h1><p>'+esc(e.message)+'</p></div></section>'}
 }
+// Navegação por hash: decide qual tela renderizar conforme a rota atual do navegador.
 function showHome(){root.body.classList.remove('admin-route');clearInterval(app.trackingTimer);root.getElementById('trackingView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('homeView').classList.remove('hidden')}
 function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));return openMenu()}
 async function showCustomerAccount(){clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');const target=root.getElementById('trackingView');target.classList.remove('hidden');target.innerHTML='<section class="customer-orders-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="customer-orders-heading"><div class="eyebrow">SUA EXPERIÊNCIA MENUZA</div><h1>Sua <em>conta.</em></h1><p>Entre para consultar seus pedidos com privacidade. Cada conta acessa apenas os pedidos vinculados a ela.</p></div><div class="customer-account-content"></div></section>';app.customerMode=app.customerMode||'login';renderCustomerAuth();try{const result=await api('/api/customer/me');app.customer=result.customer;if(app.customer)await renderCustomerDashboard()}catch{app.customer=null}}
@@ -1035,7 +1048,8 @@ window.addEventListener('storage',event=>{
   }
 });
 
-async function showAdmin(){
+async // Entrada do painel: valida a sessão administrativa antes de exibir dados protegidos.
+function showAdmin(){
   clearInterval(app.trackingTimer);stopPromotionCarousel();root.body.classList.add('admin-route');root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
   try{
     const session=await api('/api/admin/me');
@@ -1227,6 +1241,7 @@ async function renderPizzaConfigAdmin(){
  const form=target.querySelector('#pizzaConfigForm');form.addEventListener('submit',async e=>{e.preventDefault();const sizeRows=[...form.querySelectorAll('#pizzaSizeRows .pizza-config-row')],crustRows=[...form.querySelectorAll('#pizzaCrustRows .pizza-config-row')];const makeKey=(label,index)=>label.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+index;const sizes=sizeRows.map((row,i)=>({key:row.querySelector('[name=sizeKey]')?.value||makeKey(row.querySelector('[name=sizeLabel]').value.trim(),i),label:row.querySelector('[name=sizeLabel]').value.trim(),diameterCm:Number(row.querySelector('[name=sizeDiameter]').value),maxFlavors:Number(row.querySelector('[name=sizeFlavors]').value)}));const crusts=crustRows.map((row,i)=>({key:row.querySelector('[name=crustKey]')?.value||makeKey(row.querySelector('[name=crustLabel]').value.trim(),i),label:row.querySelector('[name=crustLabel]').value.trim(),priceCents:Math.round(Number(row.querySelector('[name=crustPrice]').value)*100)}));const button=form.querySelector('[type=submit]');button.disabled=true;try{await api('/api/admin/pizza-config',{method:'PUT',body:JSON.stringify({sizes,crusts})});app.catalog=await api('/api/admin/catalog');toast('Tamanhos e bordas atualizados.');renderPizzaConfigAdmin()}catch(error){toast(error.message||'Não foi possível salvar.');button.disabled=false}});
  }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar tamanhos e bordas</h2><p>'+esc(error.message)+'</p></section>'}
 }
+// Estrutura do painel: desenha a navegação e encaminha para a seção administrativa selecionada.
 function renderAdmin(){
   const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['daily-closing','Fechamento diário','▤'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['catalog','Produtos','▤'],['pizza-config','Tamanhos e bordas',uiIcon('pizza',18)],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['opening-hours','Horários','◷'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Restaurante','⚙']] }];
   const tabs=groups.flatMap(group=>group.items);
@@ -1295,7 +1310,8 @@ function orderSoundButtonContent(){
     : '<path class="sound-mute" d="m16 9 6 6m0-6-6 6"/>';
   return '<svg class="order-sound-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/>'+waves+'</svg><span>'+(app.admin.soundEnabled?'Som ativado':'Ativar som de novos pedidos')+'</span>';
 }
-async function refreshAdmin(){
+async // Atualização operacional: busca pedidos e indicadores sem exigir recarregamento da página.
+function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
   try{
     const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);
@@ -1391,6 +1407,7 @@ function updateOrderElapsedTimes(){
     node.setAttribute('aria-label',overdue?'Atenção: pedido há '+minutes+' minutos, acima do tempo estimado de '+limit+' minutos':'Pedido há '+minutes+' minutos');
   }
 }
+// Gestão de pedidos: filtros, status, tempos e ações disponíveis para a equipe.
 function renderOrdersAdmin(metrics,orders){
   app.admin.orders=orders;
   const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML=skeletonMarkup('dashboard');return}
@@ -1464,7 +1481,8 @@ function readProductSizePrices(container){
   }
   return prices;
 }
-async function renderCatalogAdmin(){
+async // Gestão do cardápio: edição de produtos, categorias, tamanhos e disponibilidade.
+function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');
   target.innerHTML=skeletonMarkup('content');
   try{
@@ -2271,7 +2289,8 @@ function applyRestaurantBranding(name,logoUrl=''){
   const announcement=root.querySelector('.announcement');
   if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
-async function renderIngredientsAdmin(){
+async // Ingredientes: cadastro, organização por tipo e configuração dos adicionais.
+function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const catalog=await api('/api/admin/catalog');
@@ -2382,6 +2401,7 @@ function handleAdminOnline(){
   // também em navegadores que ficaram suspensos por muito tempo.
   connectAdminEvents();
 }
+// Eventos em tempo real: mantém o painel informado sobre novos pedidos e mudanças no servidor.
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
   setAdminConnectionState(navigator.onLine?'connecting':'offline');
@@ -2607,7 +2627,8 @@ function openMobileSiteMenu(){
   toggle?.setAttribute('aria-label','Fechar menu');
   menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
 }
-async function handleClick(event){
+async // Eventos delegados: trata cliques da interface em um único ponto para evitar listeners duplicados.
+function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
   if(target.dataset.action==='mobile-site-menu-go'){
@@ -3003,7 +3024,8 @@ function bindScrollStorytelling(){
   }
 }
 
-async function start(){
+async // Inicialização: conecta eventos globais, carrega a primeira rota e inicia os recursos da aplicação.
+function start(){
  root.body.addEventListener('click',handleClick);
  startProductImageRotation();
  root.addEventListener('submit',async event=>{
