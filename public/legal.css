@@ -1,3 +1,4 @@
+/* Estilos das páginas institucionais e legais: privacidade, termos e cookies. */
 /* Shared legal-page and privacy-notice styling */
 .legal-page{min-height:100vh;background:#f8f7fb;color:#211a35}
 .legal-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px max(22px,calc((100vw - 1120px)/2));background:#fff;border-bottom:1px solid #e8e4ef}
