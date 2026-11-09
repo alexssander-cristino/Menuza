@@ -609,7 +609,7 @@ async function priceItems(input) {
           included: (ingredientSource.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    const sizePromo=product.type==='pizza'?product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive):null;
+    const sizePromo=product.type==='pizza'&&flavorProducts.length===1?product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive):null;
     let effectiveProduct=sizePromo?{...product,sizePrices:{...(product.sizePrices||{}),[entry.sizeKey]:sizePromo.calculatedPriceCents}}:
       product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined&&product.type!=='pizza'?{...product,baseCents:product.promotionalPriceCents,sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))}:product;
     if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
