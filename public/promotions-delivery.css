@@ -142,3 +142,9 @@
   margin:0;
   accent-color:var(--mz-accent,#d21404);
 }
+
+/* Banner mostra o nome da oferta, sem replicar fotos ou preços de cada produto. */
+.promotion-hero-offer{background:radial-gradient(ellipse at 78% 45%,#71352f 0%,#3a1e2c 42%,#190e17 82%)}
+.promotion-hero-offer:after{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,rgba(22,10,18,.96) 0%,rgba(34,14,24,.72) 58%,rgba(28,12,21,.16) 100%)}
+.promotion-hero-offer .promotion-hero-copy{width:min(76%,760px)}
+@media(max-width:680px){.promotion-hero-offer .promotion-hero-copy{width:100%;padding:28px}}
