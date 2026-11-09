@@ -26,7 +26,7 @@
 .promotion-hero-carousel{position:relative;min-height:clamp(270px,31vw,390px);overflow:hidden;border-radius:26px;background:#190e17;isolation:isolate;box-shadow:0 24px 65px rgba(36,13,25,.2)}
 .promotion-hero-slide{position:absolute;inset:0;display:flex;width:100%;height:100%;min-height:inherit;align-items:center;overflow:hidden;border:0;padding:0;text-align:left;color:#fff;background:#24131b;cursor:pointer;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(5%) scale(1.025);transition:opacity .85s ease,transform 1s cubic-bezier(.2,.75,.25,1),visibility .85s;isolation:isolate}
 .promotion-hero-slide.is-active{position:relative;opacity:1;visibility:visible;pointer-events:auto;transform:translateX(0) scale(1);z-index:1}
-.promotion-hero-banner{background-image:var(--promotion-slide-image);background-size:cover;background-position:center 48%}
+.promotion-hero-banner{background-image:var(--promotion-slide-image);background-size:contain;background-position:right center;background-repeat:no-repeat;background-color:#190e17}
 .promotion-hero-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(100deg,rgba(19,8,15,.94) 0%,rgba(27,10,20,.78) 43%,rgba(20,9,16,.12) 100%)}
 .promotion-hero-copy{position:relative;z-index:3;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:13px;width:min(64%,700px);padding:clamp(30px,6vw,76px);max-width:760px}
 .promotion-hero-copy small{display:flex;align-items:center;gap:9px;font-size:.68rem;font-weight:900;letter-spacing:.2em;color:#ffd9ce}
@@ -144,7 +144,7 @@
 }
 
 /* Banner mostra o nome da oferta, sem replicar fotos ou preços de cada produto. */
-.promotion-hero-offer{background:radial-gradient(ellipse at 78% 45%,#71352f 0%,#3a1e2c 42%,#190e17 82%)}
+.promotion-hero-offer{background-color:#190e17;background-image:linear-gradient(90deg,rgba(22,10,18,.96) 0%,rgba(34,14,24,.72) 48%,rgba(28,12,21,.2) 100%),var(--promotion-slide-image);background-size:cover,contain;background-position:center,right center;background-repeat:no-repeat}
 .promotion-hero-offer:after{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,rgba(22,10,18,.96) 0%,rgba(34,14,24,.72) 58%,rgba(28,12,21,.16) 100%)}
 .promotion-hero-offer .promotion-hero-copy{width:min(76%,760px)}
 @media(max-width:680px){.promotion-hero-offer .promotion-hero-copy{width:100%;padding:28px}}
@@ -160,7 +160,7 @@
 .promotion-offer-card{display:flex;flex-direction:column;min-width:0;border:1px solid color-mix(in srgb,var(--line) 76%,#d94b45 24%);border-radius:22px;background:var(--surface,var(--paper));box-shadow:0 12px 34px rgba(45,18,25,.075);transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease}
 .promotion-offer-card:hover{transform:translateY(-5px);border-color:rgba(210,20,4,.34);box-shadow:0 22px 48px rgba(45,18,25,.14)}
 .promotion-offer-media{position:relative;overflow:hidden;isolation:isolate;border-radius:21px 21px 0 0;background:linear-gradient(135deg,#27151d,#713044)}
-.promotion-offer-image{height:clamp(180px,19vw,245px);object-fit:cover;transition:transform .65s cubic-bezier(.2,.75,.25,1),filter .4s}
+.promotion-offer-image{height:clamp(180px,19vw,245px);object-fit:contain;background:#211319;transition:transform .65s cubic-bezier(.2,.75,.25,1),filter .4s}
 .promotion-offer-card:hover .promotion-offer-image{transform:scale(1.045);filter:saturate(1.08)}
 .promotion-offer-placeholder{display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center}
 .promotion-offer-placeholder .ui-icon{display:grid;place-items:center;width:54px;height:54px;border:1px solid rgba(255,255,255,.3);border-radius:18px;background:rgba(255,255,255,.1)}
