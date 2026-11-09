@@ -239,6 +239,7 @@ async function ensurePromoDeliverySchema() {
         UNIQUE(restaurant_id,product_id)
       )`);
       await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
       await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
       await query("ALTER TABLE product_promotions DROP CONSTRAINT IF EXISTS product_promotions_restaurant_id_product_id_key");
       await query("CREATE UNIQUE INDEX IF NOT EXISTS product_promotions_product_size_unique ON product_promotions(restaurant_id,product_id,size_key)");
@@ -338,12 +339,12 @@ async function savePromotion(body,id=null) {
   else throw fail('Escolha um tipo de promoção válido.',422);
   const now=new Date().toISOString(),promotionId=id||'prm_'+randomBytes(12).toString('hex');
   const result=await query(`INSERT INTO product_promotions
-    (id,restaurant_id,product_id,size_key,included_crust_key,discount_type,promotional_price_cents,discount_percent,weekdays_json,active,created_at,updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
-    ON CONFLICT (restaurant_id,product_id,size_key) DO UPDATE SET included_crust_key=EXCLUDED.included_crust_key,discount_type=EXCLUDED.discount_type,
+    (id,restaurant_id,product_id,promotion_name,size_key,included_crust_key,discount_type,promotional_price_cents,discount_percent,weekdays_json,active,created_at,updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+    ON CONFLICT (restaurant_id,product_id,size_key) DO UPDATE SET promotion_name=EXCLUDED.promotion_name,included_crust_key=EXCLUDED.included_crust_key,discount_type=EXCLUDED.discount_type,
     promotional_price_cents=EXCLUDED.promotional_price_cents,discount_percent=EXCLUDED.discount_percent,
     weekdays_json=EXCLUDED.weekdays_json,active=EXCLUDED.active,updated_at=EXCLUDED.updated_at
-    RETURNING *`,[promotionId,RESTAURANT_ID,productId,sizeKey,crustKey,type,price,percent,JSON.stringify(days),body.active===false?0:1,now]);
+    RETURNING *`,[promotionId,RESTAURANT_ID,productId,clean(body.promotionName,80),sizeKey,crustKey,type,price,percent,JSON.stringify(days),body.active===false?0:1,now]);
   return result.rows[0];
 }
 async function saveDeliveryZone(body,id=null) {
@@ -499,7 +500,7 @@ async function catalogFor(admin = false) {
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
     const rows=product.type==='pizza'?[...promotionRows.filter(p=>p.product_id===product.id),...promotionRows.filter(p=>p.product_id==='__all_pizzas__')]:promotionRows.filter(p=>p.product_id===product.id);
-    const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,applyToAllPizzas:p.product_id==='__all_pizzas__',sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
+    const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,promotionName:p.promotion_name||'',applyToAllPizzas:p.product_id==='__all_pizzas__',sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
     product.promotions=mapped;
     const activePizza=mapped.filter(p=>p.sizeKey&&p.promotionActive);
     const legacy=mapped.find(p=>!p.sizeKey);
@@ -899,7 +900,7 @@ export default async function handler(req, res) {
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
     if (method==='GET'&&path==='/api/admin/promotions') {
       await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true);
-      const rows=(await query("SELECT id,product_id AS \"productId\",size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 ORDER BY created_at DESC",[RESTAURANT_ID])).rows;
+      const rows=(await query("SELECT id,product_id AS \"productId\",promotion_name AS \"promotionName\",size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 ORDER BY created_at DESC",[RESTAURANT_ID])).rows;
       return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:rows.map(p=>({...p,productId:p.productId,sizeKey:p.sizeKey||'',includedCrustKey:p.includedCrustKey||'',promotionalPriceCents:p.promotionalPriceCents===null?null:Number(p.promotionalPriceCents),discountPercent:p.discountPercent===null?null:Number(p.discountPercent),weekdays:(()=>{try{return JSON.parse(p.weekdaysJson||'[]')}catch{return []}})(),active:Number(p.active)===1}))});
     }
     if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
