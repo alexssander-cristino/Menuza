@@ -498,7 +498,7 @@ async function catalogFor(admin = false) {
   if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
-    const rows=promotionRows.filter(p=>p.product_id===product.id||(product.type==='pizza'&&p.product_id==='__all_pizzas__'));
+    const rows=product.type==='pizza'?[...promotionRows.filter(p=>p.product_id==='__all_pizzas__'),...promotionRows.filter(p=>p.product_id===product.id)]:promotionRows.filter(p=>p.product_id===product.id);
     const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
     product.promotions=mapped;
     const activePizza=mapped.filter(p=>p.sizeKey&&p.promotionActive);
