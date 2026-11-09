@@ -453,7 +453,7 @@ function renderPromotionBanner(){
   const home=root.getElementById('homeView');
   if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
   if(existing&&home.contains(existing))existing.outerHTML=html;
-  else{existing?.remove();home.insertAdjacentHTML('afterbegin',html)}
+  else{existing?.remove();const hoursBanner=root.getElementById('restaurantHoursBanner');if(hoursBanner&&home.contains(hoursBanner))hoursBanner.insertAdjacentHTML('afterend',html);else home.insertAdjacentHTML('afterbegin',html)}
   // Só inicia a rotação quando existe ao menos uma promoção válida hoje.
   startPromotionCarousel(root.getElementById('promotionBanner'));
 }
