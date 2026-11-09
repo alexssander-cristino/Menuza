@@ -442,7 +442,7 @@ function renderPromotionBanner(){
     });
   });
   const offers=[...uniquePromotions.values()];
-  const bannerEnabled=Boolean(data?.active&&data.image);
+  const bannerEnabled=Boolean(data?.active&&data.image&&offers.length);
   if(!offers.length&&!bannerEnabled){stopPromotionCarousel();existing?.remove();return}
   const slides=[];
   if(bannerEnabled){
@@ -451,7 +451,7 @@ function renderPromotionBanner(){
   offers.forEach((promotion,index)=>{
     const title=String(promotion.promotionName||'Oferta especial').trim()||'Oferta especial';
     const description='Confira esta promoção no cardápio.';
-    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-offer" data-action="open-promotions" aria-label="Ver promoção '+esc(title)+'"><span class="promotion-hero-copy"><small><i></i> OFERTA ESPECIAL</small><strong>'+esc(title)+'</strong><span>'+esc(description)+'</span><b class="promotion-hero-cta">Ver promoção <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-offer '+(!bannerEnabled&&index===0?'is-active':'')+'" data-action="open-promotions" aria-label="Ver promoção '+esc(title)+'"><span class="promotion-hero-copy"><small><i></i> OFERTA ESPECIAL</small><strong>'+esc(title)+'</strong><span>'+esc(description)+'</span><b class="promotion-hero-cta">Ver promoção <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
   });
   const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
   stopPromotionCarousel();
