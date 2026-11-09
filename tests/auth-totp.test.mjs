@@ -1,4 +1,5 @@
 import test from 'node:test';
+// Testes da autenticação em duas etapas: validam segredos, códigos temporários e janelas de tolerância.
 import assert from 'node:assert/strict';
 import { verifyTotp, generateTotpSecret } from '../src/auth-totp.mjs';
 
