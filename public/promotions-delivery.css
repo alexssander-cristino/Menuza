@@ -208,3 +208,17 @@
 .promotion-admin-image-control>span{font-size:.72rem;color:var(--muted)}
 .promotion-admin-image-control label{cursor:pointer;white-space:nowrap}
 @media(max-width:760px){.promotion-admin-image-control{width:100%;justify-content:flex-start}.promotion-admin-row{flex-wrap:wrap}}
+
+
+/* Uploads independentes para banner e card da promoção. */
+.promotion-image-upload-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.promotion-image-upload-grid>.form-field{min-width:0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.promotion-image-upload-grid .promo-banner-preview-wrap{margin-top:10px;max-height:190px}
+.promotion-image-upload-grid .promo-banner-preview{height:170px;max-height:170px;object-fit:cover}
+.promotion-admin-image-control--split{display:flex;gap:14px;flex-wrap:wrap}
+.promotion-admin-image-control--split>div{display:grid;grid-template-columns:58px auto;align-items:center;gap:5px 9px;min-width:125px}
+.promotion-admin-image-control--split>div>small{grid-column:1/-1;font-weight:800;color:var(--ink)}
+.promotion-admin-image-control--split>div>img{grid-row:2/4}
+.promotion-admin-image-control--split>div>span{font-size:.7rem;color:var(--muted)}
+.promotion-admin-image-control--split label{grid-column:2;grid-row:3}
+@media(max-width:640px){.promotion-image-upload-grid{grid-template-columns:1fr}.promotion-image-upload-grid .promo-banner-preview{height:150px}}
