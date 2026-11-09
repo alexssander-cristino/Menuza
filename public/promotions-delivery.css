@@ -113,3 +113,32 @@
   padding:0;
   background:transparent;
 }
+
+
+/* Editor compacto dos dias ativos de cada promoção cadastrada. */
+.promotion-weekday-editor{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:9px;
+}
+.promotion-weekday-editor label{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-height:25px;
+  padding:3px 7px;
+  border:1px solid var(--mz-line,#e5d8ce);
+  border-radius:7px;
+  background:var(--mz-surface,#fff);
+  color:var(--mz-ink,#38231e);
+  font-size:10px;
+  font-weight:650;
+  cursor:pointer;
+}
+.promotion-weekday-editor input{
+  width:12px;
+  height:12px;
+  margin:0;
+  accent-color:var(--mz-accent,#d21404);
+}
