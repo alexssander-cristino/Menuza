@@ -241,6 +241,7 @@ async function ensurePromoDeliverySchema() {
       await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
       await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
       await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
       await query("ALTER TABLE product_promotions DROP CONSTRAINT IF EXISTS product_promotions_restaurant_id_product_id_key");
       await query("CREATE UNIQUE INDEX IF NOT EXISTS product_promotions_product_size_unique ON product_promotions(restaurant_id,product_id,size_key)");
       await query(`CREATE TABLE IF NOT EXISTS delivery_zones (
@@ -349,14 +350,14 @@ async function savePromotion(body,id=null) {
   if(type==='fixed'){price=Number(body.promotionalPriceCents);if(!Number.isInteger(price)||price<1||price>=normalPrice)throw fail('O preço promocional deve ser menor que o preço normal do tamanho.',422)}
   else if(type==='percent'){percent=Number(body.discountPercent);if(!Number.isInteger(percent)||percent<1||percent>90)throw fail('O desconto deve ficar entre 1% e 90%.',422)}
   else throw fail('Escolha um tipo de promoção válido.',422);
-  const now=new Date().toISOString(),promotionId=id||'prm_'+randomBytes(12).toString('hex');
+  const rawBannerImage=String(body.bannerImage||'');if(rawBannerImage.length>1400000||rawBannerImage&&!isImageDataUrl(rawBannerImage)&&!isStoredImageUrl(rawBannerImage))throw fail('Envie uma imagem válida para o banner da promoção.',422);const bannerImage=rawBannerImage.startsWith('data:')?await storeImageDataUrl(rawBannerImage,'restaurants/promotion-banners'):rawBannerImage;const now=new Date().toISOString(),promotionId=id||'prm_'+randomBytes(12).toString('hex');
   const result=await query(`INSERT INTO product_promotions
-    (id,restaurant_id,product_id,promotion_name,size_key,included_crust_key,discount_type,promotional_price_cents,discount_percent,weekdays_json,active,created_at,updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
-    ON CONFLICT (restaurant_id,product_id,size_key) DO UPDATE SET promotion_name=EXCLUDED.promotion_name,included_crust_key=EXCLUDED.included_crust_key,discount_type=EXCLUDED.discount_type,
+    (id,restaurant_id,product_id,promotion_name,banner_image,size_key,included_crust_key,discount_type,promotional_price_cents,discount_percent,weekdays_json,active,created_at,updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
+    ON CONFLICT (restaurant_id,product_id,size_key) DO UPDATE SET promotion_name=EXCLUDED.promotion_name,banner_image=CASE WHEN EXCLUDED.banner_image<>'' THEN EXCLUDED.banner_image ELSE product_promotions.banner_image END,included_crust_key=EXCLUDED.included_crust_key,discount_type=EXCLUDED.discount_type,
     promotional_price_cents=EXCLUDED.promotional_price_cents,discount_percent=EXCLUDED.discount_percent,
     weekdays_json=EXCLUDED.weekdays_json,active=EXCLUDED.active,updated_at=EXCLUDED.updated_at
-    RETURNING *`,[promotionId,RESTAURANT_ID,productId,clean(body.promotionName,80),sizeKey,crustKey,type,price,percent,JSON.stringify(days),body.active===false?0:1,now]);
+    RETURNING *`,[promotionId,RESTAURANT_ID,productId,clean(body.promotionName,80),bannerImage,sizeKey,crustKey,type,price,percent,JSON.stringify(days),body.active===false?0:1,now]);
   return result.rows[0];
 }
 async function saveDeliveryZone(body,id=null) {
@@ -912,7 +913,7 @@ export default async function handler(req, res) {
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
     if (method==='GET'&&path==='/api/admin/promotions') {
       await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true);
-      const rows=(await query("SELECT id,product_id AS \"productId\",promotion_name AS \"promotionName\",size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 ORDER BY created_at DESC",[RESTAURANT_ID])).rows;
+      const rows=(await query("SELECT id,product_id AS \"productId\",promotion_name AS \"promotionName\",banner_image AS \"bannerImage\",size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 ORDER BY created_at DESC",[RESTAURANT_ID])).rows;
       return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:rows.map(p=>({...p,productId:p.productId,sizeKey:p.sizeKey||'',includedCrustKey:p.includedCrustKey||'',promotionalPriceCents:p.promotionalPriceCents===null?null:Number(p.promotionalPriceCents),discountPercent:p.discountPercent===null?null:Number(p.discountPercent),weekdays:(()=>{try{return JSON.parse(p.weekdaysJson||'[]')}catch{return []}})(),active:Number(p.active)===1}))});
     }
     if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
