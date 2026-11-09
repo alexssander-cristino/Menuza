@@ -609,11 +609,11 @@ async function priceItems(input) {
           included: (ingredientSource.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    const sizePromo=product.type==='pizza'&&flavorProducts.length===1?product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive):null;
+    const sizePromo=product.type==='pizza'?product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive):null;
     let effectiveProduct=sizePromo?{...product,sizePrices:{...(product.sizePrices||{}),[entry.sizeKey]:sizePromo.calculatedPriceCents}}:
       product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined&&product.type!=='pizza'?{...product,baseCents:product.promotionalPriceCents,sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))}:product;
     if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
-    if(product.type==='pizza'&&flavorProducts.length>1){const priceFor=p=>{const raw=Number(p.sizePrices?.[entry.sizeKey]);return Number.isInteger(raw)&&raw>0?raw:Number(p.baseCents)||0};effectiveProduct.sizePrices={...(effectiveProduct.sizePrices||{}),[entry.sizeKey]:Math.max(...flavorProducts.map(priceFor))};}
+    if(product.type==='pizza'&&flavorProducts.length>1){const priceFor=p=>{const raw=Number(p.sizePrices?.[entry.sizeKey]);return Number.isInteger(raw)&&raw>0?raw:Number(p.baseCents)||0};const maxBase=Math.max(...flavorProducts.map(priceFor));const mixedPromoPrice=sizePromo?(sizePromo.discountType==='percent'?Math.round(maxBase*(100-Number(sizePromo.discountPercent))/100):Number(sizePromo.promotionalPriceCents)):maxBase;effectiveProduct.sizePrices={...(effectiveProduct.sizePrices||{}),[entry.sizeKey]:mixedPromoPrice};}
     const normalizedSizeKey = product.type === 'plate' ? 'unico' : entry.sizeKey;
     const includedCrustKey=sizePromo?.includedCrustKey||'';
     const pricedCrusts=includedCrustKey&&entry.crustKey===includedCrustKey?cat.crusts.map(c=>c.key===includedCrustKey?{...c,priceCents:0}:c):cat.crusts;
