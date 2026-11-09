@@ -362,23 +362,34 @@ function renderPromotionsTab(){
   const section=root.getElementById('promotionsPage'),grid=root.getElementById('promotionsGrid'),count=root.getElementById('promotionsCount');
   if(!section||!grid)return;
   if(!app.catalog||!Array.isArray(app.catalog.products)){if(count)count.textContent='Não foi possível carregar as ofertas.';grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';return}
-  const grouped=new Map();
-  for(const product of app.catalog.products.filter(item=>Number(item.active)!==0))for(const promotion of (Array.isArray(product.promotions)?product.promotions:[])){
-    if(!promotion?.promotionActive)continue;
-    const key=String(promotion.promotionName||promotion.id||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();if(!key)continue;
-    if(!grouped.has(key))grouped.set(key,{promotion,products:[]});
-    const entry=grouped.get(key);if(!entry.products.some(item=>item.id===product.id))entry.products.push(product);
+  const offers=[];
+  for(const product of app.catalog.products.filter(item=>Number(item.active)!==0&&Number(item.available)!==0)){
+    for(const promotion of (Array.isArray(product.promotions)?product.promotions:[])){
+      if(!promotion?.promotionActive)continue;
+      const key=String(promotion.promotionName||promotion.id||'').trim().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+      if(!key)continue;
+      offers.push({product,promotion,key});
+    }
   }
-  const offers=[...grouped.values()];section.hidden=false;if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta disponível':'ofertas disponíveis');
+  section.hidden=false;
+  if(count)count.textContent=offers.length+' '+(offers.length===1?'produto em oferta':'produtos em oferta');
   if(!offers.length){grid.innerHTML='<div class="promotions-empty"><strong>Nenhuma oferta disponível agora.</strong><span>As promoções cadastradas aparecerão aqui quando estiverem ativas.</span></div>';return}
-  grid.innerHTML=offers.map(({promotion,products})=>{
-    const product=products[0],title=promotion.promotionName||'Oferta especial';
-    const names=products.length>3?products.slice(0,3).map(p=>p.name).join(', ')+' e mais '+(products.length-3):products.map(p=>p.name).join(', ');
-    const size=promotion.sizeKey?(app.catalog.sizes?.pizza||[]).find(item=>item.key===promotion.sizeKey):null;
-    const original=product.type==='pizza'?Number(product.sizePrices?.[promotion.sizeKey]||size?.priceCents||0):Number(product.baseCents||0),discounted=Number(promotion.calculatedPriceCents||0);
-    const price=discounted>0?'<div class="promotion-offer-price"><del>'+money(original)+'</del><strong>'+money(discounted)+'</strong>'+(size?'<small>'+esc(size.label)+'</small>':'')+'</div>':'';
-    const image=promotion.bannerImage?'<img class="promotion-offer-image" src="'+esc(promotion.bannerImage)+'" alt="'+esc(title)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>OFERTA ESPECIAL</span></div>';
-    return '<article class="product-card promotion-offer-card">'+image+'<div class="product-card-body"><span class="promotion-badge">OFERTA ESPECIAL</span><h3>'+esc(title)+'</h3><p>'+esc(names)+'</p>'+price+'<button class="button button-dark button-small" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'">Ver oferta <span>'+uiIcon('arrow',14)+'</span></button></div></article>';
+  grid.innerHTML=offers.map(({product,promotion})=>{
+    const title=promotion.promotionName||'Oferta especial';
+    const size=promotion.sizeKey?(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey):null;
+    const original=product.type==='pizza'?regularProductSizePrice(product,promotion.sizeKey||'media',size):regularProductSizePrice(product,'unico',null);
+    const discounted=Number(promotion.calculatedPriceCents||0);
+    const safeDiscount=discounted>0&&original>discounted?discounted:0;
+    const percent=safeDiscount?Math.round((1-safeDiscount/original)*100):0;
+    const imageUrl=promotion.bannerImage||productImages(product)[0]||'';
+    const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(product.name)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
+    const price=safeDiscount?'<div class="promotion-offer-price"><div><small>De</small><del>'+money(original)+'</del></div><div><small>Por</small><strong>'+money(safeDiscount)+'</strong></div>'+(size?'<span class="promotion-offer-size">'+esc(size.label)+'</span>':'')+'</div>':'';
+    const saving=safeDiscount?'<span class="promotion-offer-saving">-'+percent+'% <small>VOCÊ ECONOMIZA '+money(original-safeDiscount)+'</small></span>':'';
+    const description=product.description||ingredientDescription(product,defaultIngredients(product,app.catalog));
+    return '<article class="product-card promotion-offer-card">'+
+      '<div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span>'+saving+'</div>'+
+      '<div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(product.name)+'</h3><p>'+esc(description)+'</p>'+price+
+      '<button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(promotion.id||'')+'">Personalizar oferta <span>'+uiIcon('arrow',14)+'</span></button></div></article>';
   }).join('');
 }
 function stopPromotionCarousel(){
@@ -511,7 +522,7 @@ async function ensureAgeForProduct(product){
   if(customer.isAdult!==true){toast('Este produto é permitido apenas para maiores de 18 anos.');return false;}
   return true;
 }
-async function openBuilder(productId,cartItem=null) {
+async function openBuilder(productId,cartItem=null,promotionId=null) {
   // O modal precisa consultar a configuração mais recente no momento da abertura.
   // Atualizar apenas ao entrar no cardápio não resolve quando a página já ficou aberta
   // enquanto o restaurante cadastrava tamanhos, preços, bordas ou produtos.
@@ -532,7 +543,7 @@ async function openBuilder(productId,cartItem=null) {
   const ingredientProduct=initialByoFlavor||product;
   const requiredIds=ingredientProduct.ingredientsConfigured?(ingredientProduct.defaultIngredientIds||[]):app.catalog.ingredients.filter(item=>item.type===product.type&&item.included).map(item=>item.id);
   for(const id of requiredIds)if(!initial.some(item=>item.id===id))initial.push({id,quantity:1});
-  app.builder={productId,ingredients:initial,sizeKey:cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',flavorProductIds:initialFlavors,editId:cartItem?.cartId||null};
+  const selectedPromotion=promotionId?(product.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive):null;\n  app.builder={productId,ingredients:initial,sizeKey:selectedPromotion?.sizeKey||cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',flavorProductIds:initialFlavors,editId:cartItem?.cartId||null,promotion:selectedPromotion||null};
   app.rotate=0;app.zoom=1;renderBuilder();
 }
 function arStatusText(product = app.catalog?.products.find(item => item.id === app.builder?.productId)) {
@@ -579,7 +590,7 @@ function renderBuilder() {
   const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;
   const ingredientLimit = isBuildYourOwn ? 3 : 12;
   const selected = new Set(builder.ingredients.map(i => i.id));
-  const selectedIngredientDescription = ingredientDescription(product, builder.ingredients);
+  const selectedIngredientDescription = ingredientDescription(product, builder.ingredients);\n  const offerPromotion=builder.promotion;\n  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;\n  const offerPrice=Number(offerPromotion?.calculatedPriceCents)||0;\n  const offerPercent=offerPromotion&&offerRegular>offerPrice&&offerPrice>0?Math.round((1-offerPrice/offerRegular)*100):0;\n  const offerNotice=offerPromotion?'<section class="builder-promotion-summary"><div class="builder-promotion-icon">'+uiIcon('sparkles',20)+'</div><div class="builder-promotion-copy"><span>OFERTA ESPECIAL</span><strong>'+esc(offerPromotion.promotionName||'Condição promocional')+'</strong><small>Esta oferta está aplicada ao produto selecionado.</small></div>'+(offerPercent?'<div class="builder-promotion-discount"><b>'+offerPercent+'% OFF</b><small>Economize '+money(offerRegular-offerPrice)+'</small></div>':'')+'</section>':'';
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
   const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
   const sceneCanvas = app.scene?.canvas || null;
@@ -2678,7 +2689,7 @@ async function handleClick(event){
     root.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'start'});return;
   }
   if(target.dataset.action==='open-promotions'){root.getElementById('promotionsPage')?.scrollIntoView({behavior:'smooth',block:'start'});return}
-  if(target.dataset.action==='open-promotion-product'){const productId=target.dataset.product;if(productId)openBuilder(productId);return}
+  if(target.dataset.action==='open-promotion-product'){const productId=target.dataset.product,promotionId=target.dataset.promotion;if(productId)openBuilder(productId,null,promotionId||null);return}
   if(target.dataset.action==='promo-prev'){setPromotionSlide(promotionCarouselIndex-1);return}
   if(target.dataset.action==='promo-next'){setPromotionSlide(promotionCarouselIndex+1);return}
   if(target.dataset.action==='promo-slide'){setPromotionSlide(Number(target.dataset.promoIndex)||0);return}
