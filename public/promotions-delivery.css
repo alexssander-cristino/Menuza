@@ -154,3 +154,49 @@
 
 /* Banners individuais das promoções e cards da aba Ofertas especiais. */
 .promotion-offer-card{overflow:hidden}.promotion-offer-image{display:block;width:100%;height:190px;object-fit:cover;background:#321a23}.promotion-offer-placeholder{display:grid;place-items:center;background:linear-gradient(135deg,#321a23,#8c283b);color:#fff;font-weight:900;letter-spacing:.12em}.promotion-offer-card .product-card-body{display:flex;flex-direction:column;align-items:flex-start;gap:10px}.promotion-offer-card .product-card-body h3,.promotion-offer-card .product-card-body p{margin:0}.promotion-offer-price{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.promotion-offer-price del{color:var(--muted);font-size:.86rem}.promotion-offer-price strong{color:var(--accent,#d21404);font-size:1.25rem;font-weight:900}.promotion-offer-price small{font-size:.75rem;color:var(--muted)}.promotion-offer-card .button{margin-top:auto}.promotion-hero-offer{background-image:linear-gradient(90deg,rgba(19,13,16,.94),rgba(19,13,16,.48)),var(--promotion-slide-image);background-size:cover;background-position:center}
+
+
+/* Ofertas especiais: cards editoriais e personalização com contexto promocional. */
+.promotion-offer-card{display:flex;flex-direction:column;min-width:0;border:1px solid color-mix(in srgb,var(--line) 76%,#d94b45 24%);border-radius:22px;background:var(--surface,var(--paper));box-shadow:0 12px 34px rgba(45,18,25,.075);transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease}
+.promotion-offer-card:hover{transform:translateY(-5px);border-color:rgba(210,20,4,.34);box-shadow:0 22px 48px rgba(45,18,25,.14)}
+.promotion-offer-media{position:relative;overflow:hidden;isolation:isolate;border-radius:21px 21px 0 0;background:linear-gradient(135deg,#27151d,#713044)}
+.promotion-offer-image{height:clamp(180px,19vw,245px);object-fit:cover;transition:transform .65s cubic-bezier(.2,.75,.25,1),filter .4s}
+.promotion-offer-card:hover .promotion-offer-image{transform:scale(1.045);filter:saturate(1.08)}
+.promotion-offer-placeholder{display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center}
+.promotion-offer-placeholder .ui-icon{display:grid;place-items:center;width:54px;height:54px;border:1px solid rgba(255,255,255,.3);border-radius:18px;background:rgba(255,255,255,.1)}
+.promotion-offer-placeholder b{font-size:.68rem;letter-spacing:.2em}
+.promotion-offer-ribbon{position:absolute;left:14px;top:14px;padding:7px 10px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(28,12,19,.78);backdrop-filter:blur(12px);color:#fff;font-size:.62rem;font-weight:900;letter-spacing:.12em}
+.promotion-offer-saving{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;min-height:62px;padding:8px;border:2px solid rgba(255,255,255,.88);border-radius:50%;background:#d93635;color:#fff;box-shadow:0 8px 22px rgba(25,8,13,.25);font-size:1rem;font-weight:950;line-height:1}
+.promotion-offer-saving small{max-width:82px;margin-top:4px;font-size:.42rem;font-weight:800;line-height:1.15;text-align:center;letter-spacing:.02em}
+.promotion-offer-card .product-card-body{flex:1;padding:19px;gap:11px}
+.promotion-offer-name{display:inline-flex;max-width:100%;color:var(--accent,#d21404);font-size:.66rem;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+.promotion-offer-card .product-card-body h3{font-size:1.22rem;line-height:1.15;letter-spacing:-.025em}
+.promotion-offer-card .product-card-body>p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:.84rem;line-height:1.5}
+.promotion-offer-price{display:flex;align-items:flex-end;gap:18px;margin:4px 0 2px}
+.promotion-offer-price>div{display:grid;gap:3px}
+.promotion-offer-price>div>small{color:var(--muted);font-size:.65rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.promotion-offer-price del{font-size:.88rem;color:var(--muted);font-weight:600}
+.promotion-offer-price strong{font-size:1.55rem;line-height:1;color:var(--accent,#d21404);font-weight:950;letter-spacing:-.045em}
+.promotion-offer-size{padding:5px 8px;border-radius:8px;background:var(--paper);color:var(--muted);font-size:.7rem;font-weight:750}
+.promotion-offer-cta{width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:auto;border-radius:12px}
+.promotion-offer-cta span{display:inline-flex;transition:transform .2s}
+.promotion-offer-cta:hover span{transform:translate(3px,-2px)}
+.builder-promotion-summary{display:flex;align-items:center;gap:12px;margin:14px 0 16px;padding:14px;border:1px solid rgba(220,61,69,.22);border-radius:15px;background:linear-gradient(115deg,rgba(220,61,69,.1),rgba(244,157,76,.07))}
+.builder-promotion-icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:13px;background:rgba(220,61,69,.13);color:#d93635}
+.builder-promotion-copy{display:grid;gap:3px;min-width:0}
+.builder-promotion-copy>span{color:#d93635;font-size:.6rem;font-weight:950;letter-spacing:.15em}
+.builder-promotion-copy strong{font-size:.92rem;line-height:1.2}
+.builder-promotion-copy small,.builder-promotion-discount small{color:var(--muted);font-size:.7rem;line-height:1.3}
+.builder-promotion-discount{display:grid;gap:3px;justify-items:end;margin-left:auto;text-align:right}
+.builder-promotion-discount b{padding:6px 8px;border-radius:8px;background:#d93635;color:white;font-size:.72rem;white-space:nowrap}
+@media(max-width:640px){
+ .promotion-offer-card{border-radius:17px}
+ .promotion-offer-media{border-radius:16px 16px 0 0}
+ .promotion-offer-image{height:190px}
+ .promotion-offer-card .product-card-body{padding:15px}
+ .promotion-offer-price strong{font-size:1.4rem}
+ .builder-promotion-summary{align-items:flex-start;gap:9px;padding:11px}
+ .builder-promotion-icon{width:36px;height:36px}
+ .builder-promotion-discount b{font-size:.65rem}
+}
+@media(prefers-reduced-motion:reduce){.promotion-offer-card,.promotion-offer-image,.promotion-offer-cta span{transition:none!important}}
