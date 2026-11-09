@@ -37,12 +37,13 @@ function promotionPrice(product, promotion) {
   if (!promotion || Number(promotion.active) !== 1) return null;
   let weekdays = [];
   try { weekdays = JSON.parse(promotion.weekdays_json || '[]'); } catch {}
-  if (!Array.isArray(weekdays) || !weekdays.includes(saoPauloWeekday())) return null;
-  const base = Number(product.baseCents);
-  const price = promotion.discount_type === 'percent'
-    ? Math.round(base * (100 - Number(promotion.discount_percent)) / 100)
+  const today=saoPauloWeekday();
+  if (!Array.isArray(weekdays) || !weekdays.some(day=>Number(day)===today)) return null;
+  const base=Number(arguments.length>2?arguments[2]:(product.type==='pizza'?product.baseCents:product.baseCents));
+  const price=promotion.discount_type==='percent'
+    ? Math.round(base*(100-Number(promotion.discount_percent))/100)
     : Number(promotion.promotional_price_cents);
-  return Number.isInteger(price) && price >= 0 && price < base ? price : null;
+  return Number.isInteger(base)&&base>=1&&Number.isInteger(price)&&price>=0&&price<base?price:null;
 }
 
 // Rota somente de leitura: limita consultas públicas, carrega os dados e responde com cache curto.
@@ -66,6 +67,11 @@ export default async function handler(request, response) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(restaurant_id,product_id)
     )`);
+    // Compatibilidade com o cadastro atual: uma promoção pode ser por tamanho
+    // ou aplicada a todas as pizzas, e possui nome próprio.
+    await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
@@ -102,8 +108,6 @@ export default async function handler(request, response) {
       const storedImages = await migrateImageReferences(images, 'products/' + product.id);
       const imageUrl = storedImages[0] || '';
       if (imageUrl !== product.imageUrl || JSON.stringify(storedImages) !== JSON.stringify(images)) await query('UPDATE products SET image_url=$1,product_images_json=$2 WHERE id=$3 AND restaurant_id=$4',[imageUrl,JSON.stringify(storedImages),product.id,RESTAURANT_ID]);
-      const promotion = promotionResult.rows.find(item => item.product_id === product.id) || null;
-      const promotionalPriceCents = promotionPrice(product, promotion);
       return {
         ...product,
         sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
@@ -114,16 +118,11 @@ export default async function handler(request, response) {
         defaultIngredientIds: Array.isArray(defaultIngredientIds) ? defaultIngredientIds.filter(id => typeof id === 'string').slice(0, 40) : [],
         ingredientQuantities: ingredientQuantities && typeof ingredientQuantities === 'object' && !Array.isArray(ingredientQuantities) ? ingredientQuantities : {},
         ingredientsConfigured: Number(product.ingredientsConfigured) === 1,
-        promotion: promotion ? {
-          id: promotion.id,
-          discountType: promotion.discount_type,
-          promotionalPriceCents: promotion.promotional_price_cents == null ? null : Number(promotion.promotional_price_cents),
-          discountPercent: promotion.discount_percent == null ? null : Number(promotion.discount_percent),
-          weekdays: (() => { try { return JSON.parse(promotion.weekdays_json || '[]'); } catch { return []; } })(),
-          active: Number(promotion.active) === 1,
-          promotionActive: promotionalPriceCents !== null
-        } : null,
-        promotionalPriceCents
+        promotion: null,
+        promotions: [],
+        promotionalPriceBySize: {},
+        promotionalCrustBySize: {},
+        promotionalPriceCents: null
       };
     }));
 
@@ -147,6 +146,48 @@ export default async function handler(request, response) {
       const priceCents = Number.isInteger(storedPrice) && storedPrice >= 500 ? storedPrice : configuredPrice(size.key);
       return { ...size, priceCents, deltaCents: 0 };
     });
+
+    // Normaliza os preços compartilhados e aplica promoções no produto/tamanho correto.
+    const sharedSizePrices=Object.fromEntries(publicPizzaSizes.filter(size=>Number(size.priceCents)>=500).map(size=>[size.key,Number(size.priceCents)]));
+    for(const product of products){
+      if(product.type==='pizza'){
+        product.sizePrices={...(product.sizePrices||{}),...sharedSizePrices};
+        const prices=Object.values(sharedSizePrices);
+        if(prices.length)product.baseCents=Math.min(...prices);
+      }
+      const applicable=promotionResult.rows.filter(p=>
+        p.product_id===product.id||(product.type==='pizza'&&p.product_id==='__all_pizzas__')
+      );
+      const mapped=applicable.map(p=>{
+        let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}
+        const sizeKey=p.size_key||'';
+        const normal=product.type==='pizza'?(Number(product.sizePrices?.[sizeKey])||0):Number(product.baseCents)||0;
+        const calculatedPriceCents=sizeKey&&product.type==='pizza'?promotionPrice(product,p,normal):(!sizeKey?promotionPrice(product,p,normal):null);
+        return {
+          id:p.id,
+          promotionName:p.promotion_name||'',
+          applyToAllPizzas:p.product_id==='__all_pizzas__',
+          sizeKey,
+          includedCrustKey:p.included_crust_key||'',
+          discountType:p.discount_type,
+          promotionalPriceCents:p.promotional_price_cents==null?null:Number(p.promotional_price_cents),
+          discountPercent:p.discount_percent==null?null:Number(p.discount_percent),
+          weekdays,
+          active:Number(p.active)===1,
+          promotionActive:calculatedPriceCents!==null,
+          calculatedPriceCents
+        };
+      });
+      product.promotions=mapped;
+      const activePizza=mapped.filter(p=>product.type==='pizza'&&p.sizeKey&&p.promotionActive);
+      product.promotionalPriceBySize=Object.fromEntries(activePizza.map(p=>[p.sizeKey,p.calculatedPriceCents]));
+      product.promotionalCrustBySize=Object.fromEntries(activePizza.filter(p=>p.includedCrustKey).map(p=>[p.sizeKey,p.includedCrustKey]));
+      const legacy=mapped.find(p=>!p.sizeKey&&p.promotionActive);
+      product.promotion=mapped.find(p=>p.promotionActive)||mapped[0]||null;
+      product.promotionalPriceCents=product.type==='pizza'
+        ?(activePizza.length?Math.min(...activePizza.map(p=>p.calculatedPriceCents)):null)
+        :(legacy?.calculatedPriceCents??null);
+    }
 
     const ingredients = ingredientResult.rows.map(row => ({
       ...row,
