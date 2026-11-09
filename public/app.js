@@ -223,7 +223,6 @@ function ingredientDescription(product, entries = defaultIngredients(product,app
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
 const hotDogArt = (seed, ingredients) => hotDogArtSvg(seed, ingredients || []);
-async // Imagens: converte arquivos enviados pelo usuário para um formato otimizado antes do upload.
 async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
   if(!file)return '';
   if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
@@ -1048,7 +1047,6 @@ window.addEventListener('storage',event=>{
   }
 });
 
-async // Entrada do painel: valida a sessão administrativa antes de exibir dados protegidos.
 async function showAdmin(){
   clearInterval(app.trackingTimer);stopPromotionCarousel();root.body.classList.add('admin-route');root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
   try{
@@ -1310,7 +1308,6 @@ function orderSoundButtonContent(){
     : '<path class="sound-mute" d="m16 9 6 6m0-6-6 6"/>';
   return '<svg class="order-sound-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/>'+waves+'</svg><span>'+(app.admin.soundEnabled?'Som ativado':'Ativar som de novos pedidos')+'</span>';
 }
-async // Atualização operacional: busca pedidos e indicadores sem exigir recarregamento da página.
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
   try{
@@ -1481,7 +1478,6 @@ function readProductSizePrices(container){
   }
   return prices;
 }
-async // Gestão do cardápio: edição de produtos, categorias, tamanhos e disponibilidade.
 async function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');
   target.innerHTML=skeletonMarkup('content');
@@ -2289,7 +2285,6 @@ function applyRestaurantBranding(name,logoUrl=''){
   const announcement=root.querySelector('.announcement');
   if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
-async // Ingredientes: cadastro, organização por tipo e configuração dos adicionais.
 async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML=''+skeletonMarkup('content')+'';
   try{
@@ -2627,7 +2622,6 @@ function openMobileSiteMenu(){
   toggle?.setAttribute('aria-label','Fechar menu');
   menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
 }
-async // Eventos delegados: trata cliques da interface em um único ponto para evitar listeners duplicados.
 async function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
@@ -3024,7 +3018,6 @@ function bindScrollStorytelling(){
   }
 }
 
-async // Inicialização: conecta eventos globais, carrega a primeira rota e inicia os recursos da aplicação.
 async function start(){
  root.body.addEventListener('click',handleClick);
  startProductImageRotation();
