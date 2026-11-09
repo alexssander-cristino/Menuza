@@ -173,7 +173,7 @@ function toast(message) {
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
 }
 async // Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
-function api(path, options = {}) {
+async function api(path, options = {}) {
   let requestPath = path;
   if (typeof path === 'string' && path.startsWith('/api/')) {
     const requestUrl = new URL(path, location.origin);
@@ -224,7 +224,7 @@ const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
 const hotDogArt = (seed, ingredients) => hotDogArtSvg(seed, ingredients || []);
 async // Imagens: converte arquivos enviados pelo usuário para um formato otimizado antes do upload.
-function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
+async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
   if(!file)return '';
   if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
   const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file)});
@@ -1049,7 +1049,7 @@ window.addEventListener('storage',event=>{
 });
 
 async // Entrada do painel: valida a sessão administrativa antes de exibir dados protegidos.
-function showAdmin(){
+async function showAdmin(){
   clearInterval(app.trackingTimer);stopPromotionCarousel();root.body.classList.add('admin-route');root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
   try{
     const session=await api('/api/admin/me');
@@ -1311,7 +1311,7 @@ function orderSoundButtonContent(){
   return '<svg class="order-sound-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/>'+waves+'</svg><span>'+(app.admin.soundEnabled?'Som ativado':'Ativar som de novos pedidos')+'</span>';
 }
 async // Atualização operacional: busca pedidos e indicadores sem exigir recarregamento da página.
-function refreshAdmin(){
+async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
   try{
     const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);
@@ -1482,7 +1482,7 @@ function readProductSizePrices(container){
   return prices;
 }
 async // Gestão do cardápio: edição de produtos, categorias, tamanhos e disponibilidade.
-function renderCatalogAdmin(){
+async function renderCatalogAdmin(){
   const target=root.getElementById('adminBody');
   target.innerHTML=skeletonMarkup('content');
   try{
@@ -2290,7 +2290,7 @@ function applyRestaurantBranding(name,logoUrl=''){
   if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
 async // Ingredientes: cadastro, organização por tipo e configuração dos adicionais.
-function renderIngredientsAdmin(){
+async function renderIngredientsAdmin(){
   const target=root.getElementById('adminBody');target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const catalog=await api('/api/admin/catalog');
@@ -2628,7 +2628,7 @@ function openMobileSiteMenu(){
   menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
 }
 async // Eventos delegados: trata cliques da interface em um único ponto para evitar listeners duplicados.
-function handleClick(event){
+async function handleClick(event){
   const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
   if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
   if(target.dataset.action==='mobile-site-menu-go'){
@@ -3025,7 +3025,7 @@ function bindScrollStorytelling(){
 }
 
 async // Inicialização: conecta eventos globais, carrega a primeira rota e inicia os recursos da aplicação.
-function start(){
+async function start(){
  root.body.addEventListener('click',handleClick);
  startProductImageRotation();
  root.addEventListener('submit',async event=>{
