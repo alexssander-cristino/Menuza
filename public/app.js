@@ -430,10 +430,11 @@ function startPromotionCarousel(carousel){
 }
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
-  // Promoções programadas só entram no banner no dia selecionado.
-  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&
-    product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined
-  );
+  // Inclui ofertas válidas hoje, considerando também as promoções nomeadas.
+  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&(
+    (Array.isArray(product.promotions)&&product.promotions.some(p=>p.promotionActive))||
+    (product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined)
+  ));
   const bannerEnabled=Boolean(data?.active&&data.image&&offers.length);
   if(!offers.length){stopPromotionCarousel();existing?.remove();return}
   const slides=[];
@@ -446,7 +447,10 @@ function renderPromotionBanner(){
     const validPromo=promo>0&&promo<regular;
     const discount=validPromo?Math.max(1,Math.round((1-promo/regular)*100)):0;
     const visual=productPhotoOrArt(product,defaultIngredients(product,app.catalog),{},'promotion-slide-product-art','contain');
-    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-product" data-action="open-promotions" aria-label="Ver oferta de '+esc(product.name)+'" aria-hidden="true" tabindex="-1"><span class="promotion-hero-product-glow"></span><span class="promotion-hero-product-visual">'+visual+'</span><span class="promotion-hero-copy"><small><i></i> OFERTA '+String(index+1).padStart(2,'0')+'</small><strong>'+esc(product.name)+'</strong><span>'+esc(product.description||'Uma oferta especial esperando por você.')+'</span><span class="promotion-hero-price">'+(validPromo?'<del>'+money(regular)+'</del>':'')+'<b>'+money(validPromo?promo:regular)+'</b>'+(discount?'<em>−'+discount+'%</em>':'')+'</span><b class="promotion-hero-cta">Aproveitar oferta <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+    const promotionTitle=String(product.promotion?.promotionName||'').trim();
+    const slideTitle=promotionTitle||product.name;
+    const slideDescription=promotionTitle?'Oferta em '+product.name:(product.description||'Uma oferta especial esperando por você.');
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-product" data-action="open-promotions" aria-label="Ver oferta '+esc(slideTitle)+'" aria-hidden="true" tabindex="-1"><span class="promotion-hero-product-glow"></span><span class="promotion-hero-product-visual">'+visual+'</span><span class="promotion-hero-copy"><small><i></i> OFERTA '+String(index+1).padStart(2,'0')+'</small><strong>'+esc(slideTitle)+'</strong><span>'+esc(slideDescription)+'</span><span class="promotion-hero-price">'+(validPromo?'<del>'+money(regular)+'</del>':'')+'<b>'+money(validPromo?promo:regular)+'</b>'+(discount?'<em>−'+discount+'%</em>':'')+'</span><b class="promotion-hero-cta">Aproveitar oferta <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
   });
   const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Carrossel de promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
   stopPromotionCarousel();
