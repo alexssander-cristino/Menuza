@@ -33,13 +33,13 @@ function saoPauloWeekday() {
 }
 
 // Retorna o preço promocional somente quando a promoção está ativa no dia atual e reduz o preço base.
-function promotionPrice(product, promotion) {
+function promotionPrice(product, promotion, baseOverride = null) {
   if (!promotion || Number(promotion.active) !== 1) return null;
   let weekdays = [];
   try { weekdays = JSON.parse(promotion.weekdays_json || '[]'); } catch {}
   const today=saoPauloWeekday();
   if (!Array.isArray(weekdays) || !weekdays.some(day=>Number(day)===today)) return null;
-  const base=Number(arguments.length>2?arguments[2]:(product.type==='pizza'?product.baseCents:product.baseCents));
+  const base=Number(baseOverride??product.baseCents);
   const price=promotion.discount_type==='percent'
     ? Math.round(base*(100-Number(promotion.discount_percent))/100)
     : Number(promotion.promotional_price_cents);
