@@ -58,8 +58,8 @@ function sign(payload) {
 }
 let authSessionsSchemaPromise;
 let adminTwoFactorSchemaPromise;
-async // Autenticação em duas etapas: prepara o armazenamento seguro do segredo TOTP e dos códigos de recuperação.
-function ensureAdminTwoFactorSchema() {
+// Autenticação em duas etapas: prepara o armazenamento seguro do segredo TOTP e dos códigos de recuperação.
+async function ensureAdminTwoFactorSchema() {
   if (!adminTwoFactorSchemaPromise) adminTwoFactorSchemaPromise = query('CREATE TABLE IF NOT EXISTS admin_two_factor (restaurant_id TEXT PRIMARY KEY, secret_encrypted TEXT, pending_secret_encrypted TEXT, pending_expires_at TIMESTAMPTZ, recovery_codes_hashes JSONB NOT NULL DEFAULT \'[]\'::jsonb, enabled_at TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').then(() => query('CREATE INDEX IF NOT EXISTS admin_two_factor_updated_idx ON admin_two_factor(updated_at)')).catch(error => { adminTwoFactorSchemaPromise = null; throw error; });
   await adminTwoFactorSchemaPromise;
 }
@@ -83,8 +83,8 @@ async function verifyAdminSecondFactor(body) {
   });
 }
 function createRecoveryCodes() { return Array.from({length:10},()=>{const raw=randomBytes(6).toString('hex').toUpperCase();return raw.slice(0,6)+'-'+raw.slice(6)}); }
-async // Sessões persistentes: guarda hashes de tokens e permite revogar sessões no servidor.
-function ensureAuthSessionsSchema(){
+// Sessões persistentes: guarda hashes de tokens e permite revogar sessões no servidor.
+async function ensureAuthSessionsSchema(){
   if(!authSessionsSchemaPromise)authSessionsSchemaPromise=(async()=>{
     await query(`CREATE TABLE IF NOT EXISTS auth_sessions(token_hash TEXT PRIMARY KEY,role TEXT NOT NULL CHECK(role IN ('admin','customer')),subject_id TEXT NOT NULL,restaurant_id TEXT NOT NULL,expires_at TIMESTAMPTZ NOT NULL,revoked_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await query('CREATE INDEX IF NOT EXISTS auth_sessions_subject_idx ON auth_sessions(role,subject_id,expires_at)');
@@ -128,8 +128,8 @@ async function requireAdmin(req) {
   return value;
 }
 let customerSchemaPromise;
-async // Conta do cliente: garante as colunas e estruturas necessárias para cadastro e autenticação.
-function ensureCustomerSchema() {
+// Conta do cliente: garante as colunas e estruturas necessárias para cadastro e autenticação.
+async function ensureCustomerSchema() {
   if (!customerSchemaPromise) customerSchemaPromise = query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE").catch(error => { customerSchemaPromise = null; throw error; });
   await customerSchemaPromise;
 }
@@ -168,8 +168,8 @@ function hasHoneypot(body) {
   return ['website', 'companyWebsite', 'faxNumber'].some(key => typeof body[key] === 'string' && body[key].trim());
 }
 async function limit(req,key,maximum,windowMs){return consumeRateLimit({req,key,maximum,windowMs,secret:SECRET,query,withTransaction})}
-async // Privacidade: mantém o schema dos pedidos de acesso, correção e exclusão de dados.
-function ensurePrivacyRequestFields() {
+// Privacidade: mantém o schema dos pedidos de acesso, correção e exclusão de dados.
+async function ensurePrivacyRequestFields() {
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS response_note TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS retention_reason TEXT NOT NULL DEFAULT ''");
   await query("ALTER TABLE privacy_requests ADD COLUMN IF NOT EXISTS closed_at TEXT");
@@ -185,8 +185,8 @@ function ensurePrivacyRequestFields() {
   await query("CREATE INDEX IF NOT EXISTS privacy_request_events_request_idx ON privacy_request_events (request_id, created_at)");
 }
 let pizzaConfigSchemaPromise;
-async // Configuração de pizzas: tamanhos e bordas são lidos do cadastro do restaurante.
-function ensurePizzaConfigSchema(){
+// Configuração de pizzas: tamanhos e bordas são lidos do cadastro do restaurante.
+async function ensurePizzaConfigSchema(){
  if(!pizzaConfigSchemaPromise)pizzaConfigSchemaPromise=(async()=>{
   await query(`CREATE TABLE IF NOT EXISTS pizza_sizes (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, diameter_cm INTEGER NOT NULL DEFAULT 0, max_flavors INTEGER NOT NULL DEFAULT 1, price_cents INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(restaurant_id,key))`);
   await query("ALTER TABLE pizza_sizes ADD COLUMN IF NOT EXISTS price_cents INTEGER NOT NULL DEFAULT 0");
@@ -290,8 +290,8 @@ function distanceKm(aLat,aLon,bLat,bLon) {
   const a=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLon/2)**2;
   return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-async // Entrega: calcula distância e taxa conforme as zonas e regras cadastradas.
-function calculateDelivery(body) {
+// Entrega: calcula distância e taxa conforme as zonas e regras cadastradas.
+async function calculateDelivery(body) {
   if (body.fulfillment!=='delivery') return {feeCents:0,zoneName:'',distanceKm:null};
   const config=await deliveryConfig();
   const zone=config.zones.find(z=>z.id===clean(body.deliveryZoneId,100)&&z.active);
@@ -365,8 +365,8 @@ async function validateSizePrices(type, value, fallbackCents) {
 }
 const DEFAULT_OPENING_HOURS = { configured: false, days: {} };
 let openingHoursSchemaPromise;
-async // Horários: prepara as regras semanais e exceções usadas para permitir ou bloquear pedidos.
-function ensureOpeningHoursSchema() {
+// Horários: prepara as regras semanais e exceções usadas para permitir ou bloquear pedidos.
+async function ensureOpeningHoursSchema() {
   if (!openingHoursSchemaPromise) openingHoursSchemaPromise = query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS opening_hours_json TEXT NOT NULL DEFAULT '{\"configured\":false,\"days\":{}}'").catch(error => { openingHoursSchemaPromise = null; throw error; });
   await openingHoursSchemaPromise;
 }
@@ -411,8 +411,8 @@ function assertRestaurantOpen(schedule) {
   const status=openingHoursState(schedule);
   if(!status.isOpen) throw fail('O restaurante está fechado neste momento. Confira os horários de funcionamento no cardápio.',403);
 }
-async // Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
-function catalogFor(admin = false) {
+// Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
+async function catalogFor(admin = false) {
   await ensureOpeningHoursSchema();
   await ensurePizzaConfigSchema();
   await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
@@ -549,8 +549,8 @@ function couponDiscount(c, subtotal) {
   if (subtotal < Number(c.minimum_subtotal_cents)) throw fail('O pedido mínimo para esse cupom não foi atingido.', 422);
   return Math.min(subtotal, c.discount_type === 'percent' ? Math.round(subtotal * Number(c.discount_value) / 100) : Number(c.discount_value));
 }
-async // Precificação: valida tamanhos, ingredientes, quantidades, bordas e adicionais antes do checkout.
-function priceItems(input) {
+// Precificação: valida tamanhos, ingredientes, quantidades, bordas e adicionais antes do checkout.
+async function priceItems(input) {
   if (!Array.isArray(input) || input.length < 1 || input.length > 20) throw fail('O carrinho está vazio ou tem itens demais.', 422);
   const cat = await catalogFor(false);
   let subtotal = 0;
@@ -608,8 +608,8 @@ function priceItems(input) {
   }
   return { subtotal, priced, requiresAdult: priced.some(item=>item.product.ageRestricted===true || Number(item.product.ageRestricted)===1) };
 }
-async // Checkout: cria o pedido dentro de transação e associa o cliente autenticado.
-function createOrder(body, customer) {
+// Checkout: cria o pedido dentro de transação e associa o cliente autenticado.
+async function createOrder(body, customer) {
   const openingHours=await getOpeningHours();
   assertRestaurantOpen(openingHours.schedule);
   const customerName=clean(body.customerName,100), phone=clean(body.phone,30), fulfillment=body.fulfillment;
@@ -673,8 +673,8 @@ function createOrder(body, customer) {
   const order=await orderById(duplicate?.id||id);
   return order;
 }
-async // Atendimento: aplica somente transições de status permitidas e registra a atualização.
-function updateOrderStatus(id, next) {
+// Atendimento: aplica somente transições de status permitidas e registra a atualização.
+async function updateOrderStatus(id, next) {
   if (!STATUS_FLOW.includes(next)) throw fail('Estado de pedido inválido.',422);
   await withTransaction(async client => {
     const found=await client.query('SELECT * FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
@@ -783,8 +783,8 @@ function fiscalMonth(value){
   const endUtc=new Date(Date.UTC(year,monthIndex+1,1,3)).toISOString();
   return {month,start,end,startUtc,endUtc};
 }
-async // Financeiro: consolida receitas e despesas para o relatório do período solicitado.
-function fiscalReport(monthValue){
+// Financeiro: consolida receitas e despesas para o relatório do período solicitado.
+async function fiscalReport(monthValue){
   const {month,start,end,startUtc,endUtc}=fiscalMonth(monthValue);
   const [sales,byFulfillment,expenses,documents,orderRows]=await Promise.all([
     query(`SELECT COUNT(*) FILTER (WHERE status='completed')::int AS orders,
