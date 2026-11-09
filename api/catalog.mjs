@@ -72,6 +72,7 @@ export default async function handler(request, response) {
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
@@ -163,7 +164,7 @@ export default async function handler(request, response) {
         const calculatedPriceCents=sizeKey&&product.type==='pizza'?promotionPrice(product,p,normal):(!sizeKey?promotionPrice(product,p,normal):null);
         return {
           id:p.id,
-          promotionName:p.promotion_name||'',
+          promotionName:p.promotion_name||'',bannerImage:p.banner_image||'',
           applyToAllPizzas:p.product_id==='__all_pizzas__',
           sizeKey,
           includedCrustKey:p.included_crust_key||'',
