@@ -498,8 +498,8 @@ async function catalogFor(admin = false) {
   if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
-    const rows=product.type==='pizza'?[...promotionRows.filter(p=>p.product_id==='__all_pizzas__'),...promotionRows.filter(p=>p.product_id===product.id)]:promotionRows.filter(p=>p.product_id===product.id);
-    const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
+    const rows=product.type==='pizza'?[...promotionRows.filter(p=>p.product_id===product.id),...promotionRows.filter(p=>p.product_id==='__all_pizzas__')]:promotionRows.filter(p=>p.product_id===product.id);
+    const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,applyToAllPizzas:p.product_id==='__all_pizzas__',sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
     product.promotions=mapped;
     const activePizza=mapped.filter(p=>p.sizeKey&&p.promotionActive);
     const legacy=mapped.find(p=>!p.sizeKey);
@@ -507,7 +507,7 @@ async function catalogFor(admin = false) {
     product.promotionalPriceBySize=Object.fromEntries(activePizza.map(p=>[p.sizeKey,p.calculatedPriceCents]));
     product.promotionalCrustBySize=Object.fromEntries(activePizza.filter(p=>p.includedCrustKey).map(p=>[p.sizeKey,p.includedCrustKey]));
     product.promotion=mapped.find(p=>p.promotionActive)||mapped[0]||null;
-    product.promotionalPriceCents=product.type==='pizza'?(activePizza.length?Math.min(...activePizza.map(p=>p.calculatedPriceCents)):null):legacyPrice;
+    const displayedSizePrices=Object.values(product.promotionalPriceBySize||{});product.promotionalPriceCents=product.type==='pizza'?(displayedSizePrices.length?Math.min(...displayedSizePrices):null):legacyPrice;
   }
   const ingredientsOut = ingredients.rows.map(i => ({ ...i, included: Number(i.included) === 1 || i.included === true, visual: inferIngredientVisual(i) }));
   const combos = comboRows.rows.map(row => {
@@ -624,7 +624,7 @@ async function priceItems(input) {
           included: (ingredientSource.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    const sizePromo=product.type==='pizza'?product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive):null;
+    const sizePromo=product.type==='pizza'?(product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive&&p.applyToAllPizzas)||product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive)):null;
     let effectiveProduct=sizePromo?{...product,sizePrices:{...(product.sizePrices||{}),[entry.sizeKey]:sizePromo.calculatedPriceCents}}:
       product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined&&product.type!=='pizza'?{...product,baseCents:product.promotionalPriceCents,sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))}:product;
     if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
@@ -897,7 +897,11 @@ export default async function handler(req, res) {
       return json(res,200,{openingHours:schedule,status:openingHoursState(schedule)});
     }
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
-    if (method==='GET'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:(await query("SELECT id,size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 AND product_id='__all_pizzas__' ORDER BY created_at DESC",[RESTAURANT_ID])).rows.map(p=>({...p,sizeKey:p.sizeKey||'',includedCrustKey:p.includedCrustKey||'',promotionalPriceCents:p.promotionalPriceCents===null?null:Number(p.promotionalPriceCents),discountPercent:p.discountPercent===null?null:Number(p.discountPercent),weekdays:(()=>{try{return JSON.parse(p.weekdaysJson||'[]')}catch{return []}})(),active:Number(p.active)===1})) }); }
+    if (method==='GET'&&path==='/api/admin/promotions') {
+      await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true);
+      const rows=(await query("SELECT id,product_id AS \"productId\",size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 ORDER BY created_at DESC",[RESTAURANT_ID])).rows;
+      return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:rows.map(p=>({...p,productId:p.productId,sizeKey:p.sizeKey||'',includedCrustKey:p.includedCrustKey||'',promotionalPriceCents:p.promotionalPriceCents===null?null:Number(p.promotionalPriceCents),discountPercent:p.discountPercent===null?null:Number(p.discountPercent),weekdays:(()=>{try{return JSON.parse(p.weekdaysJson||'[]')}catch{return []}})(),active:Number(p.active)===1}))});
+    }
     if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
     if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=current.product_id==='__all_pizzas__'?'__all_pizzas__':clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,applyToAllPizzas:productId==='__all_pizzas__',productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,sizeKey:b.sizeKey??current.size_key??'',includedCrustKey:b.includedCrustKey??current.included_crust_key??'',promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
     if (method==='GET'&&path==='/api/admin/delivery') { await requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
