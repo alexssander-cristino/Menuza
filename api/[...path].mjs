@@ -305,21 +305,36 @@ async function calculateDelivery(body) {
   return {feeCents:Math.round(km*zone.perKmCents),zoneName:zone.name,distanceKm:Math.round(km*10)/10};
 }
 async function savePromotion(body,id=null) {
-  const productId=clean(body.productId,100),type=body.discountType;
-  const product=(await query('SELECT id,type,base_price_cents AS "baseCents",size_prices_json AS "sizePricesJson" FROM products WHERE id=$1 AND restaurant_id=$2',[productId,RESTAURANT_ID])).rows[0];
-  if(!product) throw fail('Produto não encontrado.',404);
-  let sizePrices={};try{sizePrices=JSON.parse(product.sizePricesJson||'{}')}catch{}
-  const sizeKey=product.type==='pizza'?clean(body.sizeKey,80):'';
-  if(product.type==='pizza'&&!sizeKey)throw fail('Selecione o tamanho da promoção.',422);
-  if(product.type==='pizza'&&!(await query('SELECT key FROM pizza_sizes WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,sizeKey])).rows[0])throw fail('O tamanho selecionado não está ativo.',422);
-  const normalPrice=product.type==='pizza'?Number(sizePrices[sizeKey]):Number(product.baseCents);
-  const crustKey=product.type==='pizza'?clean(body.includedCrustKey,80):'';
+  const applyToAll=body.applyToAllPizzas===true||body.productId==='__all_pizzas__';
+  const productId=applyToAll?'__all_pizzas__':clean(body.productId,100),type=body.discountType;
+  let product=null,normalPrice=0,sizeKey='',crustKey='';
+  if(applyToAll){
+    sizeKey=clean(body.sizeKey,80);
+    const size=(await query('SELECT key,price_cents AS "priceCents" FROM pizza_sizes WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,sizeKey])).rows[0];
+    if(!size)throw fail('Selecione um tamanho de pizza ativo.',422);
+    normalPrice=Number(size.priceCents);
+    if(!Number.isInteger(normalPrice)||normalPrice<500){
+      const candidates=(await query("SELECT size_prices_json AS prices FROM products WHERE restaurant_id=$1 AND type='pizza' AND active=1",[RESTAURANT_ID])).rows;
+      const values=candidates.map(row=>{try{return Number(JSON.parse(row.prices||'{}')[sizeKey])}catch{return 0}}).filter(value=>Number.isInteger(value)&&value>=500);
+      normalPrice=values.length&&values.every(value=>value===values[0])?values[0]:0;
+    }
+    if(!Number.isInteger(normalPrice)||normalPrice<500)throw fail('Configure o preço normal compartilhado deste tamanho antes de criar a promoção.',422);
+  }else{
+    product=(await query('SELECT id,type,base_price_cents AS "baseCents",size_prices_json AS "sizePricesJson" FROM products WHERE id=$1 AND restaurant_id=$2',[productId,RESTAURANT_ID])).rows[0];
+    if(!product)throw fail('Produto não encontrado.',404);
+    let sizePrices={};try{sizePrices=JSON.parse(product.sizePricesJson||'{}')}catch{}
+    sizeKey=product.type==='pizza'?clean(body.sizeKey,80):'';
+    if(product.type==='pizza'&&!sizeKey)throw fail('Selecione o tamanho da promoção.',422);
+    if(product.type==='pizza'&&!(await query('SELECT key FROM pizza_sizes WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,sizeKey])).rows[0])throw fail('O tamanho selecionado não está ativo.',422);
+    normalPrice=product.type==='pizza'?Number(sizePrices[sizeKey]):Number(product.baseCents);
+  }
+  crustKey=(applyToAll||product?.type==='pizza')?clean(body.includedCrustKey,80):'';
   if(crustKey&&!(await query('SELECT key FROM pizza_crusts WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,crustKey])).rows[0])throw fail('A borda selecionada não está ativa.',422);
   const days=Array.isArray(body.weekdays)?[...new Set(body.weekdays.map(Number))]:[];
-  if(!days.length||days.some(d=>!Number.isInteger(d)||d<1||d>7)) throw fail('Selecione pelo menos um dia da semana.',422);
+  if(!days.length||days.some(d=>!Number.isInteger(d)||d<1||d>7))throw fail('Selecione pelo menos um dia da semana.',422);
   let price=null,percent=null;
-  if(type==='fixed') { price=Number(body.promotionalPriceCents); if(!Number.isInteger(price)||price<1||price>=normalPrice) throw fail('O preço promocional deve ser menor que o preço normal.',422); }
-  else if(type==='percent') { percent=Number(body.discountPercent); if(!Number.isInteger(percent)||percent<1||percent>90) throw fail('O desconto deve ficar entre 1% e 90%.',422); }
+  if(type==='fixed'){price=Number(body.promotionalPriceCents);if(!Number.isInteger(price)||price<1||price>=normalPrice)throw fail('O preço promocional deve ser menor que o preço normal do tamanho.',422)}
+  else if(type==='percent'){percent=Number(body.discountPercent);if(!Number.isInteger(percent)||percent<1||percent>90)throw fail('O desconto deve ficar entre 1% e 90%.',422)}
   else throw fail('Escolha um tipo de promoção válido.',422);
   const now=new Date().toISOString(),promotionId=id||'prm_'+randomBytes(12).toString('hex');
   const result=await query(`INSERT INTO product_promotions
@@ -483,7 +498,7 @@ async function catalogFor(admin = false) {
   if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
-    const rows=promotionRows.filter(p=>p.product_id===product.id);
+    const rows=promotionRows.filter(p=>p.product_id===product.id||(product.type==='pizza'&&p.product_id==='__all_pizzas__'));
     const mapped=rows.map(p=>{const price=promotionPrice(product,p,p.size_key||'');let weekdays=[];try{weekdays=JSON.parse(p.weekdays_json||'[]')}catch{}return {id:p.id,sizeKey:p.size_key||'',includedCrustKey:p.included_crust_key||'',discountType:p.discount_type,promotionalPriceCents:p.promotional_price_cents?Number(p.promotional_price_cents):null,discountPercent:p.discount_percent?Number(p.discount_percent):null,weekdays,active:Number(p.active)===1,promotionActive:price!==null,calculatedPriceCents:price}});
     product.promotions=mapped;
     const activePizza=mapped.filter(p=>p.sizeKey&&p.promotionActive);
@@ -882,9 +897,9 @@ export default async function handler(req, res) {
       return json(res,200,{openingHours:schedule,status:openingHoursState(schedule)});
     }
     if (method==='GET'&&path==='/api/delivery/options') { await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,{restaurant:config.restaurant,zones:config.zones.filter(z=>z.active)}); }
-    if (method==='GET'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:c.products.flatMap(p=>(p.promotions||[]).map(promo=>({productId:p.id,name:p.name,...promo}))) }); }
+    if (method==='GET'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); const c=await catalogFor(true); return json(res,200,{products:c.products,sizes:c.sizes.pizza,crusts:c.crusts,promotions:(await query("SELECT id,size_key AS \"sizeKey\",included_crust_key AS \"includedCrustKey\",discount_type AS \"discountType\",promotional_price_cents AS \"promotionalPriceCents\",discount_percent AS \"discountPercent\",weekdays_json AS \"weekdaysJson\",active FROM product_promotions WHERE restaurant_id=$1 AND product_id='__all_pizzas__' ORDER BY created_at DESC",[RESTAURANT_ID])).rows.map(p=>({...p,sizeKey:p.sizeKey||'',includedCrustKey:p.includedCrustKey||'',promotionalPriceCents:p.promotionalPriceCents===null?null:Number(p.promotionalPriceCents),discountPercent:p.discountPercent===null?null:Number(p.discountPercent),weekdays:(()=>{try{return JSON.parse(p.weekdaysJson||'[]')}catch{return []}})(),active:Number(p.active)===1})) }); }
     if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
-    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,sizeKey:b.sizeKey??current.size_key??'',includedCrustKey:b.includedCrustKey??current.included_crust_key??'',promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=current.product_id==='__all_pizzas__'?'__all_pizzas__':clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,applyToAllPizzas:productId==='__all_pizzas__',productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,sizeKey:b.sizeKey??current.size_key??'',includedCrustKey:b.includedCrustKey??current.included_crust_key??'',promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
     if (method==='GET'&&path==='/api/admin/delivery') { await requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
     if (method==='POST'&&path==='/api/admin/delivery/zones') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{zone:await saveDeliveryZone(await bodyOf(req))}); }
     if (method==='PATCH'&&path.startsWith('/api/admin/delivery/zones/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM delivery_zones WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Região não encontrada.',404); return json(res,200,{zone:await saveDeliveryZone({...b,name:b.name??current.name,feeMode:b.feeMode??current.fee_mode,feeCents:b.feeCents??Number(current.fee_cents),perKmCents:b.perKmCents??Number(current.per_km_cents),distanceKm:b.distanceKm??Number(current.distance_km||0),active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
