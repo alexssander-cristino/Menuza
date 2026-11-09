@@ -172,7 +172,7 @@ function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
 }
-async // Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
+// Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
 async function api(path, options = {}) {
   let requestPath = path;
   if (typeof path === 'string' && path.startsWith('/api/')) {
