@@ -275,7 +275,10 @@ function saoPauloWeekday() {
 function promotionPrice(product, promotion, sizeKey='') {
   if (!promotion || Number(promotion.active)!==1) return null;
   let days=[]; try { days=JSON.parse(promotion.weekdays_json||'[]'); } catch {}
-  if (!Array.isArray(days) || !days.includes(saoPauloWeekday())) return null;
+  // O campo pode conter números (formato atual) ou strings (cadastros antigos).
+  // Normalizar evita que ["1","2"] seja tratado como se nenhum dia estivesse ativo.
+  const today=saoPauloWeekday();
+  if (!Array.isArray(days) || !days.some(day=>Number(day)===today)) return null;
   const base=product.type==='pizza'?(sizeKey?Number(product.sizePrices?.[sizeKey]):Number(product.baseCents)):Number(product.baseCents);
   if(!Number.isInteger(base)||base<1)return null;
   const price=promotion.discount_type==='percent'?Math.round(base*(100-Number(promotion.discount_percent))/100):Number(promotion.promotional_price_cents);
