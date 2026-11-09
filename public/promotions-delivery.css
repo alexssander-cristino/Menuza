@@ -200,3 +200,11 @@
  .builder-promotion-discount b{font-size:.65rem}
 }
 @media(prefers-reduced-motion:reduce){.promotion-offer-card,.promotion-offer-image,.promotion-offer-cta span{transition:none!important}}
+
+/* Controles de imagem nas promoções já cadastradas. */
+.promotion-admin-row .promotion-admin-info{min-width:0;flex:1}
+.promotion-admin-image-control{display:flex;align-items:center;gap:9px;min-width:150px}
+.promotion-admin-image-control>img{width:58px;height:48px;object-fit:cover;border-radius:9px;border:1px solid var(--line,rgba(120,90,90,.2))}
+.promotion-admin-image-control>span{font-size:.72rem;color:var(--muted)}
+.promotion-admin-image-control label{cursor:pointer;white-space:nowrap}
+@media(max-width:760px){.promotion-admin-image-control{width:100%;justify-content:flex-start}.promotion-admin-row{flex-wrap:wrap}}
