@@ -591,7 +591,8 @@ function renderBuilder() {
   const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;
   const ingredientLimit = isBuildYourOwn ? 3 : 12;
   const selected = new Set(builder.ingredients.map(i => i.id));
-  const selectedIngredientDescription = ingredientDescription(product, builder.ingredients);\n  const offerPromotion=builder.promotion;\n  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;
+  const selectedIngredientDescription = ingredientDescription(product, builder.ingredients);
+  const offerPromotion=builder.promotion;\n  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;
   const offerPrice=Number(offerPromotion?.calculatedPriceCents)||0;
   const offerPercent=offerPromotion&&offerRegular>offerPrice&&offerPrice>0?Math.round((1-offerPrice/offerRegular)*100):0;
   const offerNotice=offerPromotion?'<section class="builder-promotion-summary"><div class="builder-promotion-icon">'+uiIcon('sparkles',20)+'</div><div class="builder-promotion-copy"><span>OFERTA ESPECIAL</span><strong>'+esc(offerPromotion.promotionName||'Condição promocional')+'</strong><small>Esta oferta está aplicada ao produto selecionado.</small></div>'+(offerPercent?'<div class="builder-promotion-discount"><b>'+offerPercent+'% OFF</b><small>Economize '+money(offerRegular-offerPrice)+'</small></div>':'')+'</section>':'';
