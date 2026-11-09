@@ -328,6 +328,15 @@ async function savePromotion(body,id=null) {
     if(product.type==='pizza'&&!sizeKey)throw fail('Selecione o tamanho da promoção.',422);
     if(product.type==='pizza'&&!(await query('SELECT key FROM pizza_sizes WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,sizeKey])).rows[0])throw fail('O tamanho selecionado não está ativo.',422);
     normalPrice=product.type==='pizza'?Number(sizePrices[sizeKey]):Number(product.baseCents);
+    if(product.type==='pizza'&&(!Number.isInteger(normalPrice)||normalPrice<500)){
+      const shared=(await query('SELECT price_cents AS "priceCents" FROM pizza_sizes WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,sizeKey])).rows[0];
+      normalPrice=Number(shared?.priceCents)||0;
+      if(normalPrice<500){
+        const candidates=(await query("SELECT size_prices_json AS prices FROM products WHERE restaurant_id=$1 AND type='pizza' AND active=1",[RESTAURANT_ID])).rows;
+        const values=candidates.map(row=>{try{return Number(JSON.parse(row.prices||'{}')[sizeKey])}catch{return 0}}).filter(value=>Number.isInteger(value)&&value>=500);
+        normalPrice=values.length&&values.every(value=>value===values[0])?values[0]:0;
+      }
+    }
   }
   crustKey=(applyToAll||product?.type==='pizza')?clean(body.includedCrustKey,80):'';
   if(crustKey&&!(await query('SELECT key FROM pizza_crusts WHERE restaurant_id=$1 AND key=$2 AND active=1',[RESTAURANT_ID,crustKey])).rows[0])throw fail('A borda selecionada não está ativa.',422);
@@ -497,6 +506,23 @@ async function catalogFor(admin = false) {
   const restaurantRow = await migrateRestaurantImageFields(restaurant.rows[0] || null);
   const openingHours=await getOpeningHours();
   if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
+  const [sizeRows,crustRows]=await Promise.all([query("SELECT key,label,diameter_cm AS \"diameterCm\",max_flavors AS \"maxFlavors\",price_cents AS \"priceCents\",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY CASE lower(label) WHEN 'broto' THEN 0 WHEN 'pequena' THEN 1 WHEN 'média' THEN 2 WHEN 'media' THEN 2 WHEN 'grande' THEN 3 WHEN 'família' THEN 4 WHEN 'familia' THEN 4 ELSE 5 END,sort_order",[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
+  // Os preços efetivamente cadastrados estão em size_prices_json dos produtos.
+  // A tabela de tamanhos pode continuar com zero em instalações antigas; recuperar
+  // o preço compartilhado salvo (os produtos deste restaurante usam os mesmos valores).
+  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.map(size=>{
+    const stored=Number(size.priceCents);
+    if(Number.isInteger(stored)&&stored>=500)return [size.key,stored];
+    const values=productRows.filter(product=>product.type==='pizza').map(product=>Number(product.sizePrices?.[size.key])).filter(value=>Number.isInteger(value)&&value>=500);
+    return [size.key,values.length&&values.every(value=>value===values[0])?values[0]:0];
+  }));
+  if(Object.keys(sharedPizzaPrices).length){
+    for(const product of productRows)if(product.type==='pizza'){
+      product.sizePrices={...(product.sizePrices||{}),...Object.fromEntries(Object.entries(sharedPizzaPrices).filter(([,value])=>Number.isInteger(value)&&value>=500))};
+      const validPrices=Object.values(sharedPizzaPrices).filter(value=>Number.isInteger(value)&&value>=500);
+      if(validPrices.length)product.baseCents=Math.min(...validPrices);
+    }
+  }
   const promotionRows=(await query('SELECT * FROM product_promotions WHERE restaurant_id=$1',[RESTAURANT_ID])).rows;
   for (const product of productRows) {
     const rows=product.type==='pizza'?[...promotionRows.filter(p=>p.product_id===product.id),...promotionRows.filter(p=>p.product_id==='__all_pizzas__')]:promotionRows.filter(p=>p.product_id===product.id);
@@ -517,23 +543,6 @@ async function catalogFor(admin = false) {
     return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: Number(row.active), createdAt: row.createdAt, updatedAt: row.updatedAt,
       items: entries.map(entry => { const p = productRows.find(x => x.id === entry.productId); return p ? { productId: p.id, name: p.name, quantity: entry.quantity, baseCents: p.baseCents, ageRestricted: p.ageRestricted } : null; }).filter(Boolean) };
   });
-  const [sizeRows,crustRows]=await Promise.all([query("SELECT key,label,diameter_cm AS \"diameterCm\",max_flavors AS \"maxFlavors\",price_cents AS \"priceCents\",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY CASE lower(label) WHEN 'broto' THEN 0 WHEN 'pequena' THEN 1 WHEN 'média' THEN 2 WHEN 'media' THEN 2 WHEN 'grande' THEN 3 WHEN 'família' THEN 4 WHEN 'familia' THEN 4 ELSE 5 END,sort_order",[RESTAURANT_ID]),query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])]);
-  // Os preços efetivamente cadastrados estão em size_prices_json dos produtos.
-  // A tabela de tamanhos pode continuar com zero em instalações antigas; recuperar
-  // o preço compartilhado salvo (os produtos deste restaurante usam os mesmos valores).
-  const sharedPizzaPrices=Object.fromEntries(sizeRows.rows.map(size=>{
-    const stored=Number(size.priceCents);
-    if(Number.isInteger(stored)&&stored>=500)return [size.key,stored];
-    const values=productRows.filter(product=>product.type==='pizza').map(product=>Number(product.sizePrices?.[size.key])).filter(value=>Number.isInteger(value)&&value>=500);
-    return [size.key,values.length&&values.every(value=>value===values[0])?values[0]:0];
-  }));
-  if(Object.keys(sharedPizzaPrices).length){
-    for(const product of productRows)if(product.type==='pizza'){
-      product.sizePrices={...(product.sizePrices||{}),...Object.fromEntries(Object.entries(sharedPizzaPrices).filter(([,value])=>Number.isInteger(value)&&value>=500))};
-      const validPrices=Object.values(sharedPizzaPrices).filter(value=>Number.isInteger(value)&&value>=500);
-      if(validPrices.length)product.baseCents=Math.min(...validPrices);
-    }
-  }
   return { restaurant: restaurantRow, categories: categories.rows, products: productRows, ingredients: ingredientsOut, combos, sizes:{...SIZE_OPTIONS,pizza:sizeRows.rows.map(x=>({...x,priceCents:Number(sharedPizzaPrices[x.key])||0,deltaCents:0}))}, crusts:crustRows.rows.map(x=>({...x,priceCents:Number(x.priceCents)})) };
 }
 async function validateIngredientQuantities(value, type, selectedIds = []) {
@@ -905,7 +914,7 @@ export default async function handler(req, res) {
     }
     if (method==='POST'&&path==='/api/admin/promotions') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{promotion:await savePromotion(await bodyOf(req))}); }
     if (method==='DELETE'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const deleted=await query('DELETE FROM product_promotions WHERE id=$1 AND restaurant_id=$2 RETURNING id',[id,RESTAURANT_ID]); if(!deleted.rowCount) throw fail('Promoção não encontrada.',404); return json(res,200,{success:true,id:deleted.rows[0].id}); }
-    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=current.product_id==='__all_pizzas__'?'__all_pizzas__':clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,applyToAllPizzas:productId==='__all_pizzas__',productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,sizeKey:b.sizeKey??current.size_key??'',includedCrustKey:b.includedCrustKey??current.included_crust_key??'',promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
+    if (method==='PATCH'&&path.startsWith('/api/admin/promotions/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM product_promotions WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Promoção não encontrada.',404); const productId=current.product_id==='__all_pizzas__'?'__all_pizzas__':clean(b.productId||current.product_id,100); return json(res,200,{promotion:await savePromotion({...b,applyToAllPizzas:productId==='__all_pizzas__',productId,weekdays:b.weekdays||JSON.parse(current.weekdays_json),discountType:b.discountType||current.discount_type,sizeKey:b.sizeKey??current.size_key??'',includedCrustKey:b.includedCrustKey??current.included_crust_key??'',promotionName:b.promotionName??current.promotion_name??'',promotionalPriceCents:b.promotionalPriceCents??current.promotional_price_cents,discountPercent:b.discountPercent??current.discount_percent,active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
     if (method==='GET'&&path==='/api/admin/delivery') { await requireAdmin(req); await ensurePromoDeliverySchema(); const config=await deliveryConfig(); return json(res,200,config); }
     if (method==='POST'&&path==='/api/admin/delivery/zones') { await requireAdmin(req); await ensurePromoDeliverySchema(); return json(res,201,{zone:await saveDeliveryZone(await bodyOf(req))}); }
     if (method==='PATCH'&&path.startsWith('/api/admin/delivery/zones/')) { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req); const current=(await query('SELECT * FROM delivery_zones WHERE id=$1 AND restaurant_id=$2',[id,RESTAURANT_ID])).rows[0]; if(!current) throw fail('Região não encontrada.',404); return json(res,200,{zone:await saveDeliveryZone({...b,name:b.name??current.name,feeMode:b.feeMode??current.fee_mode,feeCents:b.feeCents??Number(current.fee_cents),perKmCents:b.perKmCents??Number(current.per_km_cents),distanceKm:b.distanceKm??Number(current.distance_km||0),active:b.active===undefined?Number(current.active)===1:b.active},id)}); }
