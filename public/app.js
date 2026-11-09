@@ -732,7 +732,8 @@ function cartItemPrice(item){
   const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);const included=ingredientProduct.ingredientsConfigured&&(ingredientProduct.defaultIngredientIds||[]).includes(entry.id);return sum+(included?0:(ingredient?.cents||0))*entry.quantity;},0);
   const flavors=(item.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
   const priceProducts=flavors.length>1?flavors.map(p=>({...p,promotionalPriceBySize:{}})):(flavors.length?flavors:[product]);
-  const base=Math.max(...priceProducts.map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
+  let base=Math.max(...priceProducts.map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
+  if(flavors.length>1){const promo=product.promotions?.find(p=>p.sizeKey===item.sizeKey&&p.promotionActive);if(promo)base=promo.discountType==='percent'?Math.round(base*(100-Number(promo.discountPercent))/100):Number(promo.promotionalPriceCents);}
   return base+(freeCrust?0:(crust?.priceCents||0))+extras;
 }
 // Carrinho e checkout: apresenta os itens e prepara os dados que serão enviados como pedido.
