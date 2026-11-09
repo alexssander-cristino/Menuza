@@ -430,37 +430,35 @@ function startPromotionCarousel(carousel){
 }
 function renderPromotionBanner(){
   const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
-  // Inclui ofertas válidas hoje, considerando também as promoções nomeadas.
-  const offers=(app.catalog?.products||[]).filter(product=>Number(product.active)!==0&&(
-    (Array.isArray(product.promotions)&&product.promotions.some(p=>p.promotionActive))||
-    (product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined)
-  ));
-  const bannerEnabled=Boolean(data?.active&&data.image&&offers.length);
-  if(!offers.length){stopPromotionCarousel();existing?.remove();return}
+  // Uma oferta pode estar vinculada a vários produtos; o banner exibe a promoção uma única vez.
+  const uniquePromotions=new Map();
+  (app.catalog?.products||[]).forEach(product=>{
+    (Array.isArray(product.promotions)?product.promotions:[]).forEach(promotion=>{
+      if(!promotion?.promotionActive)return;
+      const name=String(promotion.promotionName||'').trim();
+      const key=name?name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase():String(promotion.id||'');
+      if(!key||uniquePromotions.has(key))return;
+      uniquePromotions.set(key,promotion);
+    });
+  });
+  const offers=[...uniquePromotions.values()];
+  const bannerEnabled=Boolean(data?.active&&data.image);
+  if(!offers.length&&!bannerEnabled){stopPromotionCarousel();existing?.remove();return}
   const slides=[];
   if(bannerEnabled){
     slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+safeCssImageUrl(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
   }
-  offers.forEach((product,index)=>{
-    const selectedPromotion=(product.promotions||[]).find(item=>item.promotionActive)||product.promotion||null;
-    const promotionSize=product.type==='pizza'&&selectedPromotion?.sizeKey?selectedPromotion.sizeKey:'';
-    const regular=(promotionSize?Number(product.sizePrices?.[promotionSize]):Number(product.baseCents))||0;
-    const promo=Number(selectedPromotion?.calculatedPriceCents??(product.promotionalPriceCents!=null?product.promotionalPriceCents:0));
-    const validPromo=promo>0&&regular>promo;
-    const discount=validPromo?Math.max(1,Math.round((1-promo/regular)*100)):0;
-    const visual=productPhotoOrArt(product,defaultIngredients(product,app.catalog),{},'promotion-slide-product-art','contain');
-    const promotionTitle=String(product.promotion?.promotionName||'').trim();
-    const slideTitle=promotionTitle||product.name;
-    const slideDescription=promotionTitle?'Oferta em '+product.name:(product.description||'Uma oferta especial esperando por você.');
-    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-product" data-action="open-promotions" aria-label="Ver oferta '+esc(slideTitle)+'" aria-hidden="true" tabindex="-1"><span class="promotion-hero-product-glow"></span><span class="promotion-hero-product-visual">'+visual+'</span><span class="promotion-hero-copy"><small><i></i> OFERTA '+String(index+1).padStart(2,'0')+'</small><strong>'+esc(slideTitle)+'</strong><span>'+esc(slideDescription)+'</span><span class="promotion-hero-price">'+(validPromo?'<del>'+money(regular)+'</del>':'')+'<b>'+money(validPromo?promo:regular)+'</b>'+(discount?'<em>−'+discount+'%</em>':'')+'</span><b class="promotion-hero-cta">Aproveitar oferta <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+  offers.forEach((promotion,index)=>{
+    const title=String(promotion.promotionName||'Oferta especial').trim()||'Oferta especial';
+    const description='Confira esta promoção no cardápio.';
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-offer" data-action="open-promotions" aria-label="Ver promoção '+esc(title)+'"><span class="promotion-hero-copy"><small><i></i> OFERTA ESPECIAL</small><strong>'+esc(title)+'</strong><span>'+esc(description)+'</span><b class="promotion-hero-cta">Ver promoção <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
   });
-  const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Carrossel de promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
+  const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
   stopPromotionCarousel();
   const home=root.getElementById('homeView');
   if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
   if(existing&&home.contains(existing))existing.outerHTML=html;
   else{existing?.remove();const hoursBanner=root.getElementById('restaurantHoursBanner');if(hoursBanner&&home.contains(hoursBanner))hoursBanner.insertAdjacentHTML('afterend',html);else home.insertAdjacentHTML('afterbegin',html)}
-  // Só inicia a rotação quando existe ao menos uma promoção válida hoje.
   startPromotionCarousel(root.getElementById('promotionBanner'));
 }
 function renderRecentProducts(){
@@ -709,33 +707,30 @@ async function addBuilderToCart() {
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
-function effectiveProductBase(product){return product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined?Number(product.promotionalPriceCents):Number(product?.baseCents)||0;}
+function effectiveProductBase(product){
+  if(product?.type==='pizza')return Number(product?.baseCents)||0;
+  return product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined
+    ?Number(product.promotionalPriceCents):Number(product?.baseCents)||0;
+}
 function effectiveProductSizePrice(product,key,size){
-  const sizePromotion=product?.promotionalPriceBySize?.[key];
-  if(Number(sizePromotion)>0)return Number(sizePromotion);
-  // Para pizzas, o preço oficial é o preço salvo junto ao tamanho no painel.
-  // Não usar deltas ou preços antigos do produto como substitutos.
-  const configuredSize=Number(size?.priceCents);
-  if(product?.type==='pizza'&&Number.isInteger(configuredSize)&&configuredSize>=500){
-    const promo=product?.promotionalPriceCents,base=Number(product?.baseCents);
-    return promo!==null&&promo!==undefined&&base>0?Math.max(1,Math.round(configuredSize*Number(promo)/base)):configuredSize;
+  // Promoção de pizza só substitui o preço do tamanho escolhido.
+  if(product?.type==='pizza'){
+    const sizePromotion=Number(product?.promotionalPriceBySize?.[key]);
+    if(Number.isInteger(sizePromotion)&&sizePromotion>0)return sizePromotion;
+    const configuredSize=Number(size?.priceCents);
+    if(Number.isInteger(configuredSize)&&configuredSize>=500)return configuredSize;
+    const savedSize=Number(product?.sizePrices?.[key]);
+    if(Number.isInteger(savedSize)&&savedSize>=500)return savedSize;
+    return Number(product?.baseCents)||0;
   }
   const configured=Number(product?.sizePrices?.[key]);
-  if(Number.isInteger(configured)&&configured>0){
-    const promo=product?.promotionalPriceCents,base=Number(product?.baseCents);
-    return promo!==null&&promo!==undefined&&base>0?Math.max(1,Math.round(configured*Number(promo)/base)):configured;
-  }
+  if(Number.isInteger(configured)&&configured>0)return configured;
   return effectiveProductBase(product)+(size?.deltaCents||0);
 }
 function productPriceMarkup(product){
-  const sizeEntries=Object.entries(product?.promotionalPriceBySize||{}).filter(([,price])=>Number(price)>0).sort((a,b)=>Number(a[1])-Number(b[1]));
-  const sizePromotion=sizeEntries[0];
-  const hasPizzaSizePromotion=product?.type==='pizza'&&Boolean(sizePromotion);
-  const promo=hasPizzaSizePromotion||(product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined);
   const from=Object.keys(product?.sizePrices||{}).length>1?'A partir de ':'';
-  const regular=hasPizzaSizePromotion?Number(product.sizePrices?.[sizePromotion[0]])||Number(product.baseCents)||0:Number(product.baseCents)||0;
-  const promotional=hasPizzaSizePromotion?Number(sizePromotion[1]):Number(product.promotionalPriceCents);
-  return promo?'<span class="promo-price"><del>'+from+money(regular)+'</del><strong>'+from+money(promotional)+'</strong></span>':'<span class="product-price">'+from+money(product.baseCents)+'</span>';
+  // As ofertas ficam no banner; os cards mantêm o preço normal cadastrado.
+  return '<span class="product-price">'+from+money(product.baseCents)+'</span>';
 }
 function cartItemPrice(item){
   if(item.comboId){return Number(app.catalog.combos?.find(combo=>combo.id===item.comboId)?.priceCents)||0;}
