@@ -152,9 +152,7 @@ export default async function handler(request, response) {
     for(const product of products){
       if(product.type==='pizza'){
         product.sizePrices={...(product.sizePrices||{}),...sharedSizePrices};
-        const prices=Object.values(sharedSizePrices);
-        if(prices.length)product.baseCents=Math.min(...prices);
-      }
+        }
       const applicable=promotionResult.rows.filter(p=>
         p.product_id===product.id||(product.type==='pizza'&&p.product_id==='__all_pizzas__')
       );
@@ -184,9 +182,9 @@ export default async function handler(request, response) {
       product.promotionalCrustBySize=Object.fromEntries(activePizza.filter(p=>p.includedCrustKey).map(p=>[p.sizeKey,p.includedCrustKey]));
       const legacy=mapped.find(p=>!p.sizeKey&&p.promotionActive);
       product.promotion=mapped.find(p=>p.promotionActive)||mapped[0]||null;
-      product.promotionalPriceCents=product.type==='pizza'
-        ?(activePizza.length?Math.min(...activePizza.map(p=>p.calculatedPriceCents)):null)
-        :(legacy?.calculatedPriceCents??null);
+      // Pizza: a promoção pertence exclusivamente ao tamanho selecionado.
+      // Não expor um preço promocional global, pois isso altera os demais tamanhos.
+      product.promotionalPriceCents=product.type==='pizza'?null:(legacy?.calculatedPriceCents??null);
     }
 
     const ingredients = ingredientResult.rows.map(row => ({
