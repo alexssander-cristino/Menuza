@@ -381,7 +381,7 @@ function renderPromotionsTab(){
     const discounted=Number(promotion.calculatedPriceCents||0);
     const safeDiscount=discounted>0&&original>discounted?discounted:0;
     const percent=safeDiscount?Math.round((1-safeDiscount/original)*100):0;
-    const imageUrl=promotion.cardImage||productImages(product)[0]||'';
+    const imageUrl=String(promotion.cardImage||promotion.card_image||'').trim()||productImages(product)[0]||'';
     const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(product.name)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
     const price=safeDiscount?'<div class="promotion-offer-price"><div><small>De</small><del>'+money(original)+'</del></div><div><small>Por</small><strong>'+money(safeDiscount)+'</strong></div>'+(size?'<span class="promotion-offer-size">'+esc(size.label)+'</span>':'')+'</div>':'';
     const saving=safeDiscount?'<span class="promotion-offer-saving">-'+percent+'% <small>VOCÊ ECONOMIZA '+money(original-safeDiscount)+'</small></span>':'';
