@@ -1730,7 +1730,7 @@ async function renderCatalogAdmin(productType='pizza'){
         await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,sizePrices,description:data.get('description'),ageRestricted:data.get('ageRestricted')==='on',ingredientIds,defaultIngredientIds:selectedRecipe,ingredientQuantities,imageUrl,images})});
         toast('Produto cadastrado. Receita, descrição e personalização atualizadas.');
         newProductPreviewUrls.forEach(url=>URL.revokeObjectURL(url));newProductPreviewUrls=[];
-        await renderCatalogAdmin();
+        await renderCatalogAdmin(productType);
       }catch(error){errorNode.textContent=error.message||'Não foi possível salvar o produto.';button.disabled=false;button.textContent='Tentar novamente';}
     });
   }catch(error){target.innerHTML='<p class="error-text">'+esc(error.message)+'</p>'}
