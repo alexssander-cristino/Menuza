@@ -129,7 +129,15 @@ function normalizeCartForCatalog(value, catalog) {
           !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > (['burger','plate'].includes(product.type)?20:3) || seen.has(entry.id)) return false;
       const ingredientProduct = byoFlavor || product;
       if (ingredientProduct.ingredientsConfigured) {
-        const allowed = new Set([...(ingredientProduct.ingredientIds || []), ...(ingredientProduct.defaultIngredientIds || [])]);
+        // Em ofertas de pizza, os ingredientes podem vir de qualquer sabor escolhido.
+        // Validar somente contra o produto-base removia do carrinho os sabores da oferta.
+        const selectedFlavorProducts = product.type === 'pizza'
+          ? (item.flavorProductIds || [product.id]).map(id => products.get(id)).filter(Boolean)
+          : [ingredientProduct];
+        const allowed = new Set(selectedFlavorProducts.flatMap(flavor => [
+          ...(flavor.ingredientIds || []),
+          ...(flavor.defaultIngredientIds || [])
+        ]));
         if (!allowed.has(entry.id)) return false;
       }
       seen.add(entry.id);
@@ -145,6 +153,7 @@ function normalizeCartForCatalog(value, catalog) {
     return {
       cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(),
       productId: product.id, name: product.name, type: product.type,
+      promotionId: typeof item.promotionId === 'string' ? item.promotionId : '',
       quantity: item.quantity, sizeKey: product.type === 'plate' ? 'unico' : item.sizeKey,
       crustKey: product.type === 'pizza' ? item.crustKey : '',
       flavorProductIds: product.type === 'pizza' && Array.isArray(item.flavorProductIds) ? item.flavorProductIds.filter(id=>products.has(id)&&products.get(id).type==='pizza').slice(0,8) : [product.id],
@@ -739,7 +748,7 @@ async function addBuilderToCart() {
   const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
   if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
   if(!(await ensureAgeForProduct(product)))return;
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,promotionId:builder.promotion?.id||'',flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
@@ -835,7 +844,7 @@ function checkoutForm(){
 async function submitCheckout(event){
   event.preventDefault();
   if(!restaurantCanOrder()){const error=root.getElementById('checkoutError');if(error)error.textContent=app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.';return}const form=event.currentTarget,button=form.querySelector('[type=submit]'),error=root.getElementById('checkoutError');
-  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel')||(app.tableQr?String(app.tableQr.number):''),tableQrToken:app.tableQr?.token||'',deliveryAddress:data.get('deliveryAddress'),deliveryZoneId:data.get('deliveryZoneId'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>item.comboId?({comboId:item.comboId,quantity:item.quantity,notes:item.notes}):({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,ingredients:item.ingredients,notes:item.notes}))};
+  const data=new FormData(form),payload={contact_check:data.get('contact_check'),customerName:data.get('customerName'),phone:data.get('phone'),fulfillment:data.get('fulfillment'),tableLabel:data.get('tableLabel')||(app.tableQr?String(app.tableQr.number):''),tableQrToken:app.tableQr?.token||'',deliveryAddress:data.get('deliveryAddress'),deliveryZoneId:data.get('deliveryZoneId'),note:data.get('note'),couponCode:app.checkoutCoupon?.code||'',idempotencyKey:app.checkoutKey,items:app.cart.map(item=>item.comboId?({comboId:item.comboId,quantity:item.quantity,notes:item.notes}):({productId:item.productId,quantity:item.quantity,sizeKey:item.sizeKey,crustKey:item.crustKey,flavorProductIds:item.flavorProductIds,promotionId:item.promotionId||'',ingredients:item.ingredients,notes:item.notes}))};
   if(payload.fulfillment==='table'&&!payload.tableLabel){error.textContent='Selecione uma mesa livre antes de confirmar.';form.querySelector('[name=tableLabel]')?.focus();return}
   if(payload.fulfillment==='delivery'&&!payload.deliveryZoneId){error.textContent='Selecione a região de entrega.';return}
   button.disabled=true;button.textContent='Enviando para a cozinha…';error.textContent='';
