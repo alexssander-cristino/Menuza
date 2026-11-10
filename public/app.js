@@ -360,7 +360,12 @@ function renderCatalog() {
   }
   const orderedCategories=app.catalog.categories.slice().sort((a,b)=>(categoryPriority.get(a.id) ?? 2)-(categoryPriority.get(b.id) ?? 2));
   root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
-  const featuredProducts=app.catalog.products.filter(p=>p.featured&&p.type!=='drink').slice(0,4);
+  const featuredProducts=app.catalog.products.filter(p=>Number(p.orderCount||0)>=10&&p.type!=='drink').sort((a,b)=>Number(b.orderCount||0)-Number(a.orderCount||0)).slice(0,4);
+  const featuredSection=root.getElementById('favoritos');
+  if(featuredSection)featuredSection.hidden=featuredProducts.length===0;
+  root.querySelectorAll('a[href="#favoritos"]').forEach(link=>link.hidden=featuredProducts.length===0);
+  const popularMobileLink=root.querySelector('[data-destination="popular"]');
+  if(popularMobileLink)popularMobileLink.hidden=featuredProducts.length===0;
   root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
   renderRecentProducts();
   renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
