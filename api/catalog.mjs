@@ -82,9 +82,14 @@ export default async function handler(request, response) {
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS product_images_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
+    // O cardápio público consulta este endpoint diretamente; garanta que ele
+    // também exponha o link salvo nas configurações do restaurante.
+    await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
+    await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE", ["https://share.google/dg8sziHxshXgV93g8", RESTAURANT_ID]);
 
     const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult] = await Promise.all([
-      query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
+      query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl", google_review_url AS "googleReviewUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
       query('SELECT id, name, slug, sort_order AS "sortOrder" FROM categories WHERE restaurant_id = $1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredient_quantities_json AS "ingredientQuantitiesJson", p.ingredients_configured AS "ingredientsConfigured", p.size_prices_json AS "sizePricesJson", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
       query('SELECT id, name, type, group_name AS "groupName", addon_cents AS cents, included_by_default AS included, active, sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id = $1 AND active = 1 ORDER BY sort_order', [RESTAURANT_ID]),
