@@ -97,7 +97,7 @@ export default async function handler(request, response) {
       query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID]),
       query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
       query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
-      query("SELECT oi.product_id AS \"productId\",SUM(oi.quantity)::int AS \"orderCount\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.status<>'cancelled' AND oi.product_id IS NOT NULL GROUP BY oi.product_id",[RESTAURANT_ID])
+      query("SELECT oi.product_id AS \"productId\",COUNT(DISTINCT oi.order_id)::int AS \"orderCount\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.status<>'cancelled' AND oi.product_id IS NOT NULL GROUP BY oi.product_id",[RESTAURANT_ID])
     ]);
 
     const productSales = new Map(productSalesResult.rows.map(row=>[String(row.productId),Number(row.orderCount)||0]));
