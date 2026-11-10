@@ -95,3 +95,85 @@
 .admin-shell-v2 .admin-panel .button-row>.button,
 .admin-shell-v2 .admin-panel .form-actions>.button{width:100%}
 }
+
+
+/* Acabamento do menu hamburguer e drawer do painel do restaurante. */
+@media(max-width:1100px){
+  .admin-shell-v2 .admin-mobile-menu-toggle{
+    display:flex!important;flex-direction:column!important;
+    width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    padding:11px!important;gap:5px!important;
+    border:1px solid var(--mz-night-border,#603340)!important;
+    border-radius:13px!important;
+    background:var(--mz-night-sidebar,#211319)!important;
+    color:var(--mz-night-text,#f8e9e8)!important;
+    box-shadow:0 8px 24px rgba(10,4,7,.24)!important;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
+  }
+  .admin-shell-v2 .admin-mobile-menu-toggle span{
+    display:block!important;flex:0 0 2px!important;width:20px!important;height:2px!important;
+    min-height:2px!important;margin:0!important;border-radius:99px!important;
+    background:currentColor!important;opacity:1!important;
+    transition:transform .22s ease,opacity .18s ease!important
+  }
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:first-child{transform:translateY(7px) rotate(45deg)!important}
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:nth-child(2){opacity:0!important}
+  .admin-shell-v2.mobile-nav-open .admin-mobile-menu-toggle span:last-child{transform:translateY(-7px) rotate(-45deg)!important}
+  .admin-shell-v2 .admin-sidebar{
+    width:min(330px,88vw)!important;
+    padding:22px 16px calc(24px + env(safe-area-inset-bottom))!important;
+    border:1px solid var(--mz-night-border,#603340)!important;
+    border-left:0!important;border-radius:0 22px 22px 0!important;
+    background:var(--mz-night-sidebar,#211319)!important;
+    box-shadow:24px 0 70px rgba(0,0,0,.34)!important
+  }
+  .admin-shell-v2 .admin-sidebar-brand{
+    min-height:54px!important;padding:8px 9px!important;margin-bottom:14px!important;
+    border:1px solid var(--mz-night-border,#603340)!important;border-radius:14px!important;
+    background:rgba(255,255,255,.035)!important
+  }
+  .admin-shell-v2 .admin-sidebar-restaurant{
+    padding:12px!important;margin:0 0 10px!important;
+    border:1px solid var(--mz-night-border,#603340)!important;border-radius:14px!important;
+    background:rgba(255,255,255,.045)!important
+  }
+  .admin-shell-v2 .admin-sidebar-nav{gap:8px!important;padding:8px 0 12px!important}
+  .admin-shell-v2 .admin-nav-group{gap:4px!important;margin:0!important}
+  .admin-shell-v2 .admin-nav-label{
+    padding:13px 10px 6px!important;color:var(--mz-night-muted,#b99da4)!important;
+    font-size:9px!important;font-weight:800!important;letter-spacing:.14em!important;
+    text-transform:uppercase!important
+  }
+  .admin-shell-v2 .admin-tab{
+    display:flex!important;align-items:center!important;gap:12px!important;
+    min-height:46px!important;padding:10px 12px!important;
+    border:1px solid transparent!important;border-radius:11px!important;
+    color:var(--mz-night-text,#f8e9e8)!important;background:transparent!important;
+    font-size:12px!important;font-weight:600!important;letter-spacing:0!important;
+    transition:background .18s ease,border-color .18s ease,transform .18s ease!important
+  }
+  .admin-shell-v2 .admin-tab .admin-nav-icon{
+    display:grid!important;place-items:center!important;flex:0 0 22px!important;
+    width:22px!important;height:22px!important;color:var(--mz-night-muted,#c6aab1)!important
+  }
+  .admin-shell-v2 .admin-tab.active{
+    color:#fff!important;background:rgba(224,68,88,.16)!important;
+    border-color:rgba(224,68,88,.32)!important;
+    box-shadow:inset 3px 0 0 #E04458!important
+  }
+  .admin-shell-v2 .admin-tab.active .admin-nav-icon{color:#F36B7B!important}
+  .admin-shell-v2 .admin-sidebar-footer{
+    gap:7px!important;padding-top:12px!important;
+    border-top:1px solid var(--mz-night-border,#603340)!important
+  }
+  .admin-shell-v2 .admin-sidebar-link{
+    min-height:44px!important;padding:10px 12px!important;border-radius:11px!important;
+    color:var(--mz-night-text,#f8e9e8)!important;background:rgba(255,255,255,.04)!important;
+    font-size:11px!important
+  }
+  .admin-shell-v2 .admin-sidebar-link:hover{background:rgba(255,255,255,.09)!important}
+  .admin-shell-v2 .admin-mobile-nav-backdrop{background:rgba(8,4,6,.68)!important;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .admin-shell-v2 .admin-mobile-menu-toggle span,.admin-shell-v2 .admin-tab{transition:none!important}
+}
