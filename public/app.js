@@ -748,7 +748,9 @@ async function addBuilderToCart() {
   const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
   if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
   if(!(await ensureAgeForProduct(product)))return;
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,promotionId:builder.promotion?.id||'',flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
+  const selectedFlavorProducts=product.type==='pizza'?selectedFlavors.map(id=>app.catalog.products.find(item=>item.id===id)).filter(Boolean):[];
+  const cartProductName=builder.promotion&&product.type==='pizza'&&selectedFlavorProducts.length?selectedFlavorProducts.map(item=>item.name).join(' / '):product.name;
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:cartProductName,type:product.type,promotionId:builder.promotion?.id||'',flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
   invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
