@@ -362,17 +362,15 @@ function renderPromotionsTab(){
   const section=root.getElementById('promotionsPage'),grid=root.getElementById('promotionsGrid'),count=root.getElementById('promotionsCount');
   if(!section||!grid)return;
   if(!app.catalog||!Array.isArray(app.catalog.products)){if(count)count.textContent='Não foi possível carregar as ofertas.';grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';return}
-  const offers=[];
+  const today=new Date().getDay()||7,offersByPromotion=new Map();
   const globalPromotions=Array.isArray(app.catalog.promotions)?app.catalog.promotions:[];
-  const today=new Date().getDay()||7;
   for(const product of app.catalog.products.filter(item=>Number(item.active)!==0&&Number(item.available)!==0)){
     const linked=Array.isArray(product.promotions)?product.promotions:[];
     const globalForProduct=globalPromotions.filter(item=>item.productId===product.id||(product.type==='pizza'&&item.productId==='__all_pizzas__'));
     const byId=new Map(linked.map(item=>[String(item.id),item]));
     for(const item of globalForProduct)if(!byId.has(String(item.id)))byId.set(String(item.id),item);
     for(const source of byId.values()){
-      const promotion={...source};
-      const size=(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey);
+      const promotion={...source},size=(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey);
       const base=product.type==='pizza'?regularProductSizePrice(product,promotion.sizeKey||'media',size):regularProductSizePrice(product,'unico',null);
       const days=Array.isArray(promotion.weekdays)?promotion.weekdays.map(Number):[];
       const scheduled=promotion.active!==false&&Number(promotion.active)!==0&&days.includes(today);
@@ -380,30 +378,22 @@ function renderPromotionsTab(){
       promotion.promotionActive=Boolean(promotion.promotionActive||(scheduled&&Number.isFinite(calculated)&&calculated>=0&&calculated<base));
       promotion.calculatedPriceCents=Number(promotion.calculatedPriceCents)>0?Number(promotion.calculatedPriceCents):calculated;
       if(!promotion.promotionActive)continue;
-      const key=String(promotion.promotionName||promotion.id||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      if(!key)continue;
-      offers.push({product,promotion,key});
+      const key=String(promotion.id||promotion.promotionName||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      if(key&&!offersByPromotion.has(key))offersByPromotion.set(key,{product,promotion});
     }
   }
+  const offers=[...offersByPromotion.values()];
   section.hidden=false;
-  if(count)count.textContent=offers.length+' '+(offers.length===1?'produto em oferta':'produtos em oferta');
+  if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta disponível':'ofertas disponíveis');
   if(!offers.length){grid.innerHTML='<div class="promotions-empty"><strong>Nenhuma oferta disponível agora.</strong><span>As promoções cadastradas aparecerão aqui quando estiverem ativas.</span></div>';return}
   grid.innerHTML=offers.map(({product,promotion})=>{
     const title=promotion.promotionName||'Oferta especial';
-    const size=promotion.sizeKey?(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey):null;
-    const original=product.type==='pizza'?regularProductSizePrice(product,promotion.sizeKey||'media',size):regularProductSizePrice(product,'unico',null);
-    const discounted=Number(promotion.calculatedPriceCents||0);
-    const safeDiscount=discounted>0&&original>discounted?discounted:0;
-    const percent=safeDiscount?Math.round((1-safeDiscount/original)*100):0;
-    const publicPromotions=Array.isArray(app.catalog?.promotions)?app.catalog.promotions:[];const promotionId=String(promotion.id||'');const publicPromotion=publicPromotions.find(item=>String(item.id||'')===promotionId)||publicPromotions.find(item=>String(item.productId||'')===(promotion.applyToAllPizzas?'__all_pizzas__':String(product.id))&&String(item.sizeKey||'')===String(promotion.sizeKey||''))||publicPromotions.find(item=>String(item.productId||'')==='__all_pizzas__'&&String(item.sizeKey||'')===String(promotion.sizeKey||''));const imageUrl=String(promotion.cardImage||promotion.card_image||publicPromotion?.cardImage||'').trim();
-    const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(product.name)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
-    const price=safeDiscount?'<div class="promotion-offer-price"><div><small>De</small><del>'+money(original)+'</del></div><div><small>Por</small><strong>'+money(safeDiscount)+'</strong></div>'+(size?'<span class="promotion-offer-size">'+esc(size.label)+'</span>':'')+'</div>':'';
-    const saving=safeDiscount?'<span class="promotion-offer-saving">-'+percent+'% <small>VOCÊ ECONOMIZA '+money(original-safeDiscount)+'</small></span>':'';
-    const description=product.description||ingredientDescription(product,defaultIngredients(product,app.catalog));
-    return '<article class="product-card promotion-offer-card">'+
-      '<div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span>'+saving+'</div>'+
-      '<div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(product.name)+'</h3><p>'+esc(description)+'</p>'+price+
-      '<button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(promotion.id||'')+'">Personalizar oferta <span>'+uiIcon('arrow',14)+'</span></button></div></article>';
+    const publicPromotions=Array.isArray(app.catalog?.promotions)?app.catalog.promotions:[];
+    const publicPromotion=publicPromotions.find(item=>String(item.id||'')===String(promotion.id||''));
+    const imageUrl=String(promotion.cardImage||promotion.card_image||publicPromotion?.cardImage||publicPromotion?.card_image||'').trim();
+    const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(title)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
+    const description='Escolha o produto, sabor, tamanho e adicionais do seu jeito. A oferta será aplicada às opções participantes.';
+    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+esc(description)+'</p><button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(promotion.id||'')+'">Personalizar oferta <span>'+uiIcon('arrow',14)+'</span></button></div></article>';
   }).join('');
 }
 function stopPromotionCarousel(){
