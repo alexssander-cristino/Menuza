@@ -3230,3 +3230,8 @@ button[data-action="view-generated-3d"],
   .checkout-modal .checkout-review{padding:13px;margin-bottom:17px}
   .checkout-modal .checkout-section-heading{margin-top:19px}
 }
+
+
+/* Link de avaliação no Google: mantém a navegação discreta e consistente. */
+.desktop-nav a[data-google-review-link]{color:#b7791f;font-weight:700;white-space:nowrap}
+.desktop-nav a[data-google-review-link]:hover{color:#8f5d12}
