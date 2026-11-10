@@ -1633,3 +1633,15 @@ html[data-mz-theme="dark"][data-mz-contrast="high"] :where(p,small,label,.field-
   .menu-category-count { font-size: 10px; }
   .menu-category-products { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 }
+
+
+/* Preço do modal: valor atual em destaque e economia legível nas ofertas. */
+.builder-price-display{display:flex;align-items:flex-start;gap:6px;min-width:0}
+.builder-price-current,.builder-price-discount strong{display:block;color:var(--ink,#29252b);font:800 27px/1.05 var(--display,Georgia,serif);letter-spacing:-.035em;white-space:nowrap}
+.builder-price-discount{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.builder-price-discount del{color:#8b8794;font-size:12px;font-weight:500;line-height:1.2}
+.builder-price-discount strong{color:var(--accent,#d21404)}
+.builder-price-discount small{display:inline-flex;align-items:center;margin-top:2px;padding:4px 7px;border-radius:4px;background:#e8f4e9;color:#27643a;font-size:10px;font-weight:700;line-height:1.2}
+.builder-price-pending{font-size:14px;font-weight:700;color:var(--mz-muted,#777)}
+.builder-total>small{display:block;margin-bottom:5px;color:#77717d;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+@media(max-width:760px){.builder-price-current,.builder-price-discount strong{font-size:24px}.builder-price-discount del{font-size:11px}.builder-price-discount small{font-size:9px}.builder-total>small{font-size:9px}}
