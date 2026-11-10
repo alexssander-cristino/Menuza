@@ -123,3 +123,111 @@
 @media(prefers-reduced-motion:reduce){
   .admin-shell-v2 .admin-mobile-menu-toggle span{transition:none!important}
 }
+
+
+/* Login do restaurante — layout de acesso em duas etapas */
+.admin-shell.admin-login-shell{
+  box-sizing:border-box;width:100%;max-width:none;min-height:100vh;margin:0;
+  padding:34px clamp(18px,5vw,76px) 48px;
+  background:
+    radial-gradient(ellipse at 16% 18%,rgba(224,68,88,.18),transparent 38%),
+    radial-gradient(ellipse at 86% 82%,rgba(248,143,34,.09),transparent 32%),
+    #130D10;
+}
+.admin-login-shell>.tracking-back{
+  display:inline-flex;align-items:center;gap:8px;color:#e9dadd!important;
+  font-size:13px;text-decoration:none;opacity:.82;transition:opacity .2s;
+}
+.admin-login-shell>.tracking-back:hover{opacity:1}
+.admin-login-layout{
+  width:min(100%,1000px);min-height:590px;margin:42px auto 0;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,450px);
+  overflow:hidden;border:1px solid rgba(255,255,255,.09);border-radius:26px;
+  background:#211319;box-shadow:0 32px 90px rgba(0,0,0,.38);
+}
+.admin-login-aside{
+  min-width:0;display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(30px,5vw,58px);
+  color:#fff0ed;
+  background:
+    radial-gradient(circle at 78% 28%,rgba(224,68,88,.24),transparent 30%),
+    linear-gradient(145deg,#321a23 0%,#211319 68%,#170f13 100%);
+}
+.admin-login-brand{display:flex;align-items:center;gap:12px}
+.admin-login-brand-mark{
+  width:44px;height:44px;display:grid;place-items:center;border-radius:14px;
+  background:linear-gradient(145deg,#f36b7b,#d21404);color:#fff;
+  font-size:23px;font-weight:850;box-shadow:0 9px 24px rgba(210,20,4,.24);
+}
+.admin-login-brand strong{display:block;font-size:15px;letter-spacing:.16em}
+.admin-login-brand small{display:block;margin-top:4px;color:#c9aeb4;font-size:9px;letter-spacing:.13em}
+.admin-login-aside-copy{max-width:440px;margin:54px 0}
+.admin-login-kicker{color:#f36b7b;font-size:10px;font-weight:800;letter-spacing:.2em}
+.admin-login-aside-copy h1{
+  margin:18px 0 17px;color:#fff4f1;font-size:clamp(38px,5vw,58px);
+  line-height:1.04;letter-spacing:-.055em;font-weight:760;
+}
+.admin-login-aside-copy h1 em{font-style:normal;color:#f36b7b}
+.admin-login-aside-copy p{max-width:350px;margin:0;color:#cdbbc0;font-size:14px;line-height:1.8}
+.admin-login-aside-foot{display:flex;align-items:center;gap:10px;color:#c9aeb4;font-size:11px}
+.admin-login-status-dot{width:8px;height:8px;border-radius:50%;background:#65c995;box-shadow:0 0 0 5px rgba(101,201,149,.12)}
+.admin-login-layout>.admin-login{
+  box-sizing:border-box;width:100%;max-width:none;margin:0;padding:clamp(30px,4vw,48px);
+  display:flex;flex-direction:column;justify-content:center;align-self:stretch;
+  border:0;border-radius:0;background:#fff9f6;color:#2a171c;
+  box-shadow:none;
+}
+.admin-login-form-heading{margin-bottom:26px}
+.admin-login-form-icon{
+  width:42px;height:42px;display:grid;place-items:center;margin-bottom:23px;
+  border:1px solid #f0dadd;border-radius:13px;background:#fff0f0;color:#d83b50;
+}
+.admin-login-form-heading .eyebrow{color:#c74b59;font-size:9px;font-weight:800;letter-spacing:.16em}
+.admin-login-form-heading h2{margin:10px 0 8px;color:#28171b;font-size:29px;line-height:1.15;letter-spacing:-.04em}
+.admin-login-form-heading p{margin:0;color:#88777b;font-size:12px;line-height:1.65}
+.admin-login-layout .form-field{display:flex;flex-direction:column;gap:8px;margin:0 0 18px}
+.admin-login-layout .form-field>span{color:#49353a;font-size:11px;font-weight:750}
+.admin-login-layout .form-field input{
+  box-sizing:border-box;width:100%;min-height:50px;padding:0 15px;
+  border:1px solid #eadde0;border-radius:11px;background:#fff;
+  color:#2a171c;font-size:14px;transition:border-color .18s,box-shadow .18s;
+}
+.admin-login-layout .form-field input::placeholder{color:#b3a5a8}
+.admin-login-layout .form-field input:focus{
+  outline:none;border-color:#d94a5d;box-shadow:0 0 0 4px rgba(217,74,93,.11);
+}
+.admin-login-layout .admin-login-otp-field{margin-bottom:8px}
+.admin-login-layout .admin-login-otp-field input{
+  font-size:20px;font-weight:750;letter-spacing:.24em;font-variant-numeric:tabular-nums;
+}
+.admin-login-layout .admin-login-otp-field small{color:#907f83;font-size:10px;line-height:1.55}
+.admin-login-layout .admin-login-error{min-height:18px;margin:8px 0 12px;color:#c52f43;font-size:11px}
+.admin-login-layout .admin-login-submit{
+  min-height:50px;border:0;border-radius:11px;
+  background:linear-gradient(100deg,#d21404,#e04458);color:#fff;
+  font-size:13px;font-weight:750;box-shadow:0 9px 22px rgba(210,20,4,.18);
+  transition:transform .18s,box-shadow .18s,opacity .18s;
+}
+.admin-login-layout .admin-login-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 13px 26px rgba(210,20,4,.24)}
+.admin-login-layout .admin-login-submit:disabled{cursor:wait;opacity:.72}
+.admin-login-security-note{display:flex;align-items:center;justify-content:center;gap:7px;margin:17px 0 0;color:#927f84;font-size:10px}
+.admin-login-security-note svg{width:14px;height:14px}
+.admin-login-layout .admin-legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin:24px 0 0;padding-top:17px;border-top:1px solid #eee2e4}
+.admin-login-layout .admin-legal-links a{color:#907f83;font-size:9px;text-decoration:none}
+.admin-login-layout .admin-legal-links a:hover{color:#c52f43}
+@media(max-width:760px){
+  .admin-shell.admin-login-shell{padding:20px 14px 32px}
+  .admin-login-layout{grid-template-columns:1fr;min-height:0;margin:24px auto 0;border-radius:20px}
+  .admin-login-aside{padding:23px 24px 25px;min-height:205px}
+  .admin-login-aside-copy{margin:25px 0 19px}
+  .admin-login-aside-copy h1{font-size:35px;margin:10px 0}
+  .admin-login-aside-copy p{font-size:12px}
+  .admin-login-aside-foot{font-size:9px}
+  .admin-login-layout>.admin-login{padding:28px 23px 25px}
+  .admin-login-form-heading{margin-bottom:22px}
+}
+@media(max-width:420px){
+  .admin-login-aside{min-height:185px}
+  .admin-login-aside-copy h1{font-size:31px}
+  .admin-login-layout>.admin-login{padding:25px 18px}
+}
