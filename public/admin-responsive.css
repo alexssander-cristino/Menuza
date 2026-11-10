@@ -322,3 +322,37 @@
 @media(prefers-reduced-motion:reduce){
  .admin-login-success,.admin-login-success-check,.admin-login-success-check svg{animation:none!important;opacity:1;transform:none;stroke-dashoffset:0}
 }
+
+
+/* Resumo do turno: cards compactos, hierarquia clara e acabamento consistente. */
+.today-shift-panel{
+  overflow:hidden;padding:20px!important;border:1px solid #eadde0!important;
+  border-radius:16px!important;background:linear-gradient(145deg,#fff 0%,#fff9f8 100%)!important;
+  box-shadow:0 8px 24px rgba(47,20,28,.055)!important;
+}
+.today-shift-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.today-shift-kicker{display:block;margin-bottom:6px;color:#c04453;font-size:9px;font-weight:850;letter-spacing:.14em}
+.today-shift-heading h2{margin:0!important;color:#28171d;font-size:21px!important;font-weight:750!important;letter-spacing:-.035em}
+.today-shift-heading p{margin:5px 0 0;color:#78666c;font-size:11px;line-height:1.45}
+.today-shift-date{flex:0 0 auto;padding:6px 9px;border:1px solid #ead7db;border-radius:8px;background:#fff;color:#69444d;font-size:10px;font-weight:750;text-transform:capitalize}
+.today-shift-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.today-shift-metric{
+  position:relative;min-width:0;padding:14px 13px 13px;
+  border:1px solid #eadde0;border-radius:12px;background:#fff;
+}
+.today-shift-orders{border-top:3px solid #d83b4d}
+.today-shift-ticket{border-top:3px solid #21865a}
+.today-shift-icon{display:grid;place-items:center;width:34px;height:34px;margin-bottom:12px;border-radius:10px;background:#fff0f1;color:#bd2d42}
+.today-shift-ticket .today-shift-icon{background:#eaf7ef;color:#167448}
+.today-shift-label{color:#665159;font-size:10px;font-weight:750;line-height:1.3}
+.today-shift-metric strong{display:block;overflow:hidden;margin-top:5px;color:#211319;font-size:clamp(23px,2.3vw,29px);font-weight:850;letter-spacing:-.045em;line-height:1.15;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.today-shift-metric small{display:block;margin-top:7px;color:#827078;font-size:9px;line-height:1.4}
+.today-shift-foot{display:flex;align-items:center;gap:7px;margin-top:15px;padding-top:12px;border-top:1px solid #f0e5e7;color:#78666c;font-size:9px;line-height:1.4}
+.today-shift-live-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#21945e;box-shadow:0 0 0 3px rgba(33,148,94,.12)}
+@media(max-width:520px){
+ .today-shift-panel{padding:16px!important}
+ .today-shift-metrics{gap:8px}
+ .today-shift-metric{padding:12px 10px}
+ .today-shift-metric strong{font-size:23px}
+ .today-shift-heading h2{font-size:19px!important}
+}
