@@ -222,3 +222,43 @@
 .promotion-admin-image-control--split>div>span{font-size:.7rem;color:var(--muted)}
 .promotion-admin-image-control--split label{grid-column:2;grid-row:3}
 @media(max-width:640px){.promotion-image-upload-grid{grid-template-columns:1fr}.promotion-image-upload-grid .promo-banner-preview{height:150px}}
+
+
+/* Banner promocional realmente fluido: proporção e imagem se ajustam ao viewport. */
+.promotion-hero-wrap{width:min(100% - 32px,1200px);max-width:1200px;padding-left:0!important;padding-right:0!important}
+.promotion-hero-carousel{width:100%;height:clamp(250px,30vw,380px);min-height:0;aspect-ratio:16/5;border-radius:clamp(16px,2vw,26px)}
+.promotion-hero-slide{height:100%;min-height:0}
+.promotion-hero-banner{background-size:100% 100%,contain;background-position:center,right center;background-repeat:no-repeat}
+.promotion-hero-offer{background-size:100% 100%,contain;background-position:center,right center;background-repeat:no-repeat}
+.promotion-hero-copy{box-sizing:border-box;min-width:0}
+.promotion-hero-copy strong,.promotion-hero-copy>span:not(.promotion-hero-price){overflow-wrap:anywhere}
+@media(max-width:900px){
+ .promotion-hero-carousel{height:clamp(260px,38vw,340px);aspect-ratio:16/6}
+ .promotion-hero-copy{width:min(68%,620px);padding:clamp(22px,4vw,38px)}
+ .promotion-hero-copy strong{font-size:clamp(1.8rem,4.6vw,3rem)}
+}
+@media(max-width:680px){
+ .promotion-hero-wrap{width:calc(100% - 24px);padding:0!important;margin:10px auto 14px!important}
+ .promotion-hero-carousel{height:auto;min-height:0;aspect-ratio:4/5;border-radius:17px}
+ .promotion-hero-slide{height:100%;min-height:0;align-items:flex-end}
+ .promotion-hero-banner,.promotion-hero-offer{background-size:100% 100%,100% auto;background-position:center,center top;background-repeat:no-repeat}
+ .promotion-hero-banner .promotion-hero-shade{background:linear-gradient(0deg,rgba(18,8,14,.98) 0%,rgba(23,9,17,.90) 36%,rgba(22,10,17,.10) 78%)}
+ .promotion-hero-offer:after{background:linear-gradient(0deg,rgba(19,13,16,.98) 0%,rgba(19,13,16,.84) 38%,rgba(19,13,16,.08) 82%)}
+ .promotion-hero-copy,.promotion-hero-offer .promotion-hero-copy{width:100%;max-width:none;padding:20px 18px 62px;gap:8px}
+ .promotion-hero-copy strong{font-size:clamp(1.65rem,8vw,2.35rem);line-height:1.02}
+ .promotion-hero-copy>span:not(.promotion-hero-price){font-size:.82rem;line-height:1.4;max-width:100%}
+ .promotion-hero-copy>b,.promotion-hero-cta{margin-top:4px;padding:10px 14px;font-size:.76rem}
+ .promotion-hero-corner{top:12px;right:13px}
+ .promotion-hero-controls{right:12px;bottom:12px;gap:6px}
+ .promotion-hero-arrow{width:30px;height:30px;font-size:1.3rem}
+ .promotion-hero-count{font-size:.58rem}
+ .promotion-hero-dot{width:17px;height:20px}
+ .promotion-hero-dot.is-active span{width:17px}
+ .promotion-hero-progress{height:2px}
+}
+@media(max-width:380px){
+ .promotion-hero-carousel{aspect-ratio:3/4}
+ .promotion-hero-copy,.promotion-hero-offer .promotion-hero-copy{padding:16px 14px 58px}
+ .promotion-hero-copy strong{font-size:1.55rem}
+ .promotion-hero-copy>span:not(.promotion-hero-price){font-size:.76rem}
+}
