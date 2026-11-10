@@ -75,3 +75,23 @@
 .admin-shell-v2 .admin-mobile-menu-toggle{min-width:86px!important}
 }
 @media(prefers-reduced-motion:reduce){.admin-shell-v2 .admin-sidebar,.admin-shell-v2 .admin-mobile-nav-backdrop{transition:none!important}}
+
+.admin-shell-v2 .admin-panel input[type="checkbox"],
+.admin-shell-v2 .admin-panel input[type="radio"],
+.admin-shell-v2 .admin-panel input[type="range"],
+.admin-shell-v2 .admin-panel input[type="file"]{width:auto;max-width:100%}
+.admin-shell-v2 .admin-panel pre,
+.admin-shell-v2 .admin-panel code{max-width:100%;overflow-wrap:anywhere;white-space:pre-wrap}
+.admin-shell-v2 .admin-panel .form-field,
+.admin-shell-v2 .admin-panel label{min-width:0}
+.admin-shell-v2 .admin-panel .form-field>span{overflow-wrap:anywhere}
+.admin-shell-v2 .admin-panel .button-row,
+.admin-shell-v2 .admin-panel .form-actions{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.admin-shell-v2 .admin-panel .button-row>*,
+.admin-shell-v2 .admin-panel .form-actions>*{max-width:100%;min-width:0}
+@media(max-width:520px){
+.admin-shell-v2 .admin-panel .button-row,
+.admin-shell-v2 .admin-panel .form-actions{align-items:stretch;flex-direction:column}
+.admin-shell-v2 .admin-panel .button-row>.button,
+.admin-shell-v2 .admin-panel .form-actions>.button{width:100%}
+}
