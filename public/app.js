@@ -1192,6 +1192,19 @@ function renderAdminLogin(errorText=''){
   const digitInputs=[...form.querySelectorAll('.admin-otp-digit')];
   const errorNode=form.querySelector('[data-admin-login-error]');
   let submitting=false;
+  const clearLoginError=()=>{
+    form.classList.remove('admin-login-has-error');
+    digitInputs.forEach(input=>input.classList.remove('is-invalid'));
+    passwordInput.classList.remove('is-invalid');
+  };
+  const showLoginError=message=>{
+    errorNode.textContent=message||'Não foi possível validar o acesso.';
+    form.classList.remove('admin-login-has-error');
+    void form.offsetWidth;
+    form.classList.add('admin-login-has-error');
+    passwordInput.classList.toggle('is-invalid',!passwordInput.value.trim());
+    digitInputs.forEach(input=>input.classList.add('is-invalid'));
+  };
   const syncDigits=()=>{factorInput.value=digitInputs.map(input=>input.value).join('');};
   const maybeAutoSubmit=()=>{
     syncDigits();
@@ -1243,12 +1256,12 @@ function renderAdminLogin(errorText=''){
     const otp=String(factorInput.value||'').trim();
     const recoveryCode=String(recoveryInput.value||'').trim();
     if(!password.trim()){
-      errorNode.textContent='Informe a senha do restaurante.';
+      showLoginError('Informe a senha do restaurante.');
       passwordInput.focus();
       return;
     }
     if(!/^\d{6}$/.test(otp)&&!recoveryCode){
-      errorNode.textContent='Preencha os seis dígitos ou informe um código de recuperação.';
+      showLoginError('Preencha os seis dígitos ou informe um código de recuperação.');
       digitInputs[0].focus();
       return;
     }
@@ -1263,6 +1276,7 @@ function renderAdminLogin(errorText=''){
       form.classList.add('admin-login-is-valid');
       digitInputs.forEach(input=>input.classList.add('is-valid'));
       errorNode.textContent='';
+      form.classList.remove('admin-login-has-error');
       const success=document.createElement('div');
       success.className='admin-login-success';
       success.setAttribute('role','status');
@@ -1277,7 +1291,7 @@ function renderAdminLogin(errorText=''){
       refreshAdmin();
       connectAdminEvents();
     }catch(error){
-      errorNode.textContent=error.message||'Não foi possível validar o acesso.';
+      showLoginError(error.message||'Senha ou código de autenticação incorreto. Confira os dados e tente novamente.');
       digitInputs.forEach(input=>input.value='');
       factorInput.value='';
       submitting=false;
@@ -1286,6 +1300,7 @@ function renderAdminLogin(errorText=''){
       if(recoveryCode)recoveryInput.focus();else digitInputs[0].focus();
     }
   });
+  [passwordInput,recoveryInput,...digitInputs].forEach(input=>input.addEventListener('input',clearLoginError));
 }
 
 function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
