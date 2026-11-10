@@ -3252,3 +3252,7 @@ button[data-action="view-generated-3d"],
 .google-review-arrow{color:#a66a1c;font-size:17px}
 .google-review-section[hidden]{display:none!important}
 @media(max-width:700px){.google-review-section{padding:30px 0}.google-review-inner{align-items:stretch;flex-direction:column;gap:18px}.google-review-cta{width:100%;box-sizing:border-box}}
+
+
+/* Exibição do preço original e promocional no modal, carrinho e checkout. */
+.cart-price-discount{display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;white-space:nowrap}.cart-price-discount del,.builder-total b del{color:#8b8794;font-size:.82em;font-weight:500}.cart-price-discount strong,.builder-total b strong{color:var(--accent,#d21404);font-weight:800}.builder-total b:has(del){display:flex;flex-direction:column;align-items:flex-start;gap:2px}
