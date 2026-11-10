@@ -88,7 +88,7 @@ export default async function handler(request, response) {
     await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
     await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE", ["https://share.google/dg8sziHxshXgV93g8", RESTAURANT_ID]);
 
-    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult] = await Promise.all([
+    const [restaurantResult, categoryResult, productResult, ingredientResult, comboResult, promotionResult, sizeResult, crustResult, productSalesResult] = await Promise.all([
       query('SELECT id, name, slug, currency, prep_minutes AS "prepMinutes", logo_url AS "logoUrl", google_review_url AS "googleReviewUrl" FROM restaurants WHERE id = $1', [RESTAURANT_ID]),
       query('SELECT id, name, slug, sort_order AS "sortOrder" FROM categories WHERE restaurant_id = $1 ORDER BY sort_order', [RESTAURANT_ID]),
       query('SELECT p.id, p.category_id AS "categoryId", p.name, p.description, p.type, p.base_price_cents AS "baseCents", p.active, p.available, p.featured, p.prep_minutes AS "prepMinutes", p.model_url AS "modelUrl", p.width_cm AS "widthCm", p.depth_cm AS "depthCm", p.height_cm AS "heightCm", p.ingredient_ids_json AS "ingredientIdsJson", p.default_ingredient_ids_json AS "defaultIngredientIdsJson", p.ingredient_quantities_json AS "ingredientQuantitiesJson", p.ingredients_configured AS "ingredientsConfigured", p.size_prices_json AS "sizePricesJson", p.image_url AS "imageUrl", p.product_images_json AS "productImagesJson", p.model_3d_url AS "model3dUrl", p.model_3d_status AS "model3dStatus", p.updated_at AS "updatedAt" FROM products p WHERE p.restaurant_id = $1 AND p.active = 1 ORDER BY p.featured DESC, p.category_id, p.name', [RESTAURANT_ID]),
@@ -96,9 +96,11 @@ export default async function handler(request, response) {
       query('SELECT id, name, description, price_cents AS "priceCents", items_json AS "itemsJson", active, created_at AS "createdAt", updated_at AS "updatedAt" FROM combos WHERE restaurant_id = $1 AND active = 1 ORDER BY created_at DESC', [RESTAURANT_ID]),
       query('SELECT * FROM product_promotions WHERE restaurant_id = $1 AND active = 1', [RESTAURANT_ID]),
       query('SELECT key,label,diameter_cm AS "diameterCm",max_flavors AS "maxFlavors",price_cents AS "priceCents",active FROM pizza_sizes WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
-      query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID])
+      query('SELECT key,label,price_cents AS "priceCents",active FROM pizza_crusts WHERE restaurant_id=$1 AND active=1 ORDER BY sort_order',[RESTAURANT_ID]),
+      query("SELECT oi.product_id AS \"productId\",SUM(oi.quantity)::int AS \"orderCount\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.status<>'cancelled' AND oi.product_id IS NOT NULL GROUP BY oi.product_id",[RESTAURANT_ID])
     ]);
 
+    const productSales = new Map(productSalesResult.rows.map(row=>[String(row.productId),Number(row.orderCount)||0]));
     const products = await Promise.all(productResult.rows.map(async product => {
       let ingredientIds = [];
       let defaultIngredientIds = [];
@@ -117,6 +119,7 @@ export default async function handler(request, response) {
       if (imageUrl !== product.imageUrl || JSON.stringify(storedImages) !== JSON.stringify(images)) await query('UPDATE products SET image_url=$1,product_images_json=$2 WHERE id=$3 AND restaurant_id=$4',[imageUrl,JSON.stringify(storedImages),product.id,RESTAURANT_ID]);
       return {
         ...product,
+        orderCount: productSales.get(String(product.id)) || 0,
         sizePrices: sizePrices && typeof sizePrices === 'object' && !Array.isArray(sizePrices) ? sizePrices : {},
         imageUrl,
         productImagesJson: JSON.stringify(storedImages),
