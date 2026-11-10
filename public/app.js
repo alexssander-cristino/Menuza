@@ -333,9 +333,19 @@ function renderRestaurantHours(){
   target.innerHTML='<div class="restaurant-hours-card '+(status.isOpen?'is-open':'is-closed')+'"><div class="restaurant-hours-status"><span class="restaurant-hours-dot"></span><div><strong>'+(status.configured?(status.isOpen?'Estamos abertos':'Estamos fechados'):'Horários de funcionamento')+'</strong><small>'+(status.configured?esc(status.message||''):'Consulte os dias e horários de atendimento.')+'</small></div></div>'+(status.configured?'<div class="restaurant-hours-details"><strong class="restaurant-hours-label">HORÁRIOS DA SEMANA</strong><div class="restaurant-hours-list">'+hours+'</div></div>':'<p class="restaurant-hours-unconfigured">O restaurante ainda não cadastrou os horários.</p>')+'</div>';
 }
 // Cardápio público: monta categorias, produtos, busca e filtros visíveis ao cliente.
+function renderGoogleReviewLinks(){
+  const url=String(app.catalog?.restaurant?.googleReviewUrl||'').trim();
+  for(const link of root.querySelectorAll('[data-google-review-link]')){
+    link.hidden=!url;
+    if(url){link.href=url;link.target='_blank';link.rel='noopener noreferrer'}else link.removeAttribute('href');
+  }
+  const mobile=root.querySelector('[data-destination="review"]');
+  if(mobile)mobile.hidden=!url;
+}
 function renderCatalog() {
   if (!app.catalog) return;
   renderRestaurantHours();
+  renderGoogleReviewLinks();
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
   // No cardápio do cliente, mantenha todas as categorias de pizza primeiro,
   // depois hambúrgueres e, por último, hot dogs. Bebidas continuam no fim.
@@ -2177,6 +2187,7 @@ async function renderSettingsAdmin(){
     const initialName=String(restaurant.name||'').trim();
     const initialPrep=Number(restaurant.prepMinutes)||30;
     const initialLogoUrl=String(restaurant.logoUrl||'').trim();
+    const initialGoogleReviewUrl=String(restaurant.googleReviewUrl||'').trim();
     target.innerHTML=`
       <div class="settings-intro">
         <div><div class="eyebrow">RESTAURANTE E SEGURANÇA</div><h2>Configurações do restaurante.</h2><p>Gerencie os dados exibidos aos clientes e proteja o acesso administrativo nesta mesma aba.</p></div>
@@ -2198,6 +2209,7 @@ async function renderSettingsAdmin(){
           <form id="restaurantSettingsForm" class="settings-form">
             <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
             <div class="form-field logo-upload-field"><span>Logo do restaurante</span><div class="logo-upload-control"><label class="logo-upload-button" for="restaurantLogoFile"><span aria-hidden="true">${uiIcon('arrow',16)}</span> Escolher imagem</label><input id="restaurantLogoFile" name="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="logo-upload-preview" id="restaurantLogoPreview">${initialLogoUrl ? `<img src="${esc(initialLogoUrl)}" alt="Prévia da logo atual">` : '<span>Logo</span>'}</div></div><small class="field-hint">Envie PNG, JPG ou WebP de até 8 MB. A imagem será comprimida e salva automaticamente em WebP, preservando a transparência.</small><label class="logo-remove-option"><input type="checkbox" name="removeLogo" id="restaurantLogoRemove"><span>Remover logo e usar as iniciais do restaurante</span></label></div>
+            <label class="form-field"><span>Link de avaliação no Google</span><input name="googleReviewUrl" type="url" maxlength="1000" value="${esc(initialGoogleReviewUrl)}" placeholder="https://share.google/..."><small class="field-hint">Esse link cria a aba “Avalie no Google” no cardápio do cliente. Deixe vazio para ocultar a aba.</small></label>
             <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
             <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
             <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
@@ -2344,6 +2356,7 @@ async function renderSettingsAdmin(){
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;
     const prepInput=form.elements.prepMinutes;
+    const googleReviewInput=form.elements.googleReviewUrl;
     const logoFileInput=form.elements.logoFile;
     const removeLogoInput=form.elements.removeLogo;
     const logoPreview=root.getElementById('restaurantLogoPreview');
@@ -2353,7 +2366,7 @@ async function renderSettingsAdmin(){
     const setDirty=()=>{
       root.getElementById('settingsPreviewName').textContent=nameInput.value.trim()||'Seu restaurante';
       root.getElementById('settingsPreviewPrep').textContent=(Number(prepInput.value)||0)+' min';
-      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||Boolean(logoFileInput.files?.length)||removeLogoInput.checked;
+      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||googleReviewInput.value.trim()!==initialGoogleReviewUrl||Boolean(logoFileInput.files?.length)||removeLogoInput.checked;
       status.classList.toggle('is-dirty',dirty);
       status.innerHTML=dirty?'<span></span> Alterações não salvas':'<span></span> Tudo salvo';
       saveButton.disabled=!dirty;
@@ -2390,12 +2403,14 @@ async function renderSettingsAdmin(){
       const name=String(data.get('name')||'').trim();
       const prepMinutes=Number(data.get('prepMinutes'));
       const logoUrl=removeLogoInput.checked?'':(selectedLogoData||initialLogoUrl);
+      const googleReviewUrl=googleReviewInput.value.trim();
       const error=root.getElementById('settingsError');
       if(name.length<2||!Number.isFinite(prepMinutes)||prepMinutes<5||prepMinutes>240){error.textContent='Confira o nome e o tempo de preparo antes de salvar.';return}
+      if(googleReviewUrl&&!/^https:\/\//i.test(googleReviewUrl)){error.textContent='Informe um link seguro do Google começando com https://.';return}
       saveButton.disabled=true;saveButton.textContent='Salvando…';error.textContent='';
       try{
-        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes,logoUrl})});
-        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes;app.catalog.restaurant.logoUrl=result.restaurant.logoUrl||''}
+        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes,logoUrl,googleReviewUrl})});
+        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes;app.catalog.restaurant.logoUrl=result.restaurant.logoUrl||'';app.catalog.restaurant.googleReviewUrl=result.restaurant.googleReviewUrl||'';renderGoogleReviewLinks()}
         applyRestaurantBranding(result.restaurant.name,result.restaurant.logoUrl);
         toast('Configurações salvas.');
         await renderSettingsAdmin();
@@ -2772,6 +2787,7 @@ async function handleClick(event){
     closeMobileSiteMenu();
     if(destination==='account'){if(location.hash==='#conta')showCustomerAccount();else location.hash='conta';return}
     if(destination==='restaurant'){if(location.hash==='#admin')showAdmin();else location.hash='admin';return}
+    if(destination==='review'){const reviewUrl=String(app.catalog?.restaurant?.googleReviewUrl||'').trim();if(reviewUrl)window.open(reviewUrl,'_blank','noopener,noreferrer');return}
     showHome();
     if(destination==='popular'){
       root.getElementById('favoritos')?.scrollIntoView({behavior:'smooth',block:'start'});return;
