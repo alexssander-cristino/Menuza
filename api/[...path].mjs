@@ -632,10 +632,14 @@ async function priceItems(input) {
     if (!product) throw fail('Um dos produtos está indisponível ou esgotado no momento.', 409);
     let pricedItem;
     let flavorProducts=[product];
+    const requestedPromotion=entry.promotionId
+      ? product.promotions?.find(p=>p.id===entry.promotionId&&p.promotionActive&&p.sizeKey===entry.sizeKey)
+      : null;
     if(product.type==='pizza'){
       const ids=Array.isArray(entry.flavorProductIds)?[...new Set(entry.flavorProductIds)]:[product.id];
       const sizeOption=(cat.sizes.pizza||[]).find(x=>x.key===entry.sizeKey),limit=Number(sizeOption?.maxFlavors)||1;
-      if(!ids.includes(product.id)||ids.length<1||ids.length>limit)throw fail('A quantidade de sabores não é permitida para este tamanho.',422);
+      // Uma oferta válida pode ter como produto-base uma pizza diferente dos sabores escolhidos.
+      if((!ids.includes(product.id)&&!requestedPromotion)||ids.length<1||ids.length>limit)throw fail('A quantidade de sabores não é permitida para este tamanho.',422);
       flavorProducts=ids.map(fid=>cat.products.find(p=>p.id===fid&&p.type==='pizza'&&Number(p.active)===1&&Number(p.available)===1));
       if(flavorProducts.some(p=>!p))throw fail('Um dos sabores selecionados está indisponível.',409);
     }
@@ -650,7 +654,7 @@ async function priceItems(input) {
           included: (ingredientSource.defaultIngredientIds || []).includes(ingredient.id)
         }))
       : cat.ingredients;
-    const sizePromo=product.type==='pizza'?(product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive&&p.applyToAllPizzas)||product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive)):null;
+    const sizePromo=product.type==='pizza'?(requestedPromotion||product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive&&p.applyToAllPizzas)||product.promotions?.find(p=>p.sizeKey===entry.sizeKey&&p.promotionActive)):null;
     let effectiveProduct=sizePromo?{...product,sizePrices:{...(product.sizePrices||{}),[entry.sizeKey]:sizePromo.calculatedPriceCents}}:
       product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined&&product.type!=='pizza'?{...product,baseCents:product.promotionalPriceCents,sizePrices:Object.fromEntries(Object.entries(product.sizePrices||{}).map(([key,value])=>[key,Math.max(1,Math.round(Number(value)*Number(product.promotionalPriceCents)/Math.max(1,Number(product.baseCents))))]))}:product;
     if(byoFlavor)effectiveProduct={...effectiveProduct,name:byoFlavor.name,ingredientsConfigured:byoFlavor.ingredientsConfigured,ingredientIds:byoFlavor.ingredientIds,defaultIngredientIds:byoFlavor.defaultIngredientIds};
