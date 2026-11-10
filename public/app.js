@@ -630,6 +630,7 @@ function renderBuilder() {
   const ingredientLimit = isBuildYourOwn ? 3 : 12;
   const selected = new Set(builder.ingredients.map(i => i.id));
   const selectedIngredientDescription = ingredientDescription(displayProduct, builder.ingredients);
+  const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
   const offerPromotion=builder.promotion;  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;
   const offerPrice=Number(offerPromotion?.calculatedPriceCents)||0;
   const offerPercent=offerPromotion&&offerRegular>offerPrice&&offerPrice>0?Math.round((1-offerPrice/offerRegular)*100):0;
@@ -640,7 +641,6 @@ function renderBuilder() {
   const builderPriceMarkup=builderRegularPrice>builderCurrentPrice?'<span class="builder-price-discount"><del>'+money(builderRegularPrice)+'</del><strong>'+money(builderCurrentPrice)+'</strong></span>':money(builderCurrentPrice);
   const offerNotice=offerPromotion?'<section class="builder-promotion-summary"><div class="builder-promotion-icon">'+uiIcon('sparkles',20)+'</div><div class="builder-promotion-copy"><span>OFERTA ESPECIAL</span><strong>'+esc(offerPromotion.promotionName||'Condição promocional')+'</strong><small>Esta oferta está aplicada ao produto selecionado.</small></div>'+(offerPercent?'<div class="builder-promotion-discount"><b>'+offerPercent+'% OFF</b><small>Economize '+money(offerRegular-offerPrice)+'</small></div>':'')+'</section>':'';
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
-  const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
   const sceneCanvas = app.scene?.canvas || null;
   const diameter = selectedSize?.diameterCm || 0;
   const sizeScale = isPizza && diameter ? (0.72 + 0.28 * (diameter / 40)).toFixed(3) : (builder.sizeKey === 'duplo' ? '1' : '0.94');
