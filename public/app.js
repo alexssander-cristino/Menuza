@@ -1683,7 +1683,6 @@ async function renderCatalogAdmin(productType='pizza'){
     typeSelect.addEventListener('change',()=>{
       updateIngredientOptions();syncNewProductPriceField();
     });
-    applyProductTypeTab('pizza');
     updateIngredientOptions();
     syncNewProductPriceField();
     refreshNewRecipePreview();
