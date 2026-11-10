@@ -1181,9 +1181,60 @@ async function showAdmin(){
   }catch{app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
-  stopPromotionCarousel();root.body.classList.add('admin-route');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Galileu Pizzas e Lanches para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador ou código de recuperação</span><input type="text" name="otp" inputmode="text" maxlength="20" autocomplete="one-time-code" placeholder="000000 ou código de recuperação"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
-  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),factor=String(formData.get('otp')||'').trim(),secondFactor=/^\d{6}$/.test(factor)?{otp:factor}:{recoveryCode:factor};try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
+  stopPromotionCarousel();
+  root.body.classList.add('admin-route');
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-login-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><section class="admin-login-layout"><div class="admin-login-aside"><div class="admin-login-brand"><span class="admin-login-brand-mark">M</span><span><strong>MENUZA</strong><small>GESTÃO PARA RESTAURANTES</small></span></div><div class="admin-login-aside-copy"><span class="admin-login-kicker">ÁREA DO RESTAURANTE</span><h1>Seu restaurante.<br><em>Sua gestão.</em></h1><p>Pedidos, cardápio e operação em um só lugar. Entre com segurança para continuar.</p></div><div class="admin-login-aside-foot"><span class="admin-login-status-dot"></span> Ambiente protegido por autenticação em duas etapas</div></div><form class="admin-login" id="adminLogin" novalidate><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="admin-login-form-heading"><span class="admin-login-form-icon">'+uiIcon('lock',20)+'</span><span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Informe sua senha e o código do autenticador para acessar o painel.</p></div><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required maxlength="128" autocomplete="current-password" placeholder="Digite sua senha"></label><label class="form-field admin-login-otp-field"><span>Código de autenticação</span><input type="text" name="otp" inputmode="numeric" maxlength="20" autocomplete="one-time-code" placeholder="000000" aria-describedby="adminLoginOtpHelp"><small id="adminLoginOtpHelp">Ao completar os 6 dígitos, o acesso será validado automaticamente. Códigos de recuperação também podem ser usados.</small></label><p class="error-text admin-login-error" data-admin-login-error role="alert" aria-live="polite">'+esc(errorText)+'</p><button class="button button-dark admin-login-submit" type="submit">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-login-security-note">'+uiIcon('shield-check',14)+' Sua conexão é protegida e o código é validado pelo servidor.</p><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a></p></form></section></div>';
+  const form=root.getElementById('adminLogin');
+  const button=form.querySelector('[type="submit"]');
+  const passwordInput=form.elements.password;
+  const factorInput=form.elements.otp;
+  const errorNode=form.querySelector('[data-admin-login-error]');
+  let submitting=false;
+  const maybeAutoSubmit=()=>{
+    if(submitting||button.disabled)return;
+    const factor=String(factorInput.value||'').trim();
+    if(/^\d{6}$/.test(factor)&&String(passwordInput.value||'').trim()){
+      form.requestSubmit();
+    }
+  };
+  factorInput.addEventListener('input',maybeAutoSubmit);
+  passwordInput.addEventListener('input',maybeAutoSubmit);
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(submitting)return;
+    const password=String(passwordInput.value||'');
+    const factor=String(factorInput.value||'').trim();
+    if(!password.trim()){
+      errorNode.textContent='Informe a senha do restaurante.';
+      passwordInput.focus();
+      return;
+    }
+    if(!factor){
+      errorNode.textContent='Informe o código do autenticador ou um código de recuperação.';
+      factorInput.focus();
+      return;
+    }
+    const secondFactor=/^\d{6}$/.test(factor)?{otp:factor}:{recoveryCode:factor};
+    submitting=true;
+    button.disabled=true;
+    button.innerHTML='Verificando acesso…';
+    errorNode.textContent='';
+    try{
+      await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});
+      app.admin.authenticated=true;
+      startAdminInactivityMonitor();
+      renderAdmin();
+      refreshAdmin();
+      connectAdminEvents();
+    }catch(error){
+      errorNode.textContent=error.message||'Não foi possível validar o acesso.';
+      factorInput.value='';
+      submitting=false;
+      button.disabled=false;
+      button.innerHTML='Entrar no painel <span>'+uiIcon('arrow',14)+'</span>';
+      factorInput.focus();
+    }
+  });
 }
 
 function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
