@@ -2098,7 +2098,7 @@ async function renderOpeningHoursAdmin(){
       const periods=(day.periods||[]).map(period=>'<div class="opening-hours-period" data-hours-period><label><span>Abertura</span><input type="time" data-hours-open value="'+esc(period.open)+'" required></label><label><span>Fechamento</span><input type="time" data-hours-close value="'+esc(period.close)+'" required></label><button type="button" class="opening-hours-remove" data-action="remove-hours-period" aria-label="Remover período">×</button></div>').join('');
       return '<section class="opening-hours-day" data-hours-day="'+key+'"><div class="opening-hours-day-head"><label><input type="checkbox" data-hours-enabled '+(day.enabled?'checked':'')+'><strong>'+label+'</strong></label><span class="opening-hours-day-state">'+(day.enabled?'Aberto':'Fechado')+'</span></div><div class="opening-hours-periods">'+periods+'</div><button type="button" class="button button-outline button-small" data-action="add-hours-period" data-day="'+key+'">+ Adicionar período</button></section>';
     }).join('');
-    target.innerHTML='<div class="settings-intro"><div><div class="eyebrow">EXPEDIENTE DO RESTAURANTE</div><h2>Horários de funcionamento</h2><p>Defina quando o cardápio aceita novos pedidos. Os horários serão exibidos para os clientes.</p></div><span class="settings-status"><span></span> Fuso de Brasília</span></div><section class="admin-panel opening-hours-panel"><div class="opening-hours-help"><strong>Configure cada dia da semana</strong><p>Você pode cadastrar até quatro períodos por dia, por exemplo, almoço e jantar. Desmarque os dias em que o restaurante não abre.</p></div><form id="openingHoursForm"><div class="opening-hours-days">'+rows+'</div><div class="settings-actions"><p class="error-text" id="openingHoursError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar horários</button></div></form></section>';
+    target.innerHTML='<div class="settings-intro"><div><div class="eyebrow">EXPEDIENTE DO RESTAURANTE</div><h2>Horários de funcionamento</h2><p>Defina quando o cardápio aceita novos pedidos. Os horários serão exibidos para os clientes.</p></div><span class="settings-status"><span></span> Fuso de Brasília</span></div><section class="admin-panel opening-hours-panel"><div class="opening-hours-help"><strong>Configure cada dia da semana</strong><p>Você pode cadastrar até quatro períodos por dia, por exemplo, almoço e jantar. Desmarque os dias em que o restaurante não abre.</p></div><form id="openingHoursForm" novalidate><div class="opening-hours-days">'+rows+'</div><div class="settings-actions"><p class="error-text" id="openingHoursError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar horários</button></div></form></section>';
     const form=root.getElementById('openingHoursForm');
     form.addEventListener('change',event=>{if(event.target.matches('[data-hours-enabled]')){const day=event.target.closest('[data-hours-day]');day?.querySelector('.opening-hours-day-state')?.replaceChildren(document.createTextNode(event.target.checked?'Aberto':'Fechado'));}});
     form.addEventListener('submit',async event=>{
@@ -2107,12 +2107,34 @@ async function renderOpeningHoursAdmin(){
       const days={};
       for(const day of form.querySelectorAll('[data-hours-day]')){
         const enabled=day.querySelector('[data-hours-enabled]').checked;
-        const periods=[...day.querySelectorAll('[data-hours-period]')].map(row=>({open:row.querySelector('[data-hours-open]').value,close:row.querySelector('[data-hours-close]').value}));
-        days[day.dataset.hoursDay]={enabled,periods:enabled?periods:[]};
+        const rows=[...day.querySelectorAll('[data-hours-period]')];
+        const periods=enabled?rows.map(row=>({open:row.querySelector('[data-hours-open]').value,close:row.querySelector('[data-hours-close]').value})).filter(period=>period.open||period.close):[];
+        if(enabled&&!periods.length){
+          error.textContent='Informe pelo menos um período completo para cada dia marcado como aberto.';
+          day.querySelector('[data-hours-open]')?.focus();
+          return;
+        }
+        for(const period of periods){
+          if(!period.open||!period.close){
+            error.textContent='Preencha os horários de abertura e fechamento de todos os períodos dos dias abertos.';
+            return;
+          }
+          if(period.close<=period.open){
+            error.textContent='O horário de fechamento deve ser posterior ao de abertura. Para atravessar a meia-noite, cadastre o período em dois dias.';
+            return;
+          }
+        }
+        days[day.dataset.hoursDay]={enabled,periods};
       }
       button.disabled=true;button.textContent='Salvando…';error.textContent='';
-      try{await api('/api/admin/opening-hours',{method:'PATCH',body:JSON.stringify({days})});toast('Horários de funcionamento salvos.');button.textContent='Salvo';}
-      catch(e){error.textContent=e.message||'Não foi possível salvar os horários.';button.disabled=false;button.textContent='Salvar horários';}
+      try{
+        await api('/api/admin/opening-hours',{method:'PATCH',body:JSON.stringify({days})});
+        toast('Horários de funcionamento salvos.');
+        button.disabled=false;button.textContent='Salvar horários';
+      }catch(e){
+        error.textContent=e.message||'Não foi possível salvar os horários.';
+        button.disabled=false;button.textContent='Salvar horários';
+      }
     });
   }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar os horários</h2><p>'+esc(error.message)+'</p></section>'}
 }
