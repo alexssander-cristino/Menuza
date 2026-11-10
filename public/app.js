@@ -1292,6 +1292,7 @@ function renderAdminLogin(errorText=''){
       connectAdminEvents();
     }catch(error){
       showLoginError(error.message||'Senha ou código de autenticação incorreto. Confira os dados e tente novamente.');
+      passwordInput.classList.add('is-invalid');
       digitInputs.forEach(input=>input.value='');
       factorInput.value='';
       submitting=false;
