@@ -642,9 +642,11 @@ function renderBuilder() {
   const offerPromotion=builder.promotion;  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;
   const offerPrice=Number(offerPromotion?.calculatedPriceCents)||0;
   const offerPercent=offerPromotion&&offerRegular>offerPrice&&offerPrice>0?Math.round((1-offerPrice/offerRegular)*100):0;
-  const builderCurrentPrice=offerPromotion&&offerPrice>0?offerPrice+(builderPrice()-offerRegular):builderPrice();
-  const builderRegularPrice=offerPromotion&&offerRegular>offerPrice?builderCurrentPrice+(offerRegular-offerPrice):builderCurrentPrice;
-  const builderPriceMarkup=offerPromotion&&builderRegularPrice>builderCurrentPrice?'<del>'+money(builderRegularPrice)+'</del><strong>'+money(builderCurrentPrice)+'</strong>':money(builderCurrentPrice);
+  const builderCurrentPrice=offerPromotion&&offerPrice>0?offerPrice+(builderPrice()-effectiveProductSizePrice(product,builder.sizeKey,selectedSize)):builderPrice();
+  const builderBaseRegular=offerPromotion?offerRegular:regularProductSizePrice(product,builder.sizeKey,selectedSize);
+  const builderBaseCurrent=offerPromotion?offerPrice:effectiveProductSizePrice(product,builder.sizeKey,selectedSize);
+  const builderRegularPrice=builderCurrentPrice+Math.max(0,builderBaseRegular-builderBaseCurrent);
+  const builderPriceMarkup=builderRegularPrice>builderCurrentPrice?'<span class="builder-price-discount"><del>'+money(builderRegularPrice)+'</del><strong>'+money(builderCurrentPrice)+'</strong></span>':money(builderCurrentPrice);
   const offerNotice=offerPromotion?'<section class="builder-promotion-summary"><div class="builder-promotion-icon">'+uiIcon('sparkles',20)+'</div><div class="builder-promotion-copy"><span>OFERTA ESPECIAL</span><strong>'+esc(offerPromotion.promotionName||'Condição promocional')+'</strong><small>Esta oferta está aplicada ao produto selecionado.</small></div>'+(offerPercent?'<div class="builder-promotion-discount"><b>'+offerPercent+'% OFF</b><small>Economize '+money(offerRegular-offerPrice)+'</small></div>':'')+'</section>':'';
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
   const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
