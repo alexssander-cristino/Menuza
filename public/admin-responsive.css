@@ -231,3 +231,43 @@
   .admin-login-aside-copy h1{font-size:31px}
   .admin-login-layout>.admin-login{padding:25px 18px}
 }
+
+
+/* Contraste reforçado e campos OTP individuais do login do restaurante. */
+.admin-login-shell,.admin-login-shell *{box-sizing:border-box}
+.admin-login-layout{background:#211319!important}
+.admin-login-layout>.admin-login{background:#fff!important;color:#211319!important}
+.admin-login-form-heading .eyebrow{color:#a51e31!important}
+.admin-login-form-heading h2{color:#211319!important}
+.admin-login-form-heading p{color:#59464b!important}
+.admin-login-layout .form-field>span{color:#332127!important;font-weight:800!important}
+.admin-login-layout .form-field input{background:#fff!important;color:#211319!important;border:1.5px solid #8d747b!important}
+.admin-login-layout .form-field input::placeholder{color:#62545a!important;opacity:1}
+.admin-login-layout .form-field input:focus{border-color:#a3132b!important;box-shadow:0 0 0 3px rgba(163,19,43,.2)!important}
+.admin-login-layout .admin-login-otp-field{gap:10px!important}
+.admin-login-layout .admin-login-otp-field>span{display:block;color:#211319!important;font-size:12px!important}
+.admin-otp-boxes{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin:2px 0 1px}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit{width:48px!important;min-width:0!important;height:56px!important;min-height:56px!important;padding:0!important;text-align:center!important;border:2px solid #72565f!important;border-radius:10px!important;background:#fff!important;color:#211319!important;font-size:24px!important;font-weight:850!important;letter-spacing:0!important;font-variant-numeric:tabular-nums;caret-color:#a3132b}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:focus{outline:0!important;border-color:#a3132b!important;background:#fff4f5!important;box-shadow:0 0 0 3px rgba(163,19,43,.22)!important}
+.admin-otp-separator{width:7px;height:3px;flex:0 0 7px;border-radius:2px;background:#72565f}
+.admin-login-layout .admin-login-otp-field small{display:block;color:#49363c!important;font-size:11px!important;line-height:1.5!important}
+.admin-login-layout .admin-recovery-field{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.admin-login-layout .admin-recovery-field>span{color:#49363c!important;font-size:10px!important;font-weight:750}
+.admin-login-layout .admin-recovery-field input{min-height:42px!important;font-size:12px!important}
+.admin-login-layout .admin-login-error{color:#a3132b!important;font-weight:800!important}
+.admin-login-aside-copy p{color:#f0dfe3!important}
+.admin-login-brand small,.admin-login-aside-foot{color:#ead3d9!important}
+.admin-login-layout .admin-login-security-note{color:#49363c!important}
+.admin-login-layout .admin-legal-links a{color:#49363c!important;font-weight:700}
+.admin-login-layout .admin-legal-links a:hover{color:#a3132b!important}
+.admin-login-layout .admin-login-submit{color:#fff!important;background:linear-gradient(100deg,#a3132b,#d93450)!important}
+.admin-login-layout .admin-login-submit:focus-visible{outline:3px solid #211319!important;outline-offset:3px}
+@media(max-width:760px){
+ .admin-otp-boxes{gap:6px}
+ .admin-login-layout .admin-otp-boxes .admin-otp-digit{width:calc((100% - 40px)/6)!important;height:52px!important;min-height:52px!important;font-size:22px!important}
+ .admin-otp-separator{width:4px;flex-basis:4px}
+}
+@media(max-width:360px){
+ .admin-otp-boxes{gap:4px}
+ .admin-login-layout .admin-otp-boxes .admin-otp-digit{height:47px!important;min-height:47px!important;font-size:19px!important}
+}
