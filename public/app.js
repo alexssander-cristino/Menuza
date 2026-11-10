@@ -363,9 +363,23 @@ function renderPromotionsTab(){
   if(!section||!grid)return;
   if(!app.catalog||!Array.isArray(app.catalog.products)){if(count)count.textContent='Não foi possível carregar as ofertas.';grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';return}
   const offers=[];
+  const globalPromotions=Array.isArray(app.catalog.promotions)?app.catalog.promotions:[];
+  const today=new Date().getDay()||7;
   for(const product of app.catalog.products.filter(item=>Number(item.active)!==0&&Number(item.available)!==0)){
-    for(const promotion of (Array.isArray(product.promotions)?product.promotions:[])){
-      if(!promotion?.promotionActive)continue;
+    const linked=Array.isArray(product.promotions)?product.promotions:[];
+    const globalForProduct=globalPromotions.filter(item=>item.productId===product.id||(product.type==='pizza'&&item.productId==='__all_pizzas__'));
+    const byId=new Map(linked.map(item=>[String(item.id),item]));
+    for(const item of globalForProduct)if(!byId.has(String(item.id)))byId.set(String(item.id),item);
+    for(const source of byId.values()){
+      const promotion={...source};
+      const size=(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey);
+      const base=product.type==='pizza'?regularProductSizePrice(product,promotion.sizeKey||'media',size):regularProductSizePrice(product,'unico',null);
+      const days=Array.isArray(promotion.weekdays)?promotion.weekdays.map(Number):[];
+      const scheduled=promotion.active!==false&&Number(promotion.active)!==0&&days.includes(today);
+      const calculated=promotion.discountType==='percent'?Math.round(base*(100-Number(promotion.discountPercent))/100):Number(promotion.promotionalPriceCents);
+      promotion.promotionActive=Boolean(promotion.promotionActive||(scheduled&&Number.isFinite(calculated)&&calculated>=0&&calculated<base));
+      promotion.calculatedPriceCents=Number(promotion.calculatedPriceCents)>0?Number(promotion.calculatedPriceCents):calculated;
+      if(!promotion.promotionActive)continue;
       const key=String(promotion.promotionName||promotion.id||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
       if(!key)continue;
       offers.push({product,promotion,key});
