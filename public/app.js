@@ -547,7 +547,7 @@ async function openBuilder(productId,cartItem=null,promotionId=null) {
   const ingredientProduct=initialByoFlavor||product;
   const requiredIds=ingredientProduct.ingredientsConfigured?(ingredientProduct.defaultIngredientIds||[]):app.catalog.ingredients.filter(item=>item.type===product.type&&item.included).map(item=>item.id);
   for(const id of requiredIds)if(!initial.some(item=>item.id===id))initial.push({id,quantity:1});
-  const selectedPromotion=promotionId?(product.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive):null;
+  const selectedPromotion=promotionId?((product.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive)||(app.catalog.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive&&(item.productId===product.id||(product.type==='pizza'&&item.productId==='__all_pizzas__')))):null;
   app.builder={productId,ingredients:initial,sizeKey:selectedPromotion?.sizeKey||cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',flavorProductIds:initialFlavors,editId:cartItem?.cartId||null,promotion:selectedPromotion||null};
   app.rotate=0;app.zoom=1;renderBuilder();
 }
