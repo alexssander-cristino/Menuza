@@ -148,8 +148,26 @@ export default async function handler(request, response) {
       return { ...size, priceCents, deltaCents: 0 };
     });
 
+    // Garante que as imagens das promoções estejam no bucket e disponíveis no catálogo público.
+    // O endpoint /api/catalog é servido diretamente por este arquivo, sem passar pelo roteador legado.
+    for (const promotion of promotionResult.rows) {
+      const [bannerImage] = promotion.banner_image
+        ? await migrateImageReferences([promotion.banner_image], 'restaurants/promotion-banners')
+        : [''];
+      const [cardImage] = promotion.card_image
+        ? await migrateImageReferences([promotion.card_image], 'restaurants/promotion-cards')
+        : [''];
+      if (bannerImage !== (promotion.banner_image || '') || cardImage !== (promotion.card_image || '')) {
+        await query(
+          'UPDATE product_promotions SET banner_image=$1,card_image=$2,updated_at=NOW() WHERE id=$3 AND restaurant_id=$4',
+          [bannerImage, cardImage, promotion.id, RESTAURANT_ID]
+        );
+        promotion.banner_image = bannerImage;
+        promotion.card_image = cardImage;
+      }
+    }
+
     // Normaliza os preços compartilhados e aplica promoções no produto/tamanho correto.
-    const sharedSizePrices=Object.fromEntries(publicPizzaSizes.filter(size=>Number(size.priceCents)>=500).map(size=>[size.key,Number(size.priceCents)]));
     for(const product of products){
       if(product.type==='pizza'){
         product.sizePrices={...(product.sizePrices||{}),...sharedSizePrices};
@@ -164,7 +182,9 @@ export default async function handler(request, response) {
         const calculatedPriceCents=sizeKey&&product.type==='pizza'?promotionPrice(product,p,normal):(!sizeKey?promotionPrice(product,p,normal):null);
         return {
           id:p.id,
-          promotionName:p.promotion_name||'',bannerImage:p.banner_image||'',
+          promotionName:p.promotion_name||'',
+          bannerImage:p.banner_image||'',
+          cardImage:p.card_image||'',
           applyToAllPizzas:p.product_id==='__all_pizzas__',
           sizeKey,
           includedCrustKey:p.included_crust_key||'',
@@ -223,6 +243,21 @@ export default async function handler(request, response) {
       restaurant,
       categories: categoryResult.rows,
       products,
+      promotions: promotionResult.rows.map(p => ({
+        id: p.id,
+        productId: p.product_id,
+        promotionName: p.promotion_name || '',
+        bannerImage: p.banner_image || '',
+        cardImage: p.card_image || '',
+        applyToAllPizzas: p.product_id === '__all_pizzas__',
+        sizeKey: p.size_key || '',
+        includedCrustKey: p.included_crust_key || '',
+        discountType: p.discount_type || 'fixed',
+        promotionalPriceCents: p.promotional_price_cents == null ? null : Number(p.promotional_price_cents),
+        discountPercent: p.discount_percent == null ? null : Number(p.discount_percent),
+        active: Number(p.active) === 1,
+        weekdays: (() => { try { return JSON.parse(p.weekdays_json || '[]'); } catch { return []; } })()
+      })),
       ingredients,
       combos,
       sizes: { ...SIZE_OPTIONS, pizza: publicPizzaSizes },
