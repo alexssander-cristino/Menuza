@@ -816,7 +816,9 @@ function checkoutForm(){
     const combo=item.comboId?app.catalog.combos?.find(entry=>entry.id===item.comboId):null;
     const product=app.catalog.products.find(entry=>entry.id===item.productId);
     const name=combo?.name||product?.name||item.name||'Item do pedido';
-    const details=combo?'Combo promocional':(item.sizeKey&&item.sizeKey!=='unico'?(app.catalog.sizes?.find(size=>size.key===item.sizeKey)?.name||''):'');
+    const productSizes=product?.type?(app.catalog.sizes?.[product.type]||[]):[];
+    const selectedSize=productSizes.find(size=>size.key===item.sizeKey);
+    const details=combo?'Combo promocional':(item.sizeKey&&item.sizeKey!=='unico'?(selectedSize?.label||selectedSize?.name||''):'');
     return '<div class="checkout-review-item"><span class="checkout-review-quantity">'+item.quantity+'×</span><div><strong>'+esc(name)+'</strong>'+(details?'<small>'+esc(details)+'</small>':'')+'</div><b>'+money(cartItemPrice(item)*item.quantity)+'</b></div>';
   }).join('');
   const checkoutItemCount=app.cart.reduce((sum,item)=>sum+Number(item.quantity||0),0);
