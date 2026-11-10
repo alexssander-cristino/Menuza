@@ -144,7 +144,7 @@
 }
 
 /* Banner mostra o nome da oferta, sem replicar fotos ou preços de cada produto. */
-.promotion-hero-offer{background-color:#190e17;background-image:linear-gradient(90deg,rgba(22,10,18,.96) 0%,rgba(34,14,24,.72) 48%,rgba(28,12,21,.2) 100%),var(--promotion-slide-image);background-size:cover,contain;background-position:center,right center;background-repeat:no-repeat}
+.promotion-hero-offer{background-color:#190e17;background-image:linear-gradient(90deg,rgba(22,10,18,.90) 0%,rgba(34,14,24,.40) 48%,rgba(28,12,21,.08) 100%),var(--promotion-slide-image);background-size:100% 100%,contain;background-position:center,right center;background-repeat:no-repeat}
 .promotion-hero-offer:after{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,rgba(22,10,18,.96) 0%,rgba(34,14,24,.72) 58%,rgba(28,12,21,.16) 100%)}
 .promotion-hero-offer .promotion-hero-copy{width:min(76%,760px)}
 @media(max-width:680px){.promotion-hero-offer .promotion-hero-copy{width:100%;padding:28px}}
