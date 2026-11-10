@@ -908,7 +908,20 @@ async function openCheckout(){
   if(!restaurantCanOrder())return toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
   for(const item of app.cart){const product=item.productId?app.catalog?.products.find(p=>p.id===item.productId):null;const combo=item.comboId?app.catalog?.combos?.find(c=>c.id===item.comboId):null;const restrictedProduct=product?.ageRestricted?product:(combo?.items||[]).find(entry=>entry.ageRestricted);if(restrictedProduct&&!await ensureAgeForProduct(restrictedProduct.productId?{id:restrictedProduct.productId,ageRestricted:true}:restrictedProduct))return;}
-  ensureCheckoutKey();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
+  // Renderiza o checkout antes de desmontar o carrinho. Se houver qualquer erro
+  // na montagem do formulário, o cliente continua vendo seus itens e pode tentar novamente.
+  ensureCheckoutKey();
+  try{
+    checkoutForm();
+    app.checkoutOpen=true;
+    app.cartOpen=false;
+    root.getElementById('cartRoot').innerHTML='';
+  }catch(error){
+    app.checkoutOpen=false;
+    root.getElementById('checkoutRoot').innerHTML='';
+    console.error('Falha ao abrir o checkout:',error);
+    toast('Não foi possível abrir o checkout. Seu carrinho foi mantido; tente novamente.');
+  }
 }
 function updateCameraARTransform() {
   const ar = app.arLite;
