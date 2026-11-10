@@ -834,6 +834,7 @@ function cartItemPrice(item){
   const priceProducts=flavors.length>1?flavors.map(p=>({...p,promotionalPriceBySize:{}})):(flavors.length?flavors:[product]);
   let base=Math.max(...priceProducts.map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
   if(flavors.length>1){const promo=product.promotions?.find(p=>p.sizeKey===item.sizeKey&&p.promotionActive&&p.applyToAllPizzas)||product.promotions?.find(p=>p.sizeKey===item.sizeKey&&p.promotionActive);if(promo)base=promo.discountType==='percent'?Math.round(base*(100-Number(promo.discountPercent))/100):Number(promo.promotionalPriceCents);}
+  else if(item.promotionId){const promo=(product.promotions||[]).find(p=>String(p.id)===String(item.promotionId))||(app.catalog.promotions||[]).find(p=>String(p.id)===String(item.promotionId));if(promo){const regular=regularProductSizePrice(product,item.sizeKey,size);base=Number(promo.calculatedPriceCents)||(promo.discountType==='percent'?Math.round(regular*(100-Number(promo.discountPercent))/100):Number(promo.promotionalPriceCents));}}
   return base+(freeCrust?0:(crust?.priceCents||0))+extras;
 }
 // Carrinho e checkout: apresenta os itens e prepara os dados que serão enviados como pedido.
