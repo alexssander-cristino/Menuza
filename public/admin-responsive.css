@@ -356,3 +356,31 @@
  .today-shift-metric strong{font-size:23px}
  .today-shift-heading h2{font-size:19px!important}
 }
+
+
+/* Feedback visual de credenciais inválidas no login do restaurante. */
+.admin-login-has-error{animation:adminLoginErrorShake .46s cubic-bezier(.36,.07,.19,.97) both}
+.admin-login-layout .admin-login-has-error .admin-login-error{
+  display:block!important;min-height:38px;margin:12px 0!important;padding:10px 12px 10px 38px!important;
+  position:relative;border:1px solid #ef9a9a;border-radius:10px;color:#9f1725!important;
+  background:#fff0f0;font-size:12px;font-weight:700;animation:adminLoginErrorMessage .25s ease-out both;
+}
+.admin-login-layout .admin-login-has-error .admin-login-error:before{
+  content:"!";position:absolute;left:12px;top:8px;display:grid;place-items:center;
+  width:19px;height:19px;border-radius:50%;color:#fff;background:#c62838;font-size:13px;font-weight:900;
+}
+.admin-login-layout .admin-login-has-error input.is-invalid,
+.admin-login-layout .admin-login-has-error .admin-otp-digit.is-invalid{
+  border-color:#d52d3d!important;background:#fff1f1!important;color:#8f1422!important;
+  box-shadow:0 0 0 3px rgba(213,45,61,.13)!important;animation:adminLoginFieldError .32s ease-out both;
+}
+@keyframes adminLoginErrorShake{
+  0%,100%{transform:translateX(0)}18%,54%{transform:translateX(-7px)}
+  36%,72%{transform:translateX(6px)}90%{transform:translateX(-2px)}
+}
+@keyframes adminLoginErrorMessage{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes adminLoginFieldError{0%,100%{transform:translateX(0)}35%{transform:translateX(-2px)}70%{transform:translateX(2px)}}
+@media(prefers-reduced-motion:reduce){
+  .admin-login-has-error,.admin-login-layout .admin-login-has-error .admin-login-error,
+  .admin-login-layout .admin-login-has-error input.is-invalid{animation:none!important}
+}
