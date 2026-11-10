@@ -565,8 +565,8 @@ async function openBuilder(productId,cartItem=null,promotionId=null) {
     const latestCatalog=await api('/api/catalog',{cache:'no-store'});
     if(latestCatalog&&Array.isArray(latestCatalog.products))app.catalog=latestCatalog;
   }catch(error){
-    toast(error?.message||'Não foi possível atualizar as opções deste produto.');
-    return;
+    // A atualização é complementar: se a API falhar, abre com o catálogo já carregado.
+    console.warn('Não foi possível atualizar o catálogo antes da personalização; usando os dados atuais.',error);
   }
   if(!restaurantCanOrder()){toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');return}
   const product=app.catalog.products.find(p=>p.id===productId);if(!product)return toast('Este produto não está mais disponível no cardápio. Atualize a página.');if(product.available===0)return toast('Esse produto está esgotado no momento.');
