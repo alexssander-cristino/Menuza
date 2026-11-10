@@ -339,6 +339,8 @@ function renderGoogleReviewLinks(){
     link.hidden=!url;
     if(url){link.href=url;link.target='_blank';link.rel='noopener noreferrer'}else link.removeAttribute('href');
   }
+  const section=root.getElementById('googleReviewSection');
+  if(section)section.hidden=!url;
   const mobile=root.querySelector('[data-destination="review"]');
   if(mobile)mobile.hidden=!url;
 }
