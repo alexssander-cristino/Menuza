@@ -3083,3 +3083,38 @@ button[data-action="view-generated-3d"],
   .admin-main .admin-footer-author .footer-author-signature{display:none}
 }
 
+
+
+/* Checkout: resumo claro dos itens antes dos dados de entrega. */
+.checkout-review{
+  margin:18px 0 20px;
+  padding:15px 16px;
+  border:1px solid var(--checkout-border);
+  border-radius:12px;
+  background:#fff8ed;
+}
+.checkout-review-heading,.checkout-review-item,.checkout-review-subtotal{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.checkout-review-heading{padding-bottom:10px;border-bottom:1px solid var(--checkout-border);font-size:13px;color:var(--checkout-title)}
+.checkout-review-heading span{font-size:11px;color:var(--checkout-muted);font-weight:500}
+.checkout-review-item{padding:10px 0;border-bottom:1px solid #eee3d5;font-size:12px}
+.checkout-review-item>div{display:grid;gap:3px;flex:1;min-width:0}
+.checkout-review-item strong{font-weight:600;color:var(--checkout-title);overflow-wrap:anywhere}
+.checkout-review-item small{font-size:10px;color:var(--checkout-muted)}
+.checkout-review-item>b{white-space:nowrap;color:var(--checkout-title);font-size:11px}
+.checkout-review-quantity{display:grid;place-items:center;min-width:27px;height:25px;border-radius:7px;background:#f2e5d3;color:var(--checkout-primary);font-size:11px;font-weight:700}
+.checkout-review-subtotal{padding-top:12px;font-size:11px;color:var(--checkout-muted)}
+.checkout-review-subtotal strong{font-size:13px;color:var(--checkout-title)}
+.checkout-modal .form-field{margin:15px 0}
+.checkout-modal .form-field input,.checkout-modal .form-field select,.checkout-modal .form-field textarea{min-height:44px;border-radius:8px}
+.checkout-modal .fulfillment-options{gap:8px}
+.checkout-modal .fulfillment-option{min-height:44px;border-radius:8px;font-weight:600}
+.checkout-modal .checkout-legal-consent{display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+.checkout-modal .checkout-legal-consent input{margin-top:3px;accent-color:var(--checkout-primary);flex:0 0 auto}
+.checkout-modal button[type="submit"]{min-height:49px;border-radius:9px;font-weight:700}
+.checkout-modal button[type="submit"]:disabled{opacity:.65;cursor:wait}
+@media(max-width:520px){
+  .checkout-review{padding:13px;border-radius:10px}
+  .checkout-modal h2{font-size:25px}
+}
