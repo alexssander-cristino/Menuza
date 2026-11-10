@@ -1,0 +1,77 @@
+/* Responsividade consolidada do painel do restaurante. */
+.admin-shell-v2,.admin-shell-v2 *{box-sizing:border-box}
+.admin-shell-v2{width:100%;max-width:100%;min-width:0}
+.admin-shell-v2 .admin-main,.admin-shell-v2 .admin-content,.admin-shell-v2 #adminBody{min-width:0;max-width:100%}
+.admin-shell-v2 .admin-panel,.admin-shell-v2 .admin-card,.admin-shell-v2 .admin-section,.admin-shell-v2 .admin-panel-head{min-width:0}
+.admin-shell-v2 img,.admin-shell-v2 video,.admin-shell-v2 canvas{max-width:100%}
+.admin-shell-v2 input,.admin-shell-v2 select,.admin-shell-v2 textarea{max-width:100%;min-width:0}
+.admin-shell-v2 .admin-mobile-menu-toggle{display:none}
+.admin-shell-v2 .admin-mobile-nav-backdrop{display:none}
+.admin-shell-v2 .admin-form-grid,.admin-shell-v2 .admin-content-grid,.admin-shell-v2 .metrics-grid,.admin-shell-v2 .fiscal-grid,.admin-shell-v2 .fiscal-summary-grid{min-width:0}
+.admin-shell-v2 .admin-form-grid>*,.admin-shell-v2 .admin-content-grid>*,.admin-shell-v2 .metrics-grid>*{min-width:0}
+.admin-shell-v2 .admin-panel table{width:100%;max-width:100%}
+.admin-shell-v2 .admin-panel-head,.admin-shell-v2 .admin-section-head{flex-wrap:wrap}
+.admin-shell-v2 .admin-panel-head>*,.admin-shell-v2 .admin-section-head>*{min-width:0}
+@media(max-width:1100px){
+.admin-shell-v2{padding-top:62px!important}
+.admin-shell-v2 .admin-mobile-menu-toggle{display:inline-flex!important;position:fixed!important;z-index:1206!important;top:10px!important;left:12px!important;align-items:center!important;justify-content:center!important;gap:9px!important;min-width:94px!important;min-height:40px!important;padding:0 14px!important;border:1px solid var(--mz-night-border,#e4cfad)!important;border-radius:11px!important;background:var(--mz-night-sidebar,#fffaf3)!important;color:var(--mz-night-text,#38231e)!important;box-shadow:0 6px 22px rgba(20,10,12,.14)!important;font-size:13px!important;font-weight:750!important;cursor:pointer!important}
+.admin-shell-v2 .admin-sidebar{position:fixed!important;z-index:1204!important;inset:0 auto 0 0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;width:min(320px,88vw)!important;height:100vh!important;height:100dvh!important;max-height:100dvh!important;min-height:0!important;margin:0!important;padding:18px 14px calc(24px + env(safe-area-inset-bottom))!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;border-radius:0 18px 18px 0;transform:translateX(-105%);transition:transform .24s ease}
+.admin-shell-v2.mobile-nav-open .admin-sidebar{transform:translateX(0)}
+.admin-shell-v2 .admin-mobile-nav-backdrop{display:block!important;position:fixed!important;z-index:1203!important;inset:0!important;width:100%!important;height:100%!important;padding:0!important;border:0!important;border-radius:0!important;background:rgba(12,8,10,.58)!important;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility .2s ease}
+.admin-shell-v2.mobile-nav-open .admin-mobile-nav-backdrop{opacity:1;visibility:visible;pointer-events:auto}
+.admin-shell-v2 .admin-sidebar-nav{display:flex!important;flex:0 0 auto!important;flex-direction:column!important;height:auto!important;max-height:none!important;min-height:max-content!important;overflow:visible!important}
+.admin-shell-v2 .admin-nav-group{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:4px!important}
+.admin-shell-v2 .admin-tab{width:100%!important;min-height:44px!important;justify-content:flex-start!important;white-space:normal!important;text-align:left!important;font-size:13px!important}
+.admin-shell-v2 .admin-sidebar-footer{display:grid!important;grid-template-columns:minmax(0,1fr)!important;flex:0 0 auto!important;margin-top:18px!important}
+.admin-shell-v2 .admin-main{width:100%!important;max-width:100%!important}
+.admin-shell-v2 .admin-main-top{align-items:flex-start;gap:16px}
+}
+@media(max-width:760px){
+.admin-shell-v2{padding:62px 12px 24px!important}
+.admin-shell-v2 .admin-main-top{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:12px!important;margin-bottom:16px!important;padding:0 0 14px!important}
+.admin-shell-v2 .admin-main-top h1{font-size:clamp(21px,5vw,28px)!important}
+.admin-shell-v2 .admin-main-top p{font-size:12px!important;line-height:1.5}
+.admin-shell-v2 .admin-top-actions{display:flex!important;flex-wrap:wrap!important;justify-content:flex-start!important;gap:8px!important}
+.admin-shell-v2 .admin-panel{padding:clamp(12px,3vw,18px)!important;margin-bottom:12px!important}
+.admin-shell-v2 .admin-panel-head{align-items:flex-start!important;gap:10px!important}
+.admin-shell-v2 .admin-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+.admin-shell-v2 .admin-form-grid .wide{grid-column:1/-1!important}
+.admin-shell-v2 .admin-content-grid{grid-template-columns:minmax(0,1fr)!important}
+.admin-shell-v2 .metrics-grid,.admin-shell-v2 .mz-skeleton-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.admin-shell-v2 .catalog-row{grid-template-columns:minmax(0,1fr) auto auto!important;gap:8px!important}
+.admin-shell-v2 .catalog-row>*{min-width:0!important}
+.admin-shell-v2 .admin-panel table{display:block;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.admin-shell-v2 .admin-panel table th,.admin-shell-v2 .admin-panel table td{white-space:nowrap}
+.admin-shell-v2 .orders-toolbar,.admin-shell-v2 .orders-filters,.admin-shell-v2 .analytics-period-actions{display:flex;flex-wrap:wrap;gap:9px}
+.admin-shell-v2 .orders-toolbar>*,.admin-shell-v2 .orders-filters>*,.admin-shell-v2 .analytics-period-actions>*{min-width:0;max-width:100%}
+.admin-shell-v2 .table-map{overflow-x:auto!important}
+.admin-shell-v2 .table-map-grid{min-width:0!important}
+.admin-shell-v2 .promotion-image-upload-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.admin-shell-v2 .admin-panel input,.admin-shell-v2 .admin-panel select,.admin-shell-v2 .admin-panel textarea{width:100%}
+}
+@media(max-width:520px){
+.admin-shell-v2{padding-inline:10px!important}
+.admin-shell-v2 .admin-form-grid,.admin-shell-v2 .metrics-grid,.admin-shell-v2 .mz-skeleton-metrics,.admin-shell-v2 .fiscal-grid,.admin-shell-v2 .fiscal-summary-grid,.admin-shell-v2 .promotion-image-upload-grid{grid-template-columns:minmax(0,1fr)!important}
+.admin-shell-v2 .admin-form-grid .wide{grid-column:1!important}
+.admin-shell-v2 .admin-panel-head{flex-direction:column!important;align-items:stretch!important}
+.admin-shell-v2 .admin-panel-head>.button,.admin-shell-v2 .admin-panel-head>button{width:100%!important}
+.admin-shell-v2 .admin-top-actions>*{flex:1 1 auto}
+.admin-shell-v2 .catalog-row{grid-template-columns:minmax(0,1fr) auto!important}
+.admin-shell-v2 .catalog-row>*{min-width:0!important}
+.admin-shell-v2 .promotion-admin-row,.admin-shell-v2 .delivery-zone-row{align-items:stretch!important;flex-direction:column!important}
+.admin-shell-v2 .promotion-admin-row>*,.admin-shell-v2 .delivery-zone-row>*{width:100%;max-width:100%}
+.admin-shell-v2 .delivery-zone-values{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%}
+.admin-shell-v2 .delivery-zone-values label,.admin-shell-v2 .delivery-zone-values input{min-width:0;width:100%}
+.admin-shell-v2 .table-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.admin-shell-v2 .admin-panel .button,.admin-shell-v2 .admin-panel button{min-height:40px}
+.admin-shell-v2 .admin-panel input,.admin-shell-v2 .admin-panel select,.admin-shell-v2 .admin-panel textarea{min-height:42px}
+.admin-shell-v2 .admin-panel textarea{min-height:100px}
+.admin-shell-v2 .admin-panel{border-radius:13px!important}
+.admin-shell-v2 .admin-main-top .eyebrow{overflow-wrap:anywhere}
+}
+@media(max-width:360px){
+.admin-shell-v2{padding-inline:8px!important}
+.admin-shell-v2 .table-stats,.admin-shell-v2 .delivery-zone-values{grid-template-columns:minmax(0,1fr)!important}
+.admin-shell-v2 .admin-mobile-menu-toggle{min-width:86px!important}
+}
+@media(prefers-reduced-motion:reduce){.admin-shell-v2 .admin-sidebar,.admin-shell-v2 .admin-mobile-nav-backdrop{transition:none!important}}
