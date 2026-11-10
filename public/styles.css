@@ -3235,3 +3235,5 @@ button[data-action="view-generated-3d"],
 /* Link de avaliação no Google: mantém a navegação discreta e consistente. */
 .desktop-nav a[data-google-review-link]{color:#b7791f;font-weight:700;white-space:nowrap}
 .desktop-nav a[data-google-review-link]:hover{color:#8f5d12}
+
+.desktop-nav [hidden],.mobile-site-menu-links [hidden]{display:none!important}
