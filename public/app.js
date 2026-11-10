@@ -1183,38 +1183,76 @@ async function showAdmin(){
 function renderAdminLogin(errorText=''){
   stopPromotionCarousel();
   root.body.classList.add('admin-route');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-login-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><section class="admin-login-layout"><div class="admin-login-aside"><div class="admin-login-brand"><span class="admin-login-brand-mark">M</span><span><strong>MENUZA</strong><small>GESTÃO PARA RESTAURANTES</small></span></div><div class="admin-login-aside-copy"><span class="admin-login-kicker">ÁREA DO RESTAURANTE</span><h1>Seu restaurante.<br><em>Sua gestão.</em></h1><p>Pedidos, cardápio e operação em um só lugar. Entre com segurança para continuar.</p></div><div class="admin-login-aside-foot"><span class="admin-login-status-dot"></span> Ambiente protegido por autenticação em duas etapas</div></div><form class="admin-login" id="adminLogin" novalidate><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="admin-login-form-heading"><span class="admin-login-form-icon">'+uiIcon('info',20)+'</span><span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Informe sua senha e o código do autenticador para acessar o painel.</p></div><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required maxlength="128" autocomplete="current-password" placeholder="Digite sua senha"></label><label class="form-field admin-login-otp-field"><span>Código de autenticação</span><input type="text" name="otp" inputmode="numeric" maxlength="20" autocomplete="one-time-code" placeholder="000000" aria-describedby="adminLoginOtpHelp"><small id="adminLoginOtpHelp">Ao completar os 6 dígitos, o acesso será validado automaticamente. Códigos de recuperação também podem ser usados.</small></label><p class="error-text admin-login-error" data-admin-login-error role="alert" aria-live="polite">'+esc(errorText)+'</p><button class="button button-dark admin-login-submit" type="submit">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-login-security-note">'+uiIcon('info',14)+' Sua conexão é protegida e o código é validado pelo servidor.</p><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a></p></form></section></div>';
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-login-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><section class="admin-login-layout"><div class="admin-login-aside"><div class="admin-login-brand"><span class="admin-login-brand-mark">M</span><span><strong>MENUZA</strong><small>GESTÃO PARA RESTAURANTES</small></span></div><div class="admin-login-aside-copy"><span class="admin-login-kicker">ÁREA DO RESTAURANTE</span><h1>Seu restaurante.<br><em>Sua gestão.</em></h1><p>Pedidos, cardápio e operação em um só lugar. Entre com segurança para continuar.</p></div><div class="admin-login-aside-foot"><span class="admin-login-status-dot"></span> Ambiente protegido por autenticação em duas etapas</div></div><form class="admin-login" id="adminLogin" novalidate><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="admin-login-form-heading"><span class="admin-login-form-icon">'+uiIcon('info',20)+'</span><span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Digite sua senha e, em seguida, o código de seis dígitos do aplicativo autenticador.</p></div><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required maxlength="128" autocomplete="current-password" placeholder="Digite sua senha"></label><div class="form-field admin-login-otp-field"><span>Código de autenticação</span><div class="admin-otp-boxes" role="group" aria-label="Código de autenticação de seis dígitos"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 2"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 3"><span class="admin-otp-separator" aria-hidden="true"></span><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 4"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 5"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 6"></div><input type="hidden" name="otp" value=""><small id="adminLoginOtpHelp">O acesso será validado automaticamente ao preencher os seis números.</small><label class="admin-recovery-field"><span>Tem um código de recuperação?</span><input type="text" name="recoveryCode" autocomplete="off" maxlength="80" placeholder="Digite o código de recuperação"></label></div><p class="error-text admin-login-error" data-admin-login-error role="alert" aria-live="polite">'+esc(errorText)+'</p><button class="button button-dark admin-login-submit" type="submit">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-login-security-note">'+uiIcon('info',14)+' Sua conexão é protegida e o código é validado pelo servidor.</p><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a></p></form></section></div>';
   const form=root.getElementById('adminLogin');
   const button=form.querySelector('[type="submit"]');
   const passwordInput=form.elements.password;
   const factorInput=form.elements.otp;
+  const recoveryInput=form.elements.recoveryCode;
+  const digitInputs=[...form.querySelectorAll('.admin-otp-digit')];
   const errorNode=form.querySelector('[data-admin-login-error]');
   let submitting=false;
+  const syncDigits=()=>{factorInput.value=digitInputs.map(input=>input.value).join('');};
   const maybeAutoSubmit=()=>{
-    if(submitting||button.disabled)return;
-    const factor=String(factorInput.value||'').trim();
-    if(/^\d{6}$/.test(factor)&&String(passwordInput.value||'').trim()){
+    syncDigits();
+    if(!submitting&&!button.disabled&&/^\d{6}$/.test(factorInput.value)&&String(passwordInput.value||'').trim()){
+      recoveryInput.value='';
       form.requestSubmit();
     }
   };
-  factorInput.addEventListener('input',maybeAutoSubmit);
+  digitInputs.forEach((input,index)=>{
+    input.addEventListener('input',()=>{
+      const digits=String(input.value||'').replace(/\D/g,'');
+      if(digits.length>1){
+        const all=digits.slice(0,6).split('');
+        digitInputs.forEach((field,i)=>field.value=all[i]||'');
+        digitInputs[Math.min(all.length,5)].focus();
+      }else{
+        input.value=digits.slice(-1);
+        if(input.value&&index<5)digitInputs[index+1].focus();
+      }
+      maybeAutoSubmit();
+    });
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Backspace'&&!input.value&&index>0){digitInputs[index-1].focus();digitInputs[index-1].value='';syncDigits();event.preventDefault();}
+      if(event.key==='ArrowLeft'&&index>0){digitInputs[index-1].focus();event.preventDefault();}
+      if(event.key==='ArrowRight'&&index<5){digitInputs[index+1].focus();event.preventDefault();}
+    });
+    input.addEventListener('paste',event=>{
+      const pasted=(event.clipboardData?.getData('text')||'').replace(/\D/g,'').slice(0,6);
+      if(!pasted)return;
+      event.preventDefault();
+      digitInputs.forEach((field,i)=>field.value=pasted[i]||'');
+      syncDigits();
+      digitInputs[Math.min(pasted.length,5)].focus();
+      maybeAutoSubmit();
+    });
+  });
   passwordInput.addEventListener('input',maybeAutoSubmit);
+  recoveryInput.addEventListener('input',()=>{
+    if(recoveryInput.value.trim()){
+      digitInputs.forEach(input=>input.value='');
+      syncDigits();
+    }
+  });
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     if(submitting)return;
+    syncDigits();
     const password=String(passwordInput.value||'');
-    const factor=String(factorInput.value||'').trim();
+    const otp=String(factorInput.value||'').trim();
+    const recoveryCode=String(recoveryInput.value||'').trim();
     if(!password.trim()){
       errorNode.textContent='Informe a senha do restaurante.';
       passwordInput.focus();
       return;
     }
-    if(!factor){
-      errorNode.textContent='Informe o código do autenticador ou um código de recuperação.';
-      factorInput.focus();
+    if(!/^\d{6}$/.test(otp)&&!recoveryCode){
+      errorNode.textContent='Preencha os seis dígitos ou informe um código de recuperação.';
+      digitInputs[0].focus();
       return;
     }
-    const secondFactor=/^\d{6}$/.test(factor)?{otp:factor}:{recoveryCode:factor};
+    const secondFactor=/^\d{6}$/.test(otp)?{otp}:{recoveryCode};
     submitting=true;
     button.disabled=true;
     button.innerHTML='Verificando acesso…';
@@ -1228,11 +1266,12 @@ function renderAdminLogin(errorText=''){
       connectAdminEvents();
     }catch(error){
       errorNode.textContent=error.message||'Não foi possível validar o acesso.';
+      digitInputs.forEach(input=>input.value='');
       factorInput.value='';
       submitting=false;
       button.disabled=false;
       button.innerHTML='Entrar no painel <span>'+uiIcon('arrow',14)+'</span>';
-      factorInput.focus();
+      if(recoveryCode)recoveryInput.focus();else digitInputs[0].focus();
     }
   });
 }
