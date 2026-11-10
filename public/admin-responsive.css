@@ -271,3 +271,54 @@
  .admin-otp-boxes{gap:4px}
  .admin-login-layout .admin-otp-boxes .admin-otp-digit{height:47px!important;min-height:47px!important;font-size:19px!important}
 }
+
+
+/* OTP com alto contraste e confirmação positiva após validação do servidor. */
+.admin-login-layout .admin-otp-boxes .admin-otp-digit{
+  background:#f0e9eb!important;
+  border:2.5px solid #49313a!important;
+  color:#170b10!important;
+  box-shadow:inset 0 1px 2px rgba(23,11,16,.12),0 2px 0 rgba(23,11,16,.12)!important;
+}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:focus{
+  background:#fff!important;
+  border-color:#a3132b!important;
+  box-shadow:0 0 0 4px rgba(163,19,43,.2),inset 0 1px 2px rgba(23,11,16,.08)!important;
+}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:not(:placeholder-shown){
+  background:#fff!important;
+  border-color:#49313a!important;
+}
+.admin-login-layout .admin-login-is-valid .admin-otp-boxes .admin-otp-digit,
+.admin-login-layout .admin-otp-boxes .admin-otp-digit.is-valid{
+  color:#075b35!important;
+  background:#e5f8ed!important;
+  border-color:#16834d!important;
+  box-shadow:0 0 0 2px rgba(22,131,77,.13)!important;
+}
+.admin-login-success{
+  display:flex;align-items:center;gap:13px;
+  margin:0 0 14px;padding:13px 15px;
+  border:1.5px solid #58b982;border-radius:13px;
+  color:#075b35;background:linear-gradient(110deg,#e4f8ec,#f4fff8);
+  opacity:0;transform:translateY(13px) scale(.97);
+  animation:adminLoginSuccessEnter .48s cubic-bezier(.2,.85,.25,1.2) forwards;
+}
+.admin-login-success-check{
+  display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;
+  border-radius:50%;background:#16834d;color:#fff;
+  box-shadow:0 4px 12px rgba(22,131,77,.24);
+  transform:scale(.35) rotate(-25deg);
+  animation:adminLoginCheckPop .42s .12s cubic-bezier(.2,.9,.25,1.35) forwards;
+}
+.admin-login-success-check svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:30;stroke-dashoffset:30;animation:adminLoginCheckDraw .32s .38s ease forwards}
+.admin-login-success strong,.admin-login-success small{display:block}
+.admin-login-success strong{font-size:13px;font-weight:850;line-height:1.3}
+.admin-login-success small{margin-top:3px;color:#246747;font-size:10px;line-height:1.4}
+.admin-login-is-valid .admin-login-submit{background:linear-gradient(100deg,#087443,#19a765)!important;box-shadow:0 8px 20px rgba(22,131,77,.2)!important}
+@keyframes adminLoginSuccessEnter{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes adminLoginCheckPop{to{transform:scale(1) rotate(0)}}
+@keyframes adminLoginCheckDraw{to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){
+ .admin-login-success,.admin-login-success-check,.admin-login-success-check svg{animation:none!important;opacity:1;transform:none;stroke-dashoffset:0}
+}
