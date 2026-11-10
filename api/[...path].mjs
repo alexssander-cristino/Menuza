@@ -454,6 +454,7 @@ function assertRestaurantOpen(schedule) {
 // Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
 async function catalogFor(admin = false) {
   await ensureOpeningHoursSchema();
+  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
   await ensurePizzaConfigSchema();
   await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
@@ -474,7 +475,7 @@ async function catalogFor(admin = false) {
   )`);
   const active = admin ? '' : ' AND active=1';
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
-    query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
+    query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredient_quantities_json AS "ingredientQuantitiesJson",ingredients_configured AS "ingredientsConfigured",size_prices_json AS "sizePricesJson",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
@@ -1166,7 +1167,8 @@ export default async function handler(req, res) {
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
-      const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+      const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
       if (!restaurant) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       return json(res,200,{restaurant});
     }
@@ -1174,15 +1176,17 @@ export default async function handler(req, res) {
       await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url)
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
-      const b=await bodyOf(req,1500000), current=(await query('SELECT name,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+      const b=await bodyOf(req,1500000), current=(await query('SELECT name,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
       if (!current) throw fail('Não foi possível carregar as configurações do restaurante.',503);
-      const name=b.name===undefined?current.name:clean(b.name,80), prep=b.prepMinutes===undefined?Number(current.prepMinutes):Number(b.prepMinutes), logo=b.logoUrl===undefined?current.logoUrl:clean(b.logoUrl,1400000);
+      const name=b.name===undefined?current.name:clean(b.name,80), prep=b.prepMinutes===undefined?Number(current.prepMinutes):Number(b.prepMinutes), logo=b.logoUrl===undefined?current.logoUrl:clean(b.logoUrl,1400000), googleReviewUrl=clean(b.googleReviewUrl??current.googleReviewUrl??'',1000);
       if(name.length<2||!Number.isInteger(prep)||prep<5||prep>240) throw fail('Confira o nome e o tempo médio de preparo.',422);
+      if(googleReviewUrl&&!/^https:\/\//i.test(googleReviewUrl)) throw fail('Informe um link seguro de avaliação começando com https://.',422);
       if(logo&&!/^https:\/\/[^\s<>"']+$/i.test(logo)&&!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo)) throw fail('Envie uma imagem PNG, JPG ou WebP válida.',422);
       if(logo.startsWith('data:')&&logo.length>1400000) throw fail('A logo ficou grande demais.',413);
       const storedLogo=isImageDataUrl(logo)?await storeImageDataUrl(logo,'restaurants/logos'):logo;
-      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3 WHERE id=$4',[name,prep,storedLogo,RESTAURANT_ID]);
-      return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
+      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3,google_review_url=$4 WHERE id=$5',[name,prep,storedLogo,googleReviewUrl,RESTAURANT_ID]);
+      return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
     }
 
     if(path.startsWith('/api/admin/fiscal/')) await ensureFiscalSchema();
