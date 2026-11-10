@@ -1259,6 +1259,18 @@ function renderAdminLogin(errorText=''){
     errorNode.textContent='';
     try{
       await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});
+      // Confirma visualmente apenas depois que o servidor validar senha e segundo fator.
+      form.classList.add('admin-login-is-valid');
+      digitInputs.forEach(input=>input.classList.add('is-valid'));
+      errorNode.textContent='';
+      const success=document.createElement('div');
+      success.className='admin-login-success';
+      success.setAttribute('role','status');
+      success.innerHTML='<span class="admin-login-success-check" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m8 16 5.2 5.2L24 10.5"/></svg></span><span><strong>Verificado!</strong><small>Acesso autorizado. Entrando no painel…</small></span>';
+      button.insertAdjacentElement('beforebegin',success);
+      button.disabled=true;
+      button.innerHTML='Acesso confirmado';
+      await new Promise(resolve=>setTimeout(resolve,720));
       app.admin.authenticated=true;
       startAdminInactivityMonitor();
       renderAdmin();
