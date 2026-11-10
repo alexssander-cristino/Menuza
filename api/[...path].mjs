@@ -455,6 +455,8 @@ function assertRestaurantOpen(schedule) {
 async function catalogFor(admin = false) {
   await ensureOpeningHoursSchema();
   await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
+  await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE",["https://share.google/dg8sziHxshXgV93g8",RESTAURANT_ID]);
   await ensurePizzaConfigSchema();
   await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
@@ -1168,6 +1170,8 @@ export default async function handler(req, res) {
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
       await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
+  await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE",["https://share.google/dg8sziHxshXgV93g8",RESTAURANT_ID]);
       const restaurant=await migrateRestaurantImageFields((await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]);
       if (!restaurant) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       return json(res,200,{restaurant});
@@ -1177,6 +1181,8 @@ export default async function handler(req, res) {
         VALUES ($1,$2,$3,'BRL',30,$4,'')
         ON CONFLICT (id) DO NOTHING`, [RESTAURANT_ID,'Bela Mesa','bela-mesa',new Date().toISOString()]);
       await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
+  await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE",["https://share.google/dg8sziHxshXgV93g8",RESTAURANT_ID]);
       const b=await bodyOf(req,1500000), current=(await query('SELECT name,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0];
       if (!current) throw fail('Não foi possível carregar as configurações do restaurante.',503);
       const name=b.name===undefined?current.name:clean(b.name,80), prep=b.prepMinutes===undefined?Number(current.prepMinutes):Number(b.prepMinutes), logo=b.logoUrl===undefined?current.logoUrl:clean(b.logoUrl,1400000), googleReviewUrl=clean(b.googleReviewUrl??current.googleReviewUrl??'',1000);
@@ -1185,7 +1191,7 @@ export default async function handler(req, res) {
       if(logo&&!/^https:\/\/[^\s<>"']+$/i.test(logo)&&!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo)) throw fail('Envie uma imagem PNG, JPG ou WebP válida.',422);
       if(logo.startsWith('data:')&&logo.length>1400000) throw fail('A logo ficou grande demais.',413);
       const storedLogo=isImageDataUrl(logo)?await storeImageDataUrl(logo,'restaurants/logos'):logo;
-      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3,google_review_url=$4 WHERE id=$5',[name,prep,storedLogo,googleReviewUrl,RESTAURANT_ID]);
+      await query('UPDATE restaurants SET name=$1,prep_minutes=$2,logo_url=$3,google_review_url=$4,google_review_url_initialized=TRUE WHERE id=$5',[name,prep,storedLogo,googleReviewUrl,RESTAURANT_ID]);
       return json(res,200,{restaurant:(await query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]});
     }
 
