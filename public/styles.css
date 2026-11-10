@@ -3237,3 +3237,18 @@ button[data-action="view-generated-3d"],
 .desktop-nav a[data-google-review-link]:hover{color:#8f5d12}
 
 .desktop-nav [hidden],.mobile-site-menu-links [hidden]{display:none!important}
+
+
+/* Chamada para avaliação no Google, posicionada imediatamente acima do rodapé. */
+.google-review-section{padding:42px 0;background:linear-gradient(120deg,#fff8ed 0%,#fff 52%,#fff3e5 100%);border-top:1px solid #f1e3d1}
+.google-review-inner{display:flex;align-items:center;justify-content:space-between;gap:28px}
+.google-review-copy{max-width:620px}
+.google-review-eyebrow{display:block;margin-bottom:9px;color:#a66a1c;font-size:10px;font-weight:800;letter-spacing:1.7px}
+.google-review-copy h2{margin:0 0 8px;color:#29211b;font-size:clamp(22px,3vw,32px);line-height:1.15;letter-spacing:-.7px}
+.google-review-copy p{margin:0;color:#766b61;font-size:13px;line-height:1.65}
+.google-review-cta{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;gap:11px;min-height:52px;padding:0 21px;border-radius:12px;background:#fff;border:1px solid #e8d8c3;color:#33271c;text-decoration:none;font-size:13px;font-weight:800;box-shadow:0 8px 24px #5b35100d;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.google-review-cta:hover{transform:translateY(-2px);border-color:#d8b987;box-shadow:0 12px 28px #5b351018}
+.google-review-star{color:#e5a126;font-size:22px;line-height:1}
+.google-review-arrow{color:#a66a1c;font-size:17px}
+.google-review-section[hidden]{display:none!important}
+@media(max-width:700px){.google-review-section{padding:30px 0}.google-review-inner{align-items:stretch;flex-direction:column;gap:18px}.google-review-cta{width:100%;box-sizing:border-box}}
