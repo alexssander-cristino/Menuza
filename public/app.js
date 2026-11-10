@@ -1181,9 +1181,127 @@ async function showAdmin(){
   }catch{app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
-  stopPromotionCarousel();root.body.classList.add('admin-route');
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Galileu Pizzas e Lanches para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><label class="form-field"><span>Código autenticador ou código de recuperação</span><input type="text" name="otp" inputmode="text" maxlength="20" autocomplete="one-time-code" placeholder="000000 ou código de recuperação"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
-  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),factor=String(formData.get('otp')||'').trim(),secondFactor=/^\d{6}$/.test(factor)?{otp:factor}:{recoveryCode:factor};try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
+  stopPromotionCarousel();
+  root.body.classList.add('admin-route');
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-login-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><section class="admin-login-layout"><div class="admin-login-aside"><div class="admin-login-brand"><span class="admin-login-brand-mark">M</span><span><strong>MENUZA</strong><small>GESTÃO PARA RESTAURANTES</small></span></div><div class="admin-login-aside-copy"><span class="admin-login-kicker">ÁREA DO RESTAURANTE</span><h1>Seu restaurante.<br><em>Sua gestão.</em></h1><p>Pedidos, cardápio e operação em um só lugar. Entre com segurança para continuar.</p></div><div class="admin-login-aside-foot"><span class="admin-login-status-dot"></span> Ambiente protegido por autenticação em duas etapas</div></div><form class="admin-login" id="adminLogin" novalidate><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="admin-login-form-heading"><span class="admin-login-form-icon">'+uiIcon('info',20)+'</span><span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Digite sua senha e, em seguida, o código de seis dígitos do aplicativo autenticador.</p></div><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required maxlength="128" autocomplete="current-password" placeholder="Digite sua senha"></label><div class="form-field admin-login-otp-field"><span>Código de autenticação</span><div class="admin-otp-boxes" role="group" aria-label="Código de autenticação de seis dígitos"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 2"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 3"><span class="admin-otp-separator" aria-hidden="true"></span><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 4"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 5"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 6"></div><input type="hidden" name="otp" value=""><small id="adminLoginOtpHelp">O acesso será validado automaticamente ao preencher os seis números.</small><label class="admin-recovery-field"><span>Tem um código de recuperação?</span><input type="text" name="recoveryCode" autocomplete="off" maxlength="80" placeholder="Digite o código de recuperação"></label></div><p class="error-text admin-login-error" data-admin-login-error role="alert" aria-live="polite">'+esc(errorText)+'</p><button class="button button-dark admin-login-submit" type="submit">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-login-security-note">'+uiIcon('info',14)+' Sua conexão é protegida e o código é validado pelo servidor.</p><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a></p></form></section></div>';
+  const form=root.getElementById('adminLogin');
+  const button=form.querySelector('[type="submit"]');
+  const passwordInput=form.elements.password;
+  const factorInput=form.elements.otp;
+  const recoveryInput=form.elements.recoveryCode;
+  const digitInputs=[...form.querySelectorAll('.admin-otp-digit')];
+  const errorNode=form.querySelector('[data-admin-login-error]');
+  let submitting=false;
+  const clearLoginError=()=>{
+    form.classList.remove('admin-login-has-error');
+    digitInputs.forEach(input=>input.classList.remove('is-invalid'));
+    passwordInput.classList.remove('is-invalid');
+  };
+  const showLoginError=message=>{
+    errorNode.textContent=message||'Não foi possível validar o acesso.';
+    form.classList.remove('admin-login-has-error');
+    void form.offsetWidth;
+    form.classList.add('admin-login-has-error');
+    passwordInput.classList.toggle('is-invalid',!passwordInput.value.trim());
+    digitInputs.forEach(input=>input.classList.add('is-invalid'));
+  };
+  const syncDigits=()=>{factorInput.value=digitInputs.map(input=>input.value).join('');};
+  const maybeAutoSubmit=()=>{
+    syncDigits();
+    if(!submitting&&!button.disabled&&/^\d{6}$/.test(factorInput.value)&&String(passwordInput.value||'').trim()){
+      recoveryInput.value='';
+      form.requestSubmit();
+    }
+  };
+  digitInputs.forEach((input,index)=>{
+    input.addEventListener('input',()=>{
+      const digits=String(input.value||'').replace(/\D/g,'');
+      if(digits.length>1){
+        const all=digits.slice(0,6).split('');
+        digitInputs.forEach((field,i)=>field.value=all[i]||'');
+        digitInputs[Math.min(all.length,5)].focus();
+      }else{
+        input.value=digits.slice(-1);
+        if(input.value&&index<5)digitInputs[index+1].focus();
+      }
+      maybeAutoSubmit();
+    });
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Backspace'&&!input.value&&index>0){digitInputs[index-1].focus();digitInputs[index-1].value='';syncDigits();event.preventDefault();}
+      if(event.key==='ArrowLeft'&&index>0){digitInputs[index-1].focus();event.preventDefault();}
+      if(event.key==='ArrowRight'&&index<5){digitInputs[index+1].focus();event.preventDefault();}
+    });
+    input.addEventListener('paste',event=>{
+      const pasted=(event.clipboardData?.getData('text')||'').replace(/\D/g,'').slice(0,6);
+      if(!pasted)return;
+      event.preventDefault();
+      digitInputs.forEach((field,i)=>field.value=pasted[i]||'');
+      syncDigits();
+      digitInputs[Math.min(pasted.length,5)].focus();
+      maybeAutoSubmit();
+    });
+  });
+  passwordInput.addEventListener('input',maybeAutoSubmit);
+  recoveryInput.addEventListener('input',()=>{
+    if(recoveryInput.value.trim()){
+      digitInputs.forEach(input=>input.value='');
+      syncDigits();
+    }
+  });
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(submitting)return;
+    syncDigits();
+    const password=String(passwordInput.value||'');
+    const otp=String(factorInput.value||'').trim();
+    const recoveryCode=String(recoveryInput.value||'').trim();
+    if(!password.trim()){
+      showLoginError('Informe a senha do restaurante.');
+      passwordInput.focus();
+      return;
+    }
+    if(!/^\d{6}$/.test(otp)&&!recoveryCode){
+      showLoginError('Preencha os seis dígitos ou informe um código de recuperação.');
+      digitInputs[0].focus();
+      return;
+    }
+    const secondFactor=/^\d{6}$/.test(otp)?{otp}:{recoveryCode};
+    submitting=true;
+    button.disabled=true;
+    button.innerHTML='Verificando acesso…';
+    errorNode.textContent='';
+    try{
+      await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor})});
+      // Confirma visualmente apenas depois que o servidor validar senha e segundo fator.
+      form.classList.add('admin-login-is-valid');
+      digitInputs.forEach(input=>input.classList.add('is-valid'));
+      errorNode.textContent='';
+      form.classList.remove('admin-login-has-error');
+      const success=document.createElement('div');
+      success.className='admin-login-success';
+      success.setAttribute('role','status');
+      success.innerHTML='<span class="admin-login-success-check" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m8 16 5.2 5.2L24 10.5"/></svg></span><span><strong>Verificado!</strong><small>Acesso autorizado. Entrando no painel…</small></span>';
+      button.insertAdjacentElement('beforebegin',success);
+      button.disabled=true;
+      button.innerHTML='Acesso confirmado';
+      await new Promise(resolve=>setTimeout(resolve,720));
+      app.admin.authenticated=true;
+      startAdminInactivityMonitor();
+      renderAdmin();
+      refreshAdmin();
+      connectAdminEvents();
+    }catch(error){
+      showLoginError(error.message||'Senha ou código de autenticação incorreto. Confira os dados e tente novamente.');
+      passwordInput.classList.add('is-invalid');
+      digitInputs.forEach(input=>input.value='');
+      factorInput.value='';
+      submitting=false;
+      button.disabled=false;
+      button.innerHTML='Entrar no painel <span>'+uiIcon('arrow',14)+'</span>';
+      if(recoveryCode)recoveryInput.focus();else digitInputs[0].focus();
+    }
+  });
+  [passwordInput,recoveryInput,...digitInputs].forEach(input=>input.addEventListener('input',clearLoginError));
 }
 
 function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
@@ -1544,7 +1662,7 @@ function renderOrdersAdmin(metrics,orders){
     const elapsed=['received','confirmed','preparing'].includes(order.status)?'<span class="order-elapsed" data-order-elapsed data-created-at="'+Date.parse(order.createdAt)+'" data-prep-minutes="'+Number(metrics.prepMinutes||30)+'" aria-live="off"></span>':'';
     return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div>'+elapsed+'</div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><div class="order-card-footer-actions"><button class="button button-outline button-small order-print-button" type="button" data-action="print-order" data-order-id="'+esc(order.id)+'">Imprimir comanda</button>'+whatsappAction+'<b>'+money(order.totalCents)+'</b></div></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><span class="admin-connection-status is-connecting" id="adminConnectionStatus" role="status" aria-live="polite"><span class="connection-status-dot"></span><span class="connection-status-label">Conectando…</span></span><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+orderSoundButtonContent()+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar PDF ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><span class="admin-connection-status is-connecting" id="adminConnectionStatus" role="status" aria-live="polite"><span class="connection-status-dot"></span><span class="connection-status-label">Conectando…</span></span><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+orderSoundButtonContent()+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar PDF ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel today-shift-panel"><div class="today-shift-heading"><div><span class="today-shift-kicker">RESUMO DO DIA</span><h2>Turno de hoje</h2><p>Acompanhe o movimento do restaurante.</p></div><span class="today-shift-date">'+new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})+'</span></div><div class="today-shift-metrics"><article class="today-shift-metric today-shift-orders"><span class="today-shift-icon" aria-hidden="true">'+uiIcon('clipboard-list',19)+'</span><div class="today-shift-label">Pedidos hoje</div><strong>'+metrics.ordersToday+'</strong><small>Pedidos em todos os status</small></article><article class="today-shift-metric today-shift-ticket"><span class="today-shift-icon" aria-hidden="true">'+uiIcon('wallet',19)+'</span><div class="today-shift-label">Ticket médio</div><strong>'+money(metrics.averageTicketCents)+'</strong><small>Sem pedidos cancelados</small></article></div><div class="today-shift-foot"><span class="today-shift-live-dot"></span>Atualizado com os pedidos registrados</div></section></aside></div>';
   updateOrderElapsedTimes();
   const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
   if(statusFilter)statusFilter.value=app.admin.orderStatus;

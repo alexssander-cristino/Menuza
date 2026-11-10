@@ -123,3 +123,264 @@
 @media(prefers-reduced-motion:reduce){
   .admin-shell-v2 .admin-mobile-menu-toggle span{transition:none!important}
 }
+
+
+/* Login do restaurante — layout de acesso em duas etapas */
+.admin-shell.admin-login-shell{
+  box-sizing:border-box;width:100%;max-width:none;min-height:100vh;margin:0;
+  padding:34px clamp(18px,5vw,76px) 48px;
+  background:
+    radial-gradient(ellipse at 16% 18%,rgba(224,68,88,.18),transparent 38%),
+    radial-gradient(ellipse at 86% 82%,rgba(248,143,34,.09),transparent 32%),
+    #130D10;
+}
+.admin-login-shell>.tracking-back{
+  display:inline-flex;align-items:center;gap:8px;color:#e9dadd!important;
+  font-size:13px;text-decoration:none;opacity:.82;transition:opacity .2s;
+}
+.admin-login-shell>.tracking-back:hover{opacity:1}
+.admin-login-layout{
+  width:min(100%,1000px);min-height:590px;margin:42px auto 0;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,450px);
+  overflow:hidden;border:1px solid rgba(255,255,255,.09);border-radius:26px;
+  background:#211319;box-shadow:0 32px 90px rgba(0,0,0,.38);
+}
+.admin-login-aside{
+  min-width:0;display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(30px,5vw,58px);
+  color:#fff0ed;
+  background:
+    radial-gradient(circle at 78% 28%,rgba(224,68,88,.24),transparent 30%),
+    linear-gradient(145deg,#321a23 0%,#211319 68%,#170f13 100%);
+}
+.admin-login-brand{display:flex;align-items:center;gap:12px}
+.admin-login-brand-mark{
+  width:44px;height:44px;display:grid;place-items:center;border-radius:14px;
+  background:linear-gradient(145deg,#f36b7b,#d21404);color:#fff;
+  font-size:23px;font-weight:850;box-shadow:0 9px 24px rgba(210,20,4,.24);
+}
+.admin-login-brand strong{display:block;font-size:15px;letter-spacing:.16em}
+.admin-login-brand small{display:block;margin-top:4px;color:#c9aeb4;font-size:9px;letter-spacing:.13em}
+.admin-login-aside-copy{max-width:440px;margin:54px 0}
+.admin-login-kicker{color:#f36b7b;font-size:10px;font-weight:800;letter-spacing:.2em}
+.admin-login-aside-copy h1{
+  margin:18px 0 17px;color:#fff4f1;font-size:clamp(38px,5vw,58px);
+  line-height:1.04;letter-spacing:-.055em;font-weight:760;
+}
+.admin-login-aside-copy h1 em{font-style:normal;color:#f36b7b}
+.admin-login-aside-copy p{max-width:350px;margin:0;color:#cdbbc0;font-size:14px;line-height:1.8}
+.admin-login-aside-foot{display:flex;align-items:center;gap:10px;color:#c9aeb4;font-size:11px}
+.admin-login-status-dot{width:8px;height:8px;border-radius:50%;background:#65c995;box-shadow:0 0 0 5px rgba(101,201,149,.12)}
+.admin-login-layout>.admin-login{
+  box-sizing:border-box;width:100%;max-width:none;margin:0;padding:clamp(30px,4vw,48px);
+  display:flex;flex-direction:column;justify-content:center;align-self:stretch;
+  border:0;border-radius:0;background:#fff9f6;color:#2a171c;
+  box-shadow:none;
+}
+.admin-login-form-heading{margin-bottom:26px}
+.admin-login-form-icon{
+  width:42px;height:42px;display:grid;place-items:center;margin-bottom:23px;
+  border:1px solid #f0dadd;border-radius:13px;background:#fff0f0;color:#d83b50;
+}
+.admin-login-form-heading .eyebrow{color:#c74b59;font-size:9px;font-weight:800;letter-spacing:.16em}
+.admin-login-form-heading h2{margin:10px 0 8px;color:#28171b;font-size:29px;line-height:1.15;letter-spacing:-.04em}
+.admin-login-form-heading p{margin:0;color:#88777b;font-size:12px;line-height:1.65}
+.admin-login-layout .form-field{display:flex;flex-direction:column;gap:8px;margin:0 0 18px}
+.admin-login-layout .form-field>span{color:#49353a;font-size:11px;font-weight:750}
+.admin-login-layout .form-field input{
+  box-sizing:border-box;width:100%;min-height:50px;padding:0 15px;
+  border:1px solid #eadde0;border-radius:11px;background:#fff;
+  color:#2a171c;font-size:14px;transition:border-color .18s,box-shadow .18s;
+}
+.admin-login-layout .form-field input::placeholder{color:#b3a5a8}
+.admin-login-layout .form-field input:focus{
+  outline:none;border-color:#d94a5d;box-shadow:0 0 0 4px rgba(217,74,93,.11);
+}
+.admin-login-layout .admin-login-otp-field{margin-bottom:8px}
+.admin-login-layout .admin-login-otp-field input{
+  font-size:20px;font-weight:750;letter-spacing:.24em;font-variant-numeric:tabular-nums;
+}
+.admin-login-layout .admin-login-otp-field small{color:#907f83;font-size:10px;line-height:1.55}
+.admin-login-layout .admin-login-error{min-height:18px;margin:8px 0 12px;color:#c52f43;font-size:11px}
+.admin-login-layout .admin-login-submit{
+  min-height:50px;border:0;border-radius:11px;
+  background:linear-gradient(100deg,#d21404,#e04458);color:#fff;
+  font-size:13px;font-weight:750;box-shadow:0 9px 22px rgba(210,20,4,.18);
+  transition:transform .18s,box-shadow .18s,opacity .18s;
+}
+.admin-login-layout .admin-login-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 13px 26px rgba(210,20,4,.24)}
+.admin-login-layout .admin-login-submit:disabled{cursor:wait;opacity:.72}
+.admin-login-security-note{display:flex;align-items:center;justify-content:center;gap:7px;margin:17px 0 0;color:#927f84;font-size:10px}
+.admin-login-security-note svg{width:14px;height:14px}
+.admin-login-layout .admin-legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin:24px 0 0;padding-top:17px;border-top:1px solid #eee2e4}
+.admin-login-layout .admin-legal-links a{color:#907f83;font-size:9px;text-decoration:none}
+.admin-login-layout .admin-legal-links a:hover{color:#c52f43}
+@media(max-width:760px){
+  .admin-shell.admin-login-shell{padding:20px 14px 32px}
+  .admin-login-layout{grid-template-columns:1fr;min-height:0;margin:24px auto 0;border-radius:20px}
+  .admin-login-aside{padding:23px 24px 25px;min-height:205px}
+  .admin-login-aside-copy{margin:25px 0 19px}
+  .admin-login-aside-copy h1{font-size:35px;margin:10px 0}
+  .admin-login-aside-copy p{font-size:12px}
+  .admin-login-aside-foot{font-size:9px}
+  .admin-login-layout>.admin-login{padding:28px 23px 25px}
+  .admin-login-form-heading{margin-bottom:22px}
+}
+@media(max-width:420px){
+  .admin-login-aside{min-height:185px}
+  .admin-login-aside-copy h1{font-size:31px}
+  .admin-login-layout>.admin-login{padding:25px 18px}
+}
+
+
+/* Contraste reforçado e campos OTP individuais do login do restaurante. */
+.admin-login-shell,.admin-login-shell *{box-sizing:border-box}
+.admin-login-layout{background:#211319!important}
+.admin-login-layout>.admin-login{background:#fff!important;color:#211319!important}
+.admin-login-form-heading .eyebrow{color:#a51e31!important}
+.admin-login-form-heading h2{color:#211319!important}
+.admin-login-form-heading p{color:#59464b!important}
+.admin-login-layout .form-field>span{color:#332127!important;font-weight:800!important}
+.admin-login-layout .form-field input{background:#fff!important;color:#211319!important;border:1.5px solid #8d747b!important}
+.admin-login-layout .form-field input::placeholder{color:#62545a!important;opacity:1}
+.admin-login-layout .form-field input:focus{border-color:#a3132b!important;box-shadow:0 0 0 3px rgba(163,19,43,.2)!important}
+.admin-login-layout .admin-login-otp-field{gap:10px!important}
+.admin-login-layout .admin-login-otp-field>span{display:block;color:#211319!important;font-size:12px!important}
+.admin-otp-boxes{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin:2px 0 1px}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit{width:48px!important;min-width:0!important;height:56px!important;min-height:56px!important;padding:0!important;text-align:center!important;border:2px solid #72565f!important;border-radius:10px!important;background:#fff!important;color:#211319!important;font-size:24px!important;font-weight:850!important;letter-spacing:0!important;font-variant-numeric:tabular-nums;caret-color:#a3132b}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:focus{outline:0!important;border-color:#a3132b!important;background:#fff4f5!important;box-shadow:0 0 0 3px rgba(163,19,43,.22)!important}
+.admin-otp-separator{width:7px;height:3px;flex:0 0 7px;border-radius:2px;background:#72565f}
+.admin-login-layout .admin-login-otp-field small{display:block;color:#49363c!important;font-size:11px!important;line-height:1.5!important}
+.admin-login-layout .admin-recovery-field{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.admin-login-layout .admin-recovery-field>span{color:#49363c!important;font-size:10px!important;font-weight:750}
+.admin-login-layout .admin-recovery-field input{min-height:42px!important;font-size:12px!important}
+.admin-login-layout .admin-login-error{color:#a3132b!important;font-weight:800!important}
+.admin-login-aside-copy p{color:#f0dfe3!important}
+.admin-login-brand small,.admin-login-aside-foot{color:#ead3d9!important}
+.admin-login-layout .admin-login-security-note{color:#49363c!important}
+.admin-login-layout .admin-legal-links a{color:#49363c!important;font-weight:700}
+.admin-login-layout .admin-legal-links a:hover{color:#a3132b!important}
+.admin-login-layout .admin-login-submit{color:#fff!important;background:linear-gradient(100deg,#a3132b,#d93450)!important}
+.admin-login-layout .admin-login-submit:focus-visible{outline:3px solid #211319!important;outline-offset:3px}
+@media(max-width:760px){
+ .admin-otp-boxes{gap:6px}
+ .admin-login-layout .admin-otp-boxes .admin-otp-digit{width:calc((100% - 40px)/6)!important;height:52px!important;min-height:52px!important;font-size:22px!important}
+ .admin-otp-separator{width:4px;flex-basis:4px}
+}
+@media(max-width:360px){
+ .admin-otp-boxes{gap:4px}
+ .admin-login-layout .admin-otp-boxes .admin-otp-digit{height:47px!important;min-height:47px!important;font-size:19px!important}
+}
+
+
+/* OTP com alto contraste e confirmação positiva após validação do servidor. */
+.admin-login-layout .admin-otp-boxes .admin-otp-digit{
+  background:#f0e9eb!important;
+  border:2.5px solid #49313a!important;
+  color:#170b10!important;
+  box-shadow:inset 0 1px 2px rgba(23,11,16,.12),0 2px 0 rgba(23,11,16,.12)!important;
+}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:focus{
+  background:#fff!important;
+  border-color:#a3132b!important;
+  box-shadow:0 0 0 4px rgba(163,19,43,.2),inset 0 1px 2px rgba(23,11,16,.08)!important;
+}
+.admin-login-layout .admin-otp-boxes .admin-otp-digit:not(:placeholder-shown){
+  background:#fff!important;
+  border-color:#49313a!important;
+}
+.admin-login-layout .admin-login-is-valid .admin-otp-boxes .admin-otp-digit,
+.admin-login-layout .admin-otp-boxes .admin-otp-digit.is-valid{
+  color:#075b35!important;
+  background:#e5f8ed!important;
+  border-color:#16834d!important;
+  box-shadow:0 0 0 2px rgba(22,131,77,.13)!important;
+}
+.admin-login-success{
+  display:flex;align-items:center;gap:13px;
+  margin:0 0 14px;padding:13px 15px;
+  border:1.5px solid #58b982;border-radius:13px;
+  color:#075b35;background:linear-gradient(110deg,#e4f8ec,#f4fff8);
+  opacity:0;transform:translateY(13px) scale(.97);
+  animation:adminLoginSuccessEnter .48s cubic-bezier(.2,.85,.25,1.2) forwards;
+}
+.admin-login-success-check{
+  display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;
+  border-radius:50%;background:#16834d;color:#fff;
+  box-shadow:0 4px 12px rgba(22,131,77,.24);
+  transform:scale(.35) rotate(-25deg);
+  animation:adminLoginCheckPop .42s .12s cubic-bezier(.2,.9,.25,1.35) forwards;
+}
+.admin-login-success-check svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:30;stroke-dashoffset:30;animation:adminLoginCheckDraw .32s .38s ease forwards}
+.admin-login-success strong,.admin-login-success small{display:block}
+.admin-login-success strong{font-size:13px;font-weight:850;line-height:1.3}
+.admin-login-success small{margin-top:3px;color:#246747;font-size:10px;line-height:1.4}
+.admin-login-is-valid .admin-login-submit{background:linear-gradient(100deg,#087443,#19a765)!important;box-shadow:0 8px 20px rgba(22,131,77,.2)!important}
+@keyframes adminLoginSuccessEnter{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes adminLoginCheckPop{to{transform:scale(1) rotate(0)}}
+@keyframes adminLoginCheckDraw{to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){
+ .admin-login-success,.admin-login-success-check,.admin-login-success-check svg{animation:none!important;opacity:1;transform:none;stroke-dashoffset:0}
+}
+
+
+/* Resumo do turno: cards compactos, hierarquia clara e acabamento consistente. */
+.today-shift-panel{
+  overflow:hidden;padding:20px!important;border:1px solid #eadde0!important;
+  border-radius:16px!important;background:linear-gradient(145deg,#fff 0%,#fff9f8 100%)!important;
+  box-shadow:0 8px 24px rgba(47,20,28,.055)!important;
+}
+.today-shift-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.today-shift-kicker{display:block;margin-bottom:6px;color:#c04453;font-size:9px;font-weight:850;letter-spacing:.14em}
+.today-shift-heading h2{margin:0!important;color:#28171d;font-size:21px!important;font-weight:750!important;letter-spacing:-.035em}
+.today-shift-heading p{margin:5px 0 0;color:#78666c;font-size:11px;line-height:1.45}
+.today-shift-date{flex:0 0 auto;padding:6px 9px;border:1px solid #ead7db;border-radius:8px;background:#fff;color:#69444d;font-size:10px;font-weight:750;text-transform:capitalize}
+.today-shift-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.today-shift-metric{
+  position:relative;min-width:0;padding:14px 13px 13px;
+  border:1px solid #eadde0;border-radius:12px;background:#fff;
+}
+.today-shift-orders{border-top:3px solid #d83b4d}
+.today-shift-ticket{border-top:3px solid #21865a}
+.today-shift-icon{display:grid;place-items:center;width:34px;height:34px;margin-bottom:12px;border-radius:10px;background:#fff0f1;color:#bd2d42}
+.today-shift-ticket .today-shift-icon{background:#eaf7ef;color:#167448}
+.today-shift-label{color:#665159;font-size:10px;font-weight:750;line-height:1.3}
+.today-shift-metric strong{display:block;overflow:hidden;margin-top:5px;color:#211319;font-size:clamp(23px,2.3vw,29px);font-weight:850;letter-spacing:-.045em;line-height:1.15;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.today-shift-metric small{display:block;margin-top:7px;color:#827078;font-size:9px;line-height:1.4}
+.today-shift-foot{display:flex;align-items:center;gap:7px;margin-top:15px;padding-top:12px;border-top:1px solid #f0e5e7;color:#78666c;font-size:9px;line-height:1.4}
+.today-shift-live-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#21945e;box-shadow:0 0 0 3px rgba(33,148,94,.12)}
+@media(max-width:520px){
+ .today-shift-panel{padding:16px!important}
+ .today-shift-metrics{gap:8px}
+ .today-shift-metric{padding:12px 10px}
+ .today-shift-metric strong{font-size:23px}
+ .today-shift-heading h2{font-size:19px!important}
+}
+
+
+/* Feedback visual de credenciais inválidas no login do restaurante. */
+.admin-login-has-error{animation:adminLoginErrorShake .46s cubic-bezier(.36,.07,.19,.97) both}
+.admin-login-layout .admin-login-has-error .admin-login-error{
+  display:block!important;min-height:38px;margin:12px 0!important;padding:10px 12px 10px 38px!important;
+  position:relative;border:1px solid #ef9a9a;border-radius:10px;color:#9f1725!important;
+  background:#fff0f0;font-size:12px;font-weight:700;animation:adminLoginErrorMessage .25s ease-out both;
+}
+.admin-login-layout .admin-login-has-error .admin-login-error:before{
+  content:"!";position:absolute;left:12px;top:8px;display:grid;place-items:center;
+  width:19px;height:19px;border-radius:50%;color:#fff;background:#c62838;font-size:13px;font-weight:900;
+}
+.admin-login-layout .admin-login-has-error input.is-invalid,
+.admin-login-layout .admin-login-has-error .admin-otp-digit.is-invalid{
+  border-color:#d52d3d!important;background:#fff1f1!important;color:#8f1422!important;
+  box-shadow:0 0 0 3px rgba(213,45,61,.13)!important;animation:adminLoginFieldError .32s ease-out both;
+}
+@keyframes adminLoginErrorShake{
+  0%,100%{transform:translateX(0)}18%,54%{transform:translateX(-7px)}
+  36%,72%{transform:translateX(6px)}90%{transform:translateX(-2px)}
+}
+@keyframes adminLoginErrorMessage{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes adminLoginFieldError{0%,100%{transform:translateX(0)}35%{transform:translateX(-2px)}70%{transform:translateX(2px)}}
+@media(prefers-reduced-motion:reduce){
+  .admin-login-has-error,.admin-login-layout .admin-login-has-error .admin-login-error,
+  .admin-login-layout .admin-login-has-error input.is-invalid{animation:none!important}
+}
