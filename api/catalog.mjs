@@ -73,6 +73,7 @@ export default async function handler(request, response) {
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS card_image TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
     await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
@@ -166,6 +167,13 @@ export default async function handler(request, response) {
         promotion.card_image = cardImage;
       }
     }
+
+    // Usa os preços públicos já normalizados para aplicar o mesmo valor a todas as pizzas.
+    const sharedSizePrices = Object.fromEntries(
+      publicPizzaSizes
+        .filter(size => Number.isInteger(Number(size.priceCents)) && Number(size.priceCents) >= 500)
+        .map(size => [size.key, Number(size.priceCents)])
+    );
 
     // Normaliza os preços compartilhados e aplica promoções no produto/tamanho correto.
     for(const product of products){
