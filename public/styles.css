@@ -3422,6 +3422,16 @@ button[data-action="view-generated-3d"],
 }
 
 
+/* Erro de autenticação ao confirmar o pedido: aviso persistente dentro do checkout. */
+.checkout-modal .checkout-auth-error{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:66px;margin:14px 0;padding:13px 14px;color:#68151b;background:#fff0f0;border:1px solid #d94a55;border-left:5px solid #b42332;border-radius:10px;font-size:13px;line-height:1.4;text-align:left;box-shadow:0 4px 14px rgba(120,20,30,.09)}
+.checkout-modal .checkout-auth-error-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:#a91f2c;color:#fff;font-size:19px;font-weight:900}
+.checkout-auth-error-copy{display:grid;gap:3px;min-width:0}
+.checkout-auth-error-copy strong{color:#68151b;font-size:13px;font-weight:850}
+.checkout-auth-error-copy small{color:#713b40;font-size:11px;line-height:1.45}
+.checkout-modal .checkout-auth-error-action{min-height:36px;padding:8px 12px;border:0;border-radius:7px;background:#a91f2c;color:#fff;font-size:11px;font-weight:800;white-space:nowrap;cursor:pointer}
+.checkout-modal .checkout-auth-error-action:hover{background:#811722}
+@media(max-width:560px){.checkout-modal .checkout-auth-error{grid-template-columns:30px minmax(0,1fr);gap:9px;padding:12px}.checkout-modal .checkout-auth-error-action{grid-column:2;justify-self:start}}
+
 /* Aviso de autenticação: destaque forte e tempo suficiente para leitura. */
 .toast.toast-auth-required{width:min(560px,calc(100vw - 32px));min-height:64px;display:flex;align-items:center;gap:13px;padding:17px 20px 17px 58px;border:2px solid #ffb5b5;border-left:7px solid #ff4b4b;border-radius:12px;background:#7f151b;color:#fff;font-size:15px;font-weight:800;line-height:1.45;letter-spacing:.01em;text-align:left;white-space:normal;box-shadow:0 12px 36px #0008;transform:translate(-50%,20px);}
 .toast.toast-auth-required::before{content:'!';position:absolute;left:17px;top:50%;transform:translateY(-50%);width:27px;height:27px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;font-size:19px;font-weight:900;line-height:1;color:#fff;}
