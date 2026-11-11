@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=42';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=43';
 export { buildFoodGeometry };
 
 // Motor de visualização 3D do cardápio.
@@ -158,6 +158,9 @@ void main(){
     col += (albedo * dl * (1. - F) * ao + spec + trans) * Lc * s;
   }
   vec3 c = aces(col * uExposure);
+  c *= vec3(1.04, 1.0, .94);
+  float lum = dot(c, vec3(.299, .587, .114));
+  c = mix(vec3(lum), c, 1.12);
   c = pow(c, vec3(1. / 2.2));
   OUT = vec4(c, 1.);
 }`;
@@ -520,7 +523,7 @@ export class FoodScene {
     gl.useProgram(this.program);
     gl.uniformMatrix4fv(u.uProj, false, proj); gl.uniformMatrix4fv(u.uView, false, view); gl.uniform3fv(u.uCam, eye);
     gl.uniform3fv(u.uKey, KEY); gl.uniform3fv(u.uFill, FILL); gl.uniform3fv(u.uRim, RIM);
-    gl.uniform1f(u.uExposure, .92); gl.uniform1f(u.uQuality, this.quality);
+    gl.uniform1f(u.uExposure, 1.0); gl.uniform1f(u.uQuality, this.quality);
     if (this.webgl2) {
       gl.uniformMatrix4fv(u.uLightVP, false, lightVP); gl.uniform1f(u.uShadowOn, useShadow ? 1 : 0); gl.uniform2f(u.uTexel, 1 / this.shadowSize, 1 / this.shadowSize);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.uniform1i(u.uShadow, 0);
