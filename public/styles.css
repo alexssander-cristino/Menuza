@@ -3459,3 +3459,5 @@ button[data-action="view-generated-3d"],
 .menuza-turnstile{display:flex;align-items:center;justify-content:flex-start;min-height:65px;margin:14px 0;visibility:visible;opacity:1;position:relative;z-index:1}
 .menuza-turnstile:empty{min-height:0;margin:0}
 .menuza-turnstile iframe{max-width:100%}
+
+.menuza-turnstile-status{display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 14px;border:1px solid var(--border,#ddd);border-radius:10px;background:var(--surface,#fff);color:var(--text,#333);font-size:13px}.menuza-turnstile-status::before{content:'';width:15px;height:15px;flex:0 0 15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:menuza-turnstile-spin .8s linear infinite}.menuza-turnstile-status.is-error{color:#b42318;border-color:#f2b8b5}.menuza-turnstile-status.is-error::before{content:'!';display:grid;place-items:center;border:0;font-weight:700;animation:none}@keyframes menuza-turnstile-spin{to{transform:rotate(360deg)}}
