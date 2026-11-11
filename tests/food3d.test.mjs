@@ -348,8 +348,8 @@ test('fotorealismo: mussarela possui relevo real de bolhas, não apenas variaç�
 });
 
 test('fotorealismo: frango desfiado é formado por múltiplos fios estreitos e sobrepostos', () => {
-  const custom = [{ id: 'frango', name: 'Frango', type: 'pizza', quantity: 1 }];
-  const layout = buildFoodLayout(pizza, ing(custom), SIZE_OPTIONS.pizza[1]);
+  const custom = [{ id: 'frango', name: 'Frango', type: 'pizza', visual: 'chicken', quantity: 1 }];
+  const layout = buildFoodLayout(pizza, custom, SIZE_OPTIONS.pizza[1]);
   const part = layout.parts.find(item => item.kind === 'topping:frango');
   assert.ok(part, 'frango deve continuar no layout');
   const g = part.build();
@@ -358,8 +358,8 @@ test('fotorealismo: frango desfiado é formado por múltiplos fios estreitos e s
 });
 
 test('fotorealismo: bacon tem faixas de gordura e tostado não uniformes', () => {
-  const custom = [{ id: 'bacon', name: 'Bacon', type: 'pizza', quantity: 2 }];
-  const layout = buildFoodLayout(pizza, ing(custom), SIZE_OPTIONS.pizza[1]);
+  const custom = [{ id: 'bacon', name: 'Bacon', type: 'pizza', visual: 'bacon', quantity: 2 }];
+  const layout = buildFoodLayout(pizza, custom, SIZE_OPTIONS.pizza[1]);
   const part = layout.parts.find(item => item.kind === 'topping:bacon');
   assert.ok(part);
   const g = part.build();
