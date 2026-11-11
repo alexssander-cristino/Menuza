@@ -1410,14 +1410,15 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/admin/analytics') {
       const days=[7,30,90].includes(Number(req.query?.days))?Number(req.query.days):7, since=new Date(Date.now()-days*86400000).toISOString();
-      const [summary,daily,fulfillment,popular,topCustomers]=await Promise.all([
+      const [summary,daily,fulfillment,popular,topCustomers,customerStats]=await Promise.all([
         query("SELECT COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\",COALESCE(ROUND(AVG(total_cents) FILTER (WHERE status<>'cancelled')),0)::int AS \"averageTicketCents\",COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled FROM orders WHERE restaurant_id=$1 AND created_at >= $2",[RESTAURANT_ID,since]),
         query("SELECT created_at::date::text AS date,COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 GROUP BY created_at::date ORDER BY date",[RESTAURANT_ID,since]),
         query("SELECT fulfillment AS type,COUNT(*)::int AS orders FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC",[RESTAURANT_ID,since]),
         query("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity)::int AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::int AS \"revenueCents\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8",[RESTAURANT_ID,since]),
         query("SELECT o.customer_id AS id,MAX(o.customer_name) AS name,COUNT(*)::int AS orders,COALESCE(SUM(o.total_cents),0)::int AS \"revenueCents\" FROM orders o WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' AND o.customer_id IS NOT NULL GROUP BY o.customer_id HAVING COUNT(*)>1 ORDER BY orders DESC,\"revenueCents\" DESC LIMIT 8",[RESTAURANT_ID,since])
+        query("SELECT COUNT(*)::int AS \"identifiedCustomers\",COUNT(*) FILTER (WHERE order_count>1)::int AS \"returningCustomers\" FROM (SELECT customer_id,COUNT(*)::int AS order_count FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' AND customer_id IS NOT NULL GROUP BY customer_id) customers",[RESTAURANT_ID,since])
       ]);
-      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows});
+      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows,customerStats:customerStats.rows[0]||{identifiedCustomers:0,returningCustomers:0}});
     }
     if (method==='GET'&&path==='/api/admin/coupons') return json(res,200,{coupons:(await query('SELECT * FROM coupons WHERE restaurant_id=$1 ORDER BY created_at DESC',[RESTAURANT_ID])).rows.map(couponPublic)});
     if (method==='POST'&&path==='/api/admin/coupons') return json(res,201,{coupon:await saveCoupon(await bodyOf(req))});
