@@ -19,5 +19,17 @@ export default async function dispatch(req, res) {
     ? route.filter(Boolean).join('/')
     : String(route || '').replace(/^\/+|\/+$/g, '');
 
+  // Resolve a configuração pública diretamente no dispatcher para manter
+  // o mesmo comportamento no Vercel Dev e em produção.
+  if ((req.method || 'GET') === 'GET' && req.query.path === 'public/integrations') {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(200).json({
+      sentryDsn: process.env.SENTRY_DSN || '',
+      turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '',
+      gaMeasurementId: process.env.GA_MEASUREMENT_ID || ''
+    });
+  }
+
   return handler(req, res);
 }
