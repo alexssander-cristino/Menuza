@@ -399,8 +399,12 @@ function pizzaCtx(Rp, crustKey, hasSauce, hasCheese, seed) {
   const edgeF = rn => Math.sqrt(Math.max(0, 1 - clamp(rn, 0, 1) ** 7));
   const sauceH = (x, z) => (.0017 + .0004 * (fbm(x * 60, z * 60, seed + 1, 2) - .5) * 2) * 1;
   const cheeseH = (x, z) => {
-    const b = fbm(x * 70, z * 70, seed + 3, 3), bub = sstep(.55, .75, fbm(x * 130, z * 130, seed + 8, 2));
-    return Math.max(.0008, .0034 * (.78 + .5 * b) + .0011 * bub - .0012 * cutGroove(x, z));
+    const b = fbm(x * 70, z * 70, seed + 3, 3);
+    const bubbleField = fbm(x * 130, z * 130, seed + 8, 2);
+    const bubbles = sstep(.57, .76, bubbleField);
+    const smallPockets = sstep(.73, .88, fbm(x * 245, z * 245, seed + 12, 2));
+    const meltedWave = (fbm(x * 34, z * 34, seed + 15, 2) - .5) * .00042;
+    return Math.max(.00065, .00335 * (.78 + .5 * b) + .00082 * bubbles + .00022 * smallPockets + meltedWave - .0012 * cutGroove(x, z));
   };
   const surf = (x, z) => {
     const r = Math.hypot(x, z), a = Math.atan2(z, x);
@@ -487,17 +491,19 @@ function cheeseMeshPizza(ctx, detail) {
     // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
     // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
     const toastNoise = fbm(x * 27, z * 27, seed + 51, 3);
-    const toast = sstep(.48, .72, toastNoise) * (.78 + .20 * sstep(.15, .9, v));
-    const browned = sstep(.60, .82, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
-    const freckles = sstep(.72, .88, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
-    const bub = sstep(.66, .82, fbm(x * 112, z * 112, seed + 41, 2));
+    const toast = sstep(.49, .73, toastNoise) * (.78 + .20 * sstep(.15, .9, v));
+    const browned = sstep(.62, .83, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
+    const freckles = sstep(.74, .89, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
+    const bub = sstep(.64, .81, fbm(x * 112, z * 112, seed + 41, 2));
+    const blisterEdge = sstep(.76, .9, fbm(x * 178, z * 178, seed + 61, 2)) * bub;
     let c = mix(C.mozz, C.mozzGold, clamp(.16 + grain + sstep(.82, .99, v) * .08, 0, .30));
     c = mix(c, lin('#ead8b4'), bub * .12);
+    c = mix(c, lin('#a96b3d'), blisterEdge * .18);
     c = mix(c, lin('#c58a43'), toast * .68);
     c = mix(c, lin('#874a29'), browned * .58);
     c = mix(c, lin('#54301d'), freckles * .42);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .18);
-    return MAT(mul(c, 1 + grain), .48 + toast * .04, .18, .52, 1);
+    return MAT(mul(c, 1 + grain), .49 + toast * .06 + blisterEdge * .025, .20, .68, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -624,9 +630,11 @@ function chickenInto(m, x, y, z, R, seed, rnd) {
       xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .35, roll: (rnd() - .5) * .35, t: [x + (rnd() - .5) * R * 1.1, y + R * .14 + i * R * .06, z + (rnd() - .5) * R * 1.1] }),
       shade: (u, v, p) => {
         const fiber = nz(p, 185, seed + i * 17), sear = sstep(.68, .88, nz(p, 34, seed + i * 23));
-        let color = mix(C.chicken, lin('#f1dcb4'), .12 + fiber * .22);
-        color = mix(color, C.chickenBrown, sstep(.57, .78, fiber) * .34 + sear * .22);
-        return MAT(color, .66, .30, 1.05, .92);
+        const brownedEdge = sstep(.72, .9, nz(p, 72, seed + i * 29));
+        let color = mix(C.chicken, lin('#f1dcb4'), .10 + fiber * .18);
+        color = mix(color, C.chickenBrown, sstep(.59, .8, fiber) * .30 + sear * .2);
+        color = mix(color, lin('#875b32'), brownedEdge * sear * .32);
+        return MAT(color, .68 - sear * .035, .27, 1.12, .92);
       }
     });
   }

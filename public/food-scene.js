@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=37';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=38';
 export { buildFoodGeometry };
 
 // Motor de visualização 3D do cardápio.
@@ -111,6 +111,9 @@ void main(){
   // Microtextura em duas escalas: poros finos e irregularidades maiores.
   // O relevo permanece discreto para não transformar alimentos em superfícies granuladas.
   if (bump > .01) {
+    // Três escalas de superfície: manchas naturais, poros e microgrão.
+    // O campo macro evita o aspecto de cor chapada; a intensidade acompanha o bump de cada ingrediente.
+    float macro = vn(vLocal * 68.);
     vec3 q = vLocal * (uQuality > .5 ? 520. : 320.);
     float n0 = vn(q);
     vec3 g = vec3(vn(q + vec3(.5,0,0)) - n0, vn(q + vec3(0,.5,0)) - n0, vn(q + vec3(0,0,.5)) - n0) / .5;
@@ -120,8 +123,10 @@ void main(){
     g += g2 * .32;
     g -= N * dot(g, N);
     N = normalize(N - g * bump * .082);
-    albedo *= 1. + (n0 - .5) * .16 * bump + (n1 - .5) * .055 * bump;
-    rough = clamp(rough + (n0 - .5) * .075 * bump + (n1 - .5) * .025 * bump, .08, 1.);
+    float pores = smoothstep(.79, .91, n0) * bump;
+    albedo *= 1. + (macro - .5) * .105 * bump + (n0 - .5) * .13 * bump + (n1 - .5) * .045 * bump;
+    albedo *= 1. - pores * .035;
+    rough = clamp(rough + (macro - .5) * .09 * bump + (n0 - .5) * .07 * bump + (n1 - .5) * .025 * bump + pores * .025, .08, 1.);
   }
   float NoV = clamp(dot(N, V), .001, 1.);
   vec3 F0 = vec3(.04);
