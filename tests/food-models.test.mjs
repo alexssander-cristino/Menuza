@@ -78,6 +78,37 @@ test('chocolate é uma camada cremosa contínua, não cobertura em pedaços', ()
   assert.ok(geometry.positions.every(Number.isFinite));
 });
 
+test('leite condensado usa fios cremosos próprios e não vira chocolate', () => {
+  const layout = buildFoodLayout(pizza, [
+    { id: 'ingrediente-leite-condensado', name: 'Leite condensado', visual: 'condensed-milk', quantity: 1 }
+  ], { diameterCm: 35 }, { detail: 0.45 });
+
+  const drizzle = layout.parts.find(part => part.kind === 'topping:leite-condensado');
+  assert.ok(drizzle, 'leite condensado deve manter uma peça de cobertura própria');
+  assert.ok(!layout.parts.some(part => part.kind.startsWith('chocolate-cream')),
+    'leite condensado não deve gerar a cobertura de chocolate');
+  const geometry = drizzle.build();
+  assert.ok(geometry.positions.length > 0);
+  assert.ok(geometry.positions.every(Number.isFinite));
+  assert.ok(geometry.materials.every(Number.isFinite));
+});
+
+test('frutas da pizza usam fatias e lascas individuais com malhas válidas', () => {
+  for (const [id, name, minVertices] of [
+    ['morango', 'Morango', 700],
+    ['banana', 'Banana', 300],
+    ['coco', 'Coco ralado', 1000]
+  ]) {
+    const layout = buildFoodLayout(pizza, [{ id, name, quantity: 1 }], { diameterCm: 35 }, { detail: 0.45 });
+    const part = layout.parts.find(item => item.kind === 'topping:' + id);
+    assert.ok(part, name + ' deve permanecer na composição');
+    const geometry = part.build();
+    assert.ok(geometry.positions.length / 3 >= minVertices, name + ' deve ter malha detalhada');
+    assert.ok(geometry.positions.every(Number.isFinite), name + ' não pode gerar vértices inválidos');
+    assert.ok(geometry.materials.every(Number.isFinite), name + ' não pode gerar materiais inválidos');
+  }
+});
+
 test('chocolates cadastrados com IDs diferentes aparecem juntos em uma única cobertura', () => {
   const layout = buildFoodLayout(pizza, [
     { id: 'ingrediente-ao-leite-18', name: 'Chocolate ao leite', visual_key: 'herb', groupName: 'Ervas', quantity: 1 },

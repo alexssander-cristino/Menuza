@@ -160,6 +160,8 @@ test('ingredientes cadastrados no painel recebem visuais específicos para cada 
   assert.equal(custom('Provolone'), 'provolone');
   assert.equal(custom('Catupiry cremoso'), 'catupiry');
   assert.equal(custom('Requeijão tradicional'), 'cheese');
+  assert.equal(custom('Leite condensado'), 'condensed-milk');
+  assert.equal(custom('Creme de leite'), 'cream');
   assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Gorgonzola', type: 'burger', groupName: 'Queijos' }), 'gorgonzola');
   assert.equal(inferIngredientVisual({ id: 'burger-catupiry', name: 'Catupiry', type: 'burger', groupName: 'Queijos' }), 'cheese');
   assert.equal(inferIngredientVisual({ id: 'burger-cheese', name: 'Parmesão', type: 'burger', groupName: 'Queijos' }), 'parmesan');

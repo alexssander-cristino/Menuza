@@ -405,6 +405,7 @@ const TOPPINGS = {
   mustard: { r: .010, cover: [.08, .14, .2], kind: 'mustard', loose: true },
   'hot-sauce': { r: .010, cover: [.08, .14, .2], kind: 'hot-sauce', loose: true },
   cream: { r: .011, cover: [.08, .14, .2], kind: 'cream', loose: true },
+  'leite-condensado': { r: .009, cover: [.08, .14, .2], kind: 'condensed-milk-drizzle', loose: true },
   'white-chocolate': { r: .010, cover: [.1, .18, .26], kind: 'white-chocolate' },
   sprinkles: { r: .004, cover: [.12, .2, .3], kind: 'sprinkles', loose: true },
   peanut: { r: .006, cover: [.1, .18, .26], kind: 'peanut', loose: true }
@@ -471,30 +472,40 @@ function doughMesh(ctx, detail) {
       const blister = (fbm(x * 74, z * 74, seed + 26, 3) - .5) * .0038;
       const notch = rim * ctx.cutGroove(x, z) * .0016;
       const deckWave = (1 - rim) * (fbm(x * 40, z * 40, seed + 5, 2) - .5) * .0018;
-      return [rim * (fbm(x * 72, z * 72, seed + 6, 2) - .5) * .0018, rim * (small + bl * .0028 + blister * .65) - notch + deckWave];
+      const crumbPores = (1 - rim) * (fbm(x * 112, z * 112, seed + 44, 2) - .5) * .00055;
+      return [rim * (fbm(x * 72, z * 72, seed + 6, 2) - .5) * .0018, rim * (small + bl * .0028 + blister * .65) - notch + deckWave + crumbPores];
     },
     shade: (u, v, p, n, [r, y]) => {
       const x = p[0], z = p[2], rim = sstep(rStart - .003, rStart + .003, r), tv = 1 + (nz(p, 80, seed + 3) - .5) * .12;
-      const blister = sstep(.38, .66, noise3(x * 34, z * 34, seed + 9)), char = sstep(.66, .84, noise3(x * 72, z * 72, seed + 12));
-      const bakePatch = sstep(.52, .72, fbm(x * 18, z * 18, seed + 35, 3));
+      const blister = sstep(.38, .66, noise3(x * 34, z * 34, seed + 9));
+      const char = sstep(.69, .87, noise3(x * 72, z * 72, seed + 12));
+      const bakePatch = sstep(.48, .72, fbm(x * 22, z * 22, seed + 35, 3));
       const blisterSpeck = sstep(.72, .88, noise3(x * 210, z * 210, seed + 38));
-      if (n[1] > .25 && rim > 0) {
-        let c = mix(C.doughRim, lin('#c47a37'), clamp(blister * .58 + bakePatch * .56 + sstep(.38, .68, nz(p, 22, seed + 14)) * .34, 0, .96));
-        c = mix(c, lin('#75401f'), char * blister * .62);
-        c = mix(c, lin('#f0c27b'), bakePatch * (1 - char) * .24);
-        c = mix(c, lin('#4b2a19'), blisterSpeck * char * .30);
-        c = mix(c, lin('#e6ad5b'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * .14);
-        // topo da borda mais dourado (pincelada de azeite) e brilhante
-        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * .18);
-        // borda recheada: queijo escapando em manchas claras e cremosas
-        if (cr.stuffed) c = mix(c, lin('#f6e7b8'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * .8);
-        // farinha na borda
-        const flour = sstep(.8, .9, noise3(x * 220, z * 220, seed + 30)) * rim;
-        c = mix(c, C.doughCream, flour * .35);
-        return MAT(mul(c, tv), cr.stuffed ? .64 : .72, .1, 1.55, 1);
+      if (n[1] > -.42) {
+        // A face de cima e a lateral visível recebem o mesmo cozimento dourado;
+        // a faixa central exposta nunca volta ao bege de massa crua.
+        const crumb = mix(lin('#c58f5a'), lin('#dfb77f'), sstep(.34, .76, bakePatch));
+        const crust = mix(C.doughRim, lin('#bf7334'), clamp(blister * .38 + bakePatch * .48 + sstep(.38, .68, nz(p, 22, seed + 14)) * .24, 0, .92));
+        let c = mix(crumb, crust, rim * .82);
+        const toasted = bakePatch * (.20 + rim * .48) + blister * rim * .18;
+        c = mix(c, lin('#a75e2e'), toasted);
+        c = mix(c, lin('#70401f'), char * (.06 + rim * .48));
+        c = mix(c, lin('#4b2a19'), blisterSpeck * char * rim * .34);
+        c = mix(c, lin('#edc58d'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * (.08 + rim * .08));
+        // Topo da borda mais dourado; a farinha aparece apenas em pontos discretos.
+        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * rim * .16);
+        if (cr.stuffed) c = mix(c, lin('#f6e7b8'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * rim * .8);
+        const flour = sstep(.84, .93, noise3(x * 220, z * 220, seed + 30)) * rim;
+        c = mix(c, C.doughCream, flour * .24);
+        const rough = clamp(.82 - bakePatch * .11 - blister * rim * .08, .62, .9);
+        return MAT(mul(c, tv), rough, .08, 1.42, .92 + rim * .08);
       }
-      if (n[1] < -.4) return MAT(mul(C.doughPale, .92 * tv), .8, .05, .8, .75);
-      return MAT(mul(mix(C.doughPale, C.doughRim, rim * .65), tv), .78, .08, 1, y < .003 ? .75 : (rim ? .95 : .85));
+      if (n[1] < -.42) {
+        const underside = mix(lin('#a76637'), C.doughPale, sstep(.35, .82, nz(p, 48, seed + 46)) * .42);
+        const toast = sstep(.52, .74, fbm(x * 32, z * 32, seed + 48, 2));
+        return MAT(mix(underside, lin('#744326'), toast * .32), .82, .04, .86, .78);
+      }
+      return MAT(mul(C.doughBrown, tv), .78, .06, .9, .75);
     }
   });
   return m.finish();
@@ -584,19 +595,39 @@ function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
   const base = mixed ? lin('#76503a') : white ? lin('#d9c29c') : lin('#563126');
   const deep = mixed ? lin('#4b2c22') : white ? lin('#b99b70') : lin('#321b15');
   const accent = mixed ? lin('#c9ad86') : base;
+  const rnd = randomFor(ctx.seed + (white ? 91 : 73));
+  const pools = Array.from({ length: 24 }, () => {
+    const angle = rnd() * TAU, radius = Math.sqrt(rnd()) * ctx.Rt * .9;
+    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, r: ctx.Rt * (.018 + rnd() * .035), h: .00024 + rnd() * .00042 };
+  });
+  const poolAt = (x, z) => {
+    let h = 0;
+    for (const pool of pools) {
+      const d = Math.hypot(x - pool.x, z - pool.z) / pool.r;
+      if (d < 2.4) h = Math.max(h, Math.exp(-d * d * 1.5) * pool.h);
+    }
+    return h;
+  };
   return veneerMesh(radius, (x, z, v) => {
     const edge = ctx.edgeF(v);
-    return ctx.surf(x, z) + .0025 + .0011 * edge
-      + (fbm(x * 105, z * 105, ctx.seed + (white ? 31 : 29), 3) - .5) * .00028;
+    const macro = fbm(x * 38, z * 38, ctx.seed + 27, 3) - .5;
+    const flow = fbm(x * 88 + z * 14, z * 76 - x * 9, ctx.seed + 35, 2) - .5;
+    const micro = fbm(x * 220, z * 220, ctx.seed + (white ? 31 : 29), 2) - .5;
+    return ctx.surf(x, z) + .00225 + .00105 * edge + macro * .00058 + flow * .00032 + poolAt(x, z) + micro * .0001;
   }, (u, v, p) => {
-    const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 2.1 + Math.hypot(p[0], p[2]) * 78 + ctx.seed);
-    const grain = (nz(p, 112, ctx.seed + 33) - .5) * .045;
-    let c = mix(base, deep, clamp(.16 + swirl * .13 + grain, 0, .32));
+    const broad = fbm(p[0] * 31, p[2] * 31, ctx.seed + 39, 3);
+    const swirl = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 1.4 + fbm(p[0] * 42, p[2] * 42, ctx.seed + 42, 2) * 5.4 + Math.hypot(p[0], p[2]) * 31);
+    const grain = (nz(p, 136, ctx.seed + 33) - .5) * .05;
+    const bloom = sstep(.67, .85, fbm(p[0] * 104, p[2] * 104, ctx.seed + 45, 2));
+    const oil = sstep(.56, .78, fbm(p[0] * 48, p[2] * 48, ctx.seed + 51, 2));
+    let c = mix(base, deep, clamp(.13 + broad * .12 + swirl * .09 + grain, 0, .38));
+    c = mix(c, mixed ? lin('#8b684c') : white ? lin('#ead7ae') : lin('#754638'), bloom * .12);
     if (mixed) {
       const marbling = fbm(p[0] * 68, p[2] * 68, ctx.seed + 37, 2);
-      c = mix(c, accent, sstep(.61, .82, marbling) * .18);
+      c = mix(c, accent, sstep(.61, .82, marbling) * .22);
     }
-    return MAT(c, .42, .30, .42, 1);
+    const roughness = clamp(.34 - oil * .07 + bloom * .035 + grain * .4, .22, .46);
+    return MAT(c, roughness, .24, .72, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -823,11 +854,74 @@ function toppingBlob(m, x, y, z, rx, ry, rz, color, seed, rnd) {
 function garlicInto(m, x, y, z, R, seed, rnd) {
   toppingBlob(m, x, y, z, R * .9, .0022, R * .58, lin('#f1e5c9'), seed, rnd);
 }
+function strawberrySliceInto(m, x, y, z, R, seed, rnd) {
+  const rx = R * .78, rz = R * .62, thickness = clamp(R * .16, .0012, .0021), yaw = rnd() * TAU;
+  const centerY = y + thickness * .9;
+  blobInto(m, {
+    rx, ry: thickness, rz, seed, amp: .095, nu: 24, nv: 16,
+    xf: rigid({ yaw, pitch: (rnd() - .5) * .08, roll: (rnd() - .5) * .08, t: [x, centerY, z] }),
+    shade: (u, v, p) => {
+      const radial = Math.sqrt(((p[0] - x) / rx) ** 2 + ((p[2] - z) / rz) ** 2);
+      const pulp = mix(lin('#f39a8c'), lin('#e75a5d'), sstep(.08, .9, radial) * .58);
+      const skin = mix(lin('#e5444c'), lin('#a92231'), sstep(.64, 1, nz(p, 86, seed + 7)) * .3);
+      const edge = sstep(.70, .98, radial);
+      const color = mix(pulp, skin, edge * .88);
+      return MAT(mul(color, .96 + (nz(p, 135, seed + 9) - .5) * .09), .42, .24, .76, .96);
+    }
+  });
+
+  // Pequenas sementes no corte, assentadas na curvatura para não parecerem soltas.
+  for (let i = 0; i < 8; i++) {
+    const a = i * TAU / 8 + (rnd() - .5) * .26, radial = .42 + rnd() * .34;
+    const lx = Math.cos(a) * rx * radial, lz = Math.sin(a) * rz * radial;
+    const dx = Math.cos(yaw) * lx - Math.sin(yaw) * lz, dz = Math.sin(yaw) * lx + Math.cos(yaw) * lz;
+    const surfaceLift = thickness * Math.sqrt(Math.max(0, 1 - radial * radial));
+    const seedY = centerY + surfaceLift + .00004;
+    blobInto(m, {
+      rx: .00043, ry: .00011, rz: .00025, seed: seed + i * 19, amp: .04, nu: 8, nv: 6,
+      xf: rigid({ yaw: a + yaw, t: [x + dx, seedY, z + dz] }),
+      shade: () => MAT(lin('#f2d69a'), .46, .03, .2, .94)
+    });
+  }
+}
+
+function bananaSliceInto(m, x, y, z, R, seed, rnd) {
+  const rx = R * .74, rz = R * .68, thickness = clamp(R * .14, .001, .0018);
+  blobInto(m, {
+    rx, ry: thickness, rz, seed, amp: .045, nu: 22, nv: 14,
+    xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .06, roll: (rnd() - .5) * .06, t: [x, y + thickness * .88, z] }),
+    shade: (u, v, p) => {
+      const radial = Math.sqrt(((p[0] - x) / rx) ** 2 + ((p[2] - z) / rz) ** 2);
+      const toast = sstep(.61, .85, fbm(p[0] * 74, p[2] * 82, seed + 5, 2));
+      const freckle = sstep(.79, .91, noise3(p[0] * 260, p[2] * 270, seed + 11));
+      let color = mix(lin('#f7e4a2'), lin('#f0ce69'), toast * .34);
+      color = mix(color, lin('#ae6a33'), sstep(.82, 1, radial) * .42);
+      color = mix(color, lin('#80502c'), freckle * .38);
+      return MAT(color, .48 + toast * .08, .22, .62, .96);
+    }
+  });
+}
+
+function coconutFlakesInto(m, x, y, z, R, seed, rnd) {
+  for (let i = 0; i < 5; i++) {
+    const length = R * (.72 + rnd() * .88), width = R * (.13 + rnd() * .1), yaw = rnd() * TAU;
+    const ox = (rnd() - .5) * R * .85, oz = (rnd() - .5) * R * .85, lift = .00045 + rnd() * .00045;
+    const curl = .00025 + rnd() * .00035, tint = rnd();
+    m.slab(12, 4, (u, v) => [
+      (u - .5) * length,
+      lift + Math.sin(u * Math.PI) * curl + Math.sin(v * Math.PI) * curl * .25,
+      (v - .5) * width + Math.sin(u * Math.PI * 2 + seed) * width * .08
+    ], .00028, (u, v, p) => MAT(mix(lin('#fff4dc'), lin('#d6c19c'), tint * .24 + (nz(p, 75, seed + i) - .5) * .08), .68, .12, .46, .92), {
+      xf: rigid({ yaw, pitch: (rnd() - .5) * .12, roll: (rnd() - .5) * .12, t: [x + ox, y, z + oz] }), ref: () => [0, 0, 0]
+    });
+  }
+}
+
 function fruitInto(m, kind, x, y, z, R, seed, rnd) {
   if (kind === 'pineapple') toppingBlob(m, x, y, z, R * 1.25, .0032, R * .72, lin('#e9b83e'), seed, rnd);
-  else if (kind === 'banana') toppingBlob(m, x, y, z, R * 1.35, .0026, R * .55, lin('#f4d36c'), seed, rnd);
-  else if (kind === 'strawberry') toppingBlob(m, x, y, z, R * .82, .0034, R * .72, lin('#d94343'), seed, rnd);
-  else if (kind === 'coconut') toppingBlob(m, x, y, z, R * .9, .0015, R * .45, lin('#fff1d9'), seed, rnd);
+  else if (kind === 'banana') bananaSliceInto(m, x, y, z, R, seed, rnd);
+  else if (kind === 'strawberry') strawberrySliceInto(m, x, y, z, R, seed, rnd);
+  else if (kind === 'coconut') coconutFlakesInto(m, x, y, z, R, seed, rnd);
   else toppingBlob(m, x, y, z, R, .0025, R * .65, lin('#ead7b4'), seed, rnd);
 }
 function herbInto(m, x, y, z, rnd) {
@@ -906,12 +1000,13 @@ function cheesePieceInto(m, style, x, y, z, R, seed, rnd, detail) {
 }
 function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
   const cheddar = kind === 'cheddar-drizzle';
-  const base = cheddar ? lin('#e9a12b') : lin('#f5ead2');
-  const light = cheddar ? lin('#ffc04a') : lin('#fff8e9');
-  const lanes = cheddar ? 10 : 9;
+  const condensedMilk = kind === 'condensed-milk-drizzle';
+  const base = cheddar ? lin('#e9a12b') : condensedMilk ? lin('#eadbb8') : lin('#f5ead2');
+  const light = cheddar ? lin('#ffc04a') : condensedMilk ? lin('#fff3d8') : lin('#fff8e9');
+  const lanes = cheddar ? 10 : condensedMilk ? 7 : 9;
   const radius = ctx.Rt * .965;
-  const width = ctx.Rt * (cheddar ? .052 : .058);
-  const thickness = cheddar ? .0019 : .0021;
+  const width = ctx.Rt * (cheddar ? .052 : condensedMilk ? .034 : .058);
+  const thickness = cheddar ? .0019 : condensedMilk ? .00155 : .0021;
   const phase = (seed % 101) * .071;
   for (let lane = 0; lane < lanes; lane++) {
     const offset = (lane / (lanes - 1) - .5) * radius * 1.48;
@@ -923,7 +1018,7 @@ function pizzaDrizzleInto(m, ctx, kind, seed, detail) {
       const z = clamp(offset + wave + across, -edge * .96, edge * .96);
       const crown = Math.sqrt(Math.max(0, 1 - ((v - .5) * 2) ** 2));
       return [x, ctx.surf(x, z) + thickness * crown + .00018, z];
-    }, (u, v, p) => MAT(mix(base, light, .2 + .12 * Math.sin(u * Math.PI * 3 + lane) + (nz(p, 82, seed + lane) - .5) * .10), .34, cheddar ? .30 : .42, .28, 1), { wrapU: false, up: true });
+    }, (u, v, p) => MAT(mix(base, light, .2 + .12 * Math.sin(u * Math.PI * 3 + lane) + (nz(p, 82, seed + lane) - .5) * .10), condensedMilk ? .3 : .34, cheddar ? .30 : .42, .38, 1), { wrapU: false, up: true });
   }
 }
 
@@ -931,7 +1026,7 @@ const siteCache = new Map();
 function toppingMesh(ctx, id, qtyIdx, earlier, detail) {
   const def = TOPPINGS[id], m = new Mesh(), rnd = randomFor(hash(id + ctx.seed + qtyIdx)), A = Math.PI * ctx.Rt * ctx.Rt, sectorRatio = ctx.sector ? Math.min(1, Math.max(0, ((ctx.sector.end - ctx.sector.start + TAU) % TAU) / TAU)) : 1;
   if (!def) return m.finish();
-  if (def.kind === 'cheddar-drizzle' || def.kind === 'catupiry-drizzle') {
+  if (def.kind === 'cheddar-drizzle' || def.kind === 'catupiry-drizzle' || def.kind === 'condensed-milk-drizzle') {
     pizzaDrizzleInto(m, ctx, def.kind, hash(id + ctx.seed + qtyIdx), detail);
     return m.finish();
   }
@@ -1918,7 +2013,10 @@ function resolveVisualIngredient(type, ingredient) {
   if (type === 'pizza' && /(^| )(canela|canela em po|cinnamon|cinnamon powder)( |$)/.test(normalizedName)) {
     return { ...ingredient, id: 'canela-em-po' };
   }
-  if (type === 'pizza' && /(^| )(chocolate|choc|kit kat|confete|pacoquinha|leite condensado|brigadeiro|nutella)( |$)/.test(normalizedName)) {
+  if (type === 'pizza' && /(^| )(leite condensado|condensed milk)( |$)/.test(normalizedName)) {
+    return { ...ingredient, id: 'leite-condensado' };
+  }
+  if (type === 'pizza' && /(^| )(chocolate|choc|kit kat|confete|pacoquinha|brigadeiro|nutella)( |$)/.test(normalizedName)) {
     return { ...ingredient, id: /(^| )chocolate branco( |$)/.test(normalizedName) ? 'white-chocolate' : 'chocolate' };
   }
   if (type === 'pizza' && /\b(?:mussarela|mozzarella|mozzarela|bufala)\b/.test(normalizedName)) {
@@ -1935,7 +2033,7 @@ function resolveVisualIngredient(type, ingredient) {
     pineapple: 'abacaxi', banana: 'banana', strawberry: 'morango', chocolate: 'chocolate', coconut: 'coco',
     garlic: 'alho', greens: 'brocolis', peas: 'ervilha', crisps: 'batata-palha', tuna: 'atum',
     palm: 'palmito', barbecue: 'barbecue', mayonnaise: 'mayonnaise',
-    mustard: 'mustard', 'hot-sauce': 'hot-sauce', cream: 'cream', 'white-chocolate': 'white-chocolate',
+    mustard: 'mustard', 'hot-sauce': 'hot-sauce', cream: 'cream', 'condensed-milk': 'leite-condensado', 'leite-condensado': 'leite-condensado', 'white-chocolate': 'white-chocolate',
     sprinkles: 'sprinkles', peanut: 'peanut', cinnamon: 'canela-em-po', 'cinnamon-powder': 'canela-em-po', 'canela-em-po': 'canela-em-po', canela: 'canela-em-po'
   } : type === 'burger' ? {
     bun: 'pao-brioche', bread: 'pao-brioche', patty: 'carne', beef: 'carne',
@@ -2033,7 +2131,8 @@ function resolveVisualIngredient(type, ingredient) {
     else if (has('banana')) visualId = 'banana';
     else if (has('morango', 'strawberry')) visualId = 'morango';
     else if (has('canela', 'cinnamon')) visualId = 'canela-em-po';
-    else if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha', 'leite condensado')) visualId = 'chocolate';
+    else if (has('leite condensado', 'condensed milk')) visualId = 'leite-condensado';
+    else if (has('chocolate', 'kit kat', 'confete', 'pacoquinha', 'paçoquinha')) visualId = 'chocolate';
     else if (has('coco')) visualId = 'coco';
     else if (has('alho')) visualId = 'alho';
     else if (has('brocolis')) visualId = 'brocolis';
