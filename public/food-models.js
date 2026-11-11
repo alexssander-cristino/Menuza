@@ -22,7 +22,7 @@ const C = {
   baconLean: lin('#8e2c19'), baconFat: lin('#f0cb9c'), baconCrisp: lin('#5a1b0d'),
   eggWhite: lin('#fbf5e6'), eggCrisp: lin('#d9aa5c'), yolkA: lin('#f6ac1c'), yolkB: lin('#e08a0b'),
   sauce: lin('#eab283'), sauceDeep: lin('#d98f57'),
-  doughRim: lin('#c98a3d'), doughBrown: lin('#a65f27'), doughChar: lin('#5f2f12'), doughPale: lin('#e2c086'), doughCream: lin('#f2e0b2'),
+  doughRim: lin('#d69a4d'), doughBrown: lin('#96501f'), doughChar: lin('#4b2411'), doughPale: lin('#c9914d'), doughCream: lin('#e9c98e'),
   tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
   // Mussarela em tom marfim dourado: distingue-se de catupiry, creme e outros ingredientes brancos.
   mozz: lin('#d8c18f'), mozzGold: lin('#c59d62'), mozzBrown: lin('#987044'),
@@ -433,10 +433,11 @@ function doughMesh(ctx, detail) {
     },
     shade: (u, v, p, n, [r, y]) => {
       const x = p[0], z = p[2], rim = sstep(rStart - .003, rStart + .003, r), tv = 1 + (nz(p, 80, seed + 3) - .5) * .25;
-      const blister = sstep(.58, .74, noise3(x * 55, z * 55, seed + 9)), char = sstep(.7, .85, noise3(x * 110, z * 110, seed + 12));
+      const blister = sstep(.48, .68, noise3(x * 55, z * 55, seed + 9)), char = sstep(.66, .82, noise3(x * 110, z * 110, seed + 12));
       if (n[1] > .25 && rim > 0) {
-        let c = mix(C.doughRim, C.doughBrown, clamp(blister * .75 + sstep(.45, .8, nz(p, 30, seed + 14)) * .35, 0, 1));
-        c = mix(c, C.doughChar, char * blister * .8);
+        let c = mix(C.doughRim, C.doughBrown, clamp(blister * .88 + sstep(.38, .76, nz(p, 30, seed + 14)) * .42, 0, 1));
+        c = mix(c, C.doughChar, char * blister * .72);
+        c = mix(c, lin('#edbd70'), sstep(.52, .78, nz(p, 24, seed + 18)) * (1 - char) * .18);
         // topo da borda mais dourado (pincelada de azeite) e brilhante
         c = mix(c, lin('#dca24c'), sstep(.55, 1, n[1]) * .35);
         // borda recheada: queijo escapando em manchas claras e cremosas
@@ -482,14 +483,14 @@ function cheeseMeshPizza(ctx, detail) {
     // Mussarela cremosa: marfim quente, pequenas bolhas e pontos dourados discretos.
     // Evita o branco puro e o aspecto plástico mesmo sob iluminação forte.
     const toastNoise = fbm(x * 42, z * 42, seed + 51, 3);
-    const toast = sstep(.66, .84, toastNoise) * (.22 + .30 * sstep(.28, .92, v));
-    const browned = sstep(.82, .93, fbm(x * 88, z * 88, seed + 53, 2)) * toast;
+    const toast = sstep(.58, .78, toastNoise) * (.30 + .42 * sstep(.22, .88, v));
+    const browned = sstep(.72, .88, fbm(x * 88, z * 88, seed + 53, 2)) * toast;
     const oil = sstep(.68, .82, fbm(x * 31, z * 31, seed + 57, 2));
     const bub = sstep(.62, .82, fbm(x * 145, z * 145, seed + 41, 2));
-    let c = mix(C.mozz, C.mozzGold, clamp(.20 + grain + sstep(.84, 1, v) * .12, 0, .42));
-    c = mix(c, lin('#ead5a8'), bub * .18);
-    c = mix(c, lin('#c9954e'), toast * .48);
-    c = mix(c, lin('#96602f'), browned * .38);
+    let c = mix(C.mozz, C.mozzGold, clamp(.30 + grain + sstep(.78, 1, v) * .16, 0, .52));
+    c = mix(c, lin('#ead5a8'), bub * .12);
+    c = mix(c, lin('#c9954e'), toast * .62);
+    c = mix(c, lin('#87502a'), browned * .52);
     c = mix(c, C.oilOrange, oil * .07);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .24);
     return MAT(mul(c, 1 + grain), .34 + toast * .08, .30, .24, 1);
@@ -1378,7 +1379,7 @@ function hotDogBunMesh(L, W, H, seed, detail) {
       const hy = clamp(p[1] / H, 0, 1), toward = -side * n[2];
       const toast = sstep(.76, .9, nz(p, 34, seed + 7)) * sstep(.35, .8, hy);
       let c = mix(C.bunSide, C.bunCrown, sstep(.15, .85, hy));
-      c = mix(c, C.bunToast, toast * .35);
+      c = mix(c, C.bunToast, toast * .62);
       const inner = sstep(.5, .85, toward);
       c = mix(c, mix(C.bunCrumb, lin('#f6e6bf'), nz(p, 90, seed + 9) * .5), inner);
       return MAT(mul(c, 1 + (nz(p, 62, seed + 4) - .5) * .1), inner > .5 ? .8 : .43, .11, inner > .5 ? 1 : .5, hy < .12 ? .75 : .95);
@@ -1397,8 +1398,9 @@ function hotDogSausageMesh(L, R, seed, detail) {
     return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
   }, (u, v, p, n) => {
     const s = (p[0] + p[2] * 1.7) / .011, mark = (1 - sstep(.08, .16, Math.abs(s - Math.round(s)))) * sstep(.1, .5, n[1]);
-    const meat = mix(lin('#b3482f'), lin('#d9805a'), .4 + .2 * (nz(p, 42, seed + 11) - .5));
-    return MAT(mul(mix(meat, lin('#5e2a1d'), mark * .8), 1 + (nz(p, 70, seed + 12) - .5) * .08), .3, .18, .5, .98);
+    const meat = mix(lin('#a9412a'), lin('#c96b48'), .36 + .18 * (nz(p, 42, seed + 11) - .5));
+    const sear = sstep(.58, .78, nz(p, 96, seed + 17));
+    return MAT(mul(mix(mix(meat, lin('#71321f'), sear * .22), lin('#4d2419'), mark * .82), 1 + (nz(p, 70, seed + 12) - .5) * .08), .26, .22, .55, .98);
   }, { wrapV: false, ref: p => [p[0], 0, 0] });
   return m.finish();
 }
