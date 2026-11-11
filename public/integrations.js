@@ -49,16 +49,6 @@
     window.dataLayer=window.dataLayer||[];
     window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};
     const gtag=window.gtag;
-    // O container carrega para ser detectado, mas o consentimento não essencial começa negado.
-    gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500});
-    if(!window.__menuzaGtmLoaded){
-      window.__menuzaGtmLoaded=true;
-      window.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
-      const script=document.createElement('script');
-      script.async=true;
-      script.src='https://www.googletagmanager.com/gtm.js?id=GTM-WG6783J6';
-      document.head.appendChild(script);
-    }
     const applyConsent=value=>gtag('consent','update',{analytics_storage:value,ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
     let choice='';try{choice=localStorage.getItem(key)||'';}catch{}
     if(choice==='granted')applyConsent('granted');
