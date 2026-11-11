@@ -43,34 +43,57 @@
     if(!config.turnstileSiteKey||!form?.querySelector('[data-turnstile]'))return;
     try{await loadTurnstile();await mountTurnstile(form);}catch{}
   }
-  function initAnalytics(config){
+  function initAnalytics(){
     const banner=document.getElementById('analyticsConsent');
-    if(!config.gaMeasurementId||!banner)return;
+    if(!banner)return;
     const key='menuza-analytics-consent-v1';
+    const containerId='GTM-WG6783J6';
+    const setConsent=value=>{
+      if(typeof window.gtag==='function')window.gtag('consent','update',{
+        analytics_storage:value,
+        ad_storage:'denied',
+        ad_user_data:'denied',
+        ad_personalization:'denied'
+      });
+    };
     const load=()=>{
-      if(window.__menuzaGaLoaded)return;
-      window.__menuzaGaLoaded=true;
+      if(window.__menuzaGtmLoaded){setConsent('granted');return;}
+      window.__menuzaGtmLoaded=true;
       window.dataLayer=window.dataLayer||[];
-      function gtag(){window.dataLayer.push(arguments);}
-      window.gtag=gtag;gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
-      gtag('consent','update',{analytics_storage:'granted'});
-      gtag('js',new Date());gtag('config',config.gaMeasurementId,{send_page_view:true,anonymize_ip:true});
-      const script=document.createElement('script');script.async=true;script.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(config.gaMeasurementId);document.head.appendChild(script);
+      window.gtag=function(){window.dataLayer.push(arguments);};
+      window.gtag('consent','default',{
+        analytics_storage:'denied',
+        ad_storage:'denied',
+        ad_user_data:'denied',
+        ad_personalization:'denied'
+      });
+      window.gtag('consent','update',{analytics_storage:'granted'});
+      window.gtag('js',new Date());
+      const script=document.createElement('script');
+      script.async=true;
+      script.src='https://www.googletagmanager.com/gtm.js?id='+encodeURIComponent(containerId);
+      document.head.appendChild(script);
     };
     let choice='';try{choice=localStorage.getItem(key)||'';}catch{}
     if(choice==='granted')load();else if(choice!=='denied')banner.hidden=false;
-    document.addEventListener('click',event=>{if(event.target.closest('[data-analytics-manage]')){event.preventDefault();banner.hidden=false;}});
+    document.addEventListener('click',event=>{
+      if(event.target.closest('[data-analytics-manage]')){
+        event.preventDefault();
+        banner.hidden=false;
+      }
+    });
     banner.addEventListener('click',event=>{
-      const button=event.target.closest('[data-analytics-consent]');if(!button)return;
+      const button=event.target.closest('[data-analytics-consent]');
+      if(!button)return;
       const value=button.dataset.analyticsConsent;
       if(value!=='granted'&&value!=='denied')return;
       try{localStorage.setItem(key,value);}catch{}
       banner.hidden=true;
-      if(value==='granted')load();else if(window.gtag)window.gtag('consent','update',{analytics_storage:'denied'});
+      if(value==='granted')load();else setConsent('denied');
     });
   }
   configPromise.then(config=>{
-    initAnalytics(config||{});
+    initAnalytics();
     document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
     const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
       if(node.nodeType!==1)return;
