@@ -213,6 +213,7 @@ async function api(path, options = {}) {
     }
     throw new Error('Muitas solicitações. Aguarde antes de tentar novamente.');
   }
+  if (!response.ok && response.status === 401 && typeof path === 'string' && new URL(path, location.origin).pathname === '/api/customer/me') return { authenticated: false, customer: null };
   if (!response.ok) { const error = new Error(data.error || 'Não foi possível concluir a solicitação.'); error.status = response.status; throw error; }
   return data;
 }
@@ -3274,12 +3275,9 @@ async function openMenu(){
     renderCatalog();
     showHome();
   }catch(error){
-    if(error?.status===401){
-      app.customer=null;
-      history.replaceState(null,'',location.pathname+location.search+'#conta');
-      showCustomerAccount();
-      return;
-    }
+    // Uma sessão de cliente ausente nunca deve redirecionar o visitante
+    // para o login. O catálogo e os horários são endpoints públicos.
+    if(error?.status===401)app.customer=null;
     showHome();
     toast('Não foi possível carregar o cardápio. '+(error?.message||'Tente novamente.'));
   }
