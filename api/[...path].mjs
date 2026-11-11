@@ -1001,7 +1001,7 @@ export default async function handler(req, res) {
       const result=await getOpeningHours();
       return json(res,200,{openingHours:result.schedule,status:result.status});
     }
-    if (method==='GET'&&path==='/api/catalog') { await requireCustomer(req); return json(res,200,await catalogFor(false)); }
+    if (method==='GET'&&path==='/api/catalog') { return json(res,200,await catalogFor(false)); }
     if (method==='GET'&&path==='/api/admin/opening-hours') {
       await requireAdmin(req);
       const result=await getOpeningHours();
@@ -1035,7 +1035,7 @@ export default async function handler(req, res) {
       if (!table) throw fail('QR Code de mesa não encontrado.',404);
       return json(res,200,{table});
     }
-    if (method==='GET'&&path==='/api/tables/available') { await requireCustomer(req); return json(res,200,{tables:(await query("SELECT id,table_number AS number,seats FROM restaurant_tables WHERE restaurant_id=$1 AND status='free' ORDER BY table_number",[RESTAURANT_ID])).rows}); }
+    if (method==='GET'&&path==='/api/tables/available') { return json(res,200,{tables:(await query("SELECT id,table_number AS number,seats FROM restaurant_tables WHERE restaurant_id=$1 AND status='free' ORDER BY table_number",[RESTAURANT_ID])).rows}); }
     if (method==='POST'&&path==='/api/admin/login') {
       const body=await bodyOf(req); await verifyTurnstile(body.turnstileToken,req); const retry=await limit(req,'admin-login',15,900000);
       if (retry) return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
@@ -1590,7 +1590,7 @@ export default async function handler(req, res) {
     if (method==='PATCH'&&path.startsWith('/api/admin/orders/')) return json(res,200,{order:await updateOrderStatus(id,(await bodyOf(req)).status)});
     if (method==='POST'&&path==='/api/orders') {
       const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
-      const c=await requireCustomer(req), order=await createOrder(b,c.customer);
+      const c=await customer(req), order=await createOrder(b,c?.customer||null);
       return json(res,201,{order,trackingUrl:'/#pedido/'+order.trackingToken});
     }
     if (method==='POST'&&path.startsWith('/api/tracking/')&&path.endsWith('/cancel')) {
