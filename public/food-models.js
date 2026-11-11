@@ -1477,18 +1477,23 @@ function hotDogSausageMesh(L, R, seed, detail) {
   const m = new Mesh(), bend = R * .06;
   m.grid(seg(56, detail, 24), seg(120, detail, 40), (u, v) => {
     const phi = u * TAU, t = Math.abs(2 * v - 1), taper = Math.sqrt(Math.max(0, 1 - t ** 6));
-    const rho = R * taper * (1 + .012 * Math.sin(v * Math.PI * 7 + seed));
+    const casing = fbm(Math.cos(phi) * 5.5 + (v - .5) * 2, Math.sin(phi) * 5.5, v * 3.5, seed + 31, 3) - .5;
+    const fineWrinkle = (noise3(Math.cos(phi) * 42, v * 38, Math.sin(phi) * 42, seed + 37) - .5);
+    const rho = R * taper * (1 + .022 * Math.sin(v * Math.PI * 7 + seed) + casing * .035 + fineWrinkle * .008);
     return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
   }, (u, v, p, n) => {
-    const searField = fbm(p[0] * 24, p[2] * 62, seed + 17, 3);
-    const mark = sstep(.42, .70, searField) * sstep(.06, .42, n[1]);
+    const searField = fbm(p[0] * 19, p[2] * 48, seed + 17, 3);
+    const mark = sstep(.40, .68, searField) * sstep(.02, .38, n[1]);
     const meat = mix(lin('#71301f'), lin('#a84b2c'), .48 + .16 * (nz(p, 34, seed + 11) - .5));
-    const blister = sstep(.64, .82, fbm(p[0] * 48, p[2] * 92, seed + 21, 2));
-    const char = sstep(.78, .92, nz(p, 122, seed + 23)) * mark;
-    let cooked = mix(meat, lin('#4a2417'), mark * .78);
-    cooked = mix(cooked, lin('#2a1710'), char * .44);
-    cooked = mix(cooked, lin('#d18a55'), blister * .12);
-    return MAT(mul(cooked, 1 + (nz(p, 54, seed + 12) - .5) * .07), .62, .16, .92, .98);
+    const casingGrain = fbm(p[0] * 155, p[1] * 210, p[2] * 155, seed + 39, 2);
+    const blister = sstep(.58, .78, fbm(p[0] * 48, p[2] * 92, seed + 21, 2));
+    const char = sstep(.72, .9, nz(p, 122, seed + 23)) * mark;
+    const oil = sstep(.62, .84, fbm(p[0] * 34, p[2] * 36, seed + 45, 2));
+    let cooked = mix(meat, lin('#4a2417'), mark * .72);
+    cooked = mix(cooked, lin('#2a1710'), char * .48);
+    cooked = mix(cooked, lin('#d18a55'), blister * .18);
+    cooked = mix(cooked, lin('#e6a16a'), casingGrain * .08);
+    return MAT(mul(cooked, 1 + (nz(p, 54, seed + 12) - .5) * .07), .70 - oil * .08, .13, 1.12, .98);
   }, { wrapV: false, ref: p => [p[0], 0, 0] });
   return m.finish();
 }
