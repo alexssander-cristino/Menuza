@@ -350,9 +350,11 @@ function boardMesh(R, T, seed, detail) {
 
 // ===================== PIZZA =====================
 const CRUSTS = {
-  tradicional: { rho: .0105, k: 1, deck: .0058 },
-  fina: { rho: .0066, k: .82, deck: .0036 },
-  recheada: { rho: .0138, k: 1, deck: .0066, stuffed: true }
+  // Referência visual: borda de pizza assada, alta, aerada e dourada,
+  // sem aparência de massa crua ou aro rígido de plástico.
+  tradicional: { rho: .0142, k: 1, deck: .0062 },
+  fina: { rho: .0082, k: .86, deck: .0042 },
+  recheada: { rho: .0162, k: 1, deck: .0072, stuffed: true }
 };
 const TOPPINGS = {
   'queijo-generico': { r: .010, cover: [.08, .14, .2], kind: 'cheese-generic' },
@@ -467,9 +469,9 @@ function doughMesh(ctx, detail) {
       const bakePatch = sstep(.52, .72, fbm(x * 18, z * 18, seed + 35, 3));
       const blisterSpeck = sstep(.72, .88, noise3(x * 210, z * 210, seed + 38));
       if (n[1] > .25 && rim > 0) {
-        let c = mix(C.doughRim, lin('#bd7437'), clamp(blister * .62 + bakePatch * .48 + sstep(.38, .68, nz(p, 22, seed + 14)) * .30, 0, .94));
-        c = mix(c, lin('#75401f'), char * blister * .58);
-        c = mix(c, lin('#e9bd79'), bakePatch * (1 - char) * .18);
+        let c = mix(C.doughRim, lin('#c47a37'), clamp(blister * .58 + bakePatch * .56 + sstep(.38, .68, nz(p, 22, seed + 14)) * .34, 0, .96));
+        c = mix(c, lin('#75401f'), char * blister * .62);
+        c = mix(c, lin('#f0c27b'), bakePatch * (1 - char) * .24);
         c = mix(c, lin('#4b2a19'), blisterSpeck * char * .30);
         c = mix(c, lin('#e6ad5b'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * .14);
         // topo da borda mais dourado (pincelada de azeite) e brilhante
@@ -538,16 +540,17 @@ function cheeseMeshPizza(ctx, detail) {
     const x = p[0], z = p[2], b = blisterAt(x, z);
     const grain = (nz(p, 92, seed + 1) - .5) * .045;
     const broad = fbm(x * 19, z * 19, seed + 51, 3);
-    const toast = sstep(.56, .73, broad) * (.72 + .28 * sstep(.12, .82, v));
-    const browned = sstep(.57, .76, fbm(x * 58, z * 58, seed + 53, 3)) * toast;
-    const freckles = sstep(.68, .84, fbm(x * 132, z * 132, seed + 59, 2)) * browned;
-    const pores = sstep(.72, .88, fbm(x * 178, z * 178, seed + 61, 2));
-    const oil = sstep(.48, .76, fbm(x * 46, z * 46, seed + 67, 2));
-    let c = mix(lin('#eee2c9'), lin('#e1c58e'), clamp(.12 + grain + b.toast * .24, 0, .46));
-    c = mix(c, lin('#f5ead6'), pores * .12);
-    c = mix(c, lin('#d49b59'), toast * .48 + b.toast * .16);
-    c = mix(c, lin('#a95f35'), browned * .62 + b.toast * .16);
-    c = mix(c, lin('#713b25'), freckles * .42);
+    // Gratinação em manchas pequenas e irregulares, como queijo recém-saído do forno.
+    const toast = sstep(.52, .70, broad) * (.78 + .22 * sstep(.10, .78, v));
+    const browned = sstep(.52, .73, fbm(x * 58, z * 58, seed + 53, 3)) * toast;
+    const freckles = sstep(.64, .82, fbm(x * 132, z * 132, seed + 59, 2)) * browned;
+    const pores = sstep(.70, .87, fbm(x * 178, z * 178, seed + 61, 2));
+    const oil = sstep(.46, .74, fbm(x * 46, z * 46, seed + 67, 2));
+    let c = mix(lin('#f1e5ce'), lin('#e5c98e'), clamp(.10 + grain + b.toast * .22, 0, .44));
+    c = mix(c, lin('#fff0d8'), pores * .10);
+    c = mix(c, lin('#d99b4d'), toast * .52 + b.toast * .18);
+    c = mix(c, lin('#b96a32'), browned * .58 + b.toast * .18);
+    c = mix(c, lin('#71391f'), freckles * .38);
     c = mix(c, lin('#f7e8c8'), oil * .10);
     c = mix(c, lin('#b2301c'), b.window * .92);
     c = mix(c, lin('#b2301c'), sstep(.00015, .0012, -cheeseH(x, z)) * .16);
