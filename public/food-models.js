@@ -516,7 +516,7 @@ function cheeseMeshPizza(ctx, detail) {
       const d = Math.hypot(x - b.x, z - b.z) / b.radius;
       if (d < 2.8) {
         raised = Math.max(raised, Math.exp(-d * d * 2.2) * b.height);
-        crater = Math.max(crater, Math.exp(-((d - 1.05) / .32) ** 2) * b.height * .20);
+        crater = Math.max(crater, Math.exp(-(((d - 1.05) / .32) ** 2)) * b.height * .20);
         toast = Math.max(toast, Math.exp(-((d - .72) / .42) ** 2));
       }
     }
