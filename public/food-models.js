@@ -1478,12 +1478,22 @@ function hotDogBunMesh(L, W, H, seed, detail) {
 // (Antes era um disco achatado esticado, com ~7,5 mm de altura, quase invisível dentro do pão.)
 function hotDogSausageMesh(L, R, seed, detail) {
   const m = new Mesh(), bend = R * .06;
-  m.grid(seg(56, detail, 24), seg(120, detail, 40), (u, v) => {
-    const phi = u * TAU, t = Math.abs(2 * v - 1), taper = Math.sqrt(Math.max(0, 1 - t ** 6));
-    const casing = fbm(Math.cos(phi) * 5.5 + (v - .5) * 2, Math.sin(phi) * 5.5, v * 3.5, seed + 31, 3) - .5;
-    const fineWrinkle = (noise3(Math.cos(phi) * 42, v * 38, Math.sin(phi) * 42, seed + 37) - .5);
-    const rho = R * taper * (1 + .022 * Math.sin(v * Math.PI * 7 + seed) + casing * .035 + fineWrinkle * .008);
-    return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
+  m.grid(seg(72, detail, 32), seg(144, detail, 56), (u, v) => {
+    const phi = u * TAU;
+    // Corpo cilíndrico com tampas hemisféricas: a versão anterior afinava a
+    // salsicha até virar duas pontas, deixando-a com aparência de peça pontuda.
+    const axial = (v - .5) * L;
+    const capRadius = Math.min(R * .98, Math.max(.0001, L * .12));
+    const capStart = L * .5 - capRadius;
+    const capDepth = Math.max(0, Math.abs(axial) - capStart);
+    const capProfile = capDepth > 0
+      ? Math.sqrt(Math.max(.012, 1 - (capDepth / capRadius) ** 2))
+      : 1;
+    const casing = fbm(Math.cos(phi) * 5.5 + axial * 2, Math.sin(phi) * 5.5, v * 3.5, seed + 31, 3) - .5;
+    const fineWrinkle = noise3(Math.cos(phi) * 42, v * 38, Math.sin(phi) * 42, seed + 37) - .5;
+    const roastUnevenness = .012 * Math.sin(v * Math.PI * 5 + seed) + casing * .035 + fineWrinkle * .008;
+    const rho = R * capProfile * (1 + roastUnevenness);
+    return [axial, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
   }, (u, v, p, n) => {
     const searField = fbm(p[0] * 19, p[2] * 48, seed + 17, 3);
     const mark = sstep(.40, .68, searField) * sstep(.02, .38, n[1]);
