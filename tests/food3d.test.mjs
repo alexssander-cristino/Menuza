@@ -367,3 +367,42 @@ test('fotorealismo: bacon tem faixas de gordura e tostado não uniformes', () =>
   for (let i = 0; i < g.colors.length; i += 3) colors.add(g.colors.slice(i, i + 3).map(v => Math.round(v * 100)).join(':'));
   assert.ok(colors.size > 20, 'bacon precisa de variação cromática localizada');
 });
+
+test('acompanhamentos: batatas deixam de usar o montador de hot dog', () => {
+  const layout = buildFoodLayout(plate, [], { key: 'unico' }, { detail: .4 });
+  assert.equal(layout.type, 'plate');
+  assert.ok(layout.parts.some(part => part.kind === 'fries'));
+  assert.ok(!layout.parts.some(part => part.kind.startsWith('hotdog-')));
+});
+
+test('acompanhamentos: anéis, nuggets e frango frito recebem geometrias próprias', () => {
+  const cases = [
+    [{ id: 'porcao-onion-rings', name: 'Anéis de cebola' }, 'onion-rings'],
+    [{ id: 'porcao-nuggets', name: 'Nuggets crocantes' }, 'nuggets'],
+    [{ id: 'porcao-frango-frito', name: 'Frango frito' }, 'fried-chicken']
+  ];
+  for (const [product, kind] of cases) {
+    const layout = buildFoodLayout({ ...plate, ...product }, [], { key: 'unico' }, { detail: .35 });
+    const part = layout.parts.find(item => item.kind === kind);
+    assert.equal(layout.type, 'plate');
+    assert.ok(part, `${product.name} deve usar a peça ${kind}`);
+    const geometry = part.build();
+    assert.ok(geometry.positions.length > 300, `${product.name} deve ter geometria volumétrica`);
+    assert.ok(geometry.positions.every(Number.isFinite));
+  }
+});
+
+test('acompanhamentos: adicionais aparecem e podem ser removidos sem alterar a base', () => {
+  const base = buildFoodLayout(plate, [], { key: 'unico' }, { detail: .35 });
+  const withExtras = buildFoodLayout(plate, [
+    { id: 'ketchup-extra', name: 'Ketchup', quantity: 1 },
+    { id: 'queijo-cheddar-extra', name: 'Queijo cheddar', quantity: 1 }
+  ], { key: 'unico' }, { detail: .35 });
+  const withoutKetchup = buildFoodLayout(plate, [
+    { id: 'queijo-cheddar-extra', name: 'Queijo cheddar', quantity: 1 }
+  ], { key: 'unico' }, { detail: .35 });
+  assert.ok(withExtras.parts.some(part => part.kind === 'plate-dip'));
+  assert.ok(withExtras.parts.some(part => part.kind === 'plate-cheese'));
+  assert.ok(!withoutKetchup.parts.some(part => part.kind === 'plate-dip'));
+  assert.deepEqual(base.parts.slice(0, 3).map(part => part.kind), withoutKetchup.parts.slice(0, 3).map(part => part.kind));
+});
