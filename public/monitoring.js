@@ -2,7 +2,7 @@
 // O DSN é público por natureza; a chave é lida no servidor e nunca embutida no bundle.
 (async function initMenuzaMonitoring(){
   try {
-    const response = await fetch('/api/public/integrations', { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+    const response = await fetch('/api/dispatch?path=public%2Fintegrations', { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
     if (!response.ok) return;
     const config = await response.json();
     if (!config.sentryDsn) return;
