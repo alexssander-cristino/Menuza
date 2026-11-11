@@ -58,6 +58,23 @@ function sign(payload) {
 }
 let authSessionsSchemaPromise;
 let adminTwoFactorSchemaPromise;
+let operationsSchemaPromise;
+async function ensureOperationsSchema(){
+  if(!operationsSchemaPromise)operationsSchemaPromise=(async()=>{
+    await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT ''");
+    await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending'");
+    await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ");
+    await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_by TEXT NOT NULL DEFAULT ''");
+    await query(`CREATE TABLE IF NOT EXISTS admin_audit_log(id BIGSERIAL PRIMARY KEY,restaurant_id TEXT NOT NULL,actor_type TEXT NOT NULL DEFAULT 'admin',action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL DEFAULT '',details JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(restaurant_id,created_at DESC)');
+    await query('CREATE INDEX IF NOT EXISTS admin_audit_log_entity_idx ON admin_audit_log(restaurant_id,entity_type,entity_id,created_at DESC)');
+  })().catch(error=>{operationsSchemaPromise=null;throw error});
+  await operationsSchemaPromise;
+}
+async function recordAdminAudit(action,entityType,entityId='',details={}){
+  await ensureOperationsSchema();
+  await query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,clean(action,80),clean(entityType,60),clean(entityId,120),JSON.stringify(details&&typeof details==='object'?details:{})]);
+}
 // Autenticação em duas etapas: prepara o armazenamento seguro do segredo TOTP e dos códigos de recuperação.
 async function ensureAdminTwoFactorSchema() {
   if (!adminTwoFactorSchemaPromise) adminTwoFactorSchemaPromise = query('CREATE TABLE IF NOT EXISTS admin_two_factor (restaurant_id TEXT PRIMARY KEY, secret_encrypted TEXT, pending_secret_encrypted TEXT, pending_expires_at TIMESTAMPTZ, recovery_codes_hashes JSONB NOT NULL DEFAULT \'[]\'::jsonb, enabled_at TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').then(() => query('CREATE INDEX IF NOT EXISTS admin_two_factor_updated_idx ON admin_two_factor(updated_at)')).catch(error => { adminTwoFactorSchemaPromise = null; throw error; });
@@ -604,7 +621,7 @@ async function validateProductIngredientIds(value, type) {
   return value;
 }
 async function orderById(id) {
-  const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.delivery_fee_cents AS "deliveryFeeCents",o.delivery_zone_name AS "deliveryZoneName",o.delivery_distance_km AS "deliveryDistanceKm",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
+  const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.payment_method AS "paymentMethod",o.payment_status AS "paymentStatus",o.paid_at AS "paidAt",o.paid_by AS "paidBy",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.delivery_fee_cents AS "deliveryFeeCents",o.delivery_zone_name AS "deliveryZoneName",o.delivery_distance_km AS "deliveryDistanceKm",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
     FROM orders o JOIN restaurants r ON r.id=o.restaurant_id WHERE o.id=$1 AND o.restaurant_id=$2`, [id, RESTAURANT_ID]);
   const order = result.rows[0];
   if (!order) return null;
@@ -691,9 +708,12 @@ async function priceItems(input) {
 }
 // Checkout: cria o pedido dentro de transação e associa o cliente autenticado.
 async function createOrder(body, customer) {
+  await ensureOperationsSchema();
   const openingHours=await getOpeningHours();
   assertRestaurantOpen(openingHours.schedule);
   const customerName=clean(body.customerName,100), phone=clean(body.phone,30), fulfillment=body.fulfillment;
+  const paymentMethod=clean(body.paymentMethod,20).toLowerCase();
+  if(!['pix','cash','card'].includes(paymentMethod))throw fail('Escolha uma forma de pagamento válida.',422);
   if (customerName.length<2) throw fail('Informe seu nome.',422);
   if (phone.replace(/\D/g,'').length<8) throw fail('Informe um telefone válido.',422);
   if (!['table','pickup','delivery'].includes(fulfillment)) throw fail('Escolha como deseja receber o pedido.',422);
@@ -733,9 +753,9 @@ async function createOrder(body, customer) {
       if (!body.tableQrToken && table.status!=='free') throw fail('Essa mesa não está mais livre. Atualize a lista e escolha outra.',409);
       if (table.status==='cleaning') throw fail('Esta mesa está aguardando limpeza.',409);
     }
-    await client.query(`INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'received',$9,$10,$11,$12,$12,$13,$14,$15)`,
-      [id,RESTAURANT_ID,customerName,phone,fulfillment,tableLabel,deliveryAddress,clean(body.note,500),total,token,key,now,customerId||null,code,discount]);
+    await client.query(`INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents,payment_method,payment_status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'received',$9,$10,$11,$12,$12,$13,$14,$15,$16,'pending')`,
+      [id,RESTAURANT_ID,customerName,phone,fulfillment,tableLabel,deliveryAddress,clean(body.note,500),total,token,key,now,customerId||null,code,discount,paymentMethod]);
     await client.query('UPDATE orders SET delivery_fee_cents=$1,delivery_zone_name=$2,delivery_distance_km=$3 WHERE id=$4',[delivery.feeCents,delivery.zoneName,delivery.distanceKm,id]);
     if (coupon) {
       const used=await client.query(`UPDATE coupons SET used_count=used_count+1 WHERE id=$1 AND restaurant_id=$2 AND active=1 AND (max_uses IS NULL OR used_count<max_uses)`,[coupon.id,RESTAURANT_ID]);
@@ -748,6 +768,7 @@ async function createOrder(body, customer) {
         [randomBytes(12).toString('hex'),id,item.product.id,item.product.name,item.quantity,item.priced.size.key,item.priced.crust?.key||'',JSON.stringify(item.priced.ingredients),item.notes,item.priced.unitPriceCents,JSON.stringify(snapshot)]);
     }
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,'received',now,'cliente']);
+    await client.query('UPDATE abandoned_cart_reminders SET converted_at=$1 WHERE restaurant_id=$2 AND customer_id=$3 AND converted_at IS NULL',[now,RESTAURANT_ID,customerId||'']);
     if (table?.status==='free') await client.query(`UPDATE restaurant_tables SET status='occupied',updated_at=$1 WHERE id=$2 AND status='free'`,[now,table.id]);
   });
   const duplicate=(await query('SELECT id FROM orders WHERE restaurant_id=$1 AND idempotency_key=$2',[RESTAURANT_ID,key])).rows[0];
@@ -756,6 +777,7 @@ async function createOrder(body, customer) {
 }
 // Atendimento: aplica somente transições de status permitidas e registra a atualização.
 async function updateOrderStatus(id, next) {
+  await ensureOperationsSchema();
   if (!STATUS_FLOW.includes(next)) throw fail('Estado de pedido inválido.',422);
   await withTransaction(async client => {
     const found=await client.query('SELECT * FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
@@ -767,6 +789,7 @@ async function updateOrderStatus(id, next) {
     const now=new Date().toISOString();
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
+    await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.status_changed','order',id,JSON.stringify({from:order.status,to:next})]);
     if (order.fulfillment==='table'&&['completed','cancelled'].includes(next)&&order.table_label) await client.query(`UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3`,[now,RESTAURANT_ID,Number(order.table_label)]);
   });
   return await orderById(id);
@@ -866,8 +889,9 @@ function fiscalMonth(value){
 }
 // Financeiro: consolida receitas e despesas para o relatório do período solicitado.
 async function fiscalReport(monthValue){
+  await ensureOperationsSchema();
   const {month,start,end,startUtc,endUtc}=fiscalMonth(monthValue);
-  const [sales,byFulfillment,expenses,documents,orderRows]=await Promise.all([
+  const [sales,byFulfillment,expenses,documents,orderRows,payments]=await Promise.all([
     query(`SELECT COUNT(*) FILTER (WHERE status='completed')::int AS orders,
       COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled,
       COALESCE(SUM(total_cents + COALESCE(discount_cents,0)) FILTER (WHERE status='completed'),0)::bigint AS gross_cents,
@@ -883,10 +907,11 @@ async function fiscalReport(monthValue){
       COALESCE(discount_cents,0)::bigint AS discount_cents,
       (total_cents+COALESCE(discount_cents,0))::bigint AS gross_cents
       FROM orders WHERE restaurant_id=$1 AND status='completed' AND created_at >= $2 AND created_at < $3
-      ORDER BY created_at,id LIMIT 10000`,[RESTAURANT_ID,startUtc,endUtc])
+      ORDER BY created_at,id LIMIT 10000`,[RESTAURANT_ID,startUtc,endUtc]),
+    query(`SELECT payment_method AS method,payment_status AS status,COUNT(*)::int AS orders,COALESCE(SUM(total_cents),0)::bigint AS total_cents FROM orders WHERE restaurant_id=$1 AND status<>'cancelled' AND created_at >= $2 AND created_at < $3 GROUP BY payment_method,payment_status ORDER BY payment_method,payment_status`,[RESTAURANT_ID,startUtc,endUtc])
   ]);
   const s=sales.rows[0], gross=Number(s.gross_cents||0), discounts=Number(s.discounts_cents||0);
-  return {month,period:{start,end},sales:{orders:Number(s.orders),cancelled:Number(s.cancelled),grossCents:gross,discountsCents:discounts,netCents:gross-discounts,records:orderRows.rows.map(r=>({id:r.id,date:r.date,customer:r.customer,fulfillment:r.fulfillment,status:r.status,grossCents:Number(r.gross_cents),discountCents:Number(r.discount_cents),netCents:Number(r.net_cents)}))},byFulfillment:byFulfillment.rows.map(r=>({type:r.fulfillment,orders:Number(r.orders),totalCents:Number(r.total_cents)})),expenses:{count:Number(expenses.rows[0].count),totalCents:Number(expenses.rows[0].total_cents)},documents:{received:Number(documents.rows.find(r=>r.direction==='received')?.count||0),issued:Number(documents.rows.find(r=>r.direction==='issued')?.count||0)},notice:'Resumo gerencial baseado nos pedidos registrados no Menuza. Pedidos não significam necessariamente recebimentos conciliados; a base atual não registra forma de pagamento. Não substitui escrituração contábil, apuração tributária ou documento fiscal autorizado.'};
+  return {month,period:{start,end},sales:{orders:Number(s.orders),cancelled:Number(s.cancelled),grossCents:gross,discountsCents:discounts,netCents:gross-discounts,records:orderRows.rows.map(r=>({id:r.id,date:r.date,customer:r.customer,fulfillment:r.fulfillment,status:r.status,grossCents:Number(r.gross_cents),discountCents:Number(r.discount_cents),netCents:Number(r.net_cents)}))},byFulfillment:byFulfillment.rows.map(r=>({type:r.fulfillment,orders:Number(r.orders),totalCents:Number(r.total_cents)})),expenses:{count:Number(expenses.rows[0].count),totalCents:Number(expenses.rows[0].total_cents)},documents:{received:Number(documents.rows.find(r=>r.direction==='received')?.count||0),issued:Number(documents.rows.find(r=>r.direction==='issued')?.count||0)},payments:payments.rows.map(r=>({method:r.method||'not_informed',status:r.status,orders:Number(r.orders),totalCents:Number(r.total_cents)})),notice:'Resumo gerencial baseado nos pedidos registrados no Menuza. A conciliação depende da confirmação manual de recebimento no painel e não substitui extrato bancário, escrituração contábil, apuração tributária ou documento fiscal autorizado.'};
 }
 
 // Entrada da API: identifica método/rota, aplica limites de requisição e despacha para o endpoint correspondente.
@@ -929,6 +954,7 @@ export default async function handler(req, res) {
       if(orderRetry) return json(res,429,{error:'Muitos pedidos foram enviados deste endereço. Aguarde antes de tentar novamente.'},{'Retry-After':String(orderRetry)});
     }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
+    if(path.startsWith('/api/admin/'))await ensureOperationsSchema();
     if (method==='GET'&&path==='/api/restaurant/branding') { await ensurePromoDeliverySchema(); const restaurant=(await query('SELECT name,logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage",promo_banner_title AS "promoBannerTitle",promo_banner_text AS "promoBannerText",promo_banner_active AS "promoBannerActive" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null; return json(res,200,{restaurant:await migrateRestaurantImageFields(restaurant)}); }
     if (method==='GET'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
     if (method==='PATCH'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
@@ -1300,7 +1326,7 @@ export default async function handler(req, res) {
       const date=String(requestUrl.searchParams.get('date')||'');
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))throw fail('Data do fechamento inválida.',422);
       const start=date+'T03:00:00.000Z',next=new Date(Date.parse(date+'T03:00:00.000Z')+86400000).toISOString();
-      const rows=await query('SELECT id,customer_name AS "customerName",phone,fulfillment,table_label AS "tableLabel",delivery_address AS "deliveryAddress",note,status,total_cents AS "totalCents",coupon_code AS "couponCode",discount_cents AS "discountCents",created_at AS "createdAt" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND created_at < $3 ORDER BY created_at ASC',[RESTAURANT_ID,start,next]);
+      const rows=await query('SELECT id,customer_name AS "customerName",phone,fulfillment,table_label AS "tableLabel",delivery_address AS "deliveryAddress",note,status,total_cents AS "totalCents",payment_method AS "paymentMethod",payment_status AS "paymentStatus",paid_at AS "paidAt",coupon_code AS "couponCode",discount_cents AS "discountCents",created_at AS "createdAt" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND created_at < $3 ORDER BY created_at ASC',[RESTAURANT_ID,start,next]);
       const orders=await Promise.all(rows.rows.map(async o=>{
         const itemRows=await query('SELECT product_id AS "productId",product_name_snapshot AS name,quantity,size_key AS "sizeKey",crust_key AS "crustKey",ingredients_json AS "ingredientsJson",notes,unit_price_cents AS "unitPriceCents",snapshot_json AS "snapshotJson" FROM order_items WHERE order_id=$1 ORDER BY id',[o.id]);
         const items=itemRows.rows.map(i=>{let ingredients=[],snapshot={};try{ingredients=JSON.parse(i.ingredientsJson||'[]')}catch{}try{snapshot=JSON.parse(i.snapshotJson||'{}')}catch{}return {productId:i.productId,name:i.name,quantity:i.quantity,sizeKey:i.sizeKey,crustKey:i.crustKey,ingredients,notes:i.notes,unitPriceCents:i.unitPriceCents,snapshot}});
@@ -1309,7 +1335,7 @@ export default async function handler(req, res) {
       return json(res,200,{orders});
     }
     if (method==='GET'&&path==='/api/admin/orders') {
-      const rows=await query("SELECT id,customer_name AS \"customerName\",phone,fulfillment,table_label AS \"tableLabel\",delivery_address AS \"deliveryAddress\",note,status,total_cents AS \"totalCents\",coupon_code AS \"couponCode\",discount_cents AS \"discountCents\",created_at AS \"createdAt\" FROM orders WHERE restaurant_id=$1 ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100",[RESTAURANT_ID]);
+      const rows=await query("SELECT id,customer_name AS \"customerName\",phone,fulfillment,table_label AS \"tableLabel\",delivery_address AS \"deliveryAddress\",note,status,total_cents AS \"totalCents\",payment_method AS \"paymentMethod\",payment_status AS \"paymentStatus\",paid_at AS \"paidAt\",coupon_code AS \"couponCode\",discount_cents AS \"discountCents\",created_at AS \"createdAt\" FROM orders WHERE restaurant_id=$1 ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100",[RESTAURANT_ID]);
       return json(res,200,{orders:await Promise.all(rows.rows.map(async o=>({...o,items:(await orderById(o.id))?.items||[]})))});
     }
     if (method==='GET'&&path==='/api/admin/dashboard') {
@@ -1321,6 +1347,24 @@ export default async function handler(req, res) {
         query('SELECT prep_minutes AS "prepMinutes" FROM restaurants WHERE id=$1',[RESTAURANT_ID])
       ]);
       return json(res,200,{counts:Object.fromEntries(Object.keys(STATUS).map(k=>[k,Number(counts.rows.find(x=>x.status===k)?.count||0)])),revenueCents:Number(revenue.rows[0].total),ordersToday:Number(stats.rows[0].ordersToday),averageTicketCents:Number(stats.rows[0].averageTicketCents),prepMinutes:Number(restaurant.rows[0]?.prepMinutes||30),popular:popular.rows});
+    }
+    if(method==='GET'&&path==='/api/admin/audit'){
+      const rows=await query('SELECT id,action,entity_type AS "entityType",entity_id AS "entityId",details,created_at AS "createdAt" FROM admin_audit_log WHERE restaurant_id=$1 ORDER BY created_at DESC,id DESC LIMIT 200',[RESTAURANT_ID]);
+      return json(res,200,{events:rows.rows});
+    }
+    if(method==='PATCH'&&path.startsWith('/api/admin/orders/')&&path.endsWith('/payment')){
+      const b=await bodyOf(req),paid=Boolean(b.paid),methodValue=clean(b.paymentMethod,20).toLowerCase();
+      if(!['pix','cash','card'].includes(methodValue))throw fail('Forma de pagamento inválida.',422);
+      const updated=await withTransaction(async client=>{
+        const found=await client.query('SELECT id,status,payment_method,payment_status FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
+        const order=found.rows[0];if(!order)throw fail('Pedido não encontrado.',404);
+        if(order.status==='cancelled'&&paid)throw fail('Não é possível marcar um pedido cancelado como pago.',409);
+        const nextStatus=paid?'paid':'pending',now=paid?new Date().toISOString():null;
+        await client.query('UPDATE orders SET payment_method=$1,payment_status=$2,paid_at=$3,paid_by=$4 WHERE id=$5 AND restaurant_id=$6',[methodValue,nextStatus,now,paid?'admin':'',id,RESTAURANT_ID]);
+        await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.payment_updated','order',id,JSON.stringify({from:order.payment_status,to:nextStatus,paymentMethod:methodValue})]);
+        return {id,paymentMethod:methodValue,paymentStatus:nextStatus,paidAt:now};
+      });
+      return json(res,200,{payment:updated});
     }
     if (method==='GET'&&path==='/api/admin/analytics') {
       const days=[7,30,90].includes(Number(req.query?.days))?Number(req.query.days):7, since=new Date(Date.now()-days*86400000).toISOString();
