@@ -3454,3 +3454,8 @@ button[data-action="view-generated-3d"],
 .audit-event p{margin:6px 0 0;font-size:13px;overflow-wrap:anywhere}
 .audit-event time{white-space:nowrap}
 @media(max-width:640px){.order-payment-control{align-items:stretch}.order-payment-control select,.order-payment-control button{width:100%;max-width:none}.audit-event{display:grid;gap:6px}.audit-event time{white-space:normal}}
+
+/* Cloudflare Turnstile nos formulários de autenticação. */
+.menuza-turnstile{display:flex;align-items:center;justify-content:flex-start;min-height:65px;margin:14px 0;visibility:visible;opacity:1;position:relative;z-index:1}
+.menuza-turnstile:empty{min-height:0;margin:0}
+.menuza-turnstile iframe{max-width:100%}
