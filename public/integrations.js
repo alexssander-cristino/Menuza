@@ -1,6 +1,6 @@
-// Integrações opcionais do Menuza: Cloudflare Turnstile e Google Analytics com consentimento.
+// Integrações do Menuza: Google Tag Manager com Consent Mode e Cloudflare Turnstile.
 (function(){
-  const configPromise=fetch('/api/public/integrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  const configPromise=fetch('/api/dispatch?path=public%2Fintegrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
   let turnstilePromise=null;
   async function loadTurnstile(){
     if(window.turnstile)return window.turnstile;
@@ -16,12 +16,24 @@
   }
   async function mountTurnstile(form){
     const config=await configPromise;
-    if(!config.turnstileSiteKey||!form||!window.turnstile)return;
+    if(!config.turnstileSiteKey||!form?.isConnected||!window.turnstile)return;
     const holder=form.querySelector('[data-turnstile]');
     if(!holder||holder.dataset.widgetId)return;
-    const hidden=document.createElement('input');hidden.type='hidden';hidden.name='turnstileToken';form.appendChild(hidden);
+    let hidden=form.querySelector('input[name="turnstileToken"]');
+    if(!hidden){
+      hidden=document.createElement('input');
+      hidden.type='hidden';
+      hidden.name='turnstileToken';
+      form.appendChild(hidden);
+    }
     try{
-      const id=window.turnstile.render(holder,{sitekey:config.turnstileSiteKey,theme:'auto',callback:token=>{hidden.value=token;},'expired-callback':()=>{hidden.value='';},'error-callback':()=>{hidden.value='';}});
+      const id=window.turnstile.render(holder,{
+        sitekey:config.turnstileSiteKey,
+        theme:'auto',
+        callback:token=>{if(hidden.isConnected)hidden.value=token;},
+        'expired-callback':()=>{if(hidden.isConnected)hidden.value='';},
+        'error-callback':()=>{if(hidden.isConnected)hidden.value='';}
+      });
       holder.dataset.widgetId=String(id);
     }catch{}
   }
@@ -31,9 +43,10 @@
     try{
       await loadTurnstile();
       await mountTurnstile(form);
-      const holder=form?.querySelector('[data-turnstile]');
-      const id=holder?.dataset.widgetId;
-      const token=id?window.turnstile.getResponse(id):'';
+      const hidden=form?.querySelector('input[name="turnstileToken"]');
+      // O callback oficial mantém o token atualizado. Evitamos consultar o widget
+      // por um ID que pode ter ficado obsoleto após a recriação do formulário.
+      const token=hidden?.value||'';
       if(!token)throw new Error('Conclua a verificação antirrobô antes de continuar.');
       return token;
     }catch(error){throw new Error(error?.message||'Não foi possível carregar a verificação de segurança. Atualize a página.');}
@@ -95,11 +108,27 @@
   configPromise.then(config=>{
     initAnalytics();
     document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
-    const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
-      if(node.nodeType!==1)return;
-      if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
-      node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
-    })));
+    const observer=new MutationObserver(records=>records.forEach(record=>{
+      record.removedNodes.forEach(node=>{
+        if(node.nodeType!==1)return;
+        const holders=[];
+        if(node.matches?.('[data-turnstile]'))holders.push(node);
+        node.querySelectorAll?.('[data-turnstile]').forEach(holder=>holders.push(holder));
+        holders.forEach(holder=>{
+          if(holder.isConnected)return;
+          const widgetId=holder.dataset.widgetId;
+          if(widgetId&&window.turnstile?.remove){
+            try{window.turnstile.remove(widgetId);}catch{}
+            delete holder.dataset.widgetId;
+          }
+        });
+      });
+      record.addedNodes.forEach(node=>{
+        if(node.nodeType!==1)return;
+        if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
+        node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
+      });
+    }));
     observer.observe(document.documentElement,{childList:true,subtree:true});
   });
   window.MenuzaIntegrations={getTurnstileToken};

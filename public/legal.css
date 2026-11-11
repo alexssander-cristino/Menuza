@@ -122,3 +122,23 @@
 /* Honeypot: keep anti-spam field out of the visual and keyboard flow */
 .hp-field{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;margin:0!important;padding:0!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important;opacity:0!important;pointer-events:none!important}
 .hp-field input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+
+
+/* Analytics consent — compact, clear and responsive preference card */
+.analytics-consent{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;width:min(440px,calc(100vw - 32px));padding:22px;border:1px solid #eee5dc;border-radius:20px;background:linear-gradient(145deg,#fff 0%,#fffaf5 100%);box-shadow:0 18px 55px rgba(39,25,18,.18)}
+.analytics-consent-heading{display:flex;align-items:flex-start;gap:13px}
+.analytics-consent-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:12px;background:#fff0df;color:#d45a19;font-size:19px}
+.analytics-consent .privacy-notice-copy{flex:1}
+.analytics-consent-eyebrow{display:block;margin:1px 0 7px;color:#b35b2a;font-size:9px;font-weight:850;letter-spacing:.13em}
+.analytics-consent .privacy-notice-copy strong{color:#28211d;font-size:16px;letter-spacing:-.025em}
+.analytics-consent .privacy-notice-copy p{margin:8px 0 11px;color:#71665e;font-size:12px;line-height:1.7}
+.analytics-consent-policy{display:inline-flex;align-items:center;gap:5px;color:#a84c1b!important;font-size:11px!important;font-weight:750;text-decoration:none}
+.analytics-consent-policy:hover{text-decoration:underline}
+.analytics-consent-actions{display:flex;justify-content:flex-end;align-items:center;gap:9px;padding-top:14px;border-top:1px solid #f0e8e1}
+.analytics-consent-actions button{min-height:41px;padding:0 16px;border-radius:11px;font:inherit;font-size:12px;font-weight:750;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+.analytics-consent-actions button:focus-visible{outline:3px solid #e9a46f;outline-offset:3px}
+.analytics-consent-reject{border:1px solid #e9e1da;background:#fff;color:#62574f}
+.analytics-consent-reject:hover{background:#f8f4f0;border-color:#d9c9bb}
+.analytics-consent-accept{border:1px solid #c84b16;background:#d6531b;color:#fff}
+.analytics-consent-accept:hover{background:#b94312;border-color:#b94312;transform:translateY(-1px)}
+@media(max-width:520px){.analytics-consent{right:12px;bottom:max(12px,env(safe-area-inset-bottom));left:12px;width:auto;gap:15px;padding:18px;border-radius:17px}.analytics-consent-actions{display:grid;grid-template-columns:1fr 1fr}.analytics-consent-actions button{width:100%;padding:0 10px}}
