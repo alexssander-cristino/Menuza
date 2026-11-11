@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=38';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=39';
 export { buildFoodGeometry };
 
 // Motor de visualização 3D do cardápio.

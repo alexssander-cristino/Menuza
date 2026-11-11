@@ -22,8 +22,13 @@ export function isBuildYourOwnPizza(product) {
 export function inferIngredientVisual(ingredient) {
   const type = String(ingredient?.type || '').toLowerCase();
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const text = normalize([ingredient?.id, ingredient?.name, ingredient?.groupName, ingredient?.group].filter(Boolean).join(' '));
-  const has = (...words) => words.some(word => text.includes(word));
+  const text = normalize([ingredient?.id, ingredient?.name, ingredient?.groupName, ingredient?.group].filter(Boolean).join(' '))
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const has = (...words) => words.some(word => {
+    const term = normalize(word).replace(/[^a-z0-9]+/g, ' ').trim();
+    const variants = term.endsWith('s') ? [term] : [term, `${term}s`, `${term}es`];
+    return term && variants.some(variant => (` ${text} `).includes(` ${variant} `));
+  });
   if (type === 'pizza' && has('barbecue')) return 'barbecue';
   if (type === 'pizza' && has('maionese')) return 'mayonnaise';
   if (type === 'pizza' && has('mostarda')) return 'mustard';
@@ -65,7 +70,7 @@ export function inferIngredientVisual(ingredient) {
     if (has('queijo', 'cheese', 'laticinio', 'laticinio')) return 'cheese';
     if (type === 'burger') {
       if (has('pao', 'brioche', 'bun')) return 'bun';
-      if (has('carne', 'hamburguer', 'burger', 'patty', 'bovina')) return 'patty';
+      if (has('carne', 'carnes', 'hamburguer', 'burger', 'patty', 'bovina', 'bovino')) return 'patty';
       if (has('alface', 'rucula', 'lettuce', 'folha')) return 'lettuce';
       if (has('tomate', 'tomato')) return 'tomato';
       if (has('bacon', 'panceta')) return 'bacon';

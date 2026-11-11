@@ -40,7 +40,7 @@ test('hambúrguer valida tamanho, porções e composição', () => {
     product: burger, sizeKey: 'duplo', ingredients: [{ id: 'pao-brioche' }, { id: 'carne' }, { id: 'queijo-cheddar' }, { id: 'bacon-burger', quantity: 2 }]
   });
   assert.equal(priced.unitPriceCents, 5290);
-  assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 4 }] }), /1 a 3/);
+  assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 21 }] }), /1 a 20/);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
 });
 
