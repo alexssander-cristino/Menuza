@@ -3256,3 +3256,167 @@ button[data-action="view-generated-3d"],
 
 /* Exibição do preço original e promocional no modal, carrinho e checkout. */
 .cart-price-discount{display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;white-space:nowrap}.cart-price-discount del,.builder-total b del{color:#8b8794;font-size:.82em;font-weight:500}.cart-price-discount strong,.builder-total b strong{color:var(--accent,#d21404);font-weight:800}.builder-total b:has(del){display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+
+
+/* Checkout: hierarquia visual, leitura e avisos com contraste reforçado. */
+.checkout-modal{
+  --checkout-muted:#625247;
+  width:min(620px,100%);
+  padding:30px 34px 32px;
+  border-radius:18px;
+  box-shadow:0 24px 80px rgba(38,22,15,.24);
+}
+.checkout-modal>.modal-topline{
+  margin:-30px -34px 22px;
+  padding:16px 34px;
+  border-radius:18px 18px 0 0;
+}
+.checkout-modal .checkout-intro p{
+  color:#5e5148;
+  font-size:13px;
+  line-height:1.55;
+}
+.checkout-modal .checkout-step-label{
+  color:#8f2028;
+  font-weight:800;
+  letter-spacing:.1em;
+}
+.checkout-modal .checkout-section-heading{
+  margin:24px 0 13px;
+}
+.checkout-modal .checkout-section-heading strong{
+  color:#382722;
+  font-size:14px;
+}
+.checkout-modal .checkout-section-heading small{
+  color:#66584e;
+  font-size:11px;
+}
+.checkout-modal .form-field>span{
+  color:#45362e;
+  font-size:11px;
+  font-weight:750;
+}
+.checkout-modal .form-field input,
+.checkout-modal .form-field textarea,
+.checkout-modal .form-field select,
+.checkout-modal .coupon-input-row>input{
+  color:#30231e;
+  background:#fff;
+  border:1px solid #cdbba9;
+  font-size:13px;
+}
+.checkout-modal .form-field input::placeholder,
+.checkout-modal .form-field textarea::placeholder{
+  color:#76685e;
+  opacity:1;
+}
+.checkout-modal .fulfillment-options{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.checkout-modal .fulfillment-option{
+  min-height:50px;
+  padding:12px;
+  color:#4c3b32;
+  border:1px solid #c9b7a5;
+  background:#fff;
+  font-size:12px;
+}
+.checkout-modal .fulfillment-option.active{
+  color:#741a22;
+  background:#fff0df;
+  border:2px solid #8f2028;
+  box-shadow:0 0 0 2px rgba(143,32,40,.1);
+}
+.checkout-modal .checkout-account-notice{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  margin:20px 0 22px;
+  padding:15px 16px;
+  color:#30231e;
+  background:#fff0d9;
+  border:1px solid #c58a38;
+  border-left:5px solid #a45c08;
+  border-radius:12px;
+}
+.checkout-modal .checkout-account-notice-icon{
+  display:grid;
+  place-items:center;
+  width:34px;height:34px;
+  border-radius:50%;
+  color:#fff;
+  background:#8f2028;
+  font-size:19px;
+  font-weight:800;
+}
+.checkout-modal .checkout-account-notice-copy strong{
+  display:block;
+  color:#39251c;
+  font-size:13px;
+  font-weight:850;
+}
+.checkout-modal .checkout-account-notice-copy p{
+  margin:4px 0 0;
+  color:#574337;
+  font-size:11px;
+  line-height:1.5;
+}
+.checkout-modal .checkout-account-notice-copy b{color:#382016}
+.checkout-modal .checkout-account-link{
+  min-height:38px;
+  padding:8px 12px;
+  border:1px solid #8f2028;
+  border-radius:8px;
+  color:#fff;
+  background:#8f2028;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.checkout-modal .checkout-account-link:hover{background:#741a22}
+.checkout-modal .checkout-payment-notice{
+  display:grid;
+  gap:4px;
+  padding:14px 16px;
+  color:#382722;
+  background:#fff0d9;
+  border:1px solid #c58a38;
+  border-left:5px solid #a45c08;
+  border-radius:10px;
+  font-size:12px;
+  line-height:1.5;
+}
+.checkout-modal .checkout-payment-notice strong{
+  color:#39251c;
+  font-size:13px;
+}
+.checkout-modal .checkout-payment-notice span{color:#574337}
+.checkout-modal .checkout-safety-note{
+  color:#48351f;
+  background:#fff8e9;
+  border:1px solid #d9b977;
+}
+.checkout-modal .checkout-legal-consent{
+  color:#51443b;
+  font-size:11px;
+  line-height:1.55;
+}
+.checkout-modal .checkout-grand-total strong:last-child{
+  color:#741a22;
+  font-size:21px;
+}
+.checkout-modal button[type="submit"]{
+  min-height:52px;
+  font-size:14px;
+}
+@media(max-width:560px){
+  .checkout-modal{padding:22px 18px 24px;border-radius:15px}
+  .checkout-modal>.modal-topline{margin:-22px -18px 18px;padding:14px 18px}
+  .checkout-modal .checkout-account-notice{grid-template-columns:auto minmax(0,1fr);align-items:start;padding:13px}
+  .checkout-modal .checkout-account-link{grid-column:2;justify-self:start}
+  .checkout-modal .fulfillment-option{font-size:11px;padding:10px 7px}
+}
