@@ -310,7 +310,7 @@ test('materiais 3D mantêm rugosidade e microtextura específicas por alimento',
     assert.ok(bump.every(value => Number.isFinite(value) && value >= 0), label + ' deve ter bump válido');
     assert.ok(roughness.reduce((sum, value) => sum + value, 0) / roughness.length >= minRoughness,
       label + ' não deve parecer uma superfície plástica');
-    assert.ok(Math.max(...bump) >= minBump, label + ' deve conservar microtextura perceptível');
+    assert.ok(bump.reduce((max, value) => Math.max(max, value), 0) >= minBump, label + ' deve conservar microtextura perceptível');
   };
 
   const burgerLayout = buildFoodLayout(burger, ing(BURGER), { key: 'classico' }, { detail: .45 });
