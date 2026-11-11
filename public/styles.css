@@ -3420,3 +3420,10 @@ button[data-action="view-generated-3d"],
   .checkout-modal .checkout-account-link{grid-column:2;justify-self:start}
   .checkout-modal .fulfillment-option{font-size:11px;padding:10px 7px}
 }
+
+
+/* Aviso de autenticação: destaque forte e tempo suficiente para leitura. */
+.toast.toast-auth-required{width:min(560px,calc(100vw - 32px));min-height:64px;display:flex;align-items:center;gap:13px;padding:17px 20px 17px 58px;border:2px solid #ffb5b5;border-left:7px solid #ff4b4b;border-radius:12px;background:#7f151b;color:#fff;font-size:15px;font-weight:800;line-height:1.45;letter-spacing:.01em;text-align:left;white-space:normal;box-shadow:0 12px 36px #0008;transform:translate(-50%,20px);}
+.toast.toast-auth-required::before{content:'!';position:absolute;left:17px;top:50%;transform:translateY(-50%);width:27px;height:27px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;font-size:19px;font-weight:900;line-height:1;color:#fff;}
+.toast.toast-auth-required.show{transform:translate(-50%,0)}
+@media(max-width:480px){.toast.toast-auth-required{bottom:16px;width:calc(100vw - 24px);padding:15px 15px 15px 52px;font-size:14px;}}
