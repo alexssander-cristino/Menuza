@@ -746,7 +746,7 @@ async function serveStatic(pathname, response) {
   if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
   try {
     const data = await readFile(target);
-    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
+    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com https://browser.sentry-cdn.com https://challenges.cloudflare.com https://www.googletagmanager.com; script-src-elem 'self' https://ajax.googleapis.com https://browser.sentry-cdn.com https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: https://challenges.cloudflare.com https://www.google-analytics.com https://region1.google-analytics.com; media-src 'self' blob: https:; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
     response.end(data);
   } catch {
     // HTML inexistente recebe a página visual; assets ausentes mantêm resposta simples para não quebrar o tipo do recurso.
@@ -776,11 +776,13 @@ const server = createServer(async (request, response) => {
     assertSameOrigin(request);
     if (path.startsWith('/api/')) {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
+      if (request.method === 'GET' && path === '/api/public/integrations') return send(response, 200, { sentryDsn: process.env.SENTRY_DSN || '', turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '', gaMeasurementId: process.env.GA_MEASUREMENT_ID || '' });
+      if (request.method === 'GET' && path === '/api/opening-hours') return send(response, 200, { openingHours: null, status: null });
       if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/restaurant/branding') { return send(response, 200, { restaurant: statement('SELECT name,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) }); }
-      if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
+      if (request.method === 'GET' && path === '/api/catalog') return send(response, 200, catalogFor());
       if (request.method === 'GET' && path.startsWith('/api/tables/qr/')) {
         const token = path.slice('/api/tables/qr/'.length);
         if (!/^[A-Za-z0-9_-]{32,64}$/.test(token)) return send(response, 404, { error: 'QR Code de mesa inválido.' });
@@ -837,7 +839,7 @@ const server = createServer(async (request, response) => {
         return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
-      if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
+      if (request.method === 'GET' && path === '/api/customer/me') { const current=optionalCustomer(request); return send(response,200,{authenticated:Boolean(current),customer:current?.customer||null}); }
       if (request.method === 'PATCH' && path === '/api/customer/birth-date') {
         const current = requireCustomer(request), body = await bodyOf(request), birth = parseCustomerBirthDate(body.birthDate);
         const saved = statement("UPDATE customers SET birth_date=? WHERE id=? AND (birth_date IS NULL OR birth_date='')").run(birth.birthDate, current.customerId);
