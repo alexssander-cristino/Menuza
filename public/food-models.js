@@ -127,8 +127,8 @@ function pattyMesh(R, H, seed, detail) {
       if (n[1] > .5 && y > H * .5) {
         // Selagem irregular e localizada, sem listras repetidas de grelha.
         const searField = fbm(p[0] * 24, p[2] * 42, seed + 17, 3);
-        const irregularCrust = sstep(.40, .67, searField) * sstep(.08, .44, nz(p, 36, seed + 13));
-        const contactSear = sstep(.45, .72, fbm(p[0] * 52, p[2] * 76, seed + 19, 3));
+        const irregularCrust = sstep(.36, .64, searField) * sstep(.06, .42, nz(p, 36, seed + 13));
+        const contactSear = sstep(.39, .68, fbm(p[0] * 52, p[2] * 76, seed + 19, 3));
         const charSpecks = sstep(.76, .91, fbm(p[0] * 138, p[2] * 164, seed + 29, 2));
         const fatGrain = sstep(.58, .78, nz(p, 55, seed + 7));
         const base = mix(C.patty, C.pattyFat, fatGrain * .34);
@@ -140,7 +140,13 @@ function pattyMesh(R, H, seed, detail) {
         return MAT(mul(cooked, tv), .57, .08, 1.32, lerp(1, .86, sstep(.7, 1, rn)));
       }
       if (n[1] < -.5) return MAT(mul(C.patty, .8 * tv), .7, .05, 1, .6);
-      return MAT(mul(mix(C.pattySide, C.pattyFat, sstep(.6, .78, nz(p, 70, seed + 2)) * .5), tv), .55, .08, 1.3, y < H * .25 ? .7 : .95);
+      const sideGrain = fbm(p[0] * 58, p[1] * 115, p[2] * 58, seed + 61, 3);
+      const sideSear = sstep(.43, .69, fbm(p[0] * 31, p[1] * 48, p[2] * 31, seed + 67, 3));
+      const sideChar = sstep(.76, .91, nz(p, 126, seed + 73)) * sideSear;
+      let side = mix(C.pattySide, C.pattyFat, sstep(.55, .78, sideGrain) * .42);
+      side = mix(side, lin('#382016'), sideSear * .48);
+      side = mix(side, C.pattySear, sideChar * .48);
+      return MAT(mul(side, tv), .58, .08, 1.35, y < H * .25 ? .7 : .95);
     }
   });
   return m.finish();
@@ -1532,18 +1538,20 @@ function hotDogSausageMesh(L, R, seed, detail) {
       : 1;
     const casing = fbm(Math.cos(phi) * 5.5 + axial * 2, Math.sin(phi) * 5.5, v * 3.5, seed + 31, 3) - .5;
     const fineWrinkle = noise3(Math.cos(phi) * 42, v * 38, Math.sin(phi) * 42, seed + 37) - .5;
-    const roastUnevenness = .012 * Math.sin(v * Math.PI * 5 + seed) + casing * .035 + fineWrinkle * .008;
+    const roastUnevenness = .022 * Math.sin(v * Math.PI * 5 + seed) + casing * .055 + fineWrinkle * .014;
     const rho = R * capProfile * (1 + roastUnevenness);
     return [axial, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
   }, (u, v, p, n) => {
     const searField = fbm(p[0] * 19, p[2] * 48, seed + 17, 3);
-    const mark = sstep(.40, .68, searField) * sstep(.02, .38, n[1]);
+    const upper = sstep(-.12, .48, n[1]);
+    const grillBands = Math.pow(Math.max(0, Math.cos(p[0] * 118 + p[2] * 34 + seed * .17)), 18);
+    const mark = Math.max(sstep(.36, .66, searField) * upper, grillBands * upper * .72);
     const meat = mix(lin('#71301f'), lin('#a84b2c'), .48 + .16 * (nz(p, 34, seed + 11) - .5));
     const casingGrain = fbm(p[0] * 155, p[1] * 210, p[2] * 155, seed + 39, 2);
-    const blister = sstep(.58, .78, fbm(p[0] * 48, p[2] * 92, seed + 21, 2));
-    const char = sstep(.72, .9, nz(p, 122, seed + 23)) * mark;
-    const oil = sstep(.62, .84, fbm(p[0] * 34, p[2] * 36, seed + 45, 2));
-    let cooked = mix(meat, lin('#4a2417'), mark * .72);
+    const blister = sstep(.52, .74, fbm(p[0] * 48, p[2] * 92, seed + 21, 2));
+    const char = sstep(.68, .88, nz(p, 122, seed + 23)) * mark;
+    const oil = sstep(.58, .82, fbm(p[0] * 34, p[2] * 36, seed + 45, 2));
+    let cooked = mix(meat, lin('#4a2417'), mark * .82);
     cooked = mix(cooked, lin('#2a1710'), char * .48);
     cooked = mix(cooked, lin('#d18a55'), blister * .18);
     cooked = mix(cooked, lin('#e6a16a'), casingGrain * .08);
