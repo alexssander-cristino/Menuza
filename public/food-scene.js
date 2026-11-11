@@ -108,26 +108,34 @@ void main(){
     albedo = mix(vec3(.022, .010, .005), vec3(.07, .035, .017), ring * .5 + fine * .3);
     rough = .5 + fine * .18; bump = .6;
   }
+  // Microtextura em duas escalas: poros finos e irregularidades maiores.
+  // O relevo permanece discreto para não transformar alimentos em superfícies granuladas.
   if (bump > .01) {
-    vec3 q = vLocal * (uQuality > .5 ? 400. : 250.);
+    vec3 q = vLocal * (uQuality > .5 ? 520. : 320.);
     float n0 = vn(q);
     vec3 g = vec3(vn(q + vec3(.5,0,0)) - n0, vn(q + vec3(0,.5,0)) - n0, vn(q + vec3(0,0,.5)) - n0) / .5;
-    if (uQuality > .5) { vec3 q2 = q * 2.9; float m0 = vn(q2); g += .5 * vec3(vn(q2 + vec3(.5,0,0)) - m0, vn(q2 + vec3(0,.5,0)) - m0, vn(q2 + vec3(0,0,.5)) - m0) / .5; albedo *= 1. + (m0 - .5) * .12 * bump; }
+    vec3 q2 = q * 2.35;
+    float n1 = vn(q2);
+    vec3 g2 = vec3(vn(q2 + vec3(.5,0,0)) - n1, vn(q2 + vec3(0,.5,0)) - n1, vn(q2 + vec3(0,0,.5)) - n1) / .5;
+    g += g2 * .32;
     g -= N * dot(g, N);
-    N = normalize(N - g * bump * .085);
-    albedo *= 1. + (n0 - .5) * .2 * bump;
+    N = normalize(N - g * bump * .065);
+    albedo *= 1. + (n0 - .5) * .13 * bump + (n1 - .5) * .045 * bump;
+    rough = clamp(rough + (n0 - .5) * .055 * bump, .08, 1.);
   }
   float NoV = clamp(dot(N, V), .001, 1.);
   vec3 F0 = vec3(.04);
   vec3 Fr = F0 + (max(vec3(1. - rough), F0) - F0) * pow(1. - NoV, 5.);
-  vec3 col = albedo * env(N, 1.) * ao * .5 * (1. - Fr);
+  // Luz ambiente de estúdio com oclusão preservada nas reentrâncias.
+  vec3 col = albedo * env(N, 1.) * ao * .46 * (1. - Fr);
   vec3 R = reflect(-V, N);
-  col += env(R, rough) * Fr * mix(1., ao, .75) * .55;
+  // Reflexos largos e suaves dão volume sem o brilho de plástico.
+  col += env(R, clamp(rough + .08, .06, 1.)) * Fr * mix(1., ao, .75) * .48;
   // luzes direcionais: principal (com sombra), preenchimento e recorte
   float sh = shadowTaps(vWorld, N, 1.25, 1);
   for (int k = 0; k < 3; k++) {
     vec3 L = k == 0 ? uKey : (k == 1 ? uFill : uRim);
-    vec3 Lc = k == 0 ? vec3(1.0, .915, .80) * 2.05 : (k == 1 ? vec3(.55, .62, .80) * .38 : vec3(1.0, .95, .9) * .85);
+    vec3 Lc = k == 0 ? vec3(1.0, .91, .79) * 1.82 : (k == 1 ? vec3(.58, .64, .78) * .32 : vec3(1.0, .94, .86) * .68);
     float s = k == 0 ? mix(1., sh, .96) : 1.;
     vec3 H = normalize(L + V); float NoL = dot(N, L), NoLc = max(NoL, 0.);
     float wrap = sss * .45, dl = clamp((NoL + wrap) / (1. + wrap), 0., 1.);
