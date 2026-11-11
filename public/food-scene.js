@@ -117,6 +117,10 @@ void main(){
     vec3 q = vLocal * (uQuality > .5 ? 520. : 320.);
     float n0 = vn(q);
     vec3 g = vec3(vn(q + vec3(.5,0,0)) - n0, vn(q + vec3(0,.5,0)) - n0, vn(q + vec3(0,0,.5)) - n0) / .5;
+    vec3 qm = vLocal * 220.;
+    float nm = vn(qm);
+    vec3 gm = vec3(vn(qm + vec3(.5,0,0)) - nm, vn(qm + vec3(0,.5,0)) - nm, vn(qm + vec3(0,0,.5)) - nm) / .5;
+    g += gm * .30;
     vec3 q2 = q * 2.35;
     float n1 = vn(q2);
     vec3 g2 = vec3(vn(q2 + vec3(.5,0,0)) - n1, vn(q2 + vec3(0,.5,0)) - n1, vn(q2 + vec3(0,0,.5)) - n1) / .5;

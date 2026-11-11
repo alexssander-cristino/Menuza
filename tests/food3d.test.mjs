@@ -330,3 +330,40 @@ test('materiais 3D mantêm rugosidade e microtextura específicas por alimento',
   assertMaterial(hotdogLayout.parts.find(part => part.kind === 'hotdog-bun'), 'pão do hot dog', .5, .5);
   assertMaterial(hotdogLayout.parts.find(part => part.kind === 'hotdog-sausage'), 'salsicha preparada', .45, .35);
 });
+
+
+test('fotorealismo: mussarela possui relevo real de bolhas, não apenas variação de cor', () => {
+  const layout = buildFoodLayout(pizza, ing(PIZZA), SIZE_OPTIONS.pizza[1], { detail: .75 });
+  const cheese = layout.parts.find(part => part.kind === 'cheese');
+  assert.ok(cheese, 'camada de mussarela presente');
+  const g = cheese.build();
+  const ys = [];
+  for (let i = 1; i < g.positions.length; i += 3) ys.push(g.positions[i]);
+  const min = Math.min(...ys), max = Math.max(...ys);
+  assert.ok(max - min > .0012, 'bolhas e depressões devem alterar a geometria em escala visível');
+  const materials = g.materials;
+  const roughness = new Set();
+  for (let i = 0; i < materials.length; i += 4) roughness.add(Math.round(materials[i] * 100));
+  assert.ok(roughness.size > 4, 'a superfície do queijo deve variar a resposta de roughness');
+});
+
+test('fotorealismo: frango desfiado é formado por múltiplos fios estreitos e sobrepostos', () => {
+  const custom = [{ id: 'frango', name: 'Frango', type: 'pizza', visual: 'chicken', quantity: 1 }];
+  const layout = buildFoodLayout(pizza, custom, SIZE_OPTIONS.pizza[1]);
+  const part = layout.parts.find(item => item.kind === 'topping:frango');
+  assert.ok(part, 'frango deve continuar no layout');
+  const g = part.build();
+  assert.ok(g.positions.length / 3 > 1500, 'fibras individuais precisam gerar geometria suficiente');
+  assert.ok(g.materials.length > 0 && g.materials.every(Number.isFinite));
+});
+
+test('fotorealismo: bacon tem faixas de gordura e tostado não uniformes', () => {
+  const custom = [{ id: 'bacon', name: 'Bacon', type: 'pizza', visual: 'bacon', quantity: 2 }];
+  const layout = buildFoodLayout(pizza, custom, SIZE_OPTIONS.pizza[1]);
+  const part = layout.parts.find(item => item.kind === 'topping:bacon');
+  assert.ok(part);
+  const g = part.build();
+  const colors = new Set();
+  for (let i = 0; i < g.colors.length; i += 3) colors.add(g.colors.slice(i, i + 3).map(v => Math.round(v * 100)).join(':'));
+  assert.ok(colors.size > 20, 'bacon precisa de variação cromática localizada');
+});
