@@ -131,5 +131,5 @@
     }));
     observer.observe(document.documentElement,{childList:true,subtree:true});
   });
-  window.MenuzaIntegrations={getTurnstileToken};
+  window.MenuzaIntegrations={getTurnstileToken,mountTurnstile:async form=>{try{await loadTurnstile();await mountTurnstile(form);}catch(error){const holder=form?.querySelector('[data-turnstile]');if(holder)holder.textContent='Não foi possível carregar a verificação. Atualize a página.';}}};
 })();
