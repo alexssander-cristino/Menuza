@@ -3476,8 +3476,9 @@ async function start(){
   if(qrToken&&qrNumber){try{const verified=await api('/api/tables/qr/'+encodeURIComponent(qrToken));if(String(verified.table.number)===qrNumber)app.tableQr={token:qrToken,number:verified.table.number,seats:verified.table.seats,status:verified.table.status};else toast('O QR Code não corresponde à mesa informada.')}catch{toast('Não foi possível validar o QR Code desta mesa. Confira se o link está correto.')}}
   window.addEventListener('hashchange',onRoute);
   const initialHash=location.hash.replace(/^#/,'');
-  try{const result=await api('/api/customer/me');app.customer=result.customer}
-  catch{app.customer=null}
+  // A sessão do cliente é opcional. Não consultar /customer/me durante a
+  // inicialização impede que autenticação interfira no carregamento público.
+  app.customer=null;
   try{const branding=await api('/api/restaurant/branding');applyRestaurantBranding(branding.restaurant?.name,branding.restaurant?.logoUrl);app.promotionBanner={active:Number(branding.restaurant?.promoBannerActive)===1,image:branding.restaurant?.promoBannerImage||'',title:branding.restaurant?.promoBannerTitle||'Ofertas especiais',text:branding.restaurant?.promoBannerText||'Confira nossas promoções e aproveite'}}catch{}
   // Rotas públicas/específicas devem ser resolvidas antes do bloqueio de sessão do cliente.
   // O painel do restaurante usa #admin e precisa continuar acessível após atualizar a página.
