@@ -68,6 +68,8 @@ async function ensureOperationsSchema(){
     await query(`CREATE TABLE IF NOT EXISTS admin_audit_log(id BIGSERIAL PRIMARY KEY,restaurant_id TEXT NOT NULL,actor_type TEXT NOT NULL DEFAULT 'admin',action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL DEFAULT '',details JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await query('CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(restaurant_id,created_at DESC)');
     await query('CREATE INDEX IF NOT EXISTS admin_audit_log_entity_idx ON admin_audit_log(restaurant_id,entity_type,entity_id,created_at DESC)');
+    await query(`CREATE TABLE IF NOT EXISTS abandoned_cart_reminders(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,email TEXT NOT NULL,cart_summary TEXT NOT NULL,subtotal_cents INTEGER NOT NULL DEFAULT 0,consent_at TIMESTAMPTZ NOT NULL,scheduled_at TIMESTAMPTZ NOT NULL,sent_at TIMESTAMPTZ,converted_at TIMESTAMPTZ,processing_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS abandoned_cart_due_idx ON abandoned_cart_reminders(restaurant_id,scheduled_at) WHERE sent_at IS NULL AND converted_at IS NULL');
   })().catch(error=>{operationsSchemaPromise=null;throw error});
   await operationsSchemaPromise;
 }
@@ -1349,20 +1351,23 @@ export default async function handler(req, res) {
       return json(res,200,{counts:Object.fromEntries(Object.keys(STATUS).map(k=>[k,Number(counts.rows.find(x=>x.status===k)?.count||0)])),revenueCents:Number(revenue.rows[0].total),ordersToday:Number(stats.rows[0].ordersToday),averageTicketCents:Number(stats.rows[0].averageTicketCents),prepMinutes:Number(restaurant.rows[0]?.prepMinutes||30),popular:popular.rows});
     }
     if(method==='GET'&&path==='/api/admin/audit'){
+      await requireAdmin(req);
       const rows=await query('SELECT id,action,entity_type AS "entityType",entity_id AS "entityId",details,created_at AS "createdAt" FROM admin_audit_log WHERE restaurant_id=$1 ORDER BY created_at DESC,id DESC LIMIT 200',[RESTAURANT_ID]);
       return json(res,200,{events:rows.rows});
     }
     if(method==='PATCH'&&path.startsWith('/api/admin/orders/')&&path.endsWith('/payment')){
+      await requireAdmin(req);
+      const orderId=decodeURIComponent(parts.at(-2)||'');
       const b=await bodyOf(req),paid=Boolean(b.paid),methodValue=clean(b.paymentMethod,20).toLowerCase();
       if(!['pix','cash','card'].includes(methodValue))throw fail('Forma de pagamento inválida.',422);
       const updated=await withTransaction(async client=>{
-        const found=await client.query('SELECT id,status,payment_method,payment_status FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[id,RESTAURANT_ID]);
+        const found=await client.query('SELECT id,status,payment_method,payment_status FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[orderId,RESTAURANT_ID]);
         const order=found.rows[0];if(!order)throw fail('Pedido não encontrado.',404);
         if(order.status==='cancelled'&&paid)throw fail('Não é possível marcar um pedido cancelado como pago.',409);
         const nextStatus=paid?'paid':'pending',now=paid?new Date().toISOString():null;
-        await client.query('UPDATE orders SET payment_method=$1,payment_status=$2,paid_at=$3,paid_by=$4 WHERE id=$5 AND restaurant_id=$6',[methodValue,nextStatus,now,paid?'admin':'',id,RESTAURANT_ID]);
-        await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.payment_updated','order',id,JSON.stringify({from:order.payment_status,to:nextStatus,paymentMethod:methodValue})]);
-        return {id,paymentMethod:methodValue,paymentStatus:nextStatus,paidAt:now};
+        await client.query('UPDATE orders SET payment_method=$1,payment_status=$2,paid_at=$3,paid_by=$4 WHERE id=$5 AND restaurant_id=$6',[methodValue,nextStatus,now,paid?'admin':'',orderId,RESTAURANT_ID]);
+        await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.payment_updated','order',orderId,JSON.stringify({from:order.payment_status,to:nextStatus,paymentMethod:methodValue})]);
+        return {id:orderId,paymentMethod:methodValue,paymentStatus:nextStatus,paidAt:now};
       });
       return json(res,200,{payment:updated});
     }
