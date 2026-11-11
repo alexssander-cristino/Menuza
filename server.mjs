@@ -621,8 +621,8 @@ function validateProductIngredientIdsLocal(value,type){
   if(value.some(id=>!allowed.has(id)))throw Object.assign(new Error('Um ingrediente selecionado não está disponível para este produto.'),{status:422});
   return value;
 }
-async // Produtos: valida e salva alterações do cadastro sem aceitar campos fora das regras.
-function patchProduct(productId, patch) {
+// Produtos: valida e salva alterações do cadastro sem aceitar campos fora das regras.
+async function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
