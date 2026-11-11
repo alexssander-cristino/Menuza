@@ -521,9 +521,9 @@ function cheeseMeshPizza(ctx, detail) {
   // Bolsões de gratinação são centros determinísticos, com cúpula e depressão de gordura ao redor.
   // Isso altera a malha de fato: não é apenas uma máscara amarela/marrom aplicada à cor.
   const rnd = randomFor(seed + 410), blisters = [];
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < 48; i++) {
     const a = rnd() * TAU, r = Math.sqrt(rnd()) * cheeseR * .91;
-    blisters.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, radius: cheeseR * (.025 + rnd() * .045), height: .00045 + rnd() * .00105, window: i < 5 });
+    blisters.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, radius: cheeseR * (.022 + rnd() * .038), height: .00055 + rnd() * .0011, window: i < 5 });
   }
   const blisterAt = (x, z) => {
     let raised = 0, crater = 0, toast = 0, window = 0;
@@ -531,7 +531,7 @@ function cheeseMeshPizza(ctx, detail) {
       const d = Math.hypot(x - b.x, z - b.z) / b.radius;
       if (d < 2.8) {
         raised = Math.max(raised, Math.exp(-d * d * 2.2) * b.height);
-        crater = Math.max(crater, Math.exp(-(((d - 1.05) / .32) ** 2)) * b.height * .20);
+        crater = Math.max(crater, Math.exp(-(((d - 1.05) / .32) ** 2)) * b.height * .26);
         toast = Math.max(toast, Math.exp(-(((d - .72) / .42) ** 2)));
         if (b.window) window = Math.max(window, Math.exp(-d * d * 10));
       }
@@ -539,8 +539,8 @@ function cheeseMeshPizza(ctx, detail) {
     return { raised, crater, toast, window };
   };
   return veneerMesh(cheeseR, (x, z, v) => {
-    const sauce = ctx.sauceTop(x, z), macro = (fbm(x * 32, z * 32, seed + 71, 3) - .5) * .00065;
-    const micro = (fbm(x * 210, z * 210, seed + 73, 2) - .5) * .00018;
+    const sauce = ctx.sauceTop(x, z), macro = (fbm(x * 32, z * 32, seed + 71, 3) - .5) * .00082;
+    const micro = (fbm(x * 260, z * 260, seed + 73, 2) - .5) * .00024;
     const b = blisterAt(x, z);
     // A mussarela forma pequenas ilhas fundidas, com bolhas de forno e poças rasas de gordura.
     const meltedTop = sauce + .00155 + cheeseH(x, z) * (.42 + .58 * edgeF(v)) + macro + micro
@@ -565,7 +565,7 @@ function cheeseMeshPizza(ctx, detail) {
     c = mix(c, lin('#b2301c'), b.window * .92);
     c = mix(c, lin('#b2301c'), sstep(.00015, .0012, -cheeseH(x, z)) * .16);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .2);
-    return MAT(mul(c, 1 + grain), .68 - oil * .055, .22, 1.35, .98);
+    return MAT(mul(c, 1 + grain), .59 - oil * .075, .25, 1.55, .96);
   }, Math.round(220 * detail), Math.round(60 * detail));
 }
 
