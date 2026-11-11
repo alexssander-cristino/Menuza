@@ -485,8 +485,6 @@ function cheeseMeshPizza(ctx, detail) {
     const grain = (nz(p, 92, seed + 1) - .5) * .035;
     // Mussarela cremosa: marfim quente, pequenas bolhas e pontos dourados discretos.
     // Evita o branco puro e o aspecto plástico mesmo sob iluminação forte.
-    const toastNoise = fbm(x * 42, z * 42, seed + 51, 3);
-    // Gratinado mais evidente: manchas douradas irregulares, pontos tostados e bolhas.
     // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
     // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
     const toastNoise = fbm(x * 34, z * 34, seed + 51, 3);
