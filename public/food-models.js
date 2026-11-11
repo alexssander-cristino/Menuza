@@ -215,6 +215,10 @@ function tomatoSliceInto(m, { R, t, seed, xf, detail = 1, cup = 0 }) {
       if (Math.abs(n[1]) > .45) {
         const wedge = .5 + .5 * Math.cos(a * ch + ph), chamber = sstep(.12, .4, wedge) * sstep(.86, .72, rn) * sstep(.12, .2, rn);
         let c = mix(C.tomWall, C.tomJelly, chamber); c = mix(c, C.tomCore, sstep(.17, .08, rn) * .8); c = mix(c, C.tomSkin, sstep(.84, .95, rn));
+        const roast = sstep(.46, .7, fbm(p[0] * 68, p[2] * 68, seed + 18, 3));
+        const edgeToast = sstep(.78, .96, rn) * sstep(.48, .72, nz(p, 42, seed + 20));
+        c = mix(c, lin('#c66a35'), roast * .34);
+        c = mix(c, lin('#8d3b24'), edgeToast * .58);
         // sementes no gel
         const seedSpeck = sstep(.78, .86, noise3(p[0] * 420, p[2] * 420, seed + 3)) * chamber;
         c = mix(c, lin('#f4e2a0'), seedSpeck * .85);
@@ -641,7 +645,12 @@ function mushroomInto(m, x, y, z, RM, seed, rnd, detail) {
       // lamelas radiais perto do centro
       const gill = (.5 + .5 * Math.sin(a * 34)) * sstep(.75, .2, rn) * .22;
       const base = mix(mul(C.mush, 1 + (nz(p, 120, seed) - .5) * .12), lin('#cdbd9b'), gill);
-      return MAT(mix(base, C.mushSkin, sstep(.86, .99, rn) * cap * .9), .42, .3, .3, lerp(1, .85, sstep(.8, 1, rn)));
+      const roast = sstep(.43, .68, fbm(p[0] * 74, p[2] * 74, seed + 21, 3));
+      const edgeToast = sstep(.68, .92, rn) * sstep(.42, .7, nz(p, 48, seed + 24));
+      let cooked = mix(base, lin('#b97842'), roast * .48);
+      cooked = mix(cooked, lin('#704126'), edgeToast * .52);
+      cooked = mix(cooked, lin('#e4bd8c'), sstep(.58, .82, nz(p, 34, seed + 27)) * .12);
+      return MAT(mix(cooked, C.mushSkin, sstep(.86, .99, rn) * cap * .55), .58, .24, .8, lerp(1, .84, sstep(.8, 1, rn)));
     }
   });
 }
@@ -667,8 +676,11 @@ function onionInto(m, x, y, z, R, seed, rnd, detail) {
       R: rr, y: 0, rw: .0019, rh: .0012, a0: 0, a1: len, seed: seed + i, wob: .06, nu: 40, nv: 8,
       xf: rigid({ yaw: yaw0 + rnd() * .8, pitch: (rnd() - .5) * .1, t: [x, y - .0003 + i * .0007, z] }),
       shade: (u, v, p) => {
-        const toast = sstep(.55, .78, nz(p, 70, seed + i));
-        return MAT(mix(mix(lin('#f7eedb'), lin('#fffaf0'), .4), C.onionGold, toast * .65), .3, .65, .25, .95);
+        const toast = sstep(.38, .66, nz(p, 70, seed + i));
+        const caramel = sstep(.48, .72, fbm(p[0] * 85, p[2] * 85, seed + i * 9, 2));
+        let c = mix(lin('#f2dfb9'), lin('#d69a53'), toast * .58);
+        c = mix(c, lin('#92502b'), caramel * toast * .38);
+        return MAT(c, .48, .38, .48, .92);
       }
     });
   }
@@ -681,7 +693,13 @@ function blobInto(m, { rx, ry, rz, seed, amp = .12, nu = 14, nv = 10, xf, shade 
   }, shade, { xf, ref: () => [0, 0, 0] });
 }
 function cornInto(m, x, y, z, R, seed, rnd) {
-  blobInto(m, { rx: R, ry: R * .75, rz: R * .8, seed, amp: .06, nu: 9, nv: 7, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .5, roll: (rnd() - .5) * .5, t: [x, y + R * .2, z] }), shade: (u, v, p) => MAT(mul(C.corn, .88 + (nz(p, 95, seed + 3) - .5) * .20), .38, .32, .48, 1) });
+  blobInto(m, { rx: R, ry: R * .75, rz: R * .8, seed, amp: .06, nu: 12, nv: 9, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .5, roll: (rnd() - .5) * .5, t: [x, y + R * .2, z] }), shade: (u, v, p) => {
+    const char = sstep(.68, .86, fbm(p[0] * 170, p[2] * 170, seed + 12, 2));
+    const golden = sstep(.42, .68, fbm(p[0] * 72, p[2] * 72, seed + 7, 3));
+    let c = mix(C.corn, lin('#e4a83d'), golden * .34);
+    c = mix(c, lin('#8b4d22'), char * .62);
+    return MAT(mul(c, .96 + (nz(p, 95, seed + 3) - .5) * .12), .52, .24, .7, 1);
+  } });
 }
 function chickenInto(m, x, y, z, R, seed, rnd) {
   // Fibra desfiada em fios individuais, com espessuras, comprimentos e direções diferentes.
@@ -702,9 +720,9 @@ function chickenInto(m, x, y, z, R, seed, rnd) {
         const sear = sstep(.62, .84, nz(p, 38, seed + i * 29));
         const edge = sstep(.52, .82, Math.abs(v - .5) * 2 + grain * .22);
         let color = mix(C.chicken, lin('#f5dfb9'), .12 + fiber * .16);
-        color = mix(color, lin('#c99b63'), sstep(.58, .78, fiber) * .24);
-        color = mix(color, C.chickenBrown, sear * (.20 + edge * .28));
-        color = mix(color, lin('#80502f'), sear * edge * .24);
+          color = mix(color, lin('#c99b63'), sstep(.52, .74, fiber) * .30);
+        color = mix(color, C.chickenBrown, sear * (.38 + edge * .38));
+        color = mix(color, lin('#80502f'), sear * edge * .34);
         return MAT(color, .76 - sear * .08, .24, 1.28, .94);
       }
     });
@@ -737,7 +755,14 @@ function hamInto(m, x, y, z, R, seed, rnd) {
     blobInto(m, {
       rx: R * (1.05 - i * .15), ry: .0017, rz: R * (.9 - i * .1), seed: seed + i, amp: .34, nu: 14, nv: 10,
       xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .25, roll: (rnd() - .5) * .25, t: [x + (rnd() - .5) * R * .3, y + .0008 + i * .0012, z + (rnd() - .5) * R * .3] }),
-      shade: (u, v, p) => MAT(mix(C.ham, C.hamDeep, sstep(.45, .8, nz(p, 60, seed + i)) * .55), .34, .4, .3, .95)
+      shade: (u, v, p) => {
+        const edge = sstep(.66, .96, Math.abs(u - .5) * 2);
+        const roast = sstep(.46, .72, fbm(p[0] * 90, p[2] * 90, seed + i * 11, 2));
+        let c = mix(C.ham, C.hamDeep, sstep(.4, .76, nz(p, 60, seed + i)) * .42);
+        c = mix(c, lin('#b66b42'), roast * .30);
+        c = mix(c, lin('#754027'), edge * roast * .42);
+        return MAT(c, .56, .24, .55, .94);
+      }
     });
   }
 }
