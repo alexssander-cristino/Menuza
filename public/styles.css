@@ -3454,11 +3454,3 @@ button[data-action="view-generated-3d"],
 .audit-event p{margin:6px 0 0;font-size:13px;overflow-wrap:anywhere}
 .audit-event time{white-space:nowrap}
 @media(max-width:640px){.order-payment-control{align-items:stretch}.order-payment-control select,.order-payment-control button{width:100%;max-width:none}.audit-event{display:grid;gap:6px}.audit-event time{white-space:normal}}
-
-
-/* Cloudflare Turnstile — exibição consistente nos formulários de autenticação. */
-.menuza-turnstile-field{display:flex;flex-direction:column;gap:9px;width:100%;min-width:0;margin:18px 0 14px;padding:14px 16px;border:1px solid var(--line,rgba(120,90,90,.22));border-radius:12px;background:rgba(128,96,96,.045);}
-.menuza-turnstile-label{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--ink,#292329);}
-.menuza-turnstile{display:flex;align-items:center;justify-content:flex-start;min-height:66px;width:100%;overflow:visible;}
-.menuza-turnstile iframe{max-width:100%;}
-@media(max-width:420px){.menuza-turnstile-field{padding:12px 10px;}.menuza-turnstile{transform-origin:left center;}}
