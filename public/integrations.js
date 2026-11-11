@@ -1,6 +1,6 @@
 // Integrações do Menuza: Google Tag Manager com Consent Mode e Cloudflare Turnstile.
 (function(){
-  const configPromise=fetch('/api/public/integrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  const configPromise=fetch('/api/dispatch?path=public%2Fintegrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
   let turnstilePromise=null;
   async function loadTurnstile(){
     if(window.turnstile)return window.turnstile;
