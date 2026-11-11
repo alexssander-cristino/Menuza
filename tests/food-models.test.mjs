@@ -364,3 +364,21 @@ test('remover recheios reduz novamente o pão sem alterar a escala própria da s
   const sausage = result => result.parts.find(part => part.kind === 'hotdog-sausage').build().box;
   assert.deepEqual(sausage(many), sausage(few), 'a expansão do pão não deve escalar a salsicha junto');
 });
+
+
+test('quatro salsichas permanecem dentro da largura do pão expandido', () => {
+  const product = { id: 'hotdog-four-sausages', type: 'plate', categoryName: 'Hot Dog', widthCm: 20, depthCm: 10 };
+  const layout = buildFoodLayout(product, [
+    { id: 'salsicha', name: 'Salsicha', quantity: 4 },
+    { id: 'bacon', name: 'Bacon', quantity: 2 },
+    { id: 'queijo', name: 'Queijo', quantity: 2 }
+  ], { key: 'unico' }, { detail: 0.45 });
+  const bun = layout.parts.find(part => part.kind === 'hotdog-bun').build().box;
+  const sausages = layout.parts.filter(part => part.kind.startsWith('hotdog-sausage'));
+  assert.equal(sausages.length, 4);
+  for (const part of sausages) {
+    const box = part.build().box;
+    assert.ok(box[2] + (part.z || 0) >= bun[2] - .0005, 'a salsicha não deve ultrapassar a lateral esquerda do pão');
+    assert.ok(box[5] + (part.z || 0) <= bun[5] + .0005, 'a salsicha não deve ultrapassar a lateral direita do pão');
+  }
+});
