@@ -623,6 +623,7 @@ async function validateProductIngredientIds(value, type) {
   return value;
 }
 async function orderById(id) {
+  await ensureOperationsSchema();
   const result = await query(`SELECT o.id,o.restaurant_id AS "restaurantId",o.customer_name AS "customerName",o.phone,o.fulfillment,o.table_label AS "tableLabel",o.delivery_address AS "deliveryAddress",o.note,o.status,o.total_cents AS "totalCents",o.payment_method AS "paymentMethod",o.payment_status AS "paymentStatus",o.paid_at AS "paidAt",o.paid_by AS "paidBy",o.coupon_code AS "couponCode",o.discount_cents AS "discountCents",o.delivery_fee_cents AS "deliveryFeeCents",o.delivery_zone_name AS "deliveryZoneName",o.delivery_distance_km AS "deliveryDistanceKm",o.tracking_token AS "trackingToken",o.created_at AS "createdAt",o.updated_at AS "updatedAt",r.prep_minutes AS "prepMinutes"
     FROM orders o JOIN restaurants r ON r.id=o.restaurant_id WHERE o.id=$1 AND o.restaurant_id=$2`, [id, RESTAURANT_ID]);
   const order = result.rows[0];
@@ -826,6 +827,7 @@ async function saveCoupon(body,id=null) {
   else result=await query(`INSERT INTO coupons (id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,['cpn_'+randomBytes(12).toString('hex'),RESTAURANT_ID,code,type,value,minimum,starts?.toISOString()||null,expires?.toISOString()||null,maxUses,body.active===undefined?1:(body.active?1:0),now]);
   if (!result.rows[0]) throw fail('Cupom não encontrado.',404);
+  await recordAdminAudit(id?'coupon.updated':'coupon.created','coupon',result.rows[0].id,{code});
   return couponPublic(result.rows[0]);
 }
 function couponPublic(row) { return {id:row.id,code:row.code,discountType:row.discount_type,discountValue:Number(row.discount_value),minimumSubtotalCents:Number(row.minimum_subtotal_cents),startsAt:row.starts_at,expiresAt:row.expires_at,maxUses:row.max_uses===null?null:Number(row.max_uses),usedCount:Number(row.used_count),active:Number(row.active)===1,createdAt:row.created_at}; }
