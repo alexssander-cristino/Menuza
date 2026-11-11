@@ -11,9 +11,9 @@ import {
 // A composição final é montada conforme o tipo de produto e os ingredientes escolhidos;
 // mantenha as funções de geometria independentes para permitir cache e reconstrução parcial.
 const C = {
-  bunCrown: lin('#b9702c'), bunSide: lin('#cf9448'), bunCrumb: lin('#efd6a2'), bunToast: lin('#d8a458'), bunDeep: lin('#a8662a'), bunUnder: lin('#c98b45'),
+  bunCrown: lin('#c88748'), bunSide: lin('#d5a267'), bunCrumb: lin('#f0dfbd'), bunToast: lin('#d9ad70'), bunDeep: lin('#a96f3d'), bunUnder: lin('#c9955d'),
   seed: lin('#f1e2ba'),
-  patty: lin('#4d2b1b'), pattySear: lin('#2a150b'), pattySide: lin('#6d3d25'), pattyFat: lin('#8a5532'),
+  patty: lin('#593727'), pattySear: lin('#382218'), pattySide: lin('#79513a'), pattyFat: lin('#9b704f'),
   cheddar: lin('#e99622'), cheddarLight: lin('#f3b73e'), cheddarDeep: lin('#d98310'),
   lettuceA: lin('#b6cd6c'), lettuceB: lin('#6fa536'), lettuceC: lin('#3a7821'), lettuceVein: lin('#e3edaa'),
   tomSkin: lin('#c42d1c'), tomWall: lin('#e97d5f'), tomJelly: lin('#d2392a'), tomCore: lin('#f3a892'),
@@ -22,10 +22,10 @@ const C = {
   baconLean: lin('#8e2c19'), baconFat: lin('#f0cb9c'), baconCrisp: lin('#5a1b0d'),
   eggWhite: lin('#fbf5e6'), eggCrisp: lin('#d9aa5c'), yolkA: lin('#f6ac1c'), yolkB: lin('#e08a0b'),
   sauce: lin('#eab283'), sauceDeep: lin('#d98f57'),
-  doughRim: lin('#d69a4d'), doughBrown: lin('#96501f'), doughChar: lin('#4b2411'), doughPale: lin('#c9914d'), doughCream: lin('#e9c98e'),
+  doughRim: lin('#dca45f'), doughBrown: lin('#ad6b37'), doughChar: lin('#65402a'), doughPale: lin('#d3a36b'), doughCream: lin('#eddbb8'),
   tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
   // Mussarela em tom marfim dourado: distingue-se de catupiry, creme e outros ingredientes brancos.
-  mozz: lin('#d8c18f'), mozzGold: lin('#c59d62'), mozzBrown: lin('#987044'),
+  mozz: lin('#e8d9b8'), mozzGold: lin('#d9bd8c'), mozzBrown: lin('#b58b58'),
   pep: lin('#b8412a'), pepDeep: lin('#8c2a18'), pepChar: lin('#5a190d'), pepFat: lin('#e49e80'),
   mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
@@ -82,12 +82,12 @@ function bunTopMesh(R, H, seed, detail) {
   m.revolve(prof, {
     nu: 144, nv: 72, detail, R: Rf, disp: dispf,
     shade: (u, v, p, n, [r, y]) => {
-      const tv = 1 + (nz(p, 60, seed + 5) - .5) * .3, hy = y / H;
+      const tv = 1 + (nz(p, 60, seed + 5) - .5) * .14, hy = y / H;
       if (hy < .1 && n[1] < -.25) return MAT(mul(mix(C.bunToast, C.bunCrumb, .35), tv), .8, .1, 1, .75);
       // brilho de ovo: faixas suaves radiais sobre o degradê da casca
       const streak = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 6 + hy * 8 + seed);
-      const glaze = mix(mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy)), C.bunToast, streak * .12), blotch = sstep(.55, .72, nz(p, 36, seed + 11));
-      return MAT(mul(mix(glaze, C.bunDeep, blotch * .5), tv), .26, .14, .45, hy < .18 ? .8 : 1);
+      const glaze = mix(mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy)), C.bunToast, streak * .07), blotch = sstep(.62, .78, nz(p, 28, seed + 11));
+      return MAT(mul(mix(glaze, C.bunDeep, blotch * .22), tv), .38, .12, .28, hy < .18 ? .8 : 1);
     }
   });
   // sementes de gergelim: pequenos elipsoides pousados sobre a cúpula
@@ -115,15 +115,14 @@ function pattyMesh(R, H, seed, detail) {
       return [d * .8, y > H * .5 ? d : d * .3];
     },
     shade: (u, v, p, n, [r, y]) => {
-      const rn = r / R, tv = 1 + (nz(p, 90, seed + 3) - .5) * .4;
+      const rn = r / R, tv = 1 + (nz(p, 90, seed + 3) - .5) * .16;
       if (n[1] > .5 && y > H * .5) {
-        // marcas de grelha levemente onduladas
-        const s = p[0] * Math.cos(dir) + p[2] * Math.sin(dir) + .003 * Math.sin(p[2] * 24 + seed);
-        const d = Math.abs(s / .032 - Math.round(s / .032));
-        const mark = (1 - sstep(.035, .105, d)) * sstep(.35, .62, nz(p, 42, seed + 13));
-        const sear = sstep(.72, .86, fbm(p[0] * 48, p[2] * 48, seed + 17, 2));
+        // Selagem irregular e localizada, sem listras repetidas de grelha.
+        const searField = fbm(p[0] * 30, p[2] * 54, seed + 17, 3);
+        const mark = sstep(.70, .86, searField) * sstep(.28, .62, nz(p, 36, seed + 13));
+        const sear = sstep(.72, .88, fbm(p[0] * 46, p[2] * 70, seed + 19, 2));
         const base = mix(C.patty, C.pattyFat, sstep(.58, .78, nz(p, 55, seed + 7)) * .28);
-        const cooked = mix(base, C.pattySear, mark * .48 + sear * .22);
+        const cooked = mix(base, C.pattySear, mark * .24 + sear * .12);
         return MAT(mul(cooked, tv), .62, .06, .9, lerp(1, .88, sstep(.7, 1, rn)));
       }
       if (n[1] < -.5) return MAT(mul(C.patty, .8 * tv), .7, .05, 1, .6);
@@ -429,20 +428,20 @@ function doughMesh(ctx, detail) {
     R: a => 1 + .018 * (noise3(Math.cos(a) * 1.2 + 4, Math.sin(a) * 1.2, seed) - .5) * 2 + .008 * Math.sin(a * 5 + ph),
     disp: (a, r, y) => {
       const x = Math.cos(a) * r, z = Math.sin(a) * r, rim = sstep(rStart - .002, rStart + .004, r);
-      const bl = sstep(.62, .82, noise3(x * 55, z * 55, seed + 9)), small = (fbm(x * 160, z * 160, seed + 2, 2) - .5) * .0032;
+      const bl = sstep(.70, .88, noise3(x * 38, z * 38, seed + 9)), small = (fbm(x * 118, z * 118, seed + 2, 2) - .5) * .0022;
       const notch = rim * ctx.cutGroove(x, z) * .0012;
       const deckWave = (1 - rim) * (fbm(x * 40, z * 40, seed + 5, 2) - .5) * .0012;
-      return [rim * (fbm(x * 90, z * 90, seed + 6, 2) - .5) * .0014, rim * (small + bl * .0034) - notch + deckWave];
+      return [rim * (fbm(x * 72, z * 72, seed + 6, 2) - .5) * .0010, rim * (small + bl * .0018) - notch + deckWave];
     },
     shade: (u, v, p, n, [r, y]) => {
-      const x = p[0], z = p[2], rim = sstep(rStart - .003, rStart + .003, r), tv = 1 + (nz(p, 80, seed + 3) - .5) * .25;
-      const blister = sstep(.62, .78, noise3(x * 42, z * 42, seed + 9)), char = sstep(.78, .90, noise3(x * 96, z * 96, seed + 12));
+      const x = p[0], z = p[2], rim = sstep(rStart - .003, rStart + .003, r), tv = 1 + (nz(p, 80, seed + 3) - .5) * .12;
+      const blister = sstep(.70, .86, noise3(x * 34, z * 34, seed + 9)), char = sstep(.84, .94, noise3(x * 72, z * 72, seed + 12));
       if (n[1] > .25 && rim > 0) {
-        let c = mix(C.doughRim, C.doughBrown, clamp(blister * .72 + sstep(.48, .78, nz(p, 24, seed + 14)) * .20, 0, .78));
-        c = mix(c, C.doughChar, char * blister * .42);
+        let c = mix(C.doughRim, C.doughBrown, clamp(blister * .42 + sstep(.55, .82, nz(p, 22, seed + 14)) * .12, 0, .48));
+        c = mix(c, C.doughChar, char * blister * .18);
         c = mix(c, lin('#e6ad5b'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * .14);
         // topo da borda mais dourado (pincelada de azeite) e brilhante
-        c = mix(c, lin('#dca24c'), sstep(.55, 1, n[1]) * .35);
+        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * .18);
         // borda recheada: queijo escapando em manchas claras e cremosas
         if (cr.stuffed) c = mix(c, lin('#f6e7b8'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * .8);
         // farinha na borda
@@ -487,18 +486,18 @@ function cheeseMeshPizza(ctx, detail) {
     // Evita o branco puro e o aspecto plástico mesmo sob iluminação forte.
     // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
     // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
-    const toastNoise = fbm(x * 34, z * 34, seed + 51, 3);
-    const toast = sstep(.67, .82, toastNoise) * (.55 + .25 * sstep(.25, .9, v));
-    const browned = sstep(.70, .84, fbm(x * 76, z * 76, seed + 53, 2)) * toast;
-    const freckles = sstep(.78, .90, fbm(x * 142, z * 142, seed + 59, 2)) * browned;
+    const toastNoise = fbm(x * 27, z * 27, seed + 51, 3);
+    const toast = sstep(.76, .91, toastNoise) * (.48 + .18 * sstep(.25, .9, v));
+    const browned = sstep(.78, .92, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
+    const freckles = sstep(.86, .95, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
     const bub = sstep(.66, .82, fbm(x * 112, z * 112, seed + 41, 2));
     let c = mix(C.mozz, C.mozzGold, clamp(.16 + grain + sstep(.82, .99, v) * .08, 0, .30));
     c = mix(c, lin('#ead8b4'), bub * .12);
-    c = mix(c, lin('#c99558'), toast * .48);
-    c = mix(c, lin('#986039'), browned * .42);
-    c = mix(c, lin('#68402b'), freckles * .30);
+    c = mix(c, lin('#d9b77f'), toast * .28);
+    c = mix(c, lin('#ae8050'), browned * .22);
+    c = mix(c, lin('#79563b'), freckles * .12);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .18);
-    return MAT(mul(c, 1 + grain), .30 + toast * .04, .34, .18, 1);
+    return MAT(mul(c, 1 + grain), .43 + toast * .03, .16, .08, 1);
   }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
@@ -1405,13 +1404,12 @@ function hotDogSausageMesh(L, R, seed, detail) {
     const rho = R * taper * (1 + .012 * Math.sin(v * Math.PI * 7 + seed));
     return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
   }, (u, v, p, n) => {
-    const phase = (p[0] + p[2] * .7) / .024 + .12 * Math.sin(p[2] * 34 + seed);
-    const mark = (1 - sstep(.10, .24, Math.abs(phase - Math.round(phase)))) * sstep(.2, .58, n[1]);
-    const meat = mix(lin('#963d28'), lin('#b85b3b'), .30 + .12 * (nz(p, 42, seed + 11) - .5));
-    const sear = sstep(.70, .86, fbm(p[0] * 48, p[2] * 48, seed + 17, 2));
-    const char = sstep(.82, .92, nz(p, 112, seed + 23)) * sear;
-    const cooked = mix(meat, lin('#713b29'), sear * .28);
-    return MAT(mul(mix(mix(cooked, lin('#633522'), mark * .32), lin('#49291f'), char * .24), 1 + (nz(p, 70, seed + 12) - .5) * .05), .34, .20, .48, .98);
+    const searField = fbm(p[0] * 24, p[2] * 62, seed + 17, 3);
+    const mark = sstep(.74, .90, searField) * sstep(.22, .60, n[1]);
+    const meat = mix(lin('#a14d35'), lin('#c16a4a'), .38 + .10 * (nz(p, 34, seed + 11) - .5));
+    const char = sstep(.88, .96, nz(p, 92, seed + 23)) * mark;
+    const cooked = mix(meat, lin('#87452f'), mark * .20);
+    return MAT(mul(mix(cooked, lin('#593526'), char * .12), 1 + (nz(p, 54, seed + 12) - .5) * .035), .46, .12, .24, .98);
   }, { wrapV: false, ref: p => [p[0], 0, 0] });
   return m.finish();
 }
