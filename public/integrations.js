@@ -16,12 +16,24 @@
   }
   async function mountTurnstile(form){
     const config=await configPromise;
-    if(!config.turnstileSiteKey||!form||!window.turnstile)return;
+    if(!config.turnstileSiteKey||!form?.isConnected||!window.turnstile)return;
     const holder=form.querySelector('[data-turnstile]');
     if(!holder||holder.dataset.widgetId)return;
-    const hidden=document.createElement('input');hidden.type='hidden';hidden.name='turnstileToken';form.appendChild(hidden);
+    let hidden=form.querySelector('input[name="turnstileToken"]');
+    if(!hidden){
+      hidden=document.createElement('input');
+      hidden.type='hidden';
+      hidden.name='turnstileToken';
+      form.appendChild(hidden);
+    }
     try{
-      const id=window.turnstile.render(holder,{sitekey:config.turnstileSiteKey,theme:'auto',callback:token=>{hidden.value=token;},'expired-callback':()=>{hidden.value='';},'error-callback':()=>{hidden.value='';}});
+      const id=window.turnstile.render(holder,{
+        sitekey:config.turnstileSiteKey,
+        theme:'auto',
+        callback:token=>{if(hidden.isConnected)hidden.value=token;},
+        'expired-callback':()=>{if(hidden.isConnected)hidden.value='';},
+        'error-callback':()=>{if(hidden.isConnected)hidden.value='';}
+      });
       holder.dataset.widgetId=String(id);
     }catch{}
   }
@@ -31,9 +43,10 @@
     try{
       await loadTurnstile();
       await mountTurnstile(form);
-      const holder=form?.querySelector('[data-turnstile]');
-      const id=holder?.dataset.widgetId;
-      const token=id?window.turnstile.getResponse(id):'';
+      const hidden=form?.querySelector('input[name="turnstileToken"]');
+      // O callback oficial mantém o token atualizado. Evitamos consultar o widget
+      // por um ID que pode ter ficado obsoleto após a recriação do formulário.
+      const token=hidden?.value||'';
       if(!token)throw new Error('Conclua a verificação antirrobô antes de continuar.');
       return token;
     }catch(error){throw new Error(error?.message||'Não foi possível carregar a verificação de segurança. Atualize a página.');}
@@ -63,7 +76,7 @@
       applyConsent(value);
     });
   }
-  configPromise.then(config=>{
+  configPromise.then(()=>{
     initAnalytics();
     document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
     const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
