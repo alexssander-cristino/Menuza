@@ -11,35 +11,34 @@ import {
 // A composição final é montada conforme o tipo de produto e os ingredientes escolhidos;
 // mantenha as funções de geometria independentes para permitir cache e reconstrução parcial.
 const C = {
-  bunCrown: lin('#b9783f'), bunSide: lin('#c88a50'), bunCrumb: lin('#e8d2ad'), bunToast: lin('#a96835'), bunDeep: lin('#754321'), bunUnder: lin('#ad7446'),
+  bunCrown: lin('#a8602a'), bunSide: lin('#c07a3e'), bunCrumb: lin('#e2c392'), bunToast: lin('#9a5628'), bunDeep: lin('#5f3418'), bunUnder: lin('#9c6334'),
   seed: lin('#f1e2ba'),
-  patty: lin('#4b2b1e'), pattySear: lin('#24130e'), pattySide: lin('#68402c'), pattyFat: lin('#8b5b3a'),
+  patty: lin('#3e2217'), pattySear: lin('#1a0d08'), pattySide: lin('#5a3523'), pattyFat: lin('#7a4a2c'),
   cheddar: lin('#e99622'), cheddarLight: lin('#f3b73e'), cheddarDeep: lin('#d98310'),
   lettuceA: lin('#b6cd6c'), lettuceB: lin('#6fa536'), lettuceC: lin('#3a7821'), lettuceVein: lin('#e3edaa'),
   tomSkin: lin('#c42d1c'), tomWall: lin('#e97d5f'), tomJelly: lin('#d2392a'), tomCore: lin('#f3a892'),
   pickleSkin: lin('#58792a'), pickleFlesh: lin('#a4bb55'),
   onionBrown: lin('#8c4e1d'), onionGold: lin('#c88a3a'), onionPurple: lin('#8b3a74'), onionPale: lin('#e7cfe0'),
-  baconLean: lin('#8e2c19'), baconFat: lin('#f0cb9c'), baconCrisp: lin('#5a1b0d'),
+  baconLean: lin('#7a2414'), baconFat: lin('#e3ac6c'), baconCrisp: lin('#44140a'),
   eggWhite: lin('#fbf5e6'), eggCrisp: lin('#d9aa5c'), yolkA: lin('#f6ac1c'), yolkB: lin('#e08a0b'),
   sauce: lin('#eab283'), sauceDeep: lin('#d98f57'),
-  doughRim: lin('#d99a4e'), doughBrown: lin('#985329'), doughChar: lin('#57301e'), doughPale: lin('#c9955e'), doughCream: lin('#ead4ad'),
-  tomSauce: lin('#b2301c'), tomSauceDeep: lin('#7f2013'),
+  doughRim: lin('#cf8a3c'), doughBrown: lin('#8a4a20'), doughChar: lin('#3d2213'), doughPale: lin('#c58a4c'), doughCream: lin('#e6c995'),
+  tomSauce: lin('#a22a16'), tomSauceDeep: lin('#6e1b10'),
   // Mussarela em tom marfim dourado: distingue-se de catupiry, creme e outros ingredientes brancos.
-  mozz: lin('#e8d9b8'), mozzGold: lin('#d9bd8c'), mozzBrown: lin('#b58b58'),
+  mozz: lin('#ecd9a6'), mozzGold: lin('#dfb872'), mozzBrown: lin('#b9803f'),
   pep: lin('#b8412a'), pepDeep: lin('#8c2a18'), pepChar: lin('#5a190d'), pepFat: lin('#e49e80'),
-  mush: lin('#eadfc6'), mushSkin: lin('#a68656'),
+  mush: lin('#c9b48a'), mushSkin: lin('#8a6a3e'),
   olive: lin('#2b2723'), oliveIn: lin('#66753a'),
-  corn: lin('#f2b72a'), chicken: lin('#e1c08f'), chickenBrown: lin('#a97a42'),
+  corn: lin('#f2b72a'), chicken: lin('#d4a96a'), chickenBrown: lin('#94632d'),
   cream: lin('#f8f1df'), herb: lin('#506027'), herbLight: lin('#7d923b'), basil: lin('#2f7b3f'), basilLight: lin('#75ad58'),
   ceramic: lin('#f1ede3'), ceramicLine: lin('#a9b6bb'),
-  potato: lin('#eebf68'), potatoSkin: lin('#a8662a'), potatoDark: lin('#7a4519'), rosemary: lin('#4f6a2e'), aioli: lin('#f4e9ca'),
-    wood: lin('#4a2f1d'),
+  potato: lin('#e8b04a'), potatoSkin: lin('#a35c20'), potatoDark: lin('#6e3a14'),    wood: lin('#4a2f1d'),
   // pizza brasileira
   pizzaWoodA: lin('#c79a63'), pizzaWoodB: lin('#e3bf8a'),
-  ham: lin('#eaa3a3'), hamDeep: lin('#c9737a'),
+  ham: lin('#e0948f'), hamDeep: lin('#b8625f'),
   oliveGreen: lin('#8a9a3a'), oliveGreenDeep: lin('#5f6f26'), pimento: lin('#c8321e'),
   pepperGreen: lin('#4f8a2e'), pepperRed: lin('#cf3a22'), pepperYellow: lin('#e8b422'),
-  calabLean: lin('#a63a22'), calabCasing: lin('#5e1f10'), oilOrange: lin('#e2923a'),
+  calabLean: lin('#962f1a'), calabCasing: lin('#4a170b'), oilOrange: lin('#e07f22'),
   catupiry: lin('#fbf4e2')
 
 };
@@ -477,8 +476,7 @@ function doughMesh(ctx, detail) {
     },
     shade: (u, v, p, n, [r, y]) => {
       const x = p[0], z = p[2], rim = sstep(rStart - .003, rStart + .003, r), tv = 1 + (nz(p, 80, seed + 3) - .5) * .12;
-      const blister = sstep(.38, .66, noise3(x * 34, z * 34, seed + 9));
-      const char = sstep(.69, .87, noise3(x * 72, z * 72, seed + 12));
+      const blister = sstep(.36, .62, noise3(x * 34, z * 34, seed + 9)), char = sstep(.66, .84, noise3(x * 72, z * 72, seed + 12));
       const bakePatch = sstep(.48, .72, fbm(x * 22, z * 22, seed + 35, 3));
       const blisterSpeck = sstep(.72, .88, noise3(x * 210, z * 210, seed + 38));
       if (n[1] > -.42) {
@@ -486,14 +484,14 @@ function doughMesh(ctx, detail) {
         // a faixa central exposta nunca volta ao bege de massa crua.
         const crumb = mix(lin('#c58f5a'), lin('#dfb77f'), sstep(.34, .76, bakePatch));
         const crust = mix(C.doughRim, lin('#bf7334'), clamp(blister * .38 + bakePatch * .48 + sstep(.38, .68, nz(p, 22, seed + 14)) * .24, 0, .92));
-        let c = mix(crumb, crust, rim * .82);
+        let c = mix(C.doughRim, C.doughBrown, clamp(blister * .95 + sstep(.38, .68, nz(p, 22, seed + 14)) * .38, 0, .96));
         const toasted = bakePatch * (.20 + rim * .48) + blister * rim * .18;
         c = mix(c, lin('#a75e2e'), toasted);
         c = mix(c, lin('#70401f'), char * (.06 + rim * .48));
         c = mix(c, lin('#4b2a19'), blisterSpeck * char * rim * .34);
         c = mix(c, lin('#edc58d'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * (.08 + rim * .08));
         // Topo da borda mais dourado; a farinha aparece apenas em pontos discretos.
-        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * rim * .16);
+        c = mix(c, C.doughChar, char * blister * .62);        
         if (cr.stuffed) c = mix(c, lin('#f6e7b8'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * rim * .8);
         const flour = sstep(.84, .93, noise3(x * 220, z * 220, seed + 30)) * rim;
         c = mix(c, C.doughCream, flour * .24);
@@ -565,20 +563,19 @@ function cheeseMeshPizza(ctx, detail) {
     // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
     // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
     const toastNoise = fbm(x * 27, z * 27, seed + 51, 3);
-    const toast = sstep(.49, .73, toastNoise) * (.78 + .20 * sstep(.15, .9, v));
-    const browned = sstep(.62, .83, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
+    const toast = sstep(.38, .64, toastNoise) * (.85 + .15 * sstep(.15, .9, v));
+    const browned = sstep(.52, .76, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
     const freckles = sstep(.74, .89, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
     const bub = sstep(.64, .81, fbm(x * 112, z * 112, seed + 41, 2));
     const blisterEdge = sstep(.76, .9, fbm(x * 178, z * 178, seed + 61, 2)) * bub;
     let c = mix(C.mozz, C.mozzGold, clamp(.16 + grain + sstep(.82, .99, v) * .08, 0, .30));
     c = mix(c, lin('#ead8b4'), bub * .12);
     c = mix(c, lin('#a96b3d'), blisterEdge * .18);
-    c = mix(c, lin('#c58a43'), toast * .68);
-    c = mix(c, lin('#874a29'), browned * .58);
+    c = mix(c, lin('#c58a43'), toast * .78);
+    c = mix(c, lin('#874a29'), browned * .7);
     c = mix(c, lin('#54301d'), freckles * .42);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .18);
-    return MAT(mul(c, 1 + grain), .49 + toast * .06 + blisterEdge * .025, .20, .68, 1);
-  }, Math.round(200 * detail), Math.round(52 * detail));
+  return MAT(mul(c, 1 + grain), .30 + toast * .05, .16, .08, 1);  }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
 function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
@@ -660,9 +657,10 @@ function pepperoniInto(m, x, y, z, R, seed, rnd, detail) {
       c = mix(c, lin('#4d2118'), char * sstep(.55, .9, rn) * .44);
       c = mix(c, lin('#d98d54'), sstep(.58, .86, nz(p, 38, sd + 21)) * .10);
       c = mix(c, lin('#67291e'), sstep(.84, .98, rn) * .62);
+      c = mix(c, C.pepChar, sstep(.8, .97, rn) * .55);
+      c = mix(c, C.calabCasing, sstep(.88, .97, rn) * .9);
       if (n[1] < .25) c = mix(c, lin('#71301f'), .5);
-      return MAT(c, .72 - fat * .14, .12, 1.05, lerp(1, .84, sstep(.72, 1, rn)));
-    }
+    return MAT(c, lerp(.26, .12, fat), .35, .55, lerp(1, .8, sstep(.75, 1, rn)));    }
   });
 }
 function tomatoSlicePizza(m, x, y, z, R, seed, rnd, detail) {
