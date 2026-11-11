@@ -109,7 +109,7 @@ O armazenamento de imagens depende das credenciais do Neon Object Storage. Sem e
 
 O checkout permite escolher Pix, dinheiro ou cartão e, no painel, registrar manualmente quando o restaurante recebeu o pagamento. O fechamento diário e o relatório fiscal gerencial exibem valores recebidos e pendentes. Essa baixa é um registro operacional, não uma confirmação bancária.
 
-O lembrete de carrinho é opcional e exige que o cliente marque a autorização no checkout. Para ativar o envio, configure no ambiente de produção as variáveis `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (remetente/domínio verificado no Resend) e `CRON_SECRET`. A rotina da Vercel verifica os lembretes a cada 30 minutos e envia no máximo uma mensagem por carrinho autorizado, após aproximadamente 45 minutos. Pedidos concluídos cancelam o lembrete pendente. `MENUZA_PUBLIC_URL` é opcional e define o endereço do cardápio incluído na mensagem.
+O lembrete de carrinho é opcional e exige que o cliente marque a autorização no checkout. Para ativar o envio, configure no ambiente de produção as variáveis `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (remetente/domínio verificado no Resend) e `CRON_SECRET`. A rotina do Vercel Schedules verifica os lembretes a cada 15 minutos e envia no máximo uma mensagem por carrinho autorizado, normalmente entre 45 e 60 minutos após o consentimento. Pedidos concluídos cancelam o lembrete pendente. `MENUZA_PUBLIC_URL` é opcional e define o endereço do cardápio incluído na mensagem.
 
 ## Funcionalidades em detalhe
 
