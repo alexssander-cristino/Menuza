@@ -1994,26 +1994,54 @@ function hotDogLayout(product, ings, o) {
   const qty = pattern => matching(pattern).reduce((sum, entry) => sum + clamp(Number(entry.item.quantity) || 1, 1, 10), 0);
   const sausageCount = clamp(qty(/salsicha|vina|viena|sausage|hot ?dog sausage/), 1, 4);
 
-  // Estima o espaço realmente ocupado por cada família visual. Unidades leves
-  // (milho/ervilha/molhos) pesam menos que proteínas, queijo, bacon e batata palha.
-  // A quantidade é a selecionada no personalizador, já consolidada por ingrediente.
+  // Estima ocupação em volume usando as mesmas dimensões-base das malhas
+  // procedurais (cilindro da salsicha, tiras, grãos, fatias e fios).
+  // Assim, 1 unidade de milho não pesa visualmente como 1 unidade de bacon.
+  const sausageR = length * .066, sausageL = length * .9;
+  const sausageVolume = Math.PI * sausageR * sausageR * sausageL;
+  const baseFillingL = length * .86 * .86;
+  const baseFillingHalfWidth = Math.min(length * .15 * .34, sausageR);
+  const sphereVolume = radius => (4 / 3) * Math.PI * radius ** 3;
   const ingredientVolume = names.reduce((sum, entry) => {
     const n = entry.name, quantity = clamp(Number(entry.item.quantity) || 1, 1, 10);
     if (/pao|bread|bun|bisnaga/.test(n)) return sum;
-    let weight = .62;
-    if (/salsicha|vina|viena|sausage/.test(n)) weight = .82;
-    else if (/ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce/.test(n)) weight = .18;
-    else if (/milho|corn|ervilha|peas/.test(n)) weight = .30;
-    else if (/batata|potato|fries|palha|crispy/.test(n)) weight = .92;
-    else if (/queijo|cheddar|mussarela|mozzarella|catupiry|cream|cheese|provolone|gorgonzola/.test(n)) weight = .88;
-    else if (/bacon|panceta|calabresa|linguica|pepperoni|salame|presunto|ham|frango|chicken|costela|carne|alcatra|proteina|protein|patty/.test(n)) weight = 1.08;
-    else if (/alface|rucula|repolho|salada|lettuce|tomate|tomato|pimentao|pepper|cebola|onion|picles|pepino|pickle|azeitona|oliva|olive/.test(n)) weight = .56;
-    else if (/ovo|egg|pure|mashed potato/.test(n)) weight = .86;
-    return sum + weight * quantity;
+    let volume = 0;
+    if (/salsicha|vina|viena|sausage/.test(n)) {
+      volume = sausageVolume * quantity;
+    } else if (/ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce/.test(n)) {
+      volume = baseFillingL * .94 * .0028 * .0007 * quantity;
+    } else if (/milho|corn/.test(n)) {
+      volume = Math.min(140, 26 * quantity) * sphereVolume(sausageR * .2);
+    } else if (/ervilha|erivlha|peas/.test(n)) {
+      volume = Math.min(140, 18 * quantity) * sphereVolume(sausageR * .17);
+    } else if (/batata|potato|fries|palha|crispy/.test(n)) {
+      volume = Math.min(260, 60 * quantity) * Math.PI * .00045 ** 2 * .022;
+    } else if (/queijo|cheddar|mussarela|mozzarella|catupiry|cream|cheese|provolone|gorgonzola|pure|mashed potato/.test(n)) {
+      volume = baseFillingL * .94 * baseFillingHalfWidth * 1.12 * .0017 * quantity;
+    } else if (/bacon|panceta/.test(n)) {
+      volume = Math.min(6, quantity * 2) * baseFillingL * .96 * .0092 * .0022;
+    } else if (/alface|rucula|repolho|salada|lettuce|herb/.test(n)) {
+      const leaves = 1 + Math.min(2, quantity);
+      volume = baseFillingL * .92 * baseFillingHalfWidth * 2.05 * .0025 * leaves;
+    } else if (/tomate|tomato/.test(n)) {
+      volume = quantity * Math.PI * (sausageR * .62) ** 2 * .002;
+    } else if (/ovo|egg/.test(n)) {
+      volume = quantity * sphereVolume(sausageR * .7) * .55;
+    } else if (/calabresa|linguica|pepperoni|salame|presunto|ham|frango|chicken|costela|carne|alcatra|proteina|protein|patty/.test(n)) {
+      volume = quantity * sphereVolume(sausageR * .7) * .42;
+    } else if (/cebola|onion|pimentao|bell pepper|picles|pepino|pickle|azeitona|oliva|olive/.test(n)) {
+      volume = quantity * sphereVolume(sausageR * .55) * .5;
+    } else {
+      // Ingrediente personalizado sem família visual: acompanha o volume das
+      // pequenas peças neutras realmente geradas pelo fallback.
+      volume = Math.min(140, 14 * quantity) * sphereVolume(sausageR * .2);
+    }
+    return sum + volume;
   }, 0);
-  const lengthLoad = clamp((ingredientVolume - 1.15) / 8.5, 0, 1);
-  const widthLoad = clamp((ingredientVolume - .9) / 6.2, 0, 1);
-  const heightLoad = clamp((ingredientVolume - 1.2) / 7.2, 0, 1);
+  const fillingVolumeRatio = ingredientVolume / Math.max(sausageVolume, 1e-9);
+  const lengthLoad = clamp((fillingVolumeRatio - .025) / .42, 0, 1);
+  const widthLoad = clamp((fillingVolumeRatio - .02) / .32, 0, 1);
+  const heightLoad = clamp((fillingVolumeRatio - .035) / .5, 0, 1);
   const opening = clamp(.18 + heightLoad * .72, .18, .9);
 
   // Cada dimensão muda separadamente. O pão é reconstruído com uma malha própria;
@@ -2023,7 +2051,6 @@ function hotDogLayout(product, ings, o) {
   const bunH = .032 + heightLoad * .014;
   const fillingL = bunL * .86;
   const fillingHalfWidth = Math.min(bunW * .34, length * (.066 + widthLoad * .014));
-  const sausageR = length * .066, sausageL = length * .9;
   const sausageY = bunH - sausageR * .45;
   const bt = .014, boardR = length * .62;
   const baseKey = `hotdog-v16|${bunL.toFixed(4)}|${bunW.toFixed(4)}|${bunH.toFixed(4)}|${opening.toFixed(3)}|${detail}|${seed}`;
