@@ -957,6 +957,41 @@ export default async function handler(req, res) {
     }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if(path.startsWith('/api/admin/'))await ensureOperationsSchema();
+    if(method==='POST'&&path==='/api/customer/abandoned-cart'){
+      await ensureOperationsSchema();
+      const c=await customer(req);if(!c)throw fail('Entre na sua conta para ativar o lembrete.',401);
+      const b=await bodyOf(req),consent=b.consent===true;
+      if(!consent){await query('DELETE FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND customer_id=$2 AND sent_at IS NULL AND converted_at IS NULL',[RESTAURANT_ID,c.customer.id]);return json(res,200,{ok:true,scheduled:false});}
+      const entries=Array.isArray(b.items)?b.items.slice(0,20):[];
+      if(!entries.length)throw fail('Seu carrinho está vazio.',422);
+      const summary=entries.map(item=>{const name=clean(item?.name,90),quantity=Math.max(1,Math.min(20,Math.trunc(Number(item?.quantity)||1)));return name?quantity+'× '+name:''}).filter(Boolean).join('\n').slice(0,1200);
+      const subtotal=Math.max(0,Math.min(10000000,Math.trunc(Number(b.subtotalCents)||0)));
+      if(!summary||!subtotal)throw fail('Não foi possível registrar o resumo do carrinho.',422);
+      await query('DELETE FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND customer_id=$2 AND sent_at IS NULL AND converted_at IS NULL',[RESTAURANT_ID,c.customer.id]);
+      await query('INSERT INTO abandoned_cart_reminders(id,restaurant_id,customer_id,email,cart_summary,subtotal_cents,consent_at,scheduled_at) VALUES($1,$2,$3,$4,$5,$6,NOW(),NOW()+INTERVAL \'45 minutes\')',[randomBytes(12).toString('hex'),RESTAURANT_ID,c.customer.id,c.customer.email,summary,subtotal]);
+      return json(res,200,{ok:true,scheduled:true});
+    }
+    if(method==='GET'&&path==='/api/cron/abandoned-carts'){
+      await ensureOperationsSchema();
+      const cronSecret=String(process.env.CRON_SECRET||'');
+      if(!cronSecret||req.headers.authorization!=='Bearer '+cronSecret)throw fail('Não autorizado.',401);
+      const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
+      if(!apiKey||!from)return json(res,503,{error:'Configure RESEND_API_KEY e RESEND_FROM_EMAIL para ativar os lembretes.'});
+      const due=await withTransaction(async client=>{
+        const rows=await client.query(`SELECT id,email,cart_summary AS "cartSummary",subtotal_cents AS "subtotalCents" FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND sent_at IS NULL AND converted_at IS NULL AND scheduled_at<=NOW() AND (processing_at IS NULL OR processing_at<NOW()-INTERVAL '15 minutes') ORDER BY scheduled_at LIMIT 25 FOR UPDATE SKIP LOCKED`,[RESTAURANT_ID]);
+        if(rows.rowCount)await client.query('UPDATE abandoned_cart_reminders SET processing_at=NOW() WHERE id=ANY($1::text[])',[rows.rows.map(row=>row.id)]);
+        return rows.rows;
+      });
+      let sent=0,failed=0;
+      for(const reminder of due){
+        try{
+          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
+          if(!response.ok)throw new Error('Resend retornou '+response.status);
+          await query('UPDATE abandoned_cart_reminders SET sent_at=NOW(),processing_at=NULL WHERE id=$1',[reminder.id]);sent++;
+        }catch{await query('UPDATE abandoned_cart_reminders SET processing_at=NULL WHERE id=$1',[reminder.id]);failed++;}
+      }
+      return json(res,200,{processed:due.length,sent,failed});
+    }
     if (method==='GET'&&path==='/api/restaurant/branding') { await ensurePromoDeliverySchema(); const restaurant=(await query('SELECT name,logo_url AS "logoUrl",promo_banner_image AS "promoBannerImage",promo_banner_title AS "promoBannerTitle",promo_banner_text AS "promoBannerText",promo_banner_active AS "promoBannerActive" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||null; return json(res,200,{restaurant:await migrateRestaurantImageFields(restaurant)}); }
     if (method==='GET'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const row=(await query('SELECT promo_banner_image AS "image",promo_banner_title AS "title",promo_banner_text AS "text",promo_banner_active AS "active" FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; return json(res,200,{banner:{...row,active:Number(row.active)===1}}); }
     if (method==='PATCH'&&path==='/api/admin/promotion-banner') { await requireAdmin(req); await ensurePromoDeliverySchema(); const b=await bodyOf(req,1500000),current=(await query('SELECT promo_banner_image AS image,promo_banner_title AS title,promo_banner_text AS text,promo_banner_active AS active FROM restaurants WHERE id=$1',[RESTAURANT_ID])).rows[0]||{}; const image=b.image===undefined?current.image:String(b.image||''); const title=clean(b.title??current.title,90),bannerText=clean(b.text??current.text,180),active=b.active===undefined?Number(current.active)===1:Boolean(b.active); if(image.length>1400000||image&&!isImageDataUrl(image)&&!isStoredImageUrl(image)) throw fail('Escolha uma imagem JPG, PNG ou WebP válida.',422); if(image.startsWith('data:')&&image.length>1400000) throw fail('A imagem do banner ficou grande demais. Use uma imagem menor.',413); if(active&&!image) throw fail('Envie uma foto para ativar o banner.',422); if(title.length<2) throw fail('Informe um título para o banner.',422); const storedImage=isImageDataUrl(image)?await storeImageDataUrl(image,'restaurants/banners'):image; await query('UPDATE restaurants SET promo_banner_image=$1,promo_banner_title=$2,promo_banner_text=$3,promo_banner_active=$4 WHERE id=$5',[storedImage,title,bannerText,active?1:0,RESTAURANT_ID]); return json(res,200,{banner:{image:storedImage,title,text:bannerText,active}}); }
