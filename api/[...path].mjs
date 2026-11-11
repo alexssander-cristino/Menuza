@@ -980,14 +980,14 @@ export default async function handler(req, res) {
       const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
       if(!apiKey||!from)return json(res,503,{error:'Configure RESEND_API_KEY e RESEND_FROM_EMAIL para ativar os lembretes.'});
       const due=await withTransaction(async client=>{
-        const rows=await client.query(`SELECT id,email,cart_summary AS "cartSummary",subtotal_cents AS "subtotalCents" FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND sent_at IS NULL AND converted_at IS NULL AND scheduled_at<=NOW() AND (processing_at IS NULL OR processing_at<NOW()-INTERVAL '15 minutes') ORDER BY scheduled_at LIMIT 5 FOR UPDATE SKIP LOCKED`,[RESTAURANT_ID]);
+        const rows=await client.query(`SELECT id,email,cart_summary AS "cartSummary",subtotal_cents AS "subtotalCents" FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND sent_at IS NULL AND converted_at IS NULL AND scheduled_at<=NOW() AND (processing_at IS NULL OR processing_at<NOW()-INTERVAL '15 minutes') ORDER BY scheduled_at LIMIT 4 FOR UPDATE SKIP LOCKED`,[RESTAURANT_ID]);
         if(rows.rowCount)await client.query('UPDATE abandoned_cart_reminders SET processing_at=NOW() WHERE id=ANY($1::text[])',[rows.rows.map(row=>row.id)]);
         return rows.rows;
       });
       let sent=0,failed=0;
       for(const reminder of due){
         try{
-          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2500),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
+          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2000),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
           if(!response.ok)throw new Error('Resend retornou '+response.status);
           await query('UPDATE abandoned_cart_reminders SET sent_at=NOW(),processing_at=NULL WHERE id=$1',[reminder.id]);sent++;
         }catch{await query('UPDATE abandoned_cart_reminders SET processing_at=NULL WHERE id=$1',[reminder.id]);failed++;}
