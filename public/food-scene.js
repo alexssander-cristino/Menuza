@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=36';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=37';
 export { buildFoodGeometry };
 
 // Motor de visualização 3D do cardápio.
@@ -64,10 +64,10 @@ vec3 env(vec3 d, float rough){
   float y = d.y;
   vec3 top = vec3(.92, .90, .88), hor = vec3(.34, .32, .33), bot = vec3(.10, .085, .08);
   vec3 c = y > 0. ? mix(hor, top, pow(y, .75)) : mix(hor, bot, pow(-y, .6));
-  float gloss = 1. - rough, sharp = mix(3., 80., gloss * gloss);
-  c += vec3(5.5, 5.1, 4.6) * pow(max(dot(d, normalize(vec3(-.5, .8, .55))), 0.), sharp) * gloss * .5;
-  c += vec3(1.9, 2.1, 2.5) * pow(max(dot(d, normalize(vec3(.85, .3, .4))), 0.), sharp) * gloss * .45;
-  c += vec3(2.8) * pow(max(dot(d, normalize(vec3(.15, .45, -.9))), 0.), sharp) * gloss * .35;
+  float gloss = 1. - rough, sharp = mix(2.8, 42., gloss * gloss);
+  c += vec3(4.6, 4.3, 3.9) * pow(max(dot(d, normalize(vec3(-.5, .8, .55))), 0.), sharp) * gloss * .5;
+  c += vec3(1.65, 1.8, 2.1) * pow(max(dot(d, normalize(vec3(.85, .3, .4))), 0.), sharp) * gloss * .45;
+  c += vec3(2.35) * pow(max(dot(d, normalize(vec3(.15, .45, -.9))), 0.), sharp) * gloss * .35;
   return c;
 }
 float shadowTaps(vec3 wp, vec3 n, float spread, int r){
@@ -119,9 +119,9 @@ void main(){
     vec3 g2 = vec3(vn(q2 + vec3(.5,0,0)) - n1, vn(q2 + vec3(0,.5,0)) - n1, vn(q2 + vec3(0,0,.5)) - n1) / .5;
     g += g2 * .32;
     g -= N * dot(g, N);
-    N = normalize(N - g * bump * .065);
-    albedo *= 1. + (n0 - .5) * .13 * bump + (n1 - .5) * .045 * bump;
-    rough = clamp(rough + (n0 - .5) * .055 * bump, .08, 1.);
+    N = normalize(N - g * bump * .082);
+    albedo *= 1. + (n0 - .5) * .16 * bump + (n1 - .5) * .055 * bump;
+    rough = clamp(rough + (n0 - .5) * .075 * bump + (n1 - .5) * .025 * bump, .08, 1.);
   }
   float NoV = clamp(dot(N, V), .001, 1.);
   vec3 F0 = vec3(.04);
