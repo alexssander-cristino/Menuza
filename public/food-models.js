@@ -1460,35 +1460,40 @@ function drinkLayout(product, detail) {
 }
 
 function normalizedProductText(product) {
-  return [product?.id, product?.name, product?.description, product?.categoryId, product?.categoryName]
-    .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return [
+    product?.id, product?.name, product?.title, product?.description,
+    product?.type, product?.productType, product?.foodType, product?.kind,
+    product?.categoryId, product?.categoryName, product?.category,
+    product?.subcategory, product?.subCategory, product?.groupName,
+    ...(Array.isArray(product?.tags) ? product.tags : [])
+  ].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function isHotDogProduct(product, ingredients = []) {
   const normalize = value => String(value || '').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-  // O tipo explícito do produto tem prioridade. "hot_dog", "hot-dog" e
-  // "hotdog" passam a ser reconhecidos mesmo quando o nome é personalizado.
   const productType = normalize(product?.type ?? product?.productType ?? product?.foodType ?? product?.kind);
-  if (/^(?:hot\s*dog|cachorro\s*quente|dogao|dogoes|vinao|vinaoes)$/.test(productType)) return true;
+  if (/^(?:hot\s*dog|hotdog|cachorro\s*quente|dogao|dogoes|vinao|vinaoes)$/.test(productType)) return true;
 
   const text = normalizedProductText(product);
   if (/\bhot\s*-?\s*dogs?\b|\bcachorros?\s*-?\s*quentes?\b|\bdog(?:ao|oes)\b|\bvina(?:o|oes)\b/.test(text)) return true;
 
-  // Alguns cadastros usam nomes genéricos. A combinação de pão + salsicha
-  // identifica o hot dog sem confundi-lo com porções que levam apenas salsicha.
+  // Usa os campos reais do cadastro: pão + salsicha identificam a montagem.
   const ingredientText = (ingredients || []).map(item =>
-    normalize([item?.name, item?.label, item?.id, item?.visual, item?.visual_key, item?.visualKey].filter(Boolean).join(' '))
+    normalize([
+      item?.name, item?.label, item?.title, item?.ingredientName, item?.id,
+      item?.visual, item?.visual_key, item?.visualKey, item?.groupName,
+      item?.category, item?.type
+    ].filter(Boolean).join(' '))
   ).join(' ');
   const hasSausage = /\b(?:salsicha|vina|viena|sausage)\b/.test(ingredientText);
-  const hasBread = /\b(?:pao|bread|bun)\b/.test(ingredientText);
+  const hasBread = /\b(?:pao|paes|bread|bun|bisnaga)\b/.test(ingredientText);
   if (hasSausage && hasBread) return true;
 
   const width = Number(product?.widthCm ?? product?.width), depth = Number(product?.depthCm ?? product?.depth);
   return Number.isFinite(width) && Number.isFinite(depth) && width >= 15 && depth > 0 && width / depth >= 1.7;
 }
-
 // Marca de forno comum a todos os componentes comestíveis. A tonalidade base de
 // cada ingrediente é preservada; manchas douradas e pontos tostados dão leitura
 // de assado sem transformar folhas, molhos ou frutas em uma cor marrom uniforme.
@@ -2463,12 +2468,14 @@ function resolveVisualIngredient(type, ingredient) {
 
 export function buildFoodLayout(product, ingredients, size, options = {}) {
   const o = { detail: options.detail || 1, crustKey: options.crustKey, flavors: Array.isArray(options.flavors) ? options.flavors : [] };
-  const type = product.type;
+  const type = String(product?.type || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+  const explicitHotDogType = /^(?:hot\s*dog|hotdog|cachorro\s*quente|dogao|dogoes|vinao|vinaoes)$/.test(type);
+  const ingredientType = explicitHotDogType ? 'plate' : type;
   const combined = new Map();
   for (const original of (ingredients || [])) {
-    const item = resolveVisualIngredient(type, original);
+    const item = resolveVisualIngredient(ingredientType, original);
     const previous = combined.get(item.id);
-    const maxQuantity = (type === 'burger' || type === 'plate') ? 10 : 3;
+    const maxQuantity = (type === 'burger' || type === 'plate' || explicitHotDogType) ? 10 : 3;
     if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, maxQuantity);
     else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, maxQuantity) });
   }
@@ -2491,15 +2498,15 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     const footprint = layout.container === 'can' ? .064 : layout.container === 'bottle' ? .056 : .076;
     bounds = [footprint, layout.extentH[1], footprint];
   } else {
-    if (isHotDogProduct(product, list)) {
+    if (explicitHotDogType || isHotDogProduct(product, list)) {
       layout = hotDogLayout(product, list, o);
-      bounds = [Math.max(.17, Math.min(.25, (Number(product.widthCm ?? product.width) || 20) / 100)), .055, .085];
+      bounds = [Math.max(.17, Math.min(.25, (Number(product.widthCm ?? product.width) || 20) / 100)), .09, .12];
     } else {
       layout = plateLayout(product, list, size, o);
       bounds = [(Number(product.widthCm ?? product.width) || 20) / 100, .062, (Number(product.depthCm ?? product.depth) || Number(product.widthCm ?? product.width) || 20) / 100];
     }
   }
-  const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (isHotDogProduct(product, list) ? 'hotdog' : 'plate');
+  const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (explicitHotDogType || isHotDogProduct(product, list) ? 'hotdog' : 'plate');
   return { type: visualType, parts: withRoastedIngredients(layout.parts, type), bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
 }
 
