@@ -801,9 +801,19 @@ function baconBitInto(m, x, y, z, seed, rnd, detail) {
   baconStripInto(m, { L: .0185, W: .0075, t: .0022, seed, detail: .6, curl: .0016, xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .1, t: [x, y + .0003, z] }) });
 }
 function toppingBlob(m, x, y, z, rx, ry, rz, color, seed, rnd) {
-  blobInto(m, { rx, ry, rz, seed, amp: .16, nu: 12, nv: 8,
+  blobInto(m, { rx, ry, rz, seed, amp: .16, nu: 16, nv: 10,
     xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x, y + ry * .25, z] }),
-    shade: (u, v, p) => MAT(mix(color, lin('#fff0d0'), nz(p, 70, seed) * .12), .48, .24, .48, .95)
+    shade: (u, v, p) => {
+      // Acabamento de forno aplicado também às coberturas pequenas e personalizadas:
+      // manchas douradas irregulares, pontos tostados e brilho de gordura discreto.
+      const bake = sstep(.48, .72, fbm(p[0] * 74, p[2] * 74, seed + 17, 3));
+      const char = sstep(.74, .9, fbm(p[0] * 158, p[2] * 158, seed + 23, 2)) * bake;
+      const highlight = sstep(.56, .8, nz(p, 54, seed + 29));
+      let c = mix(color, lin('#c68a4b'), bake * .22);
+      c = mix(c, lin('#713b22'), char * .34);
+      c = mix(c, lin('#fff0d0'), highlight * .07 * (1 - bake));
+      return MAT(c, .58 - bake * .08, .24, .72, .94);
+    }
   });
 }
 function garlicInto(m, x, y, z, R, seed, rnd) {
