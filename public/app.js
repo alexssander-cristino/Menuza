@@ -215,6 +215,11 @@ async function api(path, options = {}) {
   if (!response.ok) { const error = new Error(data.error || 'Não foi possível concluir a solicitação.'); error.status = response.status; throw error; }
   return data;
 }
+function productWithCategory(product,catalog=app.catalog){
+  if(!product)return product;
+  const category=(catalog?.categories||[]).find(item=>String(item.id)===String(product.categoryId));
+  return {...product,categoryName:product.categoryName||category?.name||product.category?.name||product.category||''};
+}
 function defaultIngredients(product, catalog) {
   const available = catalog.ingredients.filter(item => item.type === product.type && item.active !== 0);
   if (product.ingredientsConfigured) {
@@ -619,7 +624,7 @@ function renderBuilder() {
   const chosenFlavors = builder.flavorProductIds || [product.id];
   // A oferta usa o produto-base apenas como referência; a receita exibida é a do sabor escolhido.
   const selectedFlavorProduct = isPizza && chosenFlavors.length ? (app.catalog.products.find(item => item.id === chosenFlavors[0]) || product) : product;
-  const displayProduct = builder.promotion && isPizza ? selectedFlavorProduct : product;
+  const displayProduct = productWithCategory(builder.promotion && isPizza ? selectedFlavorProduct : product);
   const offerFlavorProducts = builder.promotion && isPizza ? chosenFlavors.map(id => app.catalog.products.find(item => item.id === id)).filter(Boolean) : [];
   const offerFlavorDefaults = new Map();
   for (const flavor of offerFlavorProducts) for (const entry of defaultIngredients(flavor, app.catalog)) {
@@ -2672,13 +2677,14 @@ function syncAdminRecipe3DPreview(productId,row,catalog){
   const preview=app.admin.recipePreview;
   if(!preview||preview.productId!==productId||!preview.scene)return;
   const product=productId==='admin-new-product-preview'
-    ? {id:productId,name:'Prévia',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    ? {id:productId,name:'Prévia',type:root.getElementById('newProductType')?.value||'pizza',categoryId:root.getElementById('newProductForm')?.elements?.categoryId?.value,baseCents:0}
     : catalog.products.find(item=>item.id===productId);
   if(!product)return;
+  const categorizedProduct=productWithCategory(product,catalog);
   const ingredients=adminPreviewIngredients(row,catalog);
   const sizes=catalog.sizes?.[product.type]||[];
   const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
-  try{preview.scene.update(product,ingredients,size,{crustKey:'tradicional'});}catch(error){toast(error.message||'Não foi possível atualizar o modelo 3D.');}
+  try{preview.scene.update(categorizedProduct,ingredients,size,{crustKey:'tradicional'});}catch(error){toast(error.message||'Não foi possível atualizar o modelo 3D.');}
 }
 function openAdminRecipe3D(productId){
   const catalog=app.admin.recipePreviewCatalog;
@@ -2688,7 +2694,7 @@ function openAdminRecipe3D(productId){
   const select=row?.querySelector(isNew?'[data-product-select="recipe"]':'.product-recipe-input');
   if(!select)return;
   const product=isNew
-    ? {id:productId,name:'Prévia da receita',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    ? {id:productId,name:'Prévia da receita',type:root.getElementById('newProductType')?.value||'pizza',categoryId:root.getElementById('newProductForm')?.elements?.categoryId?.value,baseCents:0}
     : catalog.products.find(item=>item.id===productId);
   if(!product)return;
   app.admin.recipePreview?.scene?.dispose?.();
@@ -2702,7 +2708,7 @@ function openAdminRecipe3D(productId){
   const sizes=catalog.sizes?.[product.type]||[];
   const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
   try{
-    const scene=new FoodScene(root.getElementById('adminRecipe3dCanvas'),product,ingredients,size,root.getElementById('adminRecipe3dHud'),{crustKey:'tradicional'});
+    const scene=new FoodScene(root.getElementById('adminRecipe3dCanvas'),productWithCategory(product,catalog),ingredients,size,root.getElementById('adminRecipe3dHud'),{crustKey:'tradicional'});
     app.admin.recipePreview={productId,scene};
     scene.setActive(true);
   }catch(error){
