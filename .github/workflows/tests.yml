@@ -26,6 +26,9 @@ jobs:
         run: |
           node --check 'api/[...path].mjs'
           node --check public/app.js
+          node --check public/food-geo.js
+          node --check public/food-models.js
+          node --check public/food-scene.js
           node --check api/dispatch.mjs
       - name: Run test suite
         run: npm test
