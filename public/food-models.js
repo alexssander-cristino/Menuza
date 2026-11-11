@@ -2007,7 +2007,7 @@ function hotDogLayout(product, ings, o) {
     if (/pao|bread|bun|bisnaga/.test(n)) return sum;
     let volume = 0;
     if (/salsicha|vina|viena|sausage/.test(n)) {
-      volume = sausageVolume * quantity;
+      volume = sausageVolume * sausageCount;
     } else if (/ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce/.test(n)) {
       volume = baseFillingL * .94 * .0028 * .0007 * quantity;
     } else if (/milho|corn/.test(n)) {
@@ -2077,15 +2077,15 @@ function hotDogLayout(product, ings, o) {
     y: s.y, z: s.z, base: k === 0, build: () => hotDogSausageMesh(sausageL * (1 - k * .02), sausageR, seed + 3 + k * 7, detail)
   }));
 
-  // Coberturas empilhadas na ordem em que são adicionadas. A chave não depende da composição inteira,
-  // só da própria cobertura e do número de salsichas (que muda o formato da superfície).
+  // Coberturas empilhadas na ordem em que são adicionadas. A chave acompanha as dimensões
+  // dinâmicas do pão e a quantidade de salsichas, para reconstruir a cena após cada alteração.
   const sig = 's' + sausageCount;
   let stack = 0;
   const add = (kind, id, build, h = .0016, dy = 0) => {
     parts.push({ kind: 'hotdog-' + kind, key: `${baseKey}|${sig}|${kind}|${id}`, y: topY + stack + dy, base: false, build });
     stack += h;
   };
-  // Posições em 1 a 3 fileiras ao longo da salsicha (quantidade = mais fileiras/densidade).
+  // Posições em 1 a 3 fileiras ao longo do recheio e da abertura do pão.
   const rowPlaces = (span, r, count, sd) => {
     const rnd = randomFor(sd), lanes = count <= 1 ? [0] : count === 2 ? [-.38, .38] : [-.62, 0, .62];
     const perRow = Math.max(3, Math.round(span / (r * 2 * (count > 3 ? .7 : .98)))), sites = [];
