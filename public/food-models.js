@@ -2038,7 +2038,7 @@ function hotDogLayout(product, ings, o) {
     }
     return sum + volume;
   }, 0);
-  const fillingVolumeRatio = ingredientVolume / Math.max(sausageVolume, 1e-9);
+  const fillingVolumeRatio = Math.max(0, ingredientVolume - sausageVolume) / Math.max(sausageVolume, 1e-9);
   const lengthLoad = clamp((fillingVolumeRatio - .025) / .42, 0, 1);
   const widthLoad = clamp((fillingVolumeRatio - .02) / .32, 0, 1);
   const heightLoad = clamp((fillingVolumeRatio - .035) / .5, 0, 1);
