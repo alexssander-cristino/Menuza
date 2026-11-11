@@ -52,19 +52,21 @@
       window.__menuzaGaLoaded=true;
       window.dataLayer=window.dataLayer||[];
       function gtag(){window.dataLayer.push(arguments);}
-      window.gtag=gtag;gtag('consent','default',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
+      window.gtag=gtag;gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
+      gtag('consent','update',{analytics_storage:'granted'});
       gtag('js',new Date());gtag('config',config.gaMeasurementId,{send_page_view:true,anonymize_ip:true});
       const script=document.createElement('script');script.async=true;script.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(config.gaMeasurementId);document.head.appendChild(script);
     };
     let choice='';try{choice=localStorage.getItem(key)||'';}catch{}
     if(choice==='granted')load();else if(choice!=='denied')banner.hidden=false;
+    document.addEventListener('click',event=>{if(event.target.closest('[data-analytics-manage]')){event.preventDefault();banner.hidden=false;}});
     banner.addEventListener('click',event=>{
       const button=event.target.closest('[data-analytics-consent]');if(!button)return;
       const value=button.dataset.analyticsConsent;
       if(value!=='granted'&&value!=='denied')return;
       try{localStorage.setItem(key,value);}catch{}
       banner.hidden=true;
-      if(value==='granted')load();
+      if(value==='granted')load();else if(window.gtag)window.gtag('consent','update',{analytics_storage:'denied'});
     });
   }
   configPromise.then(config=>{
