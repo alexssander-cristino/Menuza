@@ -279,3 +279,16 @@ test('cada sabor cria sua própria base e uma divisória radial dinâmica', () =
     assert.ok(geometry.positions.every(Number.isFinite));
   }
 });
+
+test('categoria Hot Dog encaminha produtos plate para o modelo de cachorro-quente', () => {
+  const layout = buildFoodLayout(
+    { id: 'hotdog-categoria', type: 'plate', categoryName: 'Hot Dog', widthCm: 20, depthCm: 10 },
+    [],
+    { key: 'unico', label: 'Unidade' },
+    { detail: 0.35 }
+  );
+  assert.equal(layout.type, 'hotdog',
+    'a categoria Hot Dog deve prevalecer sobre o tipo técnico genérico plate');
+  assert.ok(layout.parts.some(part => String(part.kind).startsWith('hotdog-')),
+    'o modelo deve conter peças próprias de hot dog, não o prato padrão');
+});
