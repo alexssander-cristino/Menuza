@@ -508,27 +508,29 @@ function cheeseMeshPizza(ctx, detail) {
   const rnd = randomFor(seed + 410), blisters = [];
   for (let i = 0; i < 34; i++) {
     const a = rnd() * TAU, r = Math.sqrt(rnd()) * cheeseR * .91;
-    blisters.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, radius: cheeseR * (.025 + rnd() * .045), height: .00045 + rnd() * .00105 });
+    blisters.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, radius: cheeseR * (.025 + rnd() * .045), height: .00045 + rnd() * .00105, window: i < 5 });
   }
   const blisterAt = (x, z) => {
-    let raised = 0, crater = 0, toast = 0;
+    let raised = 0, crater = 0, toast = 0, window = 0;
     for (const b of blisters) {
       const d = Math.hypot(x - b.x, z - b.z) / b.radius;
       if (d < 2.8) {
         raised = Math.max(raised, Math.exp(-d * d * 2.2) * b.height);
         crater = Math.max(crater, Math.exp(-(((d - 1.05) / .32) ** 2)) * b.height * .20);
-        toast = Math.max(toast, Math.exp(-((d - .72) / .42) ** 2));
+        toast = Math.max(toast, Math.exp(-(((d - .72) / .42) ** 2)));
+        if (b.window) window = Math.max(window, Math.exp(-d * d * 10));
       }
     }
-    return { raised, crater, toast };
+    return { raised, crater, toast, window };
   };
   return veneerMesh(cheeseR, (x, z, v) => {
     const sauce = ctx.sauceTop(x, z), macro = (fbm(x * 32, z * 32, seed + 71, 3) - .5) * .00065;
     const micro = (fbm(x * 210, z * 210, seed + 73, 2) - .5) * .00018;
     const b = blisterAt(x, z);
     // A mussarela forma pequenas ilhas fundidas, com bolhas de forno e poças rasas de gordura.
-    return sauce + .00155 + cheeseH(x, z) * (.42 + .58 * edgeF(v)) + macro + micro
+    const meltedTop = sauce + .00155 + cheeseH(x, z) * (.42 + .58 * edgeF(v)) + macro + micro
       + b.raised - b.crater - cutGroove(x, z) * .0007;
+    return lerp(meltedTop, sauce + .00012, b.window * .94);
   }, (u, v, p) => {
     const x = p[0], z = p[2], b = blisterAt(x, z);
     const grain = (nz(p, 92, seed + 1) - .5) * .045;
@@ -544,6 +546,7 @@ function cheeseMeshPizza(ctx, detail) {
     c = mix(c, lin('#a95f35'), browned * .62 + b.toast * .16);
     c = mix(c, lin('#713b25'), freckles * .42);
     c = mix(c, lin('#f7e8c8'), oil * .10);
+    c = mix(c, lin('#b2301c'), b.window * .92);
     c = mix(c, lin('#b2301c'), sstep(.00015, .0012, -cheeseH(x, z)) * .16);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .2);
     return MAT(mul(c, 1 + grain), .68 - oil * .055, .22, 1.35, .98);
