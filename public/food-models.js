@@ -127,14 +127,17 @@ function pattyMesh(R, H, seed, detail) {
       if (n[1] > .5 && y > H * .5) {
         // Selagem irregular e localizada, sem listras repetidas de grelha.
         const searField = fbm(p[0] * 24, p[2] * 42, seed + 17, 3);
-        const mark = sstep(.42, .68, searField) * sstep(.08, .44, nz(p, 36, seed + 13));
-        const sear = sstep(.48, .74, fbm(p[0] * 46, p[2] * 70, seed + 19, 2));
-        const crust = sstep(.68, .86, fbm(p[0] * 92, p[2] * 120, seed + 29, 2));
-        const base = mix(C.patty, C.pattyFat, sstep(.58, .78, nz(p, 55, seed + 7)) * .28);
-        let cooked = mix(base, C.pattySear, clamp(mark * .88 + sear * .54, 0, .96));
-        cooked = mix(cooked, lin('#120b08'), crust * mark * .42);
-        cooked = mix(cooked, lin('#a66c43'), crust * (1 - mark) * .14);
-        return MAT(mul(cooked, tv), .68, .06, 1.18, lerp(1, .88, sstep(.7, 1, rn)));
+        const irregularCrust = sstep(.40, .67, searField) * sstep(.08, .44, nz(p, 36, seed + 13));
+        const contactSear = sstep(.45, .72, fbm(p[0] * 52, p[2] * 76, seed + 19, 3));
+        const charSpecks = sstep(.76, .91, fbm(p[0] * 138, p[2] * 164, seed + 29, 2));
+        const fatGrain = sstep(.58, .78, nz(p, 55, seed + 7));
+        const base = mix(C.patty, C.pattyFat, fatGrain * .34);
+        // Crosta tostada irregular, com pontos de selagem e pequenas áreas de gordura.
+        let cooked = mix(base, lin('#382016'), irregularCrust * .58 + contactSear * .32);
+        cooked = mix(cooked, C.pattySear, irregularCrust * contactSear * .54);
+        cooked = mix(cooked, lin('#160d09'), charSpecks * irregularCrust * .34);
+        cooked = mix(cooked, lin('#b4774d'), fatGrain * (1 - irregularCrust) * .12);
+        return MAT(mul(cooked, tv), .57, .08, 1.32, lerp(1, .86, sstep(.7, 1, rn)));
       }
       if (n[1] < -.5) return MAT(mul(C.patty, .8 * tv), .7, .05, 1, .6);
       return MAT(mul(mix(C.pattySide, C.pattyFat, sstep(.6, .78, nz(p, 70, seed + 2)) * .5), tv), .55, .08, 1.3, y < H * .25 ? .7 : .95);
