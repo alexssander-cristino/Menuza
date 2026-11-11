@@ -27,7 +27,7 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDog
 // Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
 if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
 
-const MENUZA_APP_BUILD = '114';
+const MENUZA_APP_BUILD = '115';
 try {
   if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
     // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
