@@ -98,8 +98,18 @@ O banco SQLite é criado automaticamente no primeiro início, no caminho padrão
 | `AWS_REGION` | Região do armazenamento | `us-east-2` |
 | `MENUZA_STORAGE_BUCKET` | Bucket usado para imagens | `menuza-modelos-3d` |
 | `TRUST_PROXY` | Confia nos cabeçalhos de IP do proxy | Desativado |
+| `RESEND_API_KEY` | Chave de API do Resend para lembretes de carrinho | — |
+| `RESEND_FROM_EMAIL` | Remetente verificado no Resend (ex.: Menuza <pedidos@seudominio.com>) | — |
+| `CRON_SECRET` | Segredo usado para autenticar a rotina agendada de lembretes | — |
+| `MENUZA_PUBLIC_URL` | URL pública incluída no e-mail de lembrete | `https://menuza-five.vercel.app` |
 
 O armazenamento de imagens depende das credenciais do Neon Object Storage. Sem essa configuração, operações que enviam imagens para o bucket não funcionarão.
+
+### Lembrete de carrinho e conciliação de pagamentos
+
+O checkout permite escolher Pix, dinheiro ou cartão e, no painel, registrar manualmente quando o restaurante recebeu o pagamento. O fechamento diário e o relatório fiscal gerencial exibem valores recebidos e pendentes. Essa baixa é um registro operacional, não uma confirmação bancária.
+
+O lembrete de carrinho é opcional e exige que o cliente marque a autorização no checkout. Para ativar o envio, configure no ambiente de produção as variáveis `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (remetente/domínio verificado no Resend) e `CRON_SECRET`. A rotina da Vercel verifica os lembretes a cada 30 minutos e envia no máximo uma mensagem por carrinho autorizado, após aproximadamente 45 minutos. Pedidos concluídos cancelam o lembrete pendente. `MENUZA_PUBLIC_URL` é opcional e define o endereço do cardápio incluído na mensagem.
 
 ## Funcionalidades em detalhe
 
