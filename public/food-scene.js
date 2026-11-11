@@ -3,7 +3,7 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=43';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=38';
 export { buildFoodGeometry };
 
 // Motor de visualização 3D do cardápio.
@@ -113,10 +113,8 @@ void main(){
   if (bump > .01) {
     // Três escalas de superfície: manchas naturais, poros e microgrão.
     // O campo macro evita o aspecto de cor chapada; a intensidade acompanha o bump de cada ingrediente.
-    float macro = vn(vLocal * 42.);
-    float mottling = vn(vLocal * 92. + vec3(7.1, 2.3, 5.7));
-    float fineGrain = vn(vLocal * (uQuality > .5 ? 1120. : 720.) + vec3(13.7, 4.1, 9.2));
-    vec3 q = vLocal * (uQuality > .5 ? 760. : 470.);
+    float macro = vn(vLocal * 68.);
+    vec3 q = vLocal * (uQuality > .5 ? 520. : 320.);
     float n0 = vn(q);
     vec3 g = vec3(vn(q + vec3(.5,0,0)) - n0, vn(q + vec3(0,.5,0)) - n0, vn(q + vec3(0,0,.5)) - n0) / .5;
     vec3 qm = vLocal * 220.;
@@ -128,12 +126,11 @@ void main(){
     vec3 g2 = vec3(vn(q2 + vec3(.5,0,0)) - n1, vn(q2 + vec3(0,.5,0)) - n1, vn(q2 + vec3(0,0,.5)) - n1) / .5;
     g += g2 * .32;
     g -= N * dot(g, N);
-    N = normalize(N - g * bump * .135);
-    float pores = smoothstep(.76, .91, n0) * bump;
-    float mottled = (mottling - .5) * bump;
-    albedo *= 1. + (macro - .5) * .22 * bump + mottled * .26 + (n0 - .5) * .20 * bump + (n1 - .5) * .085 * bump + (fineGrain - .5) * .055 * bump;
-    albedo *= 1. - pores * .055;
-    rough = clamp(rough + (macro - .5) * .16 * bump + mottled * .13 + (n0 - .5) * .10 * bump + (n1 - .5) * .04 * bump + (fineGrain - .5) * .045 * bump + pores * .045, .08, 1.);
+    N = normalize(N - g * bump * .082);
+    float pores = smoothstep(.79, .91, n0) * bump;
+    albedo *= 1. + (macro - .5) * .105 * bump + (n0 - .5) * .13 * bump + (n1 - .5) * .045 * bump;
+    albedo *= 1. - pores * .035;
+    rough = clamp(rough + (macro - .5) * .09 * bump + (n0 - .5) * .07 * bump + (n1 - .5) * .025 * bump + pores * .025, .08, 1.);
   }
   float NoV = clamp(dot(N, V), .001, 1.);
   vec3 F0 = vec3(.04);

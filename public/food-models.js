@@ -547,26 +547,27 @@ function cheeseMeshPizza(ctx, detail) {
       + b.raised - b.crater - cutGroove(x, z) * .0007;
     return lerp(meltedTop, sauce + .00012, b.window * .94);
   }, (u, v, p) => {
-    const x = p[0], z = p[2], b = blisterAt(x, z);
-    const grain = (nz(p, 92, seed + 1) - .5) * .045;
-    const broad = fbm(x * 19, z * 19, seed + 51, 3);
-    // Gratinação em manchas pequenas e irregulares, como queijo recém-saído do forno.
-    const toast = sstep(.52, .70, broad) * (.78 + .22 * sstep(.10, .78, v));
-    const browned = sstep(.52, .73, fbm(x * 58, z * 58, seed + 53, 3)) * toast;
-    const freckles = sstep(.64, .82, fbm(x * 132, z * 132, seed + 59, 2)) * browned;
-    const pores = sstep(.70, .87, fbm(x * 178, z * 178, seed + 61, 2));
-    const oil = sstep(.46, .74, fbm(x * 46, z * 46, seed + 67, 2));
-    let c = mix(lin('#f1e5ce'), lin('#e5c98e'), clamp(.10 + grain + b.toast * .22, 0, .44));
-    c = mix(c, lin('#fff0d8'), pores * .10);
-    c = mix(c, lin('#d99b4d'), toast * .52 + b.toast * .18);
-    c = mix(c, lin('#b96a32'), browned * .58 + b.toast * .18);
-    c = mix(c, lin('#71391f'), freckles * .38);
-    c = mix(c, lin('#f7e8c8'), oil * .10);
-    c = mix(c, lin('#b2301c'), b.window * .92);
-    c = mix(c, lin('#b2301c'), sstep(.00015, .0012, -cheeseH(x, z)) * .16);
-    c = mix(c, C.mozzBrown, cutGroove(x, z) * .2);
-    return MAT(mul(c, 1 + grain), .59 - oil * .075, .25, 1.55, .96);
-  }, Math.round(220 * detail), Math.round(60 * detail));
+    const x = p[0], z = p[2];
+    const grain = (nz(p, 92, seed + 1) - .5) * .035;
+    // Mussarela cremosa: marfim quente, pequenas bolhas e pontos dourados discretos.
+    // Evita o branco puro e o aspecto plástico mesmo sob iluminação forte.
+    // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
+    // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
+    const toastNoise = fbm(x * 27, z * 27, seed + 51, 3);
+    const toast = sstep(.49, .73, toastNoise) * (.78 + .20 * sstep(.15, .9, v));
+    const browned = sstep(.62, .83, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
+    const freckles = sstep(.74, .89, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
+    const bub = sstep(.64, .81, fbm(x * 112, z * 112, seed + 41, 2));
+    const blisterEdge = sstep(.76, .9, fbm(x * 178, z * 178, seed + 61, 2)) * bub;
+    let c = mix(C.mozz, C.mozzGold, clamp(.16 + grain + sstep(.82, .99, v) * .08, 0, .30));
+    c = mix(c, lin('#ead8b4'), bub * .12);
+    c = mix(c, lin('#a96b3d'), blisterEdge * .18);
+    c = mix(c, lin('#c58a43'), toast * .68);
+    c = mix(c, lin('#874a29'), browned * .58);
+    c = mix(c, lin('#54301d'), freckles * .42);
+    c = mix(c, C.mozzBrown, cutGroove(x, z) * .18);
+    return MAT(mul(c, 1 + grain), .49 + toast * .06 + blisterEdge * .025, .20, .68, 1);
+  }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
 function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
@@ -721,15 +722,12 @@ function chickenInto(m, x, y, z, R, seed, rnd) {
       seed: seed + i * 19, amp: .24, nu: 18, nv: 12,
       xf: rigid({ yaw, pitch, roll, t: [x + offsetX, y + offsetY, z + offsetZ] }),
       shade: (u, v, p) => {
-        const fiber = nz(p, 165 + (i % 3) * 28, seed + i * 17);
-        const grain = nz(p, 330, seed + i * 23);
-        const sear = sstep(.62, .84, nz(p, 38, seed + i * 29));
-        const edge = sstep(.52, .82, Math.abs(v - .5) * 2 + grain * .22);
-        let color = mix(C.chicken, lin('#f5dfb9'), .12 + fiber * .16);
-          color = mix(color, lin('#c99b63'), sstep(.52, .74, fiber) * .30);
-        color = mix(color, C.chickenBrown, sear * (.38 + edge * .38));
-        color = mix(color, lin('#80502f'), sear * edge * .34);
-        return MAT(color, .76 - sear * .08, .24, 1.28, .94);
+        const fiber = nz(p, 185, seed + i * 17), sear = sstep(.68, .88, nz(p, 34, seed + i * 23));
+        const brownedEdge = sstep(.72, .9, nz(p, 72, seed + i * 29));
+        let color = mix(C.chicken, lin('#f1dcb4'), .10 + fiber * .18);
+        color = mix(color, C.chickenBrown, sstep(.59, .8, fiber) * .30 + sear * .2);
+        color = mix(color, lin('#875b32'), brownedEdge * sear * .32);
+        return MAT(color, .68 - sear * .035, .27, 1.12, .92);
       }
     });
   }
