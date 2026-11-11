@@ -553,8 +553,14 @@ function createOrder(payload, customer = null) {
     }
     let reservedTable = null;
     if (fulfillment === 'table') {
-      reservedTable = statement("SELECT id,table_number AS number FROM restaurant_tables WHERE restaurant_id=? AND table_number=? AND status='free'").get(RESTAURANT_ID, Number(tableLabel));
-      if (!reservedTable) throw Object.assign(new Error('Essa mesa não está mais livre. Atualize a lista e escolha outra.'), { status: 409 });
+      if (payload.tableQrToken) {
+        reservedTable = statement('SELECT id,table_number AS number,status,qr_token AS qrToken FROM restaurant_tables WHERE restaurant_id=? AND table_number=?').get(RESTAURANT_ID, Number(tableLabel));
+        if (!reservedTable || reservedTable.qrToken !== payload.tableQrToken) throw Object.assign(new Error('O QR Code não corresponde a esta mesa. Escaneie novamente o código da mesa.'), { status: 403 });
+        if (reservedTable.status === 'cleaning') throw Object.assign(new Error('Esta mesa está aguardando limpeza. Chame a equipe antes de pedir.'), { status: 409 });
+      } else {
+        reservedTable = statement("SELECT id,table_number AS number,status FROM restaurant_tables WHERE restaurant_id=? AND table_number=? AND status='free'").get(RESTAURANT_ID, Number(tableLabel));
+        if (!reservedTable) throw Object.assign(new Error('Essa mesa não está mais livre. Atualize a lista e escolha outra.'), { status: 409 });
+      }
     }
     statement('INSERT INTO orders (id,restaurant_id,customer_name,phone,fulfillment,table_label,delivery_address,note,status,total_cents,tracking_token,idempotency_key,created_at,updated_at,customer_id,coupon_code,discount_cents) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
@@ -574,7 +580,7 @@ function createOrder(payload, customer = null) {
       insertItem.run(randomBytes(12).toString('hex'), orderId, item.product.id, item.product.name, item.quantity, item.priced.size.key, item.priced.crust?.key || '', JSON.stringify(item.priced.ingredients), item.notes, item.priced.unitPriceCents, JSON.stringify(snapshot));
     }
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, 'received', now, 'cliente');
-    if (reservedTable) statement("UPDATE restaurant_tables SET status='occupied',updated_at=? WHERE id=? AND restaurant_id=? AND status='free'").run(now,reservedTable.id,RESTAURANT_ID);
+    if (reservedTable && reservedTable.status === 'free') statement("UPDATE restaurant_tables SET status='occupied',updated_at=? WHERE id=? AND restaurant_id=? AND status='free'").run(now,reservedTable.id,RESTAURANT_ID);
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   const created = orderById(orderId);
@@ -775,6 +781,13 @@ const server = createServer(async (request, response) => {
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/restaurant/branding') { return send(response, 200, { restaurant: statement('SELECT name,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) }); }
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
+      if (request.method === 'GET' && path.startsWith('/api/tables/qr/')) {
+        const token = path.slice('/api/tables/qr/'.length);
+        if (!/^[A-Za-z0-9_-]{32,64}$/.test(token)) return send(response, 404, { error: 'QR Code de mesa inválido.' });
+        const table = statement('SELECT table_number AS number,seats,status FROM restaurant_tables WHERE restaurant_id=? AND qr_token=?').get(RESTAURANT_ID, token);
+        if (!table) return send(response, 404, { error: 'QR Code de mesa não encontrado.' });
+        return send(response, 200, { table: { number: table.number, seats: table.seats, status: table.status } });
+      }
       if (request.method === 'GET' && path === '/api/tables/available') {
         requireCustomer(request);
         const tables = statement("SELECT id,table_number AS number,seats FROM restaurant_tables WHERE restaurant_id=? AND status='free' ORDER BY table_number").all(RESTAURANT_ID);
