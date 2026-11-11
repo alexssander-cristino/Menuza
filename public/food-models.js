@@ -1204,7 +1204,12 @@ function ramekinMesh(seed, detail, sauceColor = C.aioli) {
     nu: 64, nv: 24, detail, shade: () => MAT(C.ceramic, .16, .1, 0, 1)
   });
   m.revolve(profile([[0, .0268], [.01, .0262], [.02, .0248], [.029, .0238], [.029, .0226]]), {
-    nu: 48, nv: 10, detail, shade: (u, v, p) => MAT(mix(sauceColor, lin('#fff6dc'), .12 + .18 * nz(p, 60, seed)), .24, .4, .08, 1)
+    nu: 48, nv: 10, detail, shade: (u, v, p) => {
+      const base = mix(sauceColor, lin('#fff6dc'), .12 + .18 * nz(p, 60, seed));
+      const toast = sstep(.4, .72, fbm(p[0] * 170, p[1] * 220, p[2] * 170, seed + 21, 2));
+      const fleck = sstep(.78, .93, noise3(p[0] * 940, p[1] * 1100, p[2] * 940, seed + 29)) * toast;
+      return MAT(mix(mix(base, lin('#bd7d45'), toast * .2), lin('#49291b'), fleck * .38), .24 + toast * .035, .4, .11, 1);
+    }
   });
   return m.finish();
 }
@@ -1461,9 +1466,53 @@ function normalizedProductText(product) {
 
 function isHotDogProduct(product) {
   const text = normalizedProductText(product);
-  if (/hot\s?-?dog|cachorro\s?-?quente|dogao|dog\s?ao|vinao/.test(text)) return true;
+  if (/\bhot\s*-?\s*dogs?\b|\bcachorros?\s*-?\s*quentes?\b|\bdog(?:ao|oes)\b|\bvina(?:o|oes)\b/.test(text)) return true;
   const width = Number(product?.widthCm ?? product?.width), depth = Number(product?.depthCm ?? product?.depth);
   return Number.isFinite(width) && Number.isFinite(depth) && width >= 15 && depth > 0 && width / depth >= 1.7;
+}
+
+// Marca de forno comum a todos os componentes comestíveis. A tonalidade base de
+// cada ingrediente é preservada; manchas douradas e pontos tostados dão leitura
+// de assado sem transformar folhas, molhos ou frutas em uma cor marrom uniforme.
+function addRoastedFinish(geometry, seed) {
+  if (!geometry?.positions?.length || !geometry.colors?.length) return geometry;
+  const golden = lin('#bd7d45'), char = lin('#49291b');
+  for (let i = 0, vertex = 0; i < geometry.colors.length; i += 3, vertex++) {
+    const x = geometry.positions[i], y = geometry.positions[i + 1], z = geometry.positions[i + 2];
+    const normalY = geometry.normals?.[i + 1] ?? .35;
+    const exposed = clamp(.46 + Math.max(-.25, normalY) * .48, .28, 1);
+    const broad = fbm(x * 155, y * 205, z * 155, seed + 17, 2);
+    const patch = sstep(.39, .69, broad);
+    const grain = noise3(x * 920 + 1.7, y * 1040 + 3.1, z * 920 - 2.3, seed + 31);
+    const blister = sstep(.77, .93, grain) * patch * exposed;
+    const toast = exposed * (.035 + patch * .22);
+    const charAmount = blister * .48;
+    for (let channel = 0; channel < 3; channel++) {
+      const colorIndex = i + channel, base = geometry.colors[colorIndex];
+      const toasted = base + (golden[channel] - base) * toast;
+      geometry.colors[colorIndex] = toasted + (char[channel] - toasted) * charAmount;
+    }
+    const material = vertex * 4;
+    if (geometry.materials?.length > material + 2) {
+      geometry.materials[material] = clamp(geometry.materials[material] + patch * .035, .06, 1);
+      geometry.materials[material + 2] = clamp(geometry.materials[material + 2] + .018 + patch * .035, 0, 1);
+    }
+  }
+  return geometry;
+}
+
+function withRoastedIngredients(parts, type) {
+  if (type === 'drink') return parts;
+  return parts.map(part => {
+    const kind = String(part.kind || '');
+    const serviceware = kind === 'board' || kind === 'pboard' || kind === 'plate'
+      || kind === 'flavor-divider' || kind.startsWith('flavor-divider:')
+      || kind.startsWith('hotdog-board') || kind.startsWith('ramekin') || kind === 'plate-dip' || kind.startsWith('drink-');
+    if (serviceware) return part;
+    const build = part.build;
+    const key = `${part.key}|roasted-finish-v1`;
+    return { ...part, key, roastedFinish: true, build: () => addRoastedFinish(build(), hash(key)) };
+  });
 }
 
 // ===================== LAYOUT =====================
@@ -2433,7 +2482,7 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     }
   }
   const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (isHotDogProduct(product) ? 'hotdog' : 'plate');
-  return { type: visualType, parts: layout.parts, bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
+  return { type: visualType, parts: withRoastedIngredients(layout.parts, type), bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
 }
 
 // Versão síncrona: constrói e funde todas as peças (usada em testes e como fallback).

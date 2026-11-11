@@ -107,6 +107,14 @@ test('hot dog: pão oval único, salsicha longa e molhos separados', () => {
   assert.ok(geometry.box[3] - geometry.box[0] > (geometry.box[5] - geometry.box[2]) * 5, 'a salsicha deve ser longa e fina');
 });
 
+test('hot dog: categoria plural reconhece hot dog mesmo sem dimensões alongadas', () => {
+  const product = { id: 'produto-44', type: 'plate', name: 'Tradicional', categoryId: 'hot-dogs', categoryName: 'Hot Dogs', widthCm: 12, depthCm: 12 };
+  const layout = buildFoodLayout(product, [{ id: 'salsicha', name: 'Salsicha', quantity: 1 }], { key: 'unico' });
+  assert.equal(layout.type, 'hotdog');
+  assert.ok(layout.parts.some(part => part.kind === 'hotdog-bun'));
+  assert.ok(!layout.parts.some(part => part.kind === 'fries'));
+});
+
 test('geometria: sem NaN, normais unitárias e índices válidos em todos os produtos', () => {
   const cases = [
     [burger, ing([...BURGER, 'bacon-burger', 'ovo']), { key: 'duplo' }, {}],
@@ -405,6 +413,27 @@ test('sobremesas recebem malhas diferentes de batatas e preservam a geometria po
     assert.ok(geometry.positions.every(Number.isFinite));
     assert.ok(geometry.materials.every(Number.isFinite));
   }
+});
+
+test('acabamento assado é aplicado às peças comestíveis em todas as categorias', () => {
+  const hotdog = { id: 'hotdog-toast', type: 'plate', name: 'Hot Dog', widthCm: 20, depthCm: 8 };
+  const dessert = { ...plate, id: 'brownie-toast', name: 'Brownie', categoryName: 'Sobremesas' };
+  const cases = [
+    buildFoodLayout(pizza, ing(PIZZA), SIZE_OPTIONS.pizza[1]),
+    buildFoodLayout(burger, ing(BURGER), { key: 'classico' }),
+    buildFoodLayout(hotdog, [{ id: 'salsicha', name: 'Salsicha' }], { key: 'unico' }),
+    buildFoodLayout(plate, [], { key: 'unico' }),
+    buildFoodLayout(dessert, [], { key: 'unico' })
+  ];
+  for (const layout of cases) {
+    const edible = layout.parts.filter(part => !['board', 'pboard', 'plate', 'plate-dip'].includes(part.kind) && !part.kind.startsWith('hotdog-board') && !part.kind.startsWith('ramekin'));
+    assert.ok(edible.length > 0);
+    assert.ok(edible.every(part => part.roastedFinish === true), `${layout.type} deve dourar cada componente comestível`);
+    assert.ok(edible.every(part => part.key.includes('roasted-finish-v1')));
+  }
+  const drink = buildFoodLayout({ id: 'drink-toast', type: 'drink', name: 'Suco de laranja' }, [], { key: 'unico' });
+  assert.ok(drink.parts.every(part => !part.roastedFinish), 'recipientes e líquidos não recebem acabamento de forno');
+  assert.ok(cases.flatMap(layout => layout.parts).some(part => part.kind === 'board' && !part.roastedFinish), 'tábuas ficam fora do acabamento');
 });
 
 test('acompanhamentos: adicionais aparecem e podem ser removidos sem alterar a base', () => {
