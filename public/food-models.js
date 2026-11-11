@@ -618,9 +618,9 @@ function cornInto(m, x, y, z, R, seed, rnd) {
 }
 function chickenInto(m, x, y, z, R, seed, rnd) {
   // Frango desfiado: fiapos longos e finos cruzados.
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     blobInto(m, {
-      rx: R * (.95 + rnd() * .6), ry: R * .22, rz: R * (.22 + rnd() * .12), seed: seed + i, amp: .3, nu: 12, nv: 8,
+      rx: R * (.95 + rnd() * .6), ry: R * (.18 + rnd() * .05), rz: R * (.19 + rnd() * .10), seed: seed + i, amp: .3, nu: 12, nv: 8,
       xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .35, roll: (rnd() - .5) * .35, t: [x + (rnd() - .5) * R * 1.1, y + R * .14 + i * R * .06, z + (rnd() - .5) * R * 1.1] }),
       shade: (u, v, p) => {
         const fiber = nz(p, 185, seed + i * 17), sear = sstep(.68, .88, nz(p, 34, seed + i * 23));
@@ -699,7 +699,7 @@ function baconBitInto(m, x, y, z, seed, rnd, detail) {
 function toppingBlob(m, x, y, z, rx, ry, rz, color, seed, rnd) {
   blobInto(m, { rx, ry, rz, seed, amp: .16, nu: 12, nv: 8,
     xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x, y + ry * .25, z] }),
-    shade: (u, v, p) => MAT(mix(color, lin('#fff0d0'), nz(p, 70, seed) * .16), .34, .3, .2, .95)
+    shade: (u, v, p) => MAT(mix(color, lin('#fff0d0'), nz(p, 70, seed) * .12), .48, .24, .48, .95)
   });
 }
 function garlicInto(m, x, y, z, R, seed, rnd) {
