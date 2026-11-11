@@ -292,3 +292,75 @@ test('categoria Hot Dog encaminha produtos plate para o modelo de cachorro-quent
   assert.ok(layout.parts.some(part => String(part.kind).startsWith('hotdog-')),
     'o modelo deve conter peças próprias de hot dog, não o prato padrão');
 });
+
+
+test('pão de hot dog aumenta em comprimento, largura e altura conforme o volume real dos recheios', () => {
+  const product = { id: 'hotdog-volume-test', type: 'plate', categoryName: 'Hot Dog', widthCm: 20, depthCm: 10 };
+  const build = ingredients => buildFoodLayout(product, ingredients, { key: 'unico' }, { detail: 0.45 });
+  const dimensions = layout => {
+    const bun = layout.parts.find(part => part.kind === 'hotdog-bun');
+    assert.ok(bun, 'o pão deve existir como malha independente');
+    const geometry = bun.build();
+    assert.ok(geometry.positions.length > 0);
+    assert.ok(geometry.positions.every(Number.isFinite));
+    assert.ok(geometry.box.every(Number.isFinite));
+    return [
+      geometry.box[3] - geometry.box[0],
+      geometry.box[5] - geometry.box[2],
+      geometry.box[4] - geometry.box[1]
+    ];
+  };
+
+  const few = build([
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 }
+  ]);
+  const medium = build([
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 },
+    { id: 'milho', name: 'Milho', quantity: 1 },
+    { id: 'queijo', name: 'Queijo mussarela', quantity: 1 },
+    { id: 'ketchup', name: 'Ketchup', quantity: 1 },
+    { id: 'batata-palha', name: 'Batata palha', quantity: 1 }
+  ]);
+  const many = build([
+    { id: 'salsicha', name: 'Salsicha', quantity: 2 },
+    { id: 'milho', name: 'Milho', quantity: 3 },
+    { id: 'ervilha', name: 'Ervilha', quantity: 2 },
+    { id: 'queijo', name: 'Queijo mussarela', quantity: 2 },
+    { id: 'bacon', name: 'Bacon', quantity: 2 },
+    { id: 'batata-palha', name: 'Batata palha', quantity: 3 },
+    { id: 'molho', name: 'Molho especial', quantity: 2 },
+    { id: 'frango', name: 'Frango desfiado', quantity: 1 }
+  ]);
+
+  const small = dimensions(few), middle = dimensions(medium), large = dimensions(many);
+  for (let axis = 0; axis < 3; axis++) {
+    assert.ok(middle[axis] > small[axis], 'a composição média deve ampliar cada dimensão do pão');
+    assert.ok(large[axis] > middle[axis], 'a composição grande deve ampliar progressivamente cada dimensão do pão');
+  }
+  assert.ok(many.bounds[0] > few.bounds[0], 'o enquadramento deve acompanhar o pão maior');
+});
+
+test('remover recheios reduz novamente o pão sem alterar a escala própria da salsicha', () => {
+  const product = { id: 'hotdog-removal-test', type: 'plate', categoryName: 'Hot Dog', widthCm: 20, depthCm: 10 };
+  const layout = ingredients => buildFoodLayout(product, ingredients, { key: 'unico' }, { detail: 0.45 });
+  const many = layout([
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 },
+    { id: 'bacon', name: 'Bacon', quantity: 3 },
+    { id: 'queijo', name: 'Queijo', quantity: 3 },
+    { id: 'batata', name: 'Batata palha', quantity: 3 },
+    { id: 'milho', name: 'Milho', quantity: 3 },
+    { id: 'molho', name: 'Ketchup', quantity: 2 }
+  ]);
+  const few = layout([{ id: 'salsicha', name: 'Salsicha', quantity: 1 }]);
+  const box = result => {
+    const geometry = result.parts.find(part => part.kind === 'hotdog-bun').build();
+    return geometry.box;
+  };
+  const largeBox = box(many), smallBox = box(few);
+  assert.ok((largeBox[3] - largeBox[0]) > (smallBox[3] - smallBox[0]));
+  assert.ok((largeBox[5] - largeBox[2]) > (smallBox[5] - smallBox[2]));
+  assert.ok((largeBox[4] - largeBox[1]) > (smallBox[4] - smallBox[1]));
+
+  const sausage = result => result.parts.find(part => part.kind === 'hotdog-sausage').build().box;
+  assert.deepEqual(sausage(many), sausage(few), 'a expansão do pão não deve escalar a salsicha junto');
+});
