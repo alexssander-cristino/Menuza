@@ -2002,13 +2002,11 @@ function hotDogLayout(product, ings, o) {
   const baseFillingL = length * .86 * .86;
   const baseFillingHalfWidth = Math.min(length * .15 * .34, sausageR);
   const sphereVolume = radius => (4 / 3) * Math.PI * radius ** 3;
-  const ingredientVolume = names.reduce((sum, entry) => {
+  const ingredientVolume = sausageVolume * sausageCount + names.reduce((sum, entry) => {
     const n = entry.name, quantity = clamp(Number(entry.item.quantity) || 1, 1, 10);
-    if (/pao|bread|bun|bisnaga/.test(n)) return sum;
+    if (/pao|bread|bun|bisnaga|salsicha|vina|viena|sausage/.test(n)) return sum;
     let volume = 0;
-    if (/salsicha|vina|viena|sausage/.test(n)) {
-      volume = sausageVolume * sausageCount;
-    } else if (/ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce/.test(n)) {
+    if (/ketchup|catchup|mostarda|mustard|maionese|mayo|mayonnaise|barbecue|bbq|molho|sauce/.test(n)) {
       volume = baseFillingL * .94 * .0028 * .0007 * quantity;
     } else if (/milho|corn/.test(n)) {
       volume = Math.min(140, 26 * quantity) * sphereVolume(sausageR * .2);
