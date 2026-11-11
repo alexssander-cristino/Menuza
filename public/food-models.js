@@ -479,22 +479,32 @@ function doughMesh(ctx, detail) {
       const bakePatch = sstep(.52, .72, fbm(x * 18, z * 18, seed + 35, 3));
       const blisterSpeck = sstep(.72, .88, noise3(x * 210, z * 210, seed + 38));
       if (n[1] > .25 && rim > 0) {
-        let c = mix(C.doughRim, lin('#c47a37'), clamp(blister * .58 + bakePatch * .56 + sstep(.38, .68, nz(p, 22, seed + 14)) * .34, 0, .96));
-        c = mix(c, lin('#75401f'), char * blister * .62);
-        c = mix(c, lin('#f0c27b'), bakePatch * (1 - char) * .24);
-        c = mix(c, lin('#4b2a19'), blisterSpeck * char * .30);
-        c = mix(c, lin('#e6ad5b'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * .14);
-        // topo da borda mais dourado (pincelada de azeite) e brilhante
-        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * .18);
-        // borda recheada: queijo escapando em manchas claras e cremosas
-        if (cr.stuffed) c = mix(c, lin('#f6e7b8'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * .8);
-        // farinha na borda
-        const flour = sstep(.8, .9, noise3(x * 220, z * 220, seed + 30)) * rim;
-        c = mix(c, C.doughCream, flour * .35);
-        return MAT(mul(c, tv), cr.stuffed ? .64 : .72, .1, 1.55, 1);
+        // A face superior da borda recebe calor de forno de verdade: dourado
+        // amplo, bolhas tostadas e pontos escuros localizados, sem aspecto cru.
+        let c = mix(lin('#d99a4e'), lin('#b96b32'), clamp(blister * .68 + bakePatch * .72 + sstep(.34, .66, nz(p, 22, seed + 14)) * .38, 0, .98));
+        c = mix(c, lin('#75401f'), char * blister * .68);
+        c = mix(c, lin('#efbd76'), bakePatch * (1 - char) * .20);
+        c = mix(c, lin('#422316'), blisterSpeck * char * .38);
+        c = mix(c, lin('#e6ad5b'), sstep(.58, .82, nz(p, 24, seed + 18)) * (1 - char) * .12);
+        c = mix(c, lin('#e8bd80'), sstep(.55, 1, n[1]) * .12);
+        if (cr.stuffed) c = mix(c, lin('#f1d9a5'), sstep(.7, .84, noise3(x * 28, z * 28, seed + 20)) * .58);
+        // Pequenos pontos de farinha permanecem, mas não deixam a borda esbranquiçada.
+        const flour = sstep(.86, .96, noise3(x * 220, z * 220, seed + 30)) * rim;
+        c = mix(c, C.doughCream, flour * .12);
+        return MAT(mul(c, tv), cr.stuffed ? .62 : .68, .1, 1.55, 1);
       }
       if (n[1] < -.4) return MAT(mul(C.doughPale, .92 * tv), .8, .05, .8, .75);
-      return MAT(mul(mix(C.doughPale, C.doughRim, rim * .65), tv), .78, .08, 1, y < .003 ? .75 : (rim ? .95 : .85));
+      // A lateral também assa: gradiente de dourado na parte alta para tostado
+      // mais profundo junto à base, com manchas orgânicas e poros de forno.
+      const sideHeight = clamp((y - .001) / Math.max(.001, yc + rho * .35), 0, 1);
+      const sideGrain = fbm(x * 74, y * 145, z * 74, seed + 44, 3);
+      const sidePatch = sstep(.38, .68, fbm(x * 29, y * 52, z * 29, seed + 46, 3));
+      const sideSpeck = sstep(.76, .91, noise3(x * 235, y * 210, z * 235, seed + 48));
+      let side = mix(lin('#a85f30'), lin('#d99a4e'), sideHeight * .48 + sideGrain * .18);
+      side = mix(side, lin('#75401f'), sidePatch * (.28 + sideHeight * .20));
+      side = mix(side, lin('#432516'), sideSpeck * sidePatch * .42);
+      side = mix(side, lin('#e8b875'), sstep(.68, .9, sideGrain) * sideHeight * .14);
+      return MAT(mul(side, tv), .72, .08, 1.28, .92);
     }
   });
   return m.finish();
