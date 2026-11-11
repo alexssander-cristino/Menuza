@@ -2057,7 +2057,7 @@ function hotDogLayout(product, ings, o) {
   const has = pattern => matching(pattern).length > 0;
 
   // Salsichas (1 a 4), lado a lado; o resto das coberturas acompanha a superfície delas.
-  const spacing = sausageCount > 1 ? Math.min(sausageR * 1.96, bunW * 1.5 / (sausageCount - 1)) : 0;
+  const spacing = sausageCount > 1 ? Math.min(sausageR * 1.96, Math.max(0, (bunW * 2 - sausageR * 2) / (sausageCount - 1))) : 0;
   const sausages = Array.from({ length: sausageCount }, (_, k) => ({ z: (k - (sausageCount - 1) / 2) * spacing, y: sausageY + (sausageCount > 1 ? sausageR * .1 : 0) }));
   const topY = Math.max(...sausages.map(s => s.y)) + sausageR;
   const ls = z => {
