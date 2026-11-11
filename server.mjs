@@ -331,8 +331,8 @@ function fail(response, error) {
   if (status >= 500) console.error(error);
   send(response, status, { error: status >= 500 ? 'O servidor não conseguiu concluir a solicitação.' : error.message });
 }
-async // Entrada HTTP: lê o corpo da requisição respeitando o limite de bytes permitido.
-function bodyOf(request, maxBytes = MAX_BODY) {
+// Entrada HTTP: lê o corpo da requisição respeitando o limite de bytes permitido.
+async function bodyOf(request, maxBytes = MAX_BODY) {
   let raw = '';
   let bytes = 0;
   for await (const chunk of request) {
