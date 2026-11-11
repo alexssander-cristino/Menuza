@@ -1485,7 +1485,7 @@ function exportDailyClosingPdf(){
  const modes={delivery:'Entrega',pickup:'Retirada',table:'Mesa'};
  const paymentLabels={pix:'Pix',cash:'Dinheiro',card:'Cartão'};const rows=orders.map(o=>['#'+o.id,new Date(o.createdAt).toLocaleString('pt-BR'),o.customerName||'—',o.phone||'—',modes[o.fulfillment]||o.fulfillment,o.tableLabel||'—',(o.items||[]).map(i=>i.quantity+'× '+i.name).join(' · '),statusLabels[o.status]||o.status,(paymentLabels[o.paymentMethod]||'Não informado')+' · '+(o.paymentStatus==='paid'?'Pago':'Pendente'),money(o.totalCents)]);
  const modeSummary=summary.modes.flatMap(m=>[[m.label+' · pedidos',m.orders.length],[m.label+' · total',money(m.orders.reduce((sum,o)=>sum+Number(o.totalCents||0),0))]]);
- openPdfReport('Fechamento diário','Data: '+new Date(summary.localDate+'T12:00:00').toLocaleDateString('pt-BR'),[['Pedidos registrados',orders.length],['Pedidos válidos',summary.validCount],['Faturamento',money(summary.total)],['Ticket médio',money(summary.average)],['Cancelados',summary.cancelled],...modeSummary],['Pedido','Data e hora','Cliente','Telefone','Modalidade','Mesa','Itens','Status','Total'],rows,win);
+ openPdfReport('Fechamento diário','Data: '+new Date(summary.localDate+'T12:00:00').toLocaleDateString('pt-BR'),[['Pedidos registrados',orders.length],['Pedidos válidos',summary.validCount],['Faturamento',money(summary.total)],['Ticket médio',money(summary.average)],['Cancelados',summary.cancelled],...modeSummary],['Pedido','Data e hora','Cliente','Telefone','Modalidade','Mesa','Itens','Status','Pagamento','Total'],rows,win);
  toast('Fechamento diário pronto para salvar em PDF.');
 }
 async function renderPizzaConfigAdmin(){
