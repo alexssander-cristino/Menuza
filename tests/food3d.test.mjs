@@ -293,3 +293,40 @@ test('hambúrguer: ingrediente personalizado desconhecido não vira queijo', () 
   assert.ok(layout.parts.some(part => part.kind.startsWith('custom:burger-custom-')));
   assert.equal(layout.parts.filter(part => part.kind === 'cheese').length, 0);
 });
+
+
+test('materiais 3D mantêm rugosidade e microtextura específicas por alimento', () => {
+  const assertMaterial = (part, label, minRoughness, minBump) => {
+    assert.ok(part, label + ' deve continuar presente');
+    const geometry = part.build();
+    assert.ok(geometry.materials.length > 0, label + ' deve possuir material por vértice');
+    assert.equal(geometry.materials.length % 4, 0, label + ' deve manter os quatro canais de material');
+    const roughness = [], bump = [];
+    for (let i = 0; i < geometry.materials.length; i += 4) {
+      roughness.push(geometry.materials[i]);
+      bump.push(geometry.materials[i + 2]);
+    }
+    assert.ok(roughness.every(value => Number.isFinite(value) && value >= 0 && value <= 1), label + ' deve ter roughness válido');
+    assert.ok(bump.every(value => Number.isFinite(value) && value >= 0), label + ' deve ter bump válido');
+    assert.ok(roughness.reduce((sum, value) => sum + value, 0) / roughness.length >= minRoughness,
+      label + ' não deve parecer uma superfície plástica');
+    assert.ok(Math.max(...bump) >= minBump, label + ' deve conservar microtextura perceptível');
+  };
+
+  const burgerLayout = buildFoodLayout(burger, ing(BURGER), { key: 'classico' }, { detail: .45 });
+  assertMaterial(burgerLayout.parts.find(part => part.kind === 'bun-top'), 'pão do hambúrguer', .45, .5);
+  assertMaterial(burgerLayout.parts.find(part => part.kind === 'patty'), 'carne grelhada', .55, .5);
+  assertMaterial(burgerLayout.parts.find(part => part.kind === 'cheese'), 'queijo derretido', .35, .25);
+
+  const pizzaLayout = buildFoodLayout(pizza, ing(PIZZA), SIZE_OPTIONS.pizza[1], { detail: .45 });
+  assertMaterial(pizzaLayout.parts.find(part => part.kind === 'dough'), 'massa assada', .55, .5);
+  assertMaterial(pizzaLayout.parts.find(part => part.kind === 'cheese'), 'mussarela gratinada', .4, .3);
+  assertMaterial(pizzaLayout.parts.find(part => part.kind === 'sauce'), 'molho de tomate', .35, .25);
+
+  const hotdog = { id: 'hotdog-material', type: 'plate', widthCm: 20, depthCm: 8, heightCm: 5 };
+  const hotdogLayout = buildFoodLayout(hotdog, [
+    { id: 'salsicha', name: 'Salsicha', quantity: 1 }
+  ], { key: 'hotdog' }, { detail: .45 });
+  assertMaterial(hotdogLayout.parts.find(part => part.kind === 'hotdog-bun'), 'pão do hot dog', .5, .5);
+  assertMaterial(hotdogLayout.parts.find(part => part.kind === 'hotdog-sausage'), 'salsicha preparada', .45, .35);
+});
