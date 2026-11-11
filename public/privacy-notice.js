@@ -1,3 +1,4 @@
+// Aviso de privacidade/cookies: apresenta as informações ao visitante e registra a escolha de consentimento conforme as opções da interface.
 (function () {
   const notice = document.getElementById('privacyNotice');
   if (!notice) return;

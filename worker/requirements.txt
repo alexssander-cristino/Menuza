@@ -1,0 +1,1 @@
+requests>=2.32.0\npython-dotenv>=1.0.1\nboto3>=1.35.0\ntrimesh>=4.5.0\n

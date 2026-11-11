@@ -1,158 +1,282 @@
-# Bela Mesa — cardápio digital interativo
+# Menuza
 
-Aplicação local de demonstração para um restaurante: cardápio responsivo, composição de pizzas e hambúrgueres por camadas, sacola, checkout, pedidos persistidos, acompanhamento do cliente e painel de cozinha com atualização por Server-Sent Events.
+**Cardápio digital interativo para restaurantes.**
+
+O Menuza reúne a experiência do cliente e a operação do restaurante em uma única aplicação: o cliente explora o cardápio, personaliza produtos e acompanha pedidos; a equipe gerencia o catálogo, acompanha a cozinha e organiza o atendimento pelo painel administrativo.
+
+O repositório contém uma instalação demonstrativa configurada para o restaurante **Bela Mesa**. A estrutura inclui interface web, API Node.js, banco SQLite, armazenamento de imagens compatível com S3 e um aplicativo Android em Flutter que utiliza a interface web.
+
+> **Status do projeto:** em desenvolvimento. A configuração atual é uma demonstração de restaurante único — não deve ser considerada uma plataforma multi-restaurante pronta para produção.
+
+## Visão geral
+
+- **Cardápio do cliente:** catálogo responsivo, busca, categorias, promoções e detalhes dos produtos.
+- **Personalização:** montagem de pizzas e hambúrgueres, escolha de tamanhos, massas, bordas, ingredientes e adicionais.
+- **Carrinho e pedidos:** edição de itens, checkout, registro do pedido e acompanhamento por link.
+- **Conta do cliente:** cadastro, autenticação, histórico de pedidos, exportação de dados e solicitação de exclusão da conta.
+- **Painel do restaurante:** gerenciamento de produtos e ingredientes, pedidos, mesas, cupons, combos, configurações e fechamento diário.
+- **Operação em tempo real:** atualização de pedidos por Server-Sent Events e atualização periódica do acompanhamento do cliente.
+- **Visualização 3D:** modelos procedurais interativos para produtos compatíveis, com controles de rotação e zoom.
+- **Realidade aumentada:** tentativa de sessão WebXR com detecção de superfície em dispositivos e navegadores compatíveis.
+- **QR Code por mesa:** identificação da mesa e abertura do cardápio com o contexto do salão.
+- **Impressão de comandas:** integração opcional com um agente local para impressoras compatíveis.
+- **Aplicativo Android:** projeto Flutter em `mobile_flutter/`, que carrega a aplicação web em uma WebView.
+
+## Tecnologias
+
+| Camada | Tecnologias |
+| --- | --- |
+| Aplicação web | HTML, CSS e JavaScript |
+| Backend e API | Node.js 22, HTTP nativo |
+| Banco de dados | SQLite (`node:sqlite`) |
+| Armazenamento de imagens | Neon Object Storage, compatível com S3 |
+| Visualização 3D | WebGL, Three.js e modelos procedurais |
+| Aplicativo Android | Flutter e WebView |
+| Testes | Node.js Test Runner (`node:test`) |
+| Hospedagem configurada | Vercel |
 
 ## Executar localmente
 
-Requisitos: Node.js 22.5 ou superior. A persistência usa o módulo SQLite incluído no Node. Não são necessárias dependências npm.
+### Requisitos
 
-    cd outputs/mesa-studio
-    npm start
+- Node.js **22.x**.
+- npm.
+- Git (opcional, para clonar o repositório).
 
-Acesse http://localhost:4173. O arquivo data/mesa.sqlite é criado na primeira execução. Para desenvolvimento com reinício automático, use npm run dev.
+### Instalação
 
-O painel fica em Área do restaurante. A senha inicial da demonstração é mesa-demo.
+```bash
+git clone https://github.com/alexssander-cristino/Menuza.git
+cd Menuza
+npm install
+```
 
-## Menuza — identidade e arte dos alimentos
+Configure as variáveis de ambiente antes de iniciar o painel administrativo:
 
-- A marca da plataforma é Menuza; Bela Mesa é o restaurante de demonstração.
-- Tokens de design (cores, tipografia, espaçamento, raios, sombras, movimento) ficam no início de public/styles.css, com prefixo --mz-.
-- public/food-art.js gera as ilustrações de pizza, hambúrguer e batatas a partir da composição escolhida. Elas são procedurais, não fotografias.
-- O construtor alterna entre Ilustração e 3D. O botão Ver na minha mesa verifica WebXR e, sem suporte, mostra a prévia 3D.
-- As fontes Inter e Bricolage Grotesque estão declaradas, mas não incluídas: sem os arquivos, o navegador usa a fonte do sistema.
+**PowerShell (Windows):**
 
-## Configuração
+```powershell
+$env:ADMIN_PASSWORD = "uma-senha-local-forte"
+$env:APP_SECRET = "uma-chave-aleatoria-com-pelo-menos-32-caracteres"
+npm start
+```
 
-- PORT: porta HTTP (padrão 4173).
-- DATA_FILE: caminho do banco SQLite (padrão data/mesa.sqlite).
-- ADMIN_PASSWORD: senha do painel. Em desenvolvimento, o padrão é mesa-demo.
-- APP_SECRET: chave aleatória forte para assinar sessões. Em produção, ADMIN_PASSWORD e APP_SECRET são obrigatórias.
-- NODE_ENV=production: ativa o cookie Secure, HSTS e impede inicialização sem as duas credenciais.
+**Linux / macOS:**
 
-**Antes de publicar:** defina uma senha administrativa longa e exclusiva, gere APP_SECRET com um gerador criptograficamente seguro, use HTTPS e configure um volume persistente e backups protegidos para DATA_FILE. Nunca use a senha de demonstração em um serviço acessível pela internet. Os limites de segurança são registrados no SQLite, com janelas deslizantes, limites por IP/identidade e limpeza automática de eventos antigos. Para múltiplas instâncias, use armazenamento compartilhado e um WAF/limite na borda; não exponha o servidor sem proteção.
+```bash
+export ADMIN_PASSWORD="uma-senha-local-forte"
+export APP_SECRET="uma-chave-aleatoria-com-pelo-menos-32-caracteres"
+npm start
+```
 
-Exemplo PowerShell para desenvolvimento:
+A aplicação ficará disponível em:
 
-    $env:ADMIN_PASSWORD = "uma-senha-local"
-    $env:APP_SECRET = "uma-chave-aleatoria-longa"
-    npm start
+- Cardápio: http://localhost:4173
+- Painel: opção **Área do restaurante** na interface.
 
-## O que funciona
+Para desenvolvimento com reinício automático:
 
-- Busca, categorias, filtro vegetariano e ordenação.
-- Pizza: quatro tamanhos, três massas/bordas, ingredientes independentes e preço atualizado por escolha.
-- Hambúrguer: tamanhos clássico e duplo, camadas de pão, carne, queijo, vegetais e adicionais.
-- Composição estruturada no navegador e no pedido. Editar um item recupera as escolhas salvas.
-- Prévia WebGL com giro e zoom; as opções selecionadas alimentam a geometria 3D e o pedido.
-- Sacola salva localmente no navegador, edição de quantidades e checkout para retirada, mesa ou entrega.
-- API recalcula preços, valida produtos e ingredientes ativos e mantém snapshots dos valores e nomes no momento da compra.
-- SQLite com chaves estrangeiras, migração inicial e histórico de estados.
-- Chave de idempotência no checkout, autenticação do painel por cookie assinado, limitação de tentativas de login, validação de origem, cabeçalhos HTTP de segurança e isolamento das consultas pelo identificador do restaurante de demonstração.
-- Painel para acompanhar pedidos, atualizar estados, criar produtos, editar preço-base e disponibilidade, e editar preços/disponibilidade de adicionais.
-- Pedidos aparecem no painel por Server-Sent Events. A página do cliente atualiza o acompanhamento a cada cinco segundos.
-- Estados Pronto e Concluído só aparecem após mudança do restaurante no painel. Não existe aprovação de pagamento simulada.
+```bash
+npm run dev
+```
 
-## API principal
+O banco SQLite é criado automaticamente no primeiro início, no caminho padrão `data/mesa.sqlite`.
 
-- GET /api/catalog — catálogo público ativo e opções de montagem.
-- POST /api/orders — cria o pedido; recebe cliente, modalidade, composição e chave de idempotência.
-- GET /api/tracking/:token — consulta o pedido com token aleatório de acompanhamento.
-- POST /api/admin/login, POST /api/admin/logout, GET /api/admin/me — sessão do painel.
-- GET /api/admin/dashboard, GET /api/admin/orders, GET /api/admin/events — operação e eventos.
-- PATCH /api/admin/orders/:id — atualiza status seguindo transições permitidas.
-- GET /api/admin/catalog, POST /api/admin/products, PATCH /api/admin/products/:id, PATCH /api/admin/ingredients/:id — gestão simplificada do cardápio.
+### Variáveis de ambiente
 
-## Testes
+| Variável | Finalidade | Padrão |
+| --- | --- | --- |
+| `PORT` | Porta HTTP do servidor local | `4173` |
+| `DATA_FILE` | Caminho do arquivo SQLite | `data/mesa.sqlite` |
+| `ADMIN_PASSWORD` | Senha de acesso ao painel | Sem senha padrão recomendada |
+| `APP_SECRET` | Segredo para assinatura das sessões | Gerado temporariamente no início |
+| `ADMIN_TOTP_SECRET` | Segredo Base32 para autenticação TOTP | Segundo fator desativado |
+| `NODE_ENV` | Ambiente de execução | Desenvolvimento |
+| `AWS_ENDPOINT_URL_S3` | Endpoint S3 do Neon Object Storage | — |
+| `AWS_ACCESS_KEY_ID` | Chave de acesso do armazenamento | — |
+| `AWS_SECRET_ACCESS_KEY` | Chave secreta do armazenamento | — |
+| `AWS_REGION` | Região do armazenamento | `us-east-2` |
+| `MENUZA_STORAGE_BUCKET` | Bucket usado para imagens | `menuza-modelos-3d` |
+| `TRUST_PROXY` | Confia nos cabeçalhos de IP do proxy | Desativado |
 
-    npm test
+O armazenamento de imagens depende das credenciais do Neon Object Storage. Sem essa configuração, operações que enviam imagens para o bucket não funcionarão.
 
-A suíte usa node:test e inicia uma instância temporária com outro SQLite. Cobre preços e remoção independente de ingredientes, validação de composição, geometria 3D em função de tamanho e composição, autorização, prevenção de pedido duplicado, fluxo de status e recuperação após reiniciar o servidor.
+## Funcionalidades em detalhe
 
-## Visualizador 3D e realidade aumentada
+### Experiência do cliente
 
-- A janela de personalização usa WebGL para montar geometrias 3D procedurais de pizza, hambúrguer e batatas. Coberturas, porções, tamanho da pizza e versão dupla do hambúrguer alteram o modelo.
-- As dimensões cadastradas em width_cm, depth_cm e height_cm alimentam o tamanho do modelo. Os diâmetros de pizza seguem a opção escolhida. Confira e ajuste as medidas para cada produto antes de usar em um restaurante real.
-- O botão “Ver em AR” solicita uma sessão WebXR immersive-ar com detecção de superfície por hit-test. O acesso à câmera só começa após o toque do cliente. O prato é ancorado na superfície detectada em escala proporcional às dimensões cadastradas.
-- Navegadores sem WebXR/hit-test continuam com o modelo 3D interativo. Não há simulação de câmera ou sobreposição de vídeo como substituto de AR.
-- Para abrir modelos exportados pelos visualizadores nativos, Scene Viewer requer um GLB e Quick Look requer USDZ em HTTPS. Esta demo não vem com esses arquivos nem tem upload/editor para eles; produtos sem esses assets usam o caminho WebXR quando disponível e a prévia 3D nos demais navegadores.
+- Navegação por categorias, busca, filtros e ordenação.
+- Personalização de produtos com atualização de preço conforme as escolhas.
+- Carrinho com alteração de quantidades e edição dos itens.
+- Checkout para retirada, entrega ou consumo no salão.
+- Consulta do andamento do pedido por token de acompanhamento.
+- Cadastro e login de clientes, com histórico e recursos de privacidade.
 
-A geometria procedural é uma visualização 3D própria para composição e escala; não é uma digitalização fotográfica de cada receita. O catálogo e as dimensões seed são dados de demonstração.
+### Gestão do restaurante
 
-Não há integração de pagamentos, cálculo de frete, impressão de cozinha, autenticação individual por funcionário, criação de categorias, upload de imagens/modelos ou infraestrutura multi-restaurante pronta para produção. O schema relaciona os registros ao restaurante, mas esta instalação é uma demonstração de um restaurante e usa uma senha compartilhada no painel. Configure políticas, backups, HTTPS, monitoramento, regras de entrega e credenciais reais antes de expor o serviço publicamente.
+- Cadastro e edição de produtos, imagens, ingredientes e adicionais.
+- Controle de disponibilidade e preços.
+- Gestão de pedidos e atualização de status conforme o fluxo permitido.
+- Mesas com estados livre, ocupada e em limpeza.
+- QR Code individual para as mesas.
+- Cadastro e gerenciamento de cupons e combos.
+- Indicadores e fechamento diário.
+- Solicitações relacionadas à privacidade dos dados dos clientes.
 
-Os preços de tamanhos são incrementos relativos ao preço-base cadastrado; adicionais são calculados pelo backend. A entrega não cobra taxa porque não há área ou tabela de frete configurada.
-## Deploy
+### Modelos 3D e realidade aumentada
 
-A aplicação serve a interface e a API na mesma origem. Para deploy, use um serviço Node 22.5+, configure NODE_ENV=production, ADMIN_PASSWORD, APP_SECRET e um volume persistente para DATA_FILE, e coloque o serviço atrás de HTTPS. Planeje backup do arquivo SQLite e migração para Postgres/isolamento por tenant antes de atender vários restaurantes simultaneamente.
+Os modelos são construídos proceduralmente e respondem às opções selecionadas pelo cliente. A visualização oferece rotação, inclinação e zoom, sem depender de uma imagem estática para simular o movimento.
 
-## Reiniciar os dados da demonstração
+O recurso de realidade aumentada utiliza WebXR e hit-test quando o navegador e o dispositivo oferecem suporte. O acesso à câmera só é solicitado após a ação do usuário. Em dispositivos incompatíveis, a prévia 3D continua disponível.
 
-O banco local guarda pedidos entre execuções. Para voltar ao catálogo inicial, pare o servidor e apague os arquivos mesa.sqlite, mesa.sqlite-shm e mesa.sqlite-wal dentro de data. Na próxima inicialização, o catálogo de demonstração é criado novamente.
+**Importante:** os modelos procedurais são representações visuais dos produtos, não digitalizações fotográficas fiéis de cada receita. As dimensões cadastradas influenciam a escala e devem ser conferidas antes do uso operacional.
 
+### Impressão de comandas
 
-## Visualizador 3D (WebGL, sem dependências)
+O agente de impressão está em `print-agent/`. Ele roda no computador conectado à impressora e recebe os novos pedidos detectados pelo painel.
 
-O 3D dos alimentos é renderizado em WebGL puro (`public/food-scene.js`) a partir de modelos procedurais (`public/food-models.js`, `public/food-geo.js`). Nenhuma imagem estática é usada para simular a rotação.
+Consulte o [guia de instalação e configuração do agente](print-agent/README.md) para configurar impressoras instaladas no Windows ou impressoras de rede compatíveis com ESC/POS.
 
-- **Modelos**: hambúrguer (pão com gergelim, carne com marcas de chapa, queijo que escorre, alface em camadas, tomate, cebola, picles, bacon, ovo, molho), pizza (crosta tradicional, fina ou recheada, molho, queijo com cortes, 10 coberturas com forma própria, distribuição sem sobreposição) e batatas rústicas com aioli.
-- **Peças em cache**: cada ingrediente é uma peça independente. Ao adicionar ou remover, só a peça afetada é construída; as demais apenas mudam de altura com animação. A câmera permanece onde o usuário a deixou.
-- **Iluminação**: GGX + Fresnel, estúdio procedural, relevo procedural, translucidez, sombras suaves (WebGL2), tone mapping ACES, MSAA e resolução adaptativa.
-- **Controles**: arrastar (mouse/toque) gira 360° e inclina; pinça ou roda dá zoom; duplo clique ou VISTA volta à posição inicial; AUTO liga/pausa a rotação; teclado: setas, `+`/`-`, `0`/Home, espaço.
-- **Estabilidade**: carregamento incremental com indicador, mensagem de erro com fallback para a ilustração, recuperação de perda de contexto e liberação de buffers/texturas ao fechar.
+A impressão automática depende do painel aberto e autenticado no computador conectado ao agente. Esta versão não reenvia automaticamente pedidos que chegaram enquanto o agente ou a impressora estavam indisponíveis.
 
-Limitações conhecidas: sombras em tempo real exigem WebGL2 (em WebGL1 o modelo aparece sem sombra projetada); a oclusão de ambiente é calculada por vértice e pela sombra de contato, não por SSAO; a translucidez da alface é sombreamento, sem transparência real; a parte inferior do alimento não é visível porque ele está sobre uma tábua.
+## Aplicativo Android
 
+O projeto Flutter está em `mobile_flutter/`. O aplicativo utiliza uma WebView para abrir a interface do Menuza, mantendo a experiência web e evitando uma segunda implementação visual.
 
-## Aplicativo Android em Flutter
+### Testar na rede local
 
-O projeto móvel está em `mobile_flutter/`. Ele usa Flutter para o aplicativo Android e abre a interface web original do Menuza em uma WebView, preservando HTML, CSS, animações, carrinho, painel e visualizador 3D sem recriar o visual em widgets diferentes.
+1. Inicie o servidor no computador com `npm start`.
+2. Conecte o computador e o celular à mesma rede Wi-Fi.
+3. Descubra o IPv4 do computador com `ipconfig` no Windows.
+4. Informe o endereço do servidor na tela de conexão do aplicativo, usando a porta `4173`.
 
-### Testar no celular
-
-1. No computador, execute `npm start` na raiz do projeto.
-2. Deixe o computador e o celular na mesma rede Wi-Fi.
-3. Confirme o IP IPv4 do PC com `ipconfig`. O endereço padrão configurado no app é `http://192.168.0.105:4173`.
-4. Abra o APK no Android. Se o IP mudar, a tela de conexão permite informar outro endereço.
-
-O servidor Node.js e o SQLite continuam no computador; o APK não inclui o backend nem o banco.
+O backend e o banco SQLite continuam executando no computador. O APK não inclui o servidor.
 
 ### Gerar APK
 
-O workflow [Build Menuza Flutter APK](https://github.com/alexssander-cristino/Menuza/actions/workflows/android-apk.yml) compila automaticamente quando arquivos de `mobile_flutter/` mudam. Acesse **Actions**, abra a execução mais recente e baixe o artefato `menuza-flutter-debug`.
+O workflow [Build Menuza Flutter APK](https://github.com/alexssander-cristino/Menuza/actions/workflows/android-apk.yml) executa análise, testes e compilação quando há alterações em `mobile_flutter/`.
 
 Para compilar localmente, com Flutter e Android SDK instalados:
 
 ```powershell
 cd mobile_flutter
-flutter create --platforms=android --project-name menuza_mobile --org br.com.menuza .
 flutter pub get
 flutter build apk --debug
 ```
 
-O APK será gerado em `mobile_flutter/build/app/outputs/flutter-apk/app-debug.apk`. O suporte a WebXR/realidade aumentada continua dependendo do dispositivo e da WebView e não é garantido.
+O APK será gerado em `mobile_flutter/build/app/outputs/flutter-apk/app-debug.apk`.
 
+## API
 
-### Acesso pelo celular na rede Wi-Fi (Windows)
+A API utiliza a mesma origem da aplicação. Entre as rotas principais estão:
 
-O servidor já escuta em todas as interfaces de rede. Para permitir que o Android acesse a porta 4173, use o script incluído no repositório:
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/api/catalog` | Catálogo e opções disponíveis |
+| `POST` | `/api/orders` | Criação de pedido |
+| `GET` | `/api/tracking/:token` | Acompanhamento de pedido |
+| `POST` | `/api/admin/login` | Autenticação administrativa |
+| `POST` | `/api/admin/logout` | Encerramento da sessão |
+| `GET` | `/api/admin/me` | Verificação da sessão |
+| `GET` | `/api/admin/dashboard` | Dados do painel |
+| `GET` | `/api/admin/orders` | Lista de pedidos |
+| `GET` | `/api/admin/events` | Eventos em tempo real |
+| `PATCH` | `/api/admin/orders/:id` | Atualização do status do pedido |
+| `GET` | `/api/admin/catalog` | Catálogo para administração |
 
-1. Abra o PowerShell **como administrador**.
-2. Entre na pasta do projeto e atualize os arquivos: `git pull origin main` (resolva conflitos locais antes, se houver).
-3. Execute:
+As rotas administrativas exigem sessão válida. Os endpoints de cliente também aplicam autenticação quando necessário.
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\\scripts\\iniciar-menuza-mobile.ps1
+## Testes
+
+Execute a suíte automatizada com:
+
+```bash
+npm test
 ```
 
-O script cria uma regra de entrada no Firewall do Windows para TCP 4173 e inicia o servidor. Mantenha essa janela aberta. No celular conectado ao mesmo Wi-Fi, abra o endereço IP exibido pelo script, por exemplo `http://192.168.0.105:4173`. Se nem o navegador do celular abrir esse endereço, confira se a rede Wi-Fi permite comunicação entre dispositivos e se o PC está usando perfil de rede Privado. O APK não hospeda o servidor: o computador precisa continuar ligado e com o servidor executando.
+Os testes usam `node:test` e banco SQLite temporário. A cobertura inclui regras de preço, composição dos produtos, autenticação, autorização, cadastro de clientes, checkout, cupons, mesas, idempotência, atualização de pedidos e recuperação após reinicialização.
 
+O projeto Flutter também possui testes próprios:
 
-## Segurança adicional
+```bash
+cd mobile_flutter
+flutter test
+```
 
-- Respostas HTTP 429 exibem uma página dedicada no navegador e incluem `Retry-After`.
-- Limites deslizantes persistidos no SQLite para API, autenticação, cadastro, criação de pedidos e acompanhamento. Para pedidos, o limite padrão é 60 por IP a cada 10 minutos e 240 por IP por hora, para permitir estabelecimentos com cerca de 100 pedidos/hora e clientes compartilhando o mesmo Wi-Fi; ajuste após observar tráfego real.
-- Honeypot nos formulários de login, cadastro e checkout para reduzir bots simples.
-- Cabeçalhos de segurança, limite de tamanho do corpo, validação de origem e timeouts HTTP.
-- `TRUST_PROXY=true` só deve ser ativado se o servidor estiver atrás de um proxy reverso confiável que sobrescreva `X-Forwarded-For`; caso contrário, o IP é obtido da conexão TCP.
-- O Menuza não possui atualmente endpoints de LLM/IA. Se forem adicionados, aplique autenticação e cotas próprias, limite de tokens/tamanho, timeout, validação de saída e nunca exponha chaves de provedores no navegador. `robots.txt` e `llms.txt` são diretivas informativas, não mecanismos de controle de acesso.
+## Backup do banco de dados
+
+Para gerar um snapshot consistente do SQLite:
+
+```bash
+npm run backup
+```
+
+Por padrão, os arquivos são salvos em `backups/`.
+
+| Variável | Finalidade | Padrão |
+| --- | --- | --- |
+| `BACKUP_DIR` | Diretório de destino | `backups/` |
+| `BACKUP_KEEP` | Quantidade de snapshots gerenciados | `14` |
+
+O script valida o banco de origem e o snapshot antes de aplicar a retenção. Para restaurar, pare o servidor, preserve uma cópia do banco atual, valide o backup e só então substitua o arquivo configurado em `DATA_FILE`.
+
+Mantenha também uma cópia em outro dispositivo ou serviço protegido. Um backup armazenado apenas na mesma máquina não protege contra perda ou falha do disco.
+
+## Segurança e configuração de produção
+
+O projeto inclui controles como:
+
+- Sessões administrativas assinadas por HMAC e cookies protegidos em produção.
+- Autenticação TOTP opcional para o painel.
+- Limitação de tentativas e requisições, com resposta HTTP 429.
+- Validação de origem, limite de tamanho do corpo e timeouts HTTP.
+- Cabeçalhos de segurança e política de conteúdo (CSP).
+- Proteção contra automações simples por honeypot.
+- Validação de imagens antes do armazenamento.
+- Separação de consultas pelo identificador do restaurante configurado.
+
+Antes de disponibilizar a aplicação publicamente:
+
+1. Configure `NODE_ENV=production`.
+2. Defina `ADMIN_PASSWORD` com uma senha exclusiva de pelo menos 14 caracteres.
+3. Defina `APP_SECRET` com um valor aleatório forte de pelo menos 32 caracteres.
+4. Configure o Neon Object Storage e mantenha as credenciais somente no ambiente do servidor.
+5. Use HTTPS, backups externos, monitoramento e controle de acesso à infraestrutura.
+6. Configure corretamente o proxy confiável antes de ativar `TRUST_PROXY`.
+7. Teste o fluxo de pedidos, imagens, QR Codes e impressão no ambiente real.
+
+Para habilitar TOTP, configure `ADMIN_TOTP_SECRET` com uma chave **Base32** gerada por um método confiável e cadastre a mesma chave no aplicativo autenticador. Não publique esse segredo em commits, logs ou mensagens.
+
+### Limitações atuais
+
+Esta versão é uma instalação demonstrativa de restaurante único. Antes de utilizá-la como serviço comercial para vários estabelecimentos, ainda é necessário projetar e validar, entre outros pontos:
+
+- Isolamento multi-tenant completo e gestão independente de estabelecimentos.
+- Banco de dados compartilhado e persistente adequado ao ambiente de hospedagem escolhido.
+- Integração real de pagamentos e conciliação.
+- Regras de entrega e cálculo de frete.
+- Rotinas operacionais, monitoramento e recuperação para produção.
+- Revisão de segurança, privacidade e requisitos legais do cenário de implantação.
+
+O projeto contém configuração para Vercel, mas o banco SQLite local não deve ser tratado como armazenamento persistente em funções serverless. Planeje a migração para um banco gerenciado antes de operar nesse modelo.
+
+## Estrutura do projeto
+
+```text
+Menuza/
+├── api/                 # Adaptadores das rotas para a Vercel
+├── backups/             # Destino padrão dos backups (gerado)
+├── data/                # Banco SQLite local (gerado)
+├── migrations/          # Schema e migrações SQL
+├── mobile_flutter/      # Aplicativo Android em Flutter
+├── print-agent/         # Agente local de impressão
+├── public/              # Interface web, estilos e recursos
+├── scripts/             # Scripts auxiliares e backup
+├── src/                 # Regras de negócio, autenticação e storage
+├── package.json
+└── server.mjs           # Servidor HTTP local
+```
+
+## Licença
+
+Consulte os arquivos do repositório para informações de licenciamento e avisos de dependências de terceiros.

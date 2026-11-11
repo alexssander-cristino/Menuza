@@ -1,3 +1,6 @@
+/* Camada de movimento da interface.
+   Usa Web Animations API para transições e detalhes ligados à rolagem;
+   respeita prefers-reduced-motion e evita criar um segundo renderizador 3D. */
 /* Menuza motion layer: native Web Animations API + scroll-linked 3D accents.
    The food configurator already owns the project's WebGL scene; this layer avoids a second renderer. */
 (() => {

@@ -1,12 +1,17 @@
+<!-- Documento principal do cardápio Menuza.
+     Define metadados, folhas de estilo, pontos de montagem das telas e scripts do navegador.
+     A interface e seus eventos são controlados principalmente por app.js. -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1b1530">
-  <link rel="icon" type="image/jpeg" href="/menuza-logo.jpg?v=1">
-  <link rel="apple-touch-icon" href="/menuza-logo.jpg?v=1">
-  <meta name="description" content="Menuza: cardápio digital interativo. Veja o prato em 3D, personalize os ingredientes e experimente na sua mesa com realidade aumentada compatível.">
+  <meta name="theme-color" content="#761d25">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">  <meta name="description" content="Menuza: cardápio digital interativo. Veja o prato em 3D, personalize os ingredientes e experimente na sua mesa com realidade aumentada compatível.">
+  <!-- Estilos globais e complementares: cada arquivo acrescenta uma camada visual específica. -->
   <title>Menuza — veja, monte e experimente seu prato</title>
   <link rel="stylesheet" href="/styles.css?v=48">
   <link rel="stylesheet" href="/mobile-refinement.css?v=3">
@@ -14,25 +19,55 @@
   <script type="module" src="/app.js?v=46"></script>
   <script type="module" src="/scroll.js?v=1"></script>
   <script defer src="/privacy-notice.js?v=2"></script>
+  <script defer src="/monitoring.js?v=2"></script>
+  <script defer src="/integrations.js?v=2"></script>
   <script defer src="/micro-interactions.js?v=1"></script>
+  <script defer src="/lucide-animated.js?v=3"></script>
+  <!-- O conteúdo da página é montado pelo JavaScript nos elementos abaixo. -->
 </head>
-<body>
+<body id="top">
   <a class="skip-link" href="#menu">Pular para o conteúdo principal</a>
-  <div class="announcement"><span class="live-dot"></span> Cardápio de demonstração <span class="announcement-divider">·</span> <span>Restaurante: Bela Mesa</span><span class="announcement-right">Ver · Personalizar · Experimentar</span></div>
+  <div class="announcement"><span class="live-dot"></span><strong class="system-brand">MENUZA</strong><span class="announcement-divider">·</span><span>SISTEMA DE CARDÁPIO DIGITAL</span><span class="announcement-right">Tecnologia para restaurantes</span></div>
   <header class="site-header">
-    <a class="brand" href="#" aria-label="Menuza, início">
-      <span class="brand-mark" aria-hidden="true"><img src="/menuza-logo.jpg?v=1" alt="" width="39" height="39" decoding="async"></span>
-      <span><b>menuza</b><small>cardápio interativo</small></span>
+    <a class="brand restaurant-brand" data-restaurant-brand href="#" aria-label="Restaurante, início">
+      <span class="brand-mark" aria-hidden="true"><img data-restaurant-logo alt="" width="39" height="39" decoding="async" hidden><span data-restaurant-initials>BM</span></span>
+      <span><b data-restaurant-name>Bela Mesa</b><small>cardápio digital</small></span>
     </a>
-    <nav class="desktop-nav" aria-label="Navegação principal"><a href="#menu">Cardápio</a><a href="#favoritos">Mais pedidos</a><a href="#sobre">Como funciona</a></nav>
+    <nav class="desktop-nav" aria-label="Navegação principal"><a href="#menu">Cardápio</a><a href="#ofertas">Ofertas</a><a href="#favoritos">Mais pedidos</a><a href="#sobre">Como funciona</a><a class="google-review-nav-link" data-google-review-link href="https://share.google/dg8sziHxshXgV93g8" target="_blank" rel="noopener noreferrer" hidden><span aria-hidden="true">★</span> Avalie no Google</a></nav>
     <div class="header-actions">
       <button class="share-menu-button" type="button" data-action="share-menu" aria-label="Compartilhar cardápio" title="Compartilhar cardápio"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg><span>Compartilhar</span></button><button class="quiet-link" data-action="my-orders">Minha conta</button><button class="quiet-link" data-action="admin">Área do restaurante</button>
-      <button class="cart-button" data-action="cart" aria-label="Abrir carrinho"><span class="cart-icon">▱</span><span class="cart-word">Sacola</span><span class="cart-count" id="cartCount">0</span></button>
-      <button class="mobile-menu-button" aria-label="Ir ao cardápio" data-scroll="#menu">☰</button>
+      <button class="cart-button" data-action="cart" aria-label="Abrir carrinho"><span class="cart-icon" aria-hidden="true"><svg class="ui-icon ui-icon--cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><span class="cart-word">Carrinho</span><span class="cart-count" id="cartCount">0</span></button>
+      <button class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false" data-action="mobile-header-menu"><span></span><span></span><span></span></button>
     </div>
   </header>
 
+
+  <div class="mobile-site-menu" id="mobileSiteMenu" aria-hidden="true">
+    <button class="mobile-site-menu-backdrop" type="button" data-action="mobile-site-menu-close" aria-label="Fechar menu"></button>
+    <section class="mobile-site-menu-panel" role="dialog" aria-modal="true" aria-labelledby="mobileSiteMenuTitle" tabindex="-1">
+      <div class="mobile-site-menu-head">
+        <div class="mobile-site-menu-brand"><span class="mobile-site-menu-mark">M</span><span><strong id="mobileSiteMenuTitle">MENUZA</strong><small>Navegação</small></span></div>
+        <button class="mobile-site-menu-close" type="button" data-action="mobile-site-menu-close" aria-label="Fechar menu"><span></span><span></span></button>
+      </div>
+      <nav class="mobile-site-menu-links" aria-label="Menu principal">
+        <button type="button" data-action="mobile-site-menu-go" data-destination="menu"><span class="mobile-site-menu-icon">⌂</span><span><strong>Cardápio</strong><small>Explore os produtos</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="promotions"><span class="mobile-site-menu-icon">✦</span><span><strong>Ofertas</strong><small>Veja as promoções disponíveis</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="popular"><span class="mobile-site-menu-icon">↗</span><span><strong>Mais pedidos</strong><small>Descubra os destaques</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="about"><span class="mobile-site-menu-icon">◎</span><span><strong>Como funciona</strong><small>Conheça a experiência</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="review" hidden><span class="mobile-site-menu-icon">★</span><span><strong>Avalie no Google</strong><small>Conte como foi sua experiência</small></span><span class="mobile-site-menu-arrow">↗</span></button>
+      </nav>
+      <div class="mobile-site-menu-divider"></div>
+      <div class="mobile-site-menu-access-label">ACESSOS</div>
+      <div class="mobile-site-menu-access">
+        <button type="button" data-action="mobile-site-menu-go" data-destination="account"><span class="mobile-site-menu-access-icon">♙</span><span><strong>Minha conta</strong><small>Pedidos e dados pessoais</small></span><span class="mobile-site-menu-arrow">›</span></button>
+        <button type="button" data-action="mobile-site-menu-go" data-destination="restaurant"><span class="mobile-site-menu-access-icon">▤</span><span><strong>Área do restaurante</strong><small>Acesso administrativo</small></span><span class="mobile-site-menu-arrow">›</span></button>
+      </div>
+      <div class="mobile-site-menu-foot"><span>MENUZA</span><span>Cardápio digital</span></div>
+    </section>
+  </div>
+
   <main id="homeView">
+    <div id="restaurantHoursBanner" class="wrap restaurant-hours-banner" aria-live="polite"></div>
     <section class="hero wrap">
       <div class="hero-copy">
         <div class="eyebrow"><span class="eyebrow-line"></span> CARDÁPIO INTERATIVO COM 3D E AR</div>
@@ -48,9 +83,14 @@
         <div class="hero-caption"><span>Ilustração gerada pela composição</span><span>Preço atualizado a cada escolha</span></div>
       </div>
     </section>
+    <section class="section wrap promotions-page" id="promotionsPage">
+      <div class="section-heading"><div><div class="eyebrow">PROMOÇÕES DO RESTAURANTE</div><h2>Ofertas <em>especiais.</em></h2><p id="promotionsCount">Carregando ofertas…</p></div><a class="text-link" href="#menu">Voltar ao cardápio <span>↗</span></a></div>
+      <div class="featured-grid promotions-grid" id="promotionsGrid" aria-live="polite"></div>
+    </section>
+
     <div class="ticker" aria-hidden="true"><div>VER O PRATO <span>✦</span> ESCOLHER OS INGREDIENTES <span>✦</span> PREÇO EM TEMPO REAL <span>✦</span> PRÉVIA 3D <span>✦</span> REALIDADE AUMENTADA <span>✦</span> VER O PRATO <span>✦</span> ESCOLHER OS INGREDIENTES <span>✦</span></div></div>
 
-    <section class="section wrap" id="favoritos">
+    <section class="section wrap" id="favoritos" hidden>
       <div class="section-heading"><div><div class="eyebrow">EM DESTAQUE</div><h2>Os mais <em>pedidos.</em></h2></div><a class="text-link" href="#menu">Ver cardápio completo <span>↗</span></a></div>
       <div class="featured-grid" id="featuredGrid" aria-live="polite"></div>
     </section>
@@ -60,12 +100,14 @@
       <div class="featured-grid recent-products-grid" id="recentProductsGrid" aria-live="polite"></div>
     </section>
 
+
+
     <section class="menu-section" id="menu">
       <div class="wrap">
         <div class="section-heading menu-heading"><div><div class="eyebrow">CARDÁPIO COMPLETO</div><h2>Qual vai ser <em>hoje?</em></h2></div><p>Toque em um prato para montar<br>a sua versão e ver o resultado.</p></div>
         <div class="menu-tools">
           <div class="category-list" id="categoryList" role="tablist" aria-label="Categorias do cardápio"></div>
-          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar no cardápio" aria-label="Buscar produtos"><kbd>⌘ K</kbd></label>
+          <label class="search-box"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input id="searchInput" type="search" placeholder="Buscar no cardápio" aria-label="Buscar produtos"><kbd>⌘ K</kbd></label>
         </div>
         <div class="filter-line"><span id="resultCount">Carregando cardápio…</span><div class="catalog-filter-actions"><button class="filter-toggle" id="vegetarianFilter" aria-pressed="false">◉ Opções vegetarianas</button><button class="filter-toggle favorites-filter" id="favoritesFilter" aria-pressed="false">♡ Meus favoritos</button></div><button class="filter-toggle clear-catalog-filters" type="button" data-action="clear-catalog-filters">Limpar filtros</button><label class="sort-label">Ordenar por <select id="sortSelect"><option value="featured">Recomendados</option><option value="price">Menor preço</option><option value="name">Nome</option></select></label></div>
         <div class="menu-grid" id="menuGrid" aria-live="polite"></div>
@@ -78,13 +120,62 @@
   <main id="trackingView" class="wrap hidden"></main>
   <main id="adminView" class="hidden"></main>
 
-  <footer class="site-footer"><div class="wrap footer-main"><a class="brand brand-footer" href="#"><span class="brand-mark"><img src="/menuza-logo.jpg?v=1" alt="" width="39" height="39" loading="lazy" decoding="async"></span><span><b>menuza</b><small>cardápio interativo</small></span></a><span>Veja. Monte. Experimente.</span><a href="#menu">Voltar ao cardápio ↑</a></div><div class="wrap footer-legal-links"><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-cookies.html">Política de cookies</a><a href="/ajuda.html">Ajuda e dúvidas</a><a href="/contato.html">Contato e dados pessoais</a><a href="/acessibilidade.html">Acessibilidade</a><button type="button" data-privacy-open>Aviso de privacidade</button></div><div class="wrap footer-bottom"><span>© Menuza · Demonstração com o restaurante Bela Mesa</span><span>Todos os valores em reais</span></div></footer>
+  <section class="google-review-section" id="googleReviewSection" hidden aria-labelledby="googleReviewTitle">
+    <div class="wrap google-review-inner">
+      <div class="google-review-copy">
+        <span class="google-review-eyebrow">SUA OPINIÃO FAZ A DIFERENÇA</span>
+        <h2 id="googleReviewTitle">Gostou da experiência?</h2>
+        <p>Conte para outras pessoas como foi seu pedido. Sua avaliação ajuda nosso restaurante a crescer.</p>
+      </div>
+      <a class="google-review-cta" data-google-review-link href="https://share.google/dg8sziHxshXgV93g8" target="_blank" rel="noopener noreferrer" hidden>
+        <span class="google-review-star" aria-hidden="true">★</span>
+        <span>Avaliar no Google</span>
+        <span class="google-review-arrow" aria-hidden="true">↗</span>
+      </a>
+    </div>
+  </section>
+
+  <footer class="site-footer" aria-label="Rodapé do cardápio">
+  <div class="wrap footer-shell">
+    <div class="footer-main">
+      <div class="footer-brand-column">
+        <a class="brand brand-footer restaurant-brand" data-restaurant-brand href="#top" aria-label="Voltar ao início do cardápio">
+          <span class="brand-mark"><img data-restaurant-logo alt="" width="42" height="42" loading="lazy" decoding="async" hidden><span data-restaurant-initials>BM</span></span>
+          <span><b data-restaurant-name>Bela Mesa</b><small>cardápio digital</small></span>
+        </a>
+        <p class="footer-brand-description">Seu próximo pedido favorito começa por aqui. Explore o cardápio, escolha com carinho e aproveite.</p>
+        <a class="footer-back-to-menu" href="#menu">Explorar cardápio <span aria-hidden="true">↗</span></a>
+      </div>
+      <nav class="footer-nav-column" aria-label="Navegação"><h2>Explore</h2><a href="#menu">Cardápio</a><a href="#favoritos">Mais pedidos</a><a href="#sobre">Como funciona</a></nav>
+      <nav class="footer-nav-column" aria-label="Ajuda e suporte"><h2>Precisa de ajuda?</h2><a href="/ajuda.html">Ajuda e dúvidas</a><a href="/contato.html">Fale conosco</a><a href="/acessibilidade.html">Acessibilidade</a></nav>
+      <nav class="footer-nav-column" aria-label="Informações legais"><h2>Informações</h2><a href="/politica-de-privacidade.html">Privacidade</a><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-cookies.html">Política de cookies</a><button type="button" data-privacy-open>Aviso de privacidade</button></nav>
+    </div>
+    <section class="footer-author" aria-label="Sobre o desenvolvedor">
+      <div class="footer-author-photo" aria-label="Espaço reservado para foto do desenvolvedor">
+        <img src="/desenvolvedor.jpeg" alt="Foto de Alexssander Cristino" loading="lazy" decoding="async">
+        <span class="footer-author-photo-fallback" aria-hidden="true">AC</span>
+      </div>
+      <div class="footer-author-copy">
+        <span class="footer-author-kicker">POR TRÁS DO MENUZA</span>
+        <h2>Desenvolvido por <strong>Alexssander Cristino</strong></h2>
+        <p>Projeto idealizado e desenvolvido com foco em tecnologia, inovação e experiências melhores para restaurantes e seus clientes.</p>
+      </div>
+      <span class="footer-author-signature">MENUZA <i>®</i></span>
+    </section>
+    <div class="footer-bottom">
+      <span>© 2026. Todos os direitos reservados.</span>
+      <span class="footer-credit">Uma criação independente de <b>Alexssander Cristino</b> · Menuza</span>
+      <a href="#top" class="footer-back-top" aria-label="Voltar ao topo">Voltar ao topo <span aria-hidden="true">↑</span></a>
+    </div>
+  </div>
+</footer>
 
   <div id="builderRoot"></div>
   <div id="cartRoot"></div>
   <div id="checkoutRoot"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <aside id="privacyNotice" class="privacy-notice" aria-label="Aviso de privacidade" hidden><div class="privacy-notice-copy"><strong>Privacidade e cookies</strong><p>O Menuza usa armazenamento local para funções do cardápio e cookies de sessão para autenticação. Consulte os detalhes sobre dados, cookies e tecnologias semelhantes.</p><div class="privacy-notice-links"><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a><a href="/termos-de-uso.html">Termos de uso</a></div></div><button type="button" class="privacy-notice-dismiss" data-privacy-dismiss>Fechar aviso</button></aside>
+  <aside id="privacyNotice" class="privacy-notice" aria-label="Aviso de privacidade" hidden><div class="privacy-notice-copy"><strong>Privacidade e cookies</strong><p>O Menuza usa armazenamento local para funções do cardápio e cookies de sessão para autenticação. Consulte os detalhes sobre dados, cookies e tecnologias semelhantes.</p><div class="privacy-notice-links"><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a><button type="button" data-analytics-manage>Preferências de análise</button><a href="/termos-de-uso.html">Termos de uso</a></div></div><button type="button" class="privacy-notice-dismiss" data-privacy-dismiss>Fechar aviso</button></aside>
+  <aside id="analyticsConsent" class="privacy-notice analytics-consent" aria-label="Preferências de análise" hidden><div class="analytics-consent-heading"><span class="analytics-consent-icon" aria-hidden="true">✦</span><div class="privacy-notice-copy"><span class="analytics-consent-eyebrow">SUA PRIVACIDADE EM PRIMEIRO LUGAR</span><strong>Ajude a melhorar o Menuza</strong><p>Queremos entender como o cardápio é utilizado para aprimorar sua experiência. A análise só será ativada com sua autorização. Recusar não altera nenhuma funcionalidade.</p><a class="analytics-consent-policy" href="/politica-de-cookies.html">Entenda como usamos cookies <span aria-hidden="true">↗</span></a></div></div><div class="analytics-consent-actions"><button type="button" data-analytics-consent="denied" class="analytics-consent-reject">Agora não</button><button type="button" data-analytics-consent="granted" class="analytics-consent-accept">Aceitar análise</button></div></aside>
 </body>
 </html>
 

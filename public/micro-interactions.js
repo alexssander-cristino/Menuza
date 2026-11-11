@@ -1,3 +1,4 @@
+// Pequenas interações visuais reutilizáveis, como estados de foco, feedback e transições de elementos da interface.
 /* Lightweight pointer spotlight for product cards; no dependency or layout mutation. */
 (() => {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

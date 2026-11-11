@@ -1,5 +1,40 @@
-import { FoodScene } from './food-scene.js?v=7';
-import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateArtSvg } from './food-art.js?v=1';
+// Menuza — aplicação principal do navegador.
+// Este arquivo coordena as telas do cliente e do restaurante, o carrinho, checkout,
+// acompanhamento dos pedidos e as chamadas à API. Os módulos food-* cuidam da parte visual 2D/3D;
+// aqui ficam os estados da interface, renderização das telas e eventos do usuário.
+import { injectSpeedInsights } from './speed-insights.js';
+
+const UI_ICON_PATHS = {
+ cart:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+ close:'<path d="m18 6-12 12M6 6l12 12"/>',
+ arrow:'<path d="M7 17 17 7M7 7h10v10"/>',
+ heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/>',
+ clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ sparkles:'<path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.2 2.8L23 18l-2.8 1.2L19 22l-1.2-2.8L15 18l2.8-1.2L19 14Z"/>',
+ info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+ pizza:'<path d="M5.6 3.4A19 19 0 0 1 21 19.2L4.8 22A19 19 0 0 1 5.6 3.4Z"/><path d="M5.6 3.4 21 19.2M10 8h.01M14 12h.01M8 15h.01"/>',
+ utensils:'<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M18 2v20M18 2a4 4 0 0 0-4 4v4h4"/>'
+};
+// Ícones e pequenas animações reutilizadas pela interface.
+function uiIcon(name,size=18,extra=''){const paths=UI_ICON_PATHS[name]||UI_ICON_PATHS.sparkles;return '<span class="ui-icon ui-icon--interactive '+extra+'" aria-hidden="true"><svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'+paths+'</svg></span>'}
+
+import { FoodScene } from './food-scene.js?v=96';
+import { formatOrderStatusTime } from './order-status-time.js';
+import QRCode from './qrcode.js';
+import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, hotDogArt as hotDogArtSvg } from './food-art.js?v=6';
+
+// Speed Insights é carregado apenas em hospedagem; o servidor local não expõe a rota /_vercel.
+if (!['localhost', '127.0.0.1', '::1'].includes(location.hostname)) injectSpeedInsights();
+
+const MENUZA_APP_BUILD = '110';
+try {
+  if (localStorage.getItem('menuza-app-build') !== MENUZA_APP_BUILD) {
+    // Remove somente o bloqueio local antigo; o servidor continua protegendo o login.
+    localStorage.removeItem('menuza-rate-limit-until');
+    localStorage.setItem('menuza-app-build', MENUZA_APP_BUILD);
+  }
+} catch {}
 
 // Mantém o bloqueio de interface durante o Retry-After, inclusive ao voltar pelo histórico.
 (() => {
@@ -19,50 +54,109 @@ import { pizzaArt as pizzaArtSvg, burgerArt as burgerArtSvg, plateArt as plateAr
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null,
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all' },
-  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login'
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, inactivityTimer: null, lastActivityAt: 0, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
+  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
+function playCartRunAnimation(){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const layer=document.createElement('div');layer.className='cart-run-scene';layer.setAttribute('aria-hidden','true');
+  layer.innerHTML='<span class="cart-run-box"></span><span class="cart-run-cart"><i></i><b></b></span><span class="cart-run-label">ADICIONADO</span>';
+  document.body.appendChild(layer);layer.addEventListener('animationend',e=>{if(e.target===layer)layer.remove()});
+  window.setTimeout(()=>layer.remove(),1900);
+}
+let promotionCarouselTimer = null;
+let promotionCarouselIndex = 0;
 const storedCart = (() => { try { return JSON.parse(localStorage.getItem('bela-cart') || '[]'); } catch { return []; } })();
 app.cart = Array.isArray(storedCart) ? storedCart : [];
 const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(cents) || 0) / 100);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]);
+const safeCssImageUrl = value => {
+  const raw=String(value||'').trim();
+  if(!/^https:\/\/[^\s"'<>]+$/i.test(raw)&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(raw))return '';
+  return esc(raw.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n\f]/g,char=>'\\'+char.charCodeAt(0).toString(16)+' '));
+};
+// Carrinho: normaliza itens, mantém quantidades e sincroniza o resumo exibido.
 function setCart() {
-  try { localStorage.setItem('bela-cart', JSON.stringify(app.cart)); }
-  catch { toast('A sacola não pôde ser salva neste aparelho. Confira o espaço disponível no navegador.'); }
+  const serializedCart = JSON.stringify(app.cart);
+  // Uma chave idempotente só pode ser reutilizada para o mesmo carrinho.
+  // Isso evita que um carrinho alterado receba por engano o pedido anterior.
+  try {
+    const savedCheckout = JSON.parse(sessionStorage.getItem('menuza-checkout-key') || 'null');
+    if (savedCheckout && savedCheckout.fingerprint !== serializedCart) {
+      sessionStorage.removeItem('menuza-checkout-key');
+      app.checkoutKey = '';
+    }
+  } catch { app.checkoutKey = ''; }
+  try { localStorage.setItem('bela-cart', serializedCart); }
+  catch { toast('A carrinho não pôde ser salva neste aparelho. Confira o espaço disponível no navegador.'); }
   updateCartCount();
 }
 function normalizeSearch(value) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 }
+function isBuildYourOwnPizza(product) {
+  return product?.type === 'pizza' && normalizeSearch(product.name).replace(/\s+/g, ' ').trim() === 'monte a sua';
+}
+function buildYourOwnFlavorProduct(product, flavorIds = [product?.id]) {
+  if (!product || product.type !== 'pizza') return null;
+  return (flavorIds || []).map(id => app.catalog.products.find(item => item.id === id))
+    .find(item => isBuildYourOwnPizza(item)) || (isBuildYourOwnPizza(product) ? product : null);
+}
 function normalizeCartForCatalog(value, catalog) {
   if (!Array.isArray(value) || !catalog) return [];
   const products = new Map(catalog.products.map(product => [product.id, product]));
+  const combos = new Map((catalog.combos || []).map(combo => [combo.id, combo]));
   const sizes = catalog.sizes || {};
   const ingredients = new Map(catalog.ingredients.map(item => [item.id, item]));
   return value.filter(item => {
-    if (!item || typeof item !== 'object' || typeof item.productId !== 'string') return false;
+    if (!item || typeof item !== 'object') return false;
+    if (typeof item.comboId === 'string') return combos.has(item.comboId) && Number(combos.get(item.comboId).active) !== 0 && Number.isInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 10;
+    if (typeof item.productId !== 'string') return false;
     const product = products.get(item.productId);
     if (!product || Number(product.active) === 0) return false;
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) return false;
-    if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
+    if (product.type === 'plate') item.sizeKey = 'unico';
+    else if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
     if (!Array.isArray(item.ingredients) || item.ingredients.length > 12) return false;
+    const byoFlavor = buildYourOwnFlavorProduct(product, item.flavorProductIds?.length ? item.flavorProductIds : [product.id]);
+    if (byoFlavor) { const defaults = new Set(byoFlavor.defaultIngredientIds || []); if ([...defaults].some(id => !item.ingredients.some(entry => entry?.id === id)) || item.ingredients.filter(entry => !defaults.has(entry?.id)).length > 3) return false; }
     if (product.type === 'pizza' && !catalog.crusts.some(option => option.key === item.crustKey)) return false;
     const seen = new Set();
     return item.ingredients.every(entry => {
       const ingredient = ingredients.get(entry?.id);
       if (!ingredient || ingredient.type !== product.type || Number(ingredient.active) === 0 ||
-          !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > 3 || seen.has(entry.id)) return false;
+          !Number.isInteger(entry.quantity) || entry.quantity < 1 || entry.quantity > (['burger','plate'].includes(product.type)?20:3) || seen.has(entry.id)) return false;
+      const ingredientProduct = byoFlavor || product;
+      if (ingredientProduct.ingredientsConfigured) {
+        // Em ofertas de pizza, os ingredientes podem vir de qualquer sabor escolhido.
+        // Validar somente contra o produto-base removia do carrinho os sabores da oferta.
+        const selectedFlavorProducts = product.type === 'pizza'
+          ? (item.flavorProductIds || [product.id]).map(id => products.get(id)).filter(Boolean)
+          : [ingredientProduct];
+        const allowed = new Set(selectedFlavorProducts.flatMap(flavor => [
+          ...(flavor.ingredientIds || []),
+          ...(flavor.defaultIngredientIds || [])
+        ]));
+        if (!allowed.has(entry.id)) return false;
+      }
       seen.add(entry.id);
-      return !(ingredient.included && entry.quantity !== 1);
+      const included = ingredientProduct.ingredientsConfigured ? (ingredientProduct.defaultIngredientIds || []).includes(entry.id) : ingredient.included;
+      return !(!['burger','plate'].includes(product.type) && included && entry.quantity !== 1);
     });
   }).slice(0, 50).map(item => {
+    if (typeof item.comboId === 'string') {
+      const combo = combos.get(item.comboId);
+      return { cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(), comboId: combo.id, name: combo.name, type: 'combo', quantity: item.quantity, ingredients: [], sizeKey: 'combo', crustKey: '', notes: '' };
+    }
     const product = products.get(item.productId);
     return {
       cartId: typeof item.cartId === 'string' && item.cartId.length <= 100 ? item.cartId : randomId(),
       productId: product.id, name: product.name, type: product.type,
-      quantity: item.quantity, sizeKey: item.sizeKey,
+      promotionId: typeof item.promotionId === 'string' ? item.promotionId : '',
+      quantity: item.quantity, sizeKey: product.type === 'plate' ? 'unico' : item.sizeKey,
       crustKey: product.type === 'pizza' ? item.crustKey : '',
+      flavorProductIds: product.type === 'pizza' && Array.isArray(item.flavorProductIds) ? item.flavorProductIds.filter(id=>products.has(id)&&products.get(id).type==='pizza').slice(0,8) : [product.id],
       ingredients: item.ingredients.map(entry => ({ id: entry.id, quantity: entry.quantity })),
       notes: typeof item.notes === 'string' ? item.notes.slice(0, 500) : ''
     };
@@ -87,8 +181,19 @@ function toast(message) {
   const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
   clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
 }
+// Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
+  let requestPath = path;
+  if (typeof path === 'string' && path.startsWith('/api/')) {
+    const requestUrl = new URL(path, location.origin);
+    const route = requestUrl.pathname.slice('/api/'.length);
+    if (!['health', 'catalog', 'dispatch'].includes(route)) {
+      requestUrl.pathname = '/api/dispatch';
+      requestUrl.searchParams.set('path', route);
+      requestPath = requestUrl.pathname + requestUrl.search;
+    }
+  }
+  const response = await fetch(requestPath, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
   let data = {}; try { data = await response.json(); } catch {}
   if (response.status === 429) {
     const retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || 900);
@@ -107,23 +212,101 @@ async function api(path, options = {}) {
 }
 function defaultIngredients(product, catalog) {
   const available = catalog.ingredients.filter(item => item.type === product.type && item.active !== 0);
+  if (product.ingredientsConfigured) {
+    return (product.defaultIngredientIds || []).filter(id => available.some(item => item.id === id)).map(id => ({ id, quantity: ['burger','plate'].includes(product.type) ? Math.max(1,Math.min(20,Number(product.ingredientQuantities?.[id])||1)) : 1 }));
+  }
   const selected = available.filter(item => item.included).map(item => ({ id: item.id, quantity: 1 }));
   const presets = { 'pizza-da-horta':['tomate','champignon','oregano'], 'pizza-calabresa':['calabresa','cebola'], 'pizza-quatro-queijos':['requeijao'], 'burger-defumado':['bacon-burger','cebola-burger','picles'] };
   for (const id of presets[product.id] || []) if (available.some(item => item.id === id) && !selected.some(item => item.id === id)) selected.push({ id, quantity: 1 });
   return selected;
 }
+function productIngredientNames(product, ids = product.defaultIngredientIds || [], catalog = app.catalog) {
+  const names = new Map((catalog?.ingredients || []).map(item => [item.id, item.name]));
+  return (ids || []).map(id => names.get(id)).filter(Boolean);
+}
+function ingredientDescription(product, entries = defaultIngredients(product,app.catalog), catalog = app.catalog) {
+  const names = new Map((catalog?.ingredients || []).map(item => [item.id, item.name]));
+  const parts=(entries||[]).map(entry=>{const id=typeof entry==='string'?entry:entry.id,name=names.get(id);if(!name)return '';const quantity=['burger','plate'].includes(product?.type)?Math.max(1,Number(typeof entry==='string'?product?.ingredientQuantities?.[id]:entry.quantity)||1):1;return (quantity>1?quantity+'× ':'')+name;}).filter(Boolean);
+  return parts.length ? 'Ingredientes: ' + parts.join(', ') + '.' : '';
+}
 const pizzaArt = (ingredients, seed) => pizzaArtSvg(ingredients, seed, id => app.catalog?.ingredients.find(item => item.id === id));
 const burgerArt = (ingredients, seed, opts) => burgerArtSvg(ingredients, seed, opts);
-const plateArt = seed => plateArtSvg(seed);
+const hotDogArt = (seed, ingredients) => hotDogArtSvg(seed, ingredients || []);
+async function imageFileToWebp(file,{maxDimension=1600,quality=0.82,maxBytes=900*1024,background=null}={}){
+  if(!file)return '';
+  if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>8*1024*1024)throw new Error('Escolha uma imagem PNG, JPG, WebP ou AVIF de até 8 MB.');
+  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file)});
+  const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('A imagem selecionada não é válida.'));img.src=source});
+  const scale=Math.min(1,maxDimension/Math.max(image.naturalWidth,image.naturalHeight));
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  const context=canvas.getContext('2d');if(!context)throw new Error('Não foi possível preparar a imagem.');
+  if(background){context.fillStyle=background;context.fillRect(0,0,canvas.width,canvas.height)}
+  context.drawImage(image,0,0,canvas.width,canvas.height);
+  const result=canvas.toDataURL('image/webp',quality);
+  if(!result.startsWith('data:image/webp;base64,'))throw new Error('Este navegador não conseguiu converter a imagem para WebP. Atualize o navegador e tente novamente.');
+  if(result.length>maxBytes)throw new Error('A imagem ficou grande mesmo após a compressão WebP. Escolha uma imagem menor.');
+  return result;
+}
+async function productPhotoData(file){
+  return imageFileToWebp(file,{maxDimension:1200,quality:0.82,maxBytes:240000,background:'#fff'});
+}
 function productSvg(product, ingredients, opts = {}) {
   if (product.type === 'pizza') return pizzaArt(ingredients || defaultIngredients(product, app.catalog), product.id);
   if (product.type === 'burger') return burgerArt(ingredients || defaultIngredients(product, app.catalog), product.id, opts);
-  return plateArt(product.id);
+  return hotDogArt(product.id, ingredients || defaultIngredients(product, app.catalog));
+}
+function productImages(product) {
+  const images=Array.isArray(product?.images)?product.images.filter(url=>typeof url==='string'&&url):[];
+  return images.length?images.slice(0,8):(product?.imageUrl?[product.imageUrl]:[]);
+}
+function productImageCarouselMarkup(product,mode='card',fit='cover',ingredients=null) {
+  const images=productImages(product),classes=mode==='modal'?'product-image-carousel product-image-carousel--modal':'product-image-carousel product-image-carousel--card';
+  if(!images.length)return productSvg(product,ingredients||defaultIngredients(product,app.catalog),{double:app.builder?.sizeKey==='duplo'});
+  if(images.length===1)return '<img class="'+(mode==='modal'?'food-art-photo':'product-photo-card')+'" src="'+esc(images[0])+'" alt="Foto de '+esc(product.name||'produto')+'" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:'+fit+';object-position:center">';
+  return '<div class="'+classes+'" data-image-carousel data-image-index="0" aria-label="Galeria de '+esc(product.name||'produto')+'"><div class="product-image-carousel-track">'+images.map((url,index)=>'<img class="product-image-carousel-slide '+(index===0?'is-active':'')+'" data-image-slide="'+index+'" src="'+esc(url)+'" alt="Foto '+(index+1)+' de '+esc(product.name||'produto')+'" loading="'+(index===0?'eager':'lazy')+'" decoding="async" aria-hidden="'+(index!==0)+'" style="object-fit:'+fit+'">').join('')+'</div><button type="button" class="product-image-carousel-arrow is-prev" data-action="product-image-prev" aria-label="Foto anterior">‹</button><button type="button" class="product-image-carousel-arrow is-next" data-action="product-image-next" aria-label="Próxima foto">›</button><span class="product-image-carousel-count">1 / '+images.length+'</span><div class="product-image-carousel-dots">'+images.map((_,index)=>'<button type="button" class="product-image-carousel-dot '+(index===0?'is-active':'')+'" data-action="product-image-go" data-index="'+index+'" aria-label="Ver foto '+(index+1)+'" aria-pressed="'+(index===0)+'"></button>').join('')+'</div></div>';
+}
+function setProductImageSlide(carousel,index) {
+  if(!carousel)return;const slides=[...carousel.querySelectorAll('[data-image-slide]')],count=slides.length;if(!count)return;
+  const next=(index+count)%count;carousel.dataset.imageIndex=String(next);
+  slides.forEach((slide,i)=>{const active=i===next;slide.setAttribute('aria-hidden',String(!active));slide.classList.toggle('is-active',active)});
+  carousel.querySelectorAll('.product-image-carousel-dot').forEach((dot,i)=>{dot.classList.toggle('is-active',i===next);dot.setAttribute('aria-pressed',String(i===next))});
+  const counter=carousel.querySelector('.product-image-carousel-count');if(counter)counter.textContent=(next+1)+' / '+count;
+}
+function productPhotoOrArt(product, ingredients, opts = {}, className = 'food-art-photo', fit = 'contain') {
+  const images=productImages(product);
+  if(images.length)return '<img class="' + esc(className) + '" src="' + esc(images[0]) + '" alt="Foto de ' + esc(product.name || 'produto') + '" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:' + fit + ';object-position:center">';
+  return productSvg(product, ingredients, opts);
+}
+let productImageRotationTimer=null;
+function startProductImageRotation(){
+  if(productImageRotationTimer!==null)return;
+  productImageRotationTimer=window.setInterval(()=>{
+    if(document.hidden||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    root.querySelectorAll('[data-image-carousel]').forEach(carousel=>{
+      if(carousel.closest('[hidden]'))return;
+      setProductImageSlide(carousel,(Number(carousel.dataset.imageIndex)||0)+1);
+    });
+  },3600);
+}
+function restaurantCanOrder(){return app.catalog?.restaurant?.openingStatus?.isOpen!==false}
+function comboCardMarkup(combo) {
+  const isClosed=!restaurantCanOrder();
+  const itemText=(combo.items||[]).map(item=>(item.quantity>1?item.quantity+'× ':'')+item.name).join(' · ');
+  const regularTotal=(combo.items||[]).reduce((sum,item)=>sum+(Number(item.baseCents)||0)*(Number(item.quantity)||1),0);
+  const saved=Math.max(0,regularTotal-Number(combo.priceCents||0));
+  return '<article class="product-card combo-card"><div class="product-image combo-art" aria-hidden="true"><span class="combo-mark">COMBO</span><span class="combo-dish">＋</span><span class="combo-savings">Economize '+money(saved)+'</span></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(combo.name)+'</h3><span class="product-price">'+money(combo.priceCents)+'</span></div><p>'+esc(combo.description||itemText)+'</p><small class="combo-items-list">'+esc(itemText)+'</small><div class="card-bottom"><span class="prep-time">Preço promocional</span><button class="add-button" data-action="add-combo" data-id="'+esc(combo.id)+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>'+(isClosed?'Fechado no momento':'Adicionar combo')+' <span>'+uiIcon('arrow',14)+'</span></button></div></div></article>';
 }
 function cardMarkup(product) {
+  const isClosed=!restaurantCanOrder();
   const category = app.catalog.categories.find(c => c.id === product.categoryId)?.name || 'Especialidade';
+  const isDrink = product.type === 'drink';
   const favorite = app.favorites.includes(product.id);
-  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image">'+productSvg(product,defaultIngredients(product,app.catalog))+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+(favorite?'♥':'♡')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar prato"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button></div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3><span class="product-price">'+money(product.baseCents)+'</span></div><p>'+esc(product.description)+'</p><div class="card-bottom"><span class="prep-time"><span>◷</span> '+Number(product.prepMinutes||25)+' min</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':'Personalizar <span>↗</span>')+'</button></div></div></article>';
+  const recipeDescription = isDrink ? '' : ingredientDescription(product);
+  const actionLabel = isDrink ? 'Adicionar' : 'Personalizar <span>'+uiIcon('arrow',14)+'</span>';
+  const promotion=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined;
+  const scheduledPromotion=!promotion&&product.promotion?.active===true;
+  const footerLabel = isDrink ? 'Bebida' : '<span>'+uiIcon('clock',14)+'</span> '+Number(product.prepMinutes||25)+' min';
+  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">'+esc(product.promotion?.promotionName||'OFERTA')+'</span>':'')+(product.ageRestricted?'<span class="age-restricted-badge" style="position:absolute;top:12px;left:12px;background:#7f1d1d;color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800">18+</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0||isClosed?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':isClosed?'Fechado':actionLabel)+'</button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -136,20 +319,185 @@ function visibleProducts() {
   });
   if (app.sort==='price') list=list.slice().sort((a,b)=>a.baseCents-b.baseCents);
   if (app.sort==='name') list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  if (app.sort==='featured') list=list.slice().sort((a,b)=>b.featured-a.featured);
-  return list;
+  if (app.sort==='featured') list=list.slice().sort((a,b)=>Number(b.featured)-Number(a.featured));
+  // Bebidas ficam sempre no fim do cardápio, sem interferir na ordenação dos demais produtos.
+  return list.filter(product=>product.type!=='drink').concat(list.filter(product=>product.type==='drink'));
+}
+function renderRestaurantHours(){
+  const target=root.getElementById('restaurantHoursBanner');
+  if(!target||!app.catalog?.restaurant)return;
+  const schedule=app.catalog.restaurant.openingHours||{},status=app.catalog.restaurant.openingStatus||{isOpen:true,configured:false,message:'Horários ainda não configurados'};
+  const names=['','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
+  const days=Object.entries(schedule.days||{}).map(([key,day])=>({key:Number(key),...day})).sort((a,b)=>a.key-b.key);
+  const hours=days.map(day=>'<div class="restaurant-hours-row"><span>'+names[day.key]+'</span><b>'+(!day.enabled?'Fechado':(day.periods||[]).map(period=>period.open+'–'+period.close).join(' · '))+'</b></div>').join('');
+  target.innerHTML='<div class="restaurant-hours-card '+(status.isOpen?'is-open':'is-closed')+'"><div class="restaurant-hours-status"><span class="restaurant-hours-dot"></span><div><strong>'+(status.configured?(status.isOpen?'Estamos abertos':'Estamos fechados'):'Horários de funcionamento')+'</strong><small>'+(status.configured?esc(status.message||''):'Consulte os dias e horários de atendimento.')+'</small></div></div>'+(status.configured?'<div class="restaurant-hours-details"><strong class="restaurant-hours-label">HORÁRIOS DA SEMANA</strong><div class="restaurant-hours-list">'+hours+'</div></div>':'<p class="restaurant-hours-unconfigured">O restaurante ainda não cadastrou os horários.</p>')+'</div>';
+}
+// Cardápio público: monta categorias, produtos, busca e filtros visíveis ao cliente.
+function renderGoogleReviewLinks(){
+  const isAdmin=root.body.classList.contains('admin-route');
+  const url=String(app.catalog?.restaurant?.googleReviewUrl||'').trim();
+  for(const link of root.querySelectorAll('[data-google-review-link]')){
+    link.hidden=isAdmin||!url;
+    if(url){link.href=url;link.target='_blank';link.rel='noopener noreferrer'}else link.removeAttribute('href');
+  }
+  const section=root.getElementById('googleReviewSection');
+  if(section)section.hidden=isAdmin||!url;
+  const mobile=root.querySelector('[data-destination="review"]');
+  if(mobile)mobile.hidden=isAdmin||!url;
 }
 function renderCatalog() {
   if (!app.catalog) return;
+  renderRestaurantHours();
+  renderGoogleReviewLinks();
   root.getElementById('heroArtwork').innerHTML=pizzaArt([{id:'molho-tomate'},{id:'mussarela'},{id:'calabresa'},{id:'bacon'},{id:'cebola'},{id:'oregano'}],'hero');
-  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+app.catalog.categories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
-  root.getElementById('featuredGrid').innerHTML=app.catalog.products.filter(p=>p.featured).slice(0,4).map(cardMarkup).join('');
+  // No cardápio do cliente, mantenha todas as categorias de pizza primeiro,
+  // depois hambúrgueres e, por último, hot dogs. Bebidas continuam no fim.
+  const categoryPriority = new Map();
+  const productTypePriority = { pizza: 0, burger: 1, plate: 2, drink: 3 };
+  for (const product of app.catalog.products) {
+    const priority = productTypePriority[product.type] ?? 2;
+    const current = categoryPriority.get(product.categoryId);
+    if (current === undefined || priority < current) categoryPriority.set(product.categoryId, priority);
+  }
+  const orderedCategories=app.catalog.categories.slice().sort((a,b)=>(categoryPriority.get(a.id) ?? 2)-(categoryPriority.get(b.id) ?? 2));
+  root.getElementById('categoryList').innerHTML='<button class="category-chip '+(app.category==='all'?'active':'')+'" role="tab" aria-selected="'+(app.category==='all')+'" data-category="all">Tudo</button>'+orderedCategories.map(c=>'<button class="category-chip '+(app.category===c.id?'active':'')+'" role="tab" aria-selected="'+(app.category===c.id)+'" data-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('');
+  const featuredProducts=app.catalog.products.filter(p=>Number(p.orderCount||0)>=10&&p.type!=='drink').sort((a,b)=>Number(b.orderCount||0)-Number(a.orderCount||0)).slice(0,4);
+  const featuredSection=root.getElementById('favoritos');
+  if(featuredSection)featuredSection.hidden=featuredProducts.length===0;
+  root.querySelectorAll('a[href="#favoritos"]').forEach(link=>link.hidden=featuredProducts.length===0);
+  const popularMobileLink=root.querySelector('[data-destination="popular"]');
+  if(popularMobileLink)popularMobileLink.hidden=featuredProducts.length===0;
+  root.getElementById('featuredGrid').innerHTML=featuredProducts.map(cardMarkup).join('');
   renderRecentProducts();
-  const products=visibleProducts();
-  root.getElementById('menuGrid').innerHTML=products.length?products.map(cardMarkup).join(''):'<div class="no-results"><h3>Nenhum sabor encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
-  root.getElementById('resultCount').textContent=products.length+' '+(products.length===1?'sabor disponível':'sabores disponíveis')+(app.favoritesOnly?' nos favoritos':'');
+  renderPromotionBanner();renderPromotionsTab();const products=visibleProducts();
+  const comboCards=(app.category==='all'&&!app.search&&!app.favoritesOnly&&!app.vegetarianOnly?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).map(comboCardMarkup).join(''):'');
+  const categorySections=orderedCategories.map(category=>{
+    const categoryProducts=products.filter(product=>product.categoryId===category.id);
+    if(!categoryProducts.length)return '';
+    return '<section class="menu-category-section" aria-label="Categoria '+esc(category.name)+'"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>'+esc(category.name)+'</h2></div><span class="menu-category-count">'+categoryProducts.length+' '+(categoryProducts.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+categoryProducts.map(cardMarkup).join('')+'</div></section>';
+  }).join('');
+  const uncategorized=products.filter(product=>!app.catalog.categories.some(category=>category.id===product.categoryId));
+  const uncategorizedSection=uncategorized.length?'<section class="menu-category-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">EXPLORE O CARDÁPIO</span><h2>Outros itens</h2></div><span class="menu-category-count">'+uncategorized.length+' '+(uncategorized.length===1?'item':'itens')+'</span></div><div class="menu-category-products">'+uncategorized.map(cardMarkup).join('')+'</div></section>':'';
+  root.getElementById('menuGrid').innerHTML=(comboCards?'<section class="menu-category-section menu-combos-section"><div class="menu-category-heading"><div><span class="menu-category-kicker">COMBINAÇÕES</span><h2>Combos</h2></div></div><div class="menu-category-products">'+comboCards+'</div></section>':'')+categorySections+uncategorizedSection||'<div class="no-results"><h3>Nenhum item encontrado por aqui.</h3><p>Tente outra busca ou escolha uma categoria diferente.</p></div>';
+  const visibleComboCount=comboCards?(app.catalog.combos||[]).filter(combo=>Number(combo.active)!==0).length:0;
+  const visibleCount=products.length+visibleComboCount;
+  root.getElementById('resultCount').textContent=visibleCount+' '+(visibleCount===1?'item disponível':'itens disponíveis')+(app.favoritesOnly?' nos favoritos':'');
   const favoritesToggle=root.getElementById('favoritesFilter');
   if(favoritesToggle){favoritesToggle.setAttribute('aria-pressed',String(app.favoritesOnly));favoritesToggle.classList.toggle('active',app.favoritesOnly);favoritesToggle.textContent=app.favoritesOnly?'♥ Mostrando favoritos':'♡ Meus favoritos';}
+}
+function renderPromotionsTab(){
+  const section=root.getElementById('promotionsPage'),grid=root.getElementById('promotionsGrid'),count=root.getElementById('promotionsCount');
+  if(!section||!grid)return;
+  if(!app.catalog||!Array.isArray(app.catalog.products)){if(count)count.textContent='Não foi possível carregar as ofertas.';grid.innerHTML='<p class="promotions-empty">As ofertas não puderam ser carregadas. Atualize o cardápio para tentar novamente.</p>';return}
+  const today=new Date().getDay()||7,offersByPromotion=new Map();
+  const globalPromotions=Array.isArray(app.catalog.promotions)?app.catalog.promotions:[];
+  for(const product of app.catalog.products.filter(item=>Number(item.active)!==0&&Number(item.available)!==0)){
+    const linked=Array.isArray(product.promotions)?product.promotions:[];
+    const globalForProduct=globalPromotions.filter(item=>item.productId===product.id||(product.type==='pizza'&&item.productId==='__all_pizzas__'));
+    const byId=new Map(linked.map(item=>[String(item.id),item]));
+    for(const item of globalForProduct)if(!byId.has(String(item.id)))byId.set(String(item.id),item);
+    for(const source of byId.values()){
+      const promotion={...source},size=(app.catalog.sizes?.[product.type]||[]).find(item=>item.key===promotion.sizeKey);
+      const base=product.type==='pizza'?regularProductSizePrice(product,promotion.sizeKey||'media',size):regularProductSizePrice(product,'unico',null);
+      const days=Array.isArray(promotion.weekdays)?promotion.weekdays.map(Number):[];
+      const scheduled=promotion.active!==false&&Number(promotion.active)!==0&&days.includes(today);
+      const calculated=promotion.discountType==='percent'?Math.round(base*(100-Number(promotion.discountPercent))/100):Number(promotion.promotionalPriceCents);
+      promotion.promotionActive=Boolean(promotion.promotionActive||(scheduled&&Number.isFinite(calculated)&&calculated>=0&&calculated<base));
+      promotion.calculatedPriceCents=Number(promotion.calculatedPriceCents)>0?Number(promotion.calculatedPriceCents):calculated;
+      if(!promotion.promotionActive)continue;
+      const key=String(promotion.id||promotion.promotionName||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      if(key&&!offersByPromotion.has(key))offersByPromotion.set(key,{product,promotion});
+    }
+  }
+  const offers=[...offersByPromotion.values()];
+  const isClosed=!restaurantCanOrder();
+  section.hidden=false;
+  if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta disponível':'ofertas disponíveis');
+  if(!offers.length){grid.innerHTML='<div class="promotions-empty"><strong>Nenhuma oferta disponível agora.</strong><span>As promoções cadastradas aparecerão aqui quando estiverem ativas.</span></div>';return}
+  grid.innerHTML=offers.map(({product,promotion})=>{
+    const title=promotion.promotionName||'Oferta especial';
+    const publicPromotions=Array.isArray(app.catalog?.promotions)?app.catalog.promotions:[];
+    const publicPromotion=publicPromotions.find(item=>String(item.id||'')===String(promotion.id||''));
+    const imageUrl=String(promotion.cardImage||promotion.card_image||publicPromotion?.cardImage||publicPromotion?.card_image||'').trim();
+    const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(title)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
+    const description='Escolha o produto, sabor, tamanho e adicionais do seu jeito. A oferta será aplicada às opções participantes.';
+    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+esc(description)+'</p><button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(promotion.id||'')+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>'+(isClosed?'Fechado no momento':'Personalizar oferta <span>'+uiIcon('arrow',14)+'</span>')+'</button></div></article>';
+  }).join('');
+}
+function stopPromotionCarousel(){
+  if(promotionCarouselTimer){clearInterval(promotionCarouselTimer);promotionCarouselTimer=null}
+}
+function setPromotionSlide(index){
+  const carousel=root.getElementById('promotionBanner');
+  if(!carousel)return;
+  const slides=[...carousel.querySelectorAll('.promotion-hero-slide')];
+  if(!slides.length)return;
+  promotionCarouselIndex=(index+slides.length)%slides.length;
+  slides.forEach((slide,i)=>{
+    const active=i===promotionCarouselIndex;
+    slide.classList.toggle('is-active',active);
+    slide.setAttribute('aria-hidden',String(!active));
+    slide.tabIndex=active?0:-1;
+  });
+  carousel.querySelectorAll('[data-promo-index]').forEach((dot,i)=>{
+    const active=i===promotionCarouselIndex;
+    dot.classList.toggle('is-active',active);
+    dot.setAttribute('aria-current',active?'true':'false');
+  });
+  const current=carousel.querySelector('.promotion-hero-current');
+  if(current)current.textContent=String(promotionCarouselIndex+1).padStart(2,'0');
+  const fill=carousel.querySelector('.promotion-hero-progress-fill');
+  if(fill){fill.style.animation='none';void fill.offsetWidth;fill.style.animation=''}
+}
+function startPromotionCarousel(carousel){
+  stopPromotionCarousel();
+  if(!carousel)return;
+  const slides=carousel.querySelectorAll('.promotion-hero-slide');
+  if(slides.length<2||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const play=()=>{stopPromotionCarousel();promotionCarouselTimer=setInterval(()=>setPromotionSlide(promotionCarouselIndex+1),6500)};
+  carousel.addEventListener('mouseenter',stopPromotionCarousel);
+  carousel.addEventListener('mouseleave',play);
+  carousel.addEventListener('focusin',stopPromotionCarousel);
+  carousel.addEventListener('focusout',event=>{if(!carousel.contains(event.relatedTarget))play()});
+  carousel.addEventListener('touchstart',event=>{carousel.dataset.touchStartX=String(event.changedTouches[0]?.clientX||0)},{passive:true});
+  carousel.addEventListener('touchend',event=>{
+    const first=Number(carousel.dataset.touchStartX)||0,last=event.changedTouches[0]?.clientX||0,delta=last-first;
+    if(Math.abs(delta)>45){setPromotionSlide(promotionCarouselIndex+(delta<0?1:-1));play()}
+  },{passive:true});
+  play();
+}
+function renderPromotionBanner(){
+  const existing=root.getElementById('promotionBanner'),data=app.promotionBanner;
+  // Uma oferta pode estar vinculada a vários produtos; o banner exibe a promoção uma única vez.
+  const uniquePromotions=new Map();
+  (app.catalog?.products||[]).forEach(product=>{
+    (Array.isArray(product.promotions)?product.promotions:[]).forEach(promotion=>{
+      if(!promotion?.promotionActive)return;
+      const name=String(promotion.promotionName||'').trim();
+      const key=name?name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase():String(promotion.id||'');
+      if(!key||uniquePromotions.has(key))return;
+      uniquePromotions.set(key,promotion);
+    });
+  });
+  const offers=[...uniquePromotions.values()];
+  const bannerEnabled=Boolean(data?.active&&data.image);
+  if(!offers.length&&!bannerEnabled){stopPromotionCarousel();existing?.remove();return}
+  const slides=[];
+  if(bannerEnabled){
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-banner is-active" data-action="open-promotions" aria-label="Ver promoções: '+esc(data.title||'Ofertas especiais')+'" style="--promotion-slide-image:url(\''+safeCssImageUrl(data.image)+'\')"><span class="promotion-hero-shade"></span><span class="promotion-hero-orbit promotion-orbit-one"></span><span class="promotion-hero-orbit promotion-orbit-two"></span><span class="promotion-hero-copy"><small><i></i> OFERTAS ESPECIAIS</small><strong>'+esc(data.title||'Ofertas especiais')+'</strong><span>'+esc(data.text||'Confira nossas promoções e aproveite')+'</span><b>Ver ofertas <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+  }
+  offers.forEach((promotion,index)=>{
+    const title=String(promotion.promotionName||'Oferta especial').trim()||'Oferta especial';
+    const description='Confira esta promoção no cardápio.';
+    slides.push('<button type="button" class="promotion-hero-slide promotion-hero-offer '+(!bannerEnabled&&index===0?'is-active':'')+'" data-action="open-promotions" aria-label="Ver promoção '+esc(title)+'" '+(promotion.bannerImage?'style="--promotion-slide-image:url(\''+safeCssImageUrl(promotion.bannerImage)+'\')"':'')+'><span class="promotion-hero-copy"><small><i></i> OFERTA ESPECIAL</small><strong>'+esc(title)+'</strong><span>'+esc(description)+'</span><b class="promotion-hero-cta">Ver promoção <i>↗</i></b></span><span class="promotion-hero-corner">MENUZA <i>✦</i></span></button>');
+  });
+  const html='<section id="promotionBanner" class="promotion-hero-wrap wrap" aria-label="Promoções"><div class="promotion-hero-carousel" aria-roledescription="carrossel">'+slides.join('')+(slides.length>1?'<div class="promotion-hero-controls"><button type="button" class="promotion-hero-arrow" data-action="promo-prev" aria-label="Promoção anterior">‹</button><div class="promotion-hero-dots" role="group" aria-label="Escolher promoção">'+slides.map((_,i)=>'<button type="button" class="promotion-hero-dot '+(i===0?'is-active':'')+'" data-action="promo-slide" data-promo-index="'+i+'" aria-label="Ir para promoção '+(i+1)+'" aria-current="'+(i===0?'true':'false')+'"><span></span></button>').join('')+'</div><span class="promotion-hero-count"><b class="promotion-hero-current">01</b> / '+String(slides.length).padStart(2,'0')+'</span><button type="button" class="promotion-hero-arrow" data-action="promo-next" aria-label="Próxima promoção">›</button></div><div class="promotion-hero-progress"><span class="promotion-hero-progress-fill"></span></div>':'')+'</div></section>';
+  stopPromotionCarousel();
+  const home=root.getElementById('homeView');
+  if(!home||root.body.classList.contains('admin-route')){stopPromotionCarousel();existing?.remove();return}
+  if(existing&&home.contains(existing))existing.outerHTML=html;
+  else{existing?.remove();const hoursBanner=root.getElementById('restaurantHoursBanner');if(hoursBanner&&home.contains(hoursBanner))hoursBanner.insertAdjacentHTML('afterend',html);else home.insertAdjacentHTML('afterbegin',html)}
+  startPromotionCarousel(root.getElementById('promotionBanner'));
 }
 function renderRecentProducts(){
   const section=root.getElementById('recentProductsSection');
@@ -171,38 +519,69 @@ function rememberRecentProduct(productId){
 function updateCartCount() { root.getElementById('cartCount').textContent=app.cart.reduce((sum,item)=>sum+item.quantity,0); }
 function selectedEntries(builder=app.builder) {
   if (!builder)return [];
-  return builder.ingredients.map(entry=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);return ingredient?{...ingredient,quantity:entry.quantity}:null}).filter(Boolean);
+  const product=app.catalog.products.find(item=>item.id===builder.productId);
+  const ingredientProduct=buildYourOwnFlavorProduct(product,builder.flavorProductIds||[product?.id])||product;
+  return builder.ingredients.map(entry=>{
+    const ingredient=app.catalog.ingredients.find(item=>item.id===entry.id);if(!ingredient)return null;
+    const quantity=['burger','plate'].includes(product?.type)?Math.max(1,Math.min(20,Number(entry.quantity)||1)):1;
+    if(ingredientProduct?.ingredientsConfigured){const included=(ingredientProduct.defaultIngredientIds||[]).includes(ingredient.id);return {...ingredient,included,cents:included?0:ingredient.cents,quantity}}
+    return {...ingredient,quantity};
+  }).filter(Boolean);
 }
 function builderPrice(builder=app.builder) {
   if(!builder)return 0;
   const product=app.catalog.products.find(item=>item.id===builder.productId);if(!product)return 0;
-  const size=app.catalog.sizes[product.type].find(s=>s.key===builder.sizeKey);
+  const size=product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(s=>s.key===builder.sizeKey);
   const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===builder.crustKey):{priceCents:0};
-  const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents*item.quantity,0);
-  return Math.max(0,product.baseCents+(size?.deltaCents||0)+(crust?.priceCents||0)+extras);
+  const extras=selectedEntries(builder).reduce((total,item)=>total+item.cents,0);
+  const flavorProducts=(builder.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
+  const baseSizePrice=Math.max(...(flavorProducts.length?flavorProducts:[product]).map(p=>effectiveProductSizePrice(p,builder.sizeKey,size)));
+  return Math.max(0,baseSizePrice+(crust?.priceCents||0)+extras);
 }
-function groupedIngredients(type) {
+function groupedIngredients(type, product = null) {
   const map=new Map();
-  for(const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0)){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
+  const configuredIds = [...(product?.ingredientIds || []), ...(product?.defaultIngredientIds || [])];
+  // Se o produto estiver marcado como configurado, mas a lista salva estiver vazia,
+  // não escondemos todos os ingredientes do modal: mostramos os ativos daquele tipo.
+  const allowed = product?.ingredientsConfigured && configuredIds.length ? new Set(configuredIds) : null;
+  for (const item of app.catalog.ingredients.filter(i=>i.type===type&&i.active!==0&&(!allowed||allowed.has(i.id)))){if(!map.has(item.groupName))map.set(item.groupName,[]);map.get(item.groupName).push(item)}
   return Array.from(map.entries());
 }
-function openBuilder(productId,cartItem=null) {
-  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return;if(product.available===0)return toast('Esse produto está esgotado no momento.');
+async function ensureAgeForProduct(product){
+  if(!product?.ageRestricted)return true;
+  let customer;
+  try{const result=await api('/api/customer/me');customer=result.customer;app.customer=customer||null;}
+  catch(error){app.pendingAgeProductId=product.id;toast('Entre ou crie sua conta para confirmar a idade e acessar este produto.');location.hash='conta';return false;}
+  if(!customer){app.pendingAgeProductId=product.id;toast('Entre ou crie sua conta para confirmar a idade e acessar este produto.');location.hash='conta';return false;}
+  if(!customer.birthDate){const birthDate=window.prompt('Este produto é restrito a maiores de 18 anos. Informe sua data de nascimento (AAAA-MM-DD):');if(!birthDate)return false;try{const result=await api('/api/customer/birth-date',{method:'PATCH',body:JSON.stringify({birthDate})});customer=result.customer;app.customer=customer;}catch(error){toast(error.message||'Não foi possível validar sua data de nascimento.');return false;}}
+  if(customer.isAdult!==true){toast('Este produto é permitido apenas para maiores de 18 anos.');return false;}
+  return true;
+}
+async function openBuilder(productId,cartItem=null,promotionId=null) {
+  // Abre imediatamente com o catálogo já carregado; não aguarda uma chamada de rede.
+  if(!restaurantCanOrder()){toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');return}
+  const product=app.catalog.products.find(p=>p.id===productId);if(!product)return toast('Este produto não está mais disponível no cardápio. Atualize a página.');if(product.available===0)return toast('Esse produto está esgotado no momento.');
+  if(!(await ensureAgeForProduct(product)))return;
   rememberRecentProduct(productId);
-  const initial=cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(product,app.catalog);
-  app.builder={productId,ingredients:initial,sizeKey:cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||'tradicional',editId:cartItem?.cartId||null};
+  const selectedPromotion=promotionId?((product.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive)||(app.catalog.promotions||[]).find(item=>String(item.id)===String(promotionId)&&item.promotionActive&&(item.productId===product.id||(product.type==='pizza'&&item.productId==='__all_pizzas__')))):null;
+  // Em ofertas, o cliente precisa escolher o sabor; não presumimos o primeiro produto.
+  const initialFlavors=selectedPromotion&&product.type==='pizza'?[]:(cartItem?.flavorProductIds?.length?cartItem.flavorProductIds:[product.id]);
+  const initialByoFlavor=buildYourOwnFlavorProduct(product,initialFlavors);
+  const initial=selectedPromotion&&product.type==='pizza'&&!cartItem?[]:(cartItem?cartItem.ingredients.map(i=>({id:i.id,quantity:i.quantity})):defaultIngredients(initialByoFlavor||product,app.catalog));
+  const ingredientProduct=initialByoFlavor||product;
+  const requiredIds=selectedPromotion&&product.type==='pizza'&&!initialFlavors.length?[]:(ingredientProduct.ingredientsConfigured?(ingredientProduct.defaultIngredientIds||[]):app.catalog.ingredients.filter(item=>item.type===product.type&&item.included).map(item=>item.id));
+  for(const id of requiredIds)if(!initial.some(item=>item.id===id))initial.push({id,quantity:1});
+  app.builder={productId,ingredients:initial,sizeKey:selectedPromotion?.sizeKey||cartItem?.sizeKey||(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'),crustKey:cartItem?.crustKey||(selectedPromotion&&product.type==='pizza'?(product.promotionalCrustBySize?.[selectedPromotion.sizeKey]||''):'tradicional'),flavorProductIds:initialFlavors,editId:cartItem?.cartId||null,promotion:selectedPromotion||null};
   app.rotate=0;app.zoom=1;renderBuilder();
 }
 function arStatusText(product = app.catalog?.products.find(item => item.id === app.builder?.productId)) {
-  if (app.arSupported === null) return 'Verificando compatibilidade com realidade aumentada…';
-  if (app.arSupported) return 'RA por câmera disponível via WebXR. A câmera só abre após o seu toque.';
-  const modelUrl = String(product?.modelUrl || '');
-  const appleDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const nativeModelAvailable = (appleDevice && /\.usdz($|[?#])/i.test(modelUrl)) ||
-    (/Android/i.test(navigator.userAgent) && /\.glb($|[?#])/i.test(modelUrl));
-  if (nativeModelAvailable) return 'Este prato pode abrir no visualizador de RA do aparelho.';
-  return 'RA por câmera não disponível neste navegador para este prato — você ainda pode usar a prévia 3D.';
+  if (app.arSupported === null) return 'Verificando opções de realidade aumentada…';
+  if (app.arSupported) return 'RA com rastreamento automático disponível neste navegador.';
+  const cameraAvailable = Boolean(globalThis.isSecureContext && navigator.mediaDevices?.getUserMedia);
+  if (cameraAvailable) {
+    return 'Use “Ver na minha mesa” para abrir a câmera e posicionar o prato manualmente. O rastreamento automático depende do aparelho.';
+  }
+  return 'Para usar a câmera, abra o cardápio por HTTPS e permita o acesso à câmera. A prévia 3D continua disponível.';
 }
 async function detectAR() {
   if (app.arSupported !== null) return;
@@ -214,7 +593,9 @@ async function detectAR() {
   const node = root.getElementById('arStatus');
   if (node) node.textContent = arStatusText();
 }
+// Personalização: controla as opções do produto e recalcula a composição/preço selecionado.
 function renderBuilder() {
+  if (app.arLite?.active) stopCameraAR();
   const builderRoot = root.getElementById('builderRoot');
   const previousContent = builderRoot.querySelector('.builder-content');
   const previousScrollTop = previousContent ? previousContent.scrollTop : 0;
@@ -230,26 +611,87 @@ function renderBuilder() {
   const builder = app.builder;
   const product = app.catalog.products.find(p => p.id === builder.productId);
   const isPizza = product.type === 'pizza';
+  const chosenFlavors = builder.flavorProductIds || [product.id];
+  // A oferta usa o produto-base apenas como referência; a receita exibida é a do sabor escolhido.
+  const selectedFlavorProduct = isPizza && chosenFlavors.length ? (app.catalog.products.find(item => item.id === chosenFlavors[0]) || product) : product;
+  const displayProduct = builder.promotion && isPizza ? selectedFlavorProduct : product;
+  const offerFlavorProducts = builder.promotion && isPizza ? chosenFlavors.map(id => app.catalog.products.find(item => item.id === id)).filter(Boolean) : [];
+  const offerFlavorDefaults = new Map();
+  for (const flavor of offerFlavorProducts) for (const entry of defaultIngredients(flavor, app.catalog)) {
+    const previous = offerFlavorDefaults.get(entry.id);
+    offerFlavorDefaults.set(entry.id, { id: entry.id, quantity: Math.max(previous?.quantity || 1, entry.quantity || 1) });
+  }
+  const offerFlavorDefaultIds = new Set(offerFlavorDefaults.keys());
+  const offerNeedsFlavor = Boolean(builder.promotion&&isPizza&&!chosenFlavors.length);
+  const buildYourOwnProduct = buildYourOwnFlavorProduct(product, chosenFlavors);
+  const isBuildYourOwn = Boolean(buildYourOwnProduct);
+  const buildYourOwnDefaults = new Set(isBuildYourOwn ? (buildYourOwnProduct.defaultIngredientIds || []) : []);
+  const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;
+  const ingredientLimit = isBuildYourOwn ? 3 : 12;
   const selected = new Set(builder.ingredients.map(i => i.id));
+  const selectedIngredientDescription = ingredientDescription(displayProduct, builder.ingredients);
+  const selectedSize = product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(item => item.key === builder.sizeKey);
+  const offerPromotion=builder.promotion;  const offerRegular=offerPromotion?(product.type==='pizza'?regularProductSizePrice(product,builder.sizeKey,(app.catalog.sizes?.pizza||[]).find(item=>item.key===builder.sizeKey)):regularProductSizePrice(product,'unico',null)):0;
+  const offerPrice=Number(offerPromotion?.calculatedPriceCents)||0;
+  const offerPercent=offerPromotion&&offerRegular>offerPrice&&offerPrice>0?Math.round((1-offerPrice/offerRegular)*100):0;
+  const builderCurrentPrice=offerPromotion&&offerPrice>0?offerPrice+(builderPrice()-effectiveProductSizePrice(product,builder.sizeKey,selectedSize)):builderPrice();
+  const builderBaseRegular=offerPromotion?offerRegular:regularProductSizePrice(product,builder.sizeKey,selectedSize);
+  const builderBaseCurrent=offerPromotion?offerPrice:effectiveProductSizePrice(product,builder.sizeKey,selectedSize);
+  const builderRegularPrice=builderCurrentPrice+Math.max(0,builderBaseRegular-builderBaseCurrent);
+  const builderPriceMarkup=builderRegularPrice>builderCurrentPrice?'<span class="builder-price-discount"><del>'+money(builderRegularPrice)+'</del><strong>'+money(builderCurrentPrice)+'</strong><small>Você economiza '+money(builderRegularPrice-builderCurrentPrice)+'</small></span>':'<strong class="builder-price-current">'+money(builderCurrentPrice)+'</strong>';
+  const offerNotice=offerPromotion?'<section class="builder-promotion-summary"><div class="builder-promotion-icon">'+uiIcon('sparkles',20)+'</div><div class="builder-promotion-copy"><span>OFERTA ESPECIAL</span><strong>'+esc(offerPromotion.promotionName||'Condição promocional')+'</strong><small>Esta oferta está aplicada ao produto selecionado.</small></div>'+(offerPercent?'<div class="builder-promotion-discount"><b>'+offerPercent+'% OFF</b><small>Economize '+money(offerRegular-offerPrice)+'</small></div>':'')+'</section>':'';
   const layered = builder.ingredients.map(i => ({ ...app.catalog.ingredients.find(g => g.id === i.id), quantity: i.quantity, pop: i.id === builder.lastAdded })).filter(i => i.id);
-  const selectedSize = app.catalog.sizes[product.type].find(item => item.key === builder.sizeKey);
   const sceneCanvas = app.scene?.canvas || null;
   const diameter = selectedSize?.diameterCm || 0;
   const sizeScale = isPizza && diameter ? (0.72 + 0.28 * (diameter / 40)).toFixed(3) : (builder.sizeKey === 'duplo' ? '1' : '0.94');
-  const artMode = app.viewMode !== '3d';
+  const artMode = app.viewMode === 'art';
+  const generatedMode = app.viewMode === 'generated' && Boolean(product.model3dUrl);
   const autoOn = app.scene ? app.scene.autoRotate : !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined };
-  const visual = '<div class="food-stage ' + (artMode ? 'view-art' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Ilustração</button><button type="button" data-action="view-3d" aria-pressed="' + !artMode + '">3D</button></div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + productSvg(product, layered, { double: builder.sizeKey === 'duplo' }) + '</div><canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D de ' + esc(product.name) + '"></canvas><div class="drag-hint" aria-hidden="true"><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
-  const sizeHtml = app.catalog.sizes[product.type].map(size => '<button type="button" class="option-pill ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '">' + esc(size.label) + '<small>' + esc(size.diameterCm ? size.diameterCm + ' cm' : (size.key === 'duplo' ? '2 carnes' : money(product.baseCents + size.deltaCents))) + '</small></button>').join('');
-  const crustHtml = isPizza ? '<div class="step-row"><b>02</b> Massa e borda</div><div class="option-pills">' + app.catalog.crusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '') + '</button>').join('') + '</div>' : '';
-  let ingredientHtml = '';
-  for (const [group, items] of groupedIngredients(product.type)) {
+  const sceneFlavors = isPizza ? chosenFlavors.map((id, index) => {
+    const flavorProduct = app.catalog.products.find(item => item.id === id);
+    if (!flavorProduct) return null;
+    const defaults = defaultIngredients(flavorProduct, app.catalog);
+    const merged = new Map(defaults.map(item => [item.id, { ...item }]));
+    // Os adicionais escolhidos no formulário pertencem ao sabor principal.
+    // Replicá-los em todos os sabores fazia os mesmos ingredientes aparecerem
+    // em cada fatia, dando a impressão de que a pizza inteira tinha a mesma cobertura.
+    const ingredientFlavorId = buildYourOwnProduct?.id || chosenFlavors[0];
+    if (flavorProduct.id === ingredientFlavorId) {
+      for (const item of builder.ingredients) {
+        const previous = merged.get(item.id);
+        if (previous) previous.quantity = Math.max(previous.quantity || 1, item.quantity || 1);
+        else merged.set(item.id, { ...item });
+      }
+    }
+    return { id: flavorProduct.id, ingredients: [...merged.values()] };
+  }).filter(Boolean) : [];
+  const sceneOptions = { crustKey: isPizza ? builder.crustKey : undefined, flavors: sceneFlavors };
+  const artContent = productImageCarouselMarkup(displayProduct,'modal','contain',layered);
+  const visual = '<div class="food-stage ' + (artMode ? 'view-art' : generatedMode ? 'view-generated' : 'view-3d') + '"><div class="view-toggle" role="group" aria-label="Tipo de visualização"><button type="button" data-action="view-art" aria-pressed="' + artMode + '">Foto / 2D</button><button type="button" data-action="view-3d" aria-pressed="' + (!artMode && !generatedMode) + '">3D interativo</button>' + (product.model3dUrl ? '<button type="button" data-action="view-generated-3d" aria-pressed="' + generatedMode + '">Modelo real</button>' : '') + '</div><div class="food-art-view" style="--size-scale:' + sizeScale + '" aria-hidden="' + !artMode + '">' + artContent + '</div>' + (product.model3dUrl ? '<model-viewer class="generated-food-model" src="' + esc(product.model3dUrl) + '" alt="Modelo 3D de ' + esc(product.name) + '" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ' + (generatedMode ? '' : 'hidden') + '></model-viewer>' : '') + '<canvas id="foodCanvas" class="food-canvas" role="img" aria-label="Modelo 3D interativo de ' + esc(product.name) + '" ' + (artMode || generatedMode ? 'hidden' : '') + '></canvas><div class="drag-hint" aria-hidden="true" ' + (artMode || generatedMode ? 'hidden' : '') + '><span>↔</span> Arraste para girar</div><div class="food-status" id="foodStatus" role="status" aria-live="polite" hidden></div><div class="ar-hud" id="arHud" aria-live="polite"></div></div>';
+  const availableBuilderSizes=(app.catalog.sizes[product.type]||[]).filter(size=>!offerPromotion||size.key===offerPromotion.sizeKey);
+  const sizeHtml = product.type==='plate'?'':availableBuilderSizes.map(size => {const regular=regularProductSizePrice(product,size.key,size),current=effectiveProductSizePrice(product,size.key,size),discounted=current<regular;return '<button type="button" class="option-pill builder-size-option ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '"><span>'+esc(size.label)+'</span><small>'+(size.diameterCm?esc(size.diameterCm+' cm'):(size.key==='duplo'?'2 carnes':''))+'</small><span class="builder-size-prices">'+(discounted?'<del>'+money(regular)+'</del><strong>'+money(current)+'</strong>':'<strong>'+money(current)+'</strong>')+'</span></button>'}).join('');
+  const flavorLimit=Number(selectedSize?.maxFlavors)||1;
+  const flavorProducts=app.catalog.products.filter(p=>p.type==='pizza'&&Number(p.active)!==0&&Number(p.available)!==0);
+  const flavorCategories=app.catalog.categories.filter(category=>flavorProducts.some(p=>p.categoryId===category.id));
+  const flavorGroups=flavorCategories.map(category=>({name:category.name,products:flavorProducts.filter(p=>p.categoryId===category.id)}));
+  const uncategorizedFlavors=flavorProducts.filter(p=>!app.catalog.categories.some(category=>category.id===p.categoryId));
+  if(uncategorizedFlavors.length)flavorGroups.push({name:'Outros sabores',products:uncategorizedFlavors});
+  const flavorHtml=isPizza?'<div class="step-row"><b>02</b> Sabores · '+chosenFlavors.length+'/'+flavorLimit+'</div><p class="ingredient-help">'+(offerPromotion?'Escolha o sabor que deseja nesta oferta. Nenhum sabor vem selecionado. ':'Escolha sabores salgados e doces entre as categorias cadastradas. ')+'O preço considera o sabor de maior valor.</p>'+flavorGroups.map(group=>'<div class="step-row flavor-category-heading">'+esc(group.name)+'</div><div class="ingredient-list">'+group.products.map(p=>'<button type="button" class="ingredient-option '+(chosenFlavors.includes(p.id)?'selected':'')+'" data-flavor-product="'+esc(p.id)+'" aria-pressed="'+chosenFlavors.includes(p.id)+'"><span class="ingredient-check">✓</span><span class="ingredient-name">'+esc(p.name)+'</span><span class="ingredient-cost">'+money(effectiveProductSizePrice(p,builder.sizeKey,selectedSize))+'</span></button>').join('')+'</div>').join(''):'';
+  const includedPromoCrust=product.promotionalCrustBySize?.[builder.sizeKey]||'';
+  const availableCrusts = app.catalog.crusts;
+  const crustHtml = isPizza && availableCrusts.length ? '<div class="step-row"><b>03</b> Massa e borda</div><div class="option-pills">' + availableCrusts.map(c => '<button class="option-pill ' + (builder.crustKey === c.key ? 'active' : '') + '" type="button" data-crust="' + c.key + '" aria-pressed="' + (builder.crustKey === c.key) + '">' + esc(c.label) + (includedPromoCrust===c.key ? '<small>INCLUÍDA NA OFERTA</small>' : (c.priceCents ? '<small>+' + money(c.priceCents) + '</small>' : '')) + '</button>').join('') + '</div>' : '';
+  const ingredientGroups = builder.promotion && isPizza && chosenFlavors.length
+    ? (() => { const allowed = new Set(offerFlavorProducts.flatMap(flavor => flavor.ingredientsConfigured ? [...(flavor.ingredientIds || []), ...(flavor.defaultIngredientIds || [])] : app.catalog.ingredients.filter(item => item.type === 'pizza' && item.active !== 0).map(item => item.id))); const groups = new Map(); for (const item of app.catalog.ingredients.filter(item => item.type === 'pizza' && item.active !== 0 && allowed.has(item.id))) { if (!groups.has(item.groupName)) groups.set(item.groupName, []); groups.get(item.groupName).push(item); } return [...groups.entries()]; })()
+    : groupedIngredients(product.type, buildYourOwnProduct || displayProduct);
+  let ingredientHtml = ingredientGroups.length ? (isBuildYourOwn ? '<div class="step-row"><b>03</b> Monte sua pizza · '+buildYourOwnAddonCount+'/3 adicionais</div><p class="ingredient-help">Molho e mussarela já vêm na receita padrão. Escolha até 3 adicionais, sem precisar remover os ingredientes obrigatórios.</p>' : '<div class="step-row"><b>03</b> Ingredientes e adicionais</div><p class="ingredient-help">A receita padrão é obrigatória. Adicionais extras são opcionais e podem ser escolhidos livremente.</p>') : '';
+  for (const [group, items] of ingredientGroups) {
     ingredientHtml += '<div class="step-row"><b>•</b> ' + esc(group) + '</div><div class="ingredient-list">' + items.map(item => {
-      const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), price = item.cents ? '+ ' + money(item.cents) : 'incluído';
-      return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + '" type="button" aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + (active && !item.included ? '<div class="ingredient-stepper" aria-label="Quantidade de ' + esc(item.name) + '"><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="-1" aria-label="Diminuir ' + esc(item.name) + '">−</button><span>' + entry.quantity + '×</span><button type="button" data-ingredient-qty="' + esc(item.id) + '" data-delta="1" aria-label="Aumentar ' + esc(item.name) + '">+</button></div>' : '') + '</div>';
+      const active = selected.has(item.id), entry = builder.ingredients.find(i => i.id === item.id), ingredientProduct = buildYourOwnProduct || displayProduct, included = builder.promotion && isPizza ? offerFlavorDefaultIds.has(item.id) : (ingredientProduct.ingredientsConfigured ? (ingredientProduct.defaultIngredientIds || []).includes(item.id) : item.included), required = builder.promotion && isPizza ? included : (isBuildYourOwn ? included : (included || item.included)), lockedAtLimit = isBuildYourOwn && !active && !included && buildYourOwnAddonCount >= ingredientLimit, price = included ? 'incluído' : item.cents ? '+ ' + money(item.cents) : 'grátis';
+      return '<div class="ingredient-item"><button class="ingredient-option ' + (active ? 'selected' : '') + (required ? ' ingredient-required' : '') + '" type="button" ' + ((required || lockedAtLimit) ? 'disabled aria-label="' + esc(item.name) + (required ? ', ingrediente padrão obrigatório' : ', limite de 3 ingredientes atingido') + '"' : 'aria-pressed="' + active + '" data-ingredient="' + esc(item.id) + '"') + '><span class="ingredient-check">✓</span><span class="ingredient-name">' + esc(item.name) + '<small>' + (required ? 'Padrão · ' : '') + esc(group) + '</small></span><span class="ingredient-cost">' + (active && item.cents && entry?.quantity > 1 ? money(item.cents * entry.quantity) : price) + '</span></button>' + '</div>';
     }).join('') + '</div>';
   }
-  builderRoot.innerHTML = '<div class="modal-backdrop" data-action="builder-backdrop"><section class="builder-modal" role="dialog" aria-modal="true" aria-label="Personalizar ' + esc(product.name) + '"><div class="builder-visual"><span class="visual-kicker">SUA MONTAGEM EM TEMPO REAL</span>' + visual + '<div class="visual-caption">' + (artMode ? 'Ilustração gerada pelas suas escolhas · alterne para 3D para girar' : 'Gire 360° arrastando · role ou use + e − para o zoom · duplo clique volta à vista inicial') + '</div><div class="visual-controls"><button type="button" data-action="rotate-left" aria-label="Girar para a esquerda">↶</button><button type="button" class="control-label" data-action="reset-view">VISTA</button><button type="button" class="control-label" data-action="toggle-auto" aria-pressed="' + autoOn + '" title="Ligar ou pausar a rotação automática">AUTO</button><button type="button" data-action="rotate-right" aria-label="Girar para a direita">↷</button><button type="button" data-action="zoom-out" aria-label="Diminuir zoom">−</button><button type="button" data-action="zoom-in" aria-label="Aumentar zoom">＋</button></div></div><div class="builder-content"><div class="modal-topline"><span>MONTE AO SEU GOSTO</span><button class="icon-button" data-action="close-builder" aria-label="Fechar">×</button></div><h2 class="builder-title">' + esc(product.name) + '</h2><p class="builder-description">' + esc(product.description) + ' Marque ou remova ingredientes e veja o prato e o preço mudarem na hora.</p><div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">' + sizeHtml + '</div>' + crustHtml + ingredientHtml + '<p class="price-note">O valor final é confirmado pelo servidor a partir das opções disponíveis.</p><div class="ar-row"><button type="button" class="button button-outline ar-button" data-action="view-ar" data-product="' + esc(product.id) + '"><span class="ar-icon" aria-hidden="true">◈</span> Ver na minha mesa</button><small class="ar-status" id="arStatus" aria-live="polite">' + arStatusText() + '</small></div><div class="builder-footer"><div class="builder-total"><small>Seu prato</small><b>' + money(builderPrice()) + '</b></div><button class="button button-dark" data-action="add-to-cart">' + (builder.editId ? 'Salvar alterações' : 'Adicionar à sacola') + ' <span>↗</span></button></div></div></section></div>';
+  const buildYourOwnHint = isBuildYourOwn ? '<p class="ingredient-help" role="status">' + (buildYourOwnAddonCount === 3 ? 'Os 3 adicionais foram selecionados.' : 'Você pode escolher mais ' + (3 - buildYourOwnAddonCount) + ' adicional(is).') + '</p>' : '';
+  builderRoot.innerHTML = '<div class="modal-backdrop" data-action="builder-backdrop"><section class="builder-modal" role="dialog" aria-modal="true" aria-label="Personalizar ' + esc(product.name) + '"><div class="builder-visual" ' + (offerNeedsFlavor?'hidden':'') + '><span class="visual-kicker">SUA MONTAGEM EM TEMPO REAL</span>' + visual + '<div class="visual-caption">' + (generatedMode ? 'Modelo 3D gerado a partir da foto do restaurante · arraste para girar' : artMode ? 'Foto original do produto · alterne para 3D para visualizar o modelo' : 'Gire 360° arrastando · role ou use + e − para o zoom · duplo clique volta à vista inicial') + '</div><div class="visual-controls"><button type="button" data-action="rotate-left" aria-label="Girar para a esquerda">↶</button><button type="button" class="control-label" data-action="reset-view">VISTA</button><button type="button" class="control-label" data-action="toggle-auto" aria-pressed="' + autoOn + '" title="Ligar ou pausar a rotação automática">AUTO</button><button type="button" data-action="rotate-right" aria-label="Girar para a direita">↷</button><button type="button" data-action="zoom-out" aria-label="Diminuir zoom">−</button><button type="button" data-action="zoom-in" aria-label="Aumentar zoom">＋</button></div></div><div class="builder-content"><div class="modal-topline"><span>'+ (offerPromotion?'PERSONALIZE SUA OFERTA':'MONTE AO SEU GOSTO') +'</span><button class="icon-button" data-action="close-builder" aria-label="Fechar">'+uiIcon('close',18)+'</button></div><h2 class="builder-title">' + (offerNeedsFlavor?'Escolha seu sabor':esc(displayProduct.name)) + '</h2>' + offerNotice + (offerNeedsFlavor?'':'<p class="builder-description">' + esc(displayProduct.description) + ' Marque ou remova ingredientes e veja o prato e o preço mudarem na hora.</p>' + (selectedIngredientDescription ? '<p class="builder-ingredients-summary">' + esc(selectedIngredientDescription) + '</p>' : '')) + '<div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">' + sizeHtml + '</div>' + flavorHtml + (offerNeedsFlavor?'':crustHtml + ingredientHtml + buildYourOwnHint + '<p class="price-note">O valor final é confirmado pelo servidor a partir das opções disponíveis.</p><div class="ar-row"><button type="button" class="button button-outline ar-button" data-action="view-ar" data-product="' + esc(product.id) + '"><span class="ar-icon" aria-hidden="true">'+uiIcon('camera',17)+'</span> Ver na minha mesa</button><small class="ar-status" id="arStatus" aria-live="polite">' + arStatusText() + '</small></div>') + '<div class="builder-footer"><div class="builder-total"><small>'+(offerNeedsFlavor?'Preço da oferta':'Total do produto')+'</small><div class="builder-price-display">' + (offerNeedsFlavor?'<span class="builder-price-pending">Escolha um sabor</span>':builderPriceMarkup) + '</div></div><button class="button button-dark" data-action="add-to-cart" ' + (offerNeedsFlavor?'disabled aria-disabled="true"':(isBuildYourOwn && [...buildYourOwnDefaults].some(id=>!builder.ingredients.some(item=>item.id===id)) ? 'disabled aria-disabled="true"' : '')) + '>' + (offerNeedsFlavor?'Selecione um sabor':(isBuildYourOwn && [...buildYourOwnDefaults].some(id=>!builder.ingredients.some(item=>item.id===id)) ? 'Confira a receita padrão' : (builder.editId ? 'Salvar alterações' : 'Adicionar à carrinho'))) + ' <span>'+uiIcon('arrow',14)+'</span></button></div></div></section></div>';
   const nextContent = builderRoot.querySelector('.builder-content');
   if (nextContent) {
     nextContent.scrollTop = previousScrollTop;
@@ -264,10 +706,10 @@ function renderBuilder() {
     freshCanvas.replaceWith(sceneCanvas);
     app.scene.canvas = sceneCanvas;
     app.scene.hud = root.getElementById('arHud');
-    app.scene.update(product, layered, selectedSize, sceneOptions);
+    app.scene.update(displayProduct, layered, selectedSize, sceneOptions);
   } else {
     try {
-      app.scene = new FoodScene(freshCanvas, product, layered, selectedSize, root.getElementById('arHud'), sceneOptions);
+      app.scene = new FoodScene(freshCanvas, displayProduct, layered, selectedSize, root.getElementById('arHud'), sceneOptions);
     } catch (error) {
       app.scene = null;
       freshCanvas.remove();
@@ -302,33 +744,123 @@ function syncSceneUi(artMode) {
   setStageState(scene.state);
 }
 function invalidateCheckoutKey(){ app.checkoutKey=''; }
-function addBuilderToCart() {
+async function addBeverageToCart(productId) {
+  const product=app.catalog?.products.find(item=>item.id===productId);
+  if(!product||product.type!=='drink')return;
+  if(Number(product.active)===0||Number(product.available)===0)return toast('Essa bebida está indisponível no momento.');
+  if(!(await ensureAgeForProduct(product)))return;
+  rememberRecentProduct(productId);
+  app.cart.push({cartId:randomId(),productId:product.id,name:product.name,type:'drink',quantity:1,sizeKey:'unico',crustKey:'',ingredients:[],notes:''});
+  invalidateCheckoutKey();setCart();playCartRunAnimation();toast(product.name+' adicionado à carrinho.');openCart();
+}
+async function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
   const product=app.catalog.products.find(p=>p.id===builder.productId);if(!product||product.available===0)return toast('Esse produto está esgotado no momento.');
-  const entry={cartId:builder.editId||randomId(),productId:product.id,name:product.name,type:product.type,quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
+  const selectedFlavors=product.type==='pizza'?(builder.flavorProductIds||[product.id]):[product.id];
+  if(builder.promotion&&product.type==='pizza'&&!selectedFlavors.length)return toast('Escolha pelo menos um sabor para continuar com esta oferta.');
+  const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
+  if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
+  if(!(await ensureAgeForProduct(product)))return;
+  const selectedFlavorProducts=product.type==='pizza'?selectedFlavors.map(id=>app.catalog.products.find(item=>item.id===id)).filter(Boolean):[];
+  const cartProductName=builder.promotion&&product.type==='pizza'&&selectedFlavorProducts.length?selectedFlavorProducts.map(item=>item.name).join(' / '):product.name;
+  const entry={cartId:builder.editId||randomId(),productId:product.id,name:cartProductName,type:product.type,promotionId:builder.promotion?.id||'',flavorProductIds:product.type==='pizza'?selectedFlavors:[],quantity:builder.editId?(app.cart.find(i=>i.cartId===builder.editId)?.quantity||1):1,sizeKey:product.type==='plate'?'unico':builder.sizeKey,crustKey:product.type==='pizza'?builder.crustKey:'',ingredients:builder.ingredients.map(i=>({id:i.id,quantity:i.quantity})),notes:''};
   const index=app.cart.findIndex(item=>item.cartId===entry.cartId);if(index>=0)app.cart[index]=entry;else app.cart.push(entry);
-  invalidateCheckoutKey();setCart();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na sacola.':'Adicionado à sacola.');openCart();
+  invalidateCheckoutKey();setCart();if(!builder.editId)playCartRunAnimation();app.builder=null;renderBuilder();toast(builder.editId?'Alterações salvas na carrinho.':'Adicionado à carrinho.');openCart();
 }
 function randomId(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)}
-function cartItemPrice(item){
-  const product=app.catalog.products.find(p=>p.id===item.productId);if(!product)return 0;
-  const size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey);
-  const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
-  const extras=item.ingredients.reduce((sum,entry)=>sum+(app.catalog.ingredients.find(i=>i.id===entry.id)?.cents||0)*entry.quantity,0);
-  return product.baseCents+(size?.deltaCents||0)+(crust?.priceCents||0)+extras;
+function effectiveProductBase(product){
+  if(product?.type==='pizza')return Number(product?.baseCents)||0;
+  return product?.promotionalPriceCents!==null&&product?.promotionalPriceCents!==undefined
+    ?Number(product.promotionalPriceCents):Number(product?.baseCents)||0;
 }
+function regularProductSizePrice(product,key,size){if(product?.type==='pizza'){const configured=Number(size?.priceCents);if(Number.isInteger(configured)&&configured>=500)return configured;const saved=Number(product?.sizePrices?.[key]);if(Number.isInteger(saved)&&saved>=500)return saved;return Number(product?.baseCents)||0;}const configured=Number(product?.sizePrices?.[key]);if(Number.isInteger(configured)&&configured>0)return configured;return (Number(product?.baseCents)||0)+(size?.deltaCents||0)}
+function effectiveProductSizePrice(product,key,size){
+  // Promoção de pizza só substitui o preço do tamanho escolhido.
+  if(product?.type==='pizza'){
+    const sizePromotion=Number(product?.promotionalPriceBySize?.[key]);
+    if(Number.isInteger(sizePromotion)&&sizePromotion>0)return sizePromotion;
+    const configuredSize=Number(size?.priceCents);
+    if(Number.isInteger(configuredSize)&&configuredSize>=500)return configuredSize;
+    const savedSize=Number(product?.sizePrices?.[key]);
+    if(Number.isInteger(savedSize)&&savedSize>=500)return savedSize;
+    return Number(product?.baseCents)||0;
+  }
+  const configured=Number(product?.sizePrices?.[key]);
+  if(Number.isInteger(configured)&&configured>0)return configured;
+  return effectiveProductBase(product)+(size?.deltaCents||0);
+}
+function productPriceMarkup(product){
+  const from=Object.keys(product?.sizePrices||{}).length>1?'A partir de ':'';
+  // As ofertas ficam no banner; os cards mantêm o preço normal cadastrado.
+  return '<span class="product-price">'+from+money(product.baseCents)+'</span>';
+}
+function cartItemPriceBreakdown(item){
+  const current=cartItemPrice(item);
+  if(item.comboId||!item.promotionId)return {current,regular:current,discounted:false};
+  const product=app.catalog.products.find(p=>p.id===item.productId);
+  if(!product)return {current,regular:current,discounted:false};
+  const promotion=(product.promotions||[]).find(p=>String(p.id)===String(item.promotionId))||(app.catalog.promotions||[]).find(p=>String(p.id)===String(item.promotionId));
+  if(!promotion)return {current,regular:current,discounted:false};
+  const size=product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(s=>s.key===item.sizeKey);
+  const flavors=(item.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
+  const regularBase=Math.max(...(flavors.length?flavors:[product]).map(p=>regularProductSizePrice(p,item.sizeKey,size)));
+  const promoBase=Number(promotion.calculatedPriceCents)||(promotion.discountType==='percent'?Math.round(regularBase*(100-Number(promotion.discountPercent))/100):Number(promotion.promotionalPriceCents));
+  const includedCrust=product.type==='pizza'&&product.promotionalCrustBySize?.[item.sizeKey]===item.crustKey;
+  const crust=product.type==='pizza'&&!includedCrust?(app.catalog.crusts.find(c=>c.key===item.crustKey)?.priceCents||0):0;
+  const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);return sum+(ingredient?.cents||0)*Number(entry.quantity||1);},0);
+  const regular=regularBase+crust+extras,discountedPrice=promoBase+crust+extras;
+  return discountedPrice<regular?{current:discountedPrice,regular,discounted:true}:{current,regular:current,discounted:false};
+}
+function cartPriceMarkup(item,quantity=1){
+  const price=cartItemPriceBreakdown(item),current=price.current*quantity;
+  return price.discounted?'<span class="cart-price-discount"><del>'+money(price.regular*quantity)+'</del><strong>'+money(current)+'</strong></span>':money(current);
+}
+function cartItemPrice(item){
+  if(item.comboId){return Number(app.catalog.combos?.find(combo=>combo.id===item.comboId)?.priceCents)||0;}
+  const product=app.catalog.products.find(p=>p.id===item.productId);if(!product)return 0;
+  const size=product.type==='plate'?{key:'unico',label:'Hot Dog',deltaCents:0}:(app.catalog.sizes[product.type]||[]).find(s=>s.key===item.sizeKey);
+  const crust=product.type==='pizza'?app.catalog.crusts.find(c=>c.key===item.crustKey):{priceCents:0};
+  const freeCrust=product.type==='pizza'&&product.promotionalCrustBySize?.[item.sizeKey]===item.crustKey;
+  const ingredientProduct=buildYourOwnFlavorProduct(product,item.flavorProductIds?.length?item.flavorProductIds:[product.id])||product;
+  const extras=item.ingredients.reduce((sum,entry)=>{const ingredient=app.catalog.ingredients.find(i=>i.id===entry.id);const included=ingredientProduct.ingredientsConfigured&&(ingredientProduct.defaultIngredientIds||[]).includes(entry.id);return sum+(included?0:(ingredient?.cents||0))*entry.quantity;},0);
+  const flavors=(item.flavorProductIds||[product.id]).map(id=>app.catalog.products.find(p=>p.id===id)).filter(Boolean);
+  const priceProducts=flavors.length>1?flavors.map(p=>({...p,promotionalPriceBySize:{}})):(flavors.length?flavors:[product]);
+  let base=Math.max(...priceProducts.map(p=>effectiveProductSizePrice(p,item.sizeKey,size)));
+  if(flavors.length>1){const promo=product.promotions?.find(p=>p.sizeKey===item.sizeKey&&p.promotionActive&&p.applyToAllPizzas)||product.promotions?.find(p=>p.sizeKey===item.sizeKey&&p.promotionActive);if(promo)base=promo.discountType==='percent'?Math.round(base*(100-Number(promo.discountPercent))/100):Number(promo.promotionalPriceCents);}
+  else if(item.promotionId){const promo=(product.promotions||[]).find(p=>String(p.id)===String(item.promotionId))||(app.catalog.promotions||[]).find(p=>String(p.id)===String(item.promotionId));if(promo){const regular=regularProductSizePrice(product,item.sizeKey,size);base=Number(promo.calculatedPriceCents)||(promo.discountType==='percent'?Math.round(regular*(100-Number(promo.discountPercent))/100):Number(promo.promotionalPriceCents));}}
+  return base+(freeCrust?0:(crust?.priceCents||0))+extras;
+}
+// Carrinho e checkout: apresenta os itens e prepara os dados que serão enviados como pedido.
 function renderCart(){
   const total=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
   const items=app.cart.map(item=>{
+    if(item.comboId){const combo=app.catalog.combos?.find(entry=>entry.id===item.comboId);const contents=(combo?.items||[]).map(entry=>(entry.quantity>1?entry.quantity+'× ':'')+entry.name).join(', ');return '<article class="cart-item combo-cart-item"><div class="cart-thumb combo-thumb">'+uiIcon('plus',22)+'</div><div><h3>'+esc(combo?.name||item.name)+'</h3><p>Combo promocional<br>'+esc(contents)+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+cartPriceMarkup(item,item.quantity)+'</span></article>';}
     const product=app.catalog.products.find(p=>p.id===item.productId),names=new Map(app.catalog.ingredients.map(i=>[i.id,i.name]));
-    const components=item.ingredients.map(i=>names.get(i.id)).filter(Boolean).join(', '),size=app.catalog.sizes[product.type].find(s=>s.key===item.sizeKey)?.label||'';
-    return '<article class="cart-item"><div class="cart-thumb">'+productSvg(product,item.ingredients.map(entry=>({...app.catalog.ingredients.find(ingredient=>ingredient.id===entry.id),quantity:entry.quantity})).filter(entry=>entry.id))+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(size)+(item.crustKey&&item.crustKey!=='tradicional'?' · '+esc(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+'<br>'+esc(components||'Composição da casa')+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div><button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button><button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+money(cartItemPrice(item)*item.quantity)+'</span></article>';
+    const isDrink=product.type==='drink';
+    const components=item.ingredients.map(i=>(Number(i.quantity)>1?Number(i.quantity)+'× ':'')+(names.get(i.id)||'')).filter(Boolean).join(', '),flavorNames=(item.flavorProductIds||[]).map(id=>app.catalog.products.find(p=>p.id===id)?.name).filter(Boolean),size=product.type==='plate'?'Hot Dog':(app.catalog.sizes[product.type]||[]).find(s=>s.key===item.sizeKey)?.label||'';
+    const thumb=isDrink&&product.imageUrl?productPhotoOrArt(product,[],{},'cart-thumb-photo','contain'):productSvg(product,item.ingredients.map(entry=>({...app.catalog.ingredients.find(ingredient=>ingredient.id===entry.id),quantity:entry.quantity})).filter(entry=>entry.id));
+    const detail=isDrink?(product.description||'Bebida'):(size+(flavorNames.length>1?' · Sabores: '+flavorNames.join(' / '):'')+(item.crustKey&&item.crustKey!=='tradicional'?' · '+(app.catalog.crusts.find(c=>c.key===item.crustKey)?.label||''):'')+' · '+(components||'Composição da casa'));
+    return '<article class="cart-item"><div class="cart-thumb">'+thumb+'</div><div><h3>'+esc(item.name)+'</h3><p>'+esc(detail)+'</p><div class="cart-item-actions"><div class="qty-control"><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="-1" aria-label="Diminuir">−</button><span>'+item.quantity+'</span><button data-action="qty" data-id="'+esc(item.cartId)+'" data-delta="1" aria-label="Aumentar">+</button></div>'+(isDrink?'':'<button class="tiny-link" data-action="edit-cart-item" data-id="'+esc(item.cartId)+'">Editar</button>')+'<button class="tiny-link" data-action="remove-cart-item" data-id="'+esc(item.cartId)+'">Remover</button></div></div><span class="cart-item-price">'+cartPriceMarkup(item,item.quantity)+'</span></article>';
   }).join('');
-  root.getElementById('cartRoot').innerHTML='<div class="drawer-backdrop" data-action="cart-backdrop"><aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Sacola"><div class="drawer-head"><div><div class="eyebrow">SEU PEDIDO</div><h2>Sacola <span style="font:11px var(--font);color:#839086">('+app.cart.reduce((s,i)=>s+i.quantity,0)+')</span></h2></div><button class="icon-button" data-action="close-cart" aria-label="Fechar">×</button></div>'+(app.cart.length?'<div class="cart-items">'+items+'</div><div class="cart-summary"><div class="summary-line"><span>Subtotal</span><span>'+money(total)+'</span></div><div class="summary-line"><span>Taxas</span><span>Calculadas conforme a modalidade</span></div><div class="summary-line summary-total"><span>Total estimado</span><span>'+money(total)+'</span></div><button class="button button-dark" data-action="checkout">Continuar para checkout <span>↗</span></button><p class="cart-disclaimer">O valor definitivo é conferido pelo servidor ao confirmar o pedido.</p></div>':'<div class="cart-empty"><div class="empty-icon">◌</div><h3>Sua mesa está vazia.</h3><p>Escolha algo que dê vontade de sentar e ficar mais um pouco.</p><button class="button button-dark" data-action="close-cart">Ver o cardápio</button></div>')+'</aside></div>';
+  const closedNotice=!restaurantCanOrder()?'<div class="restaurant-closed-notice"><strong>Pedidos temporariamente indisponíveis</strong><p>'+esc(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado.')+'</p><small>Você pode consultar o cardápio, mas só poderá confirmar um pedido durante o horário de funcionamento.</small></div>':'';
+  root.getElementById('cartRoot').innerHTML='<div class="drawer-backdrop" data-action="cart-backdrop"><aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Carrinho"><div class="drawer-head"><div><div class="eyebrow">SEU PEDIDO</div><h2>Carrinho <span style="font:11px var(--font);color:#839086">('+app.cart.reduce((s,i)=>s+i.quantity,0)+')</span></h2></div><button class="icon-button" data-action="close-cart" aria-label="Fechar">'+uiIcon('close',18)+'</button></div>'+(app.cart.length?'<div class="cart-items">'+items+'</div><div class="cart-summary">'+closedNotice+'<div class="summary-line"><span>Subtotal</span><span>'+money(total)+'</span></div><div class="summary-line"><span>Taxas</span><span>Calculadas conforme a modalidade</span></div><div class="summary-line summary-total"><span>Total estimado</span><span>'+money(total)+'</span></div>'+(restaurantCanOrder()?'<button class="button button-dark" data-action="checkout">Continuar para checkout <span>'+uiIcon('arrow',14)+'</span></button>':'')+'<p class="cart-disclaimer">O valor definitivo é conferido pelo servidor ao confirmar o pedido.</p></div>':'<div class="cart-empty"><div class="empty-icon">'+uiIcon('cart',34)+'</div><h3>Sua mesa está vazia.</h3><p>Escolha algo que dê vontade de sentar e ficar mais um pouco.</p><button class="button button-dark" data-action="close-cart">Ver o cardápio</button></div>')+'</aside></div>';
 }
 function openCart(){app.cartOpen=true;renderCart()}
 function checkoutForm(){
+  if(!restaurantCanOrder()){toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');return}
   const subtotal=app.cart.reduce((sum,item)=>sum+cartItemPrice(item)*item.quantity,0);
+  const checkoutItemsHtml=app.cart.map(item=>{
+    const combo=item.comboId?app.catalog.combos?.find(entry=>entry.id===item.comboId):null;
+    const product=app.catalog.products.find(entry=>entry.id===item.productId);
+    const name=combo?.name||product?.name||item.name||'Item do pedido';
+    const productSizes=product?.type?(app.catalog.sizes?.[product.type]||[]):[];
+    const selectedSize=productSizes.find(size=>size.key===item.sizeKey);
+    const flavorNames=(item.flavorProductIds||[]).map(id=>app.catalog.products.find(entry=>entry.id===id)?.name).filter(Boolean);
+    const crustName=item.crustKey&&item.crustKey!=='tradicional'?app.catalog.crusts.find(entry=>entry.key===item.crustKey)?.label:'';
+    const details=[combo?'Combo promocional':(selectedSize?.label||selectedSize?.name||''),...(flavorNames.length?['Sabores: '+flavorNames.join(' / ')]:[]),...(crustName?[crustName]:[])].filter(Boolean).join(' · ');
+    return '<div class="checkout-review-item"><span class="checkout-review-quantity">'+item.quantity+'×</span><div><strong>'+esc(name)+'</strong>'+(details?'<small>'+esc(details)+'</small>':'')+'</div><b>'+cartPriceMarkup(item,item.quantity)+'</b></div>';
+  }).join('');
+  const checkoutItemCount=app.cart.reduce((sum,item)=>sum+Number(item.quantity||0),0);
   app.checkoutCoupon=null;
   root.getElementById('checkoutRoot').innerHTML='<div class="modal-backdrop" data-action="checkout-backdrop"><form class="checkout-modal" id="checkoutForm" role="dialog" aria-modal="true"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="website" tabindex="-1" autocomplete="off"></label><div class="modal-topline"><span>QUASE NA MESA</span><button type="button" class="icon-button" data-action="close-checkout" aria-label="Fechar">×</button></div><h2>Para onde vai o pedido?</h2><p>Seu pedido será enviado à cozinha quando você confirmar.</p><label class="form-field"><span>Seu nome</span><input required minlength="2" name="customerName" autocomplete="name" placeholder="Como podemos chamar você?"></label><label class="form-field"><span>Telefone</span><input required name="phone" autocomplete="tel" placeholder="(11) 99999-9999"></label><div class="form-field"><span>Como prefere receber?</span><div class="fulfillment-options"><button class="fulfillment-option active" type="button" data-fulfillment="pickup">Retirar</button><button class="fulfillment-option" type="button" data-fulfillment="table">Na mesa</button><button class="fulfillment-option" type="button" data-fulfillment="delivery">Entrega</button></div><input type="hidden" name="fulfillment" value="pickup"></div><label class="form-field hidden" id="tableField"><span>Escolha uma mesa livre</span><select name="tableLabel" aria-describedby="tableAvailabilityHint" disabled><option value="">Carregando mesas…</option></select><small id="tableAvailabilityHint" class="table-availability-hint">Somente mesas livres podem ser selecionadas.</small></label><label class="form-field hidden" id="addressField"><span>Endereço de entrega</span><textarea name="deliveryAddress" placeholder="Rua, número, bairro e complemento"></textarea></label><label class="form-field"><span>Observação para a cozinha (opcional)</span><textarea name="note" maxlength="500" placeholder="Algum detalhe importante?"></textarea></label><div class="coupon-checkout"><label class="form-field"><span>Cupom de desconto</span><div class="coupon-input-row"><input id="checkoutCouponCode" maxlength="32" placeholder="Digite seu cupom" autocomplete="off"><button class="button button-outline button-small" type="button" data-action="apply-coupon">Aplicar</button></div></label><p id="checkoutCouponMessage" class="coupon-message" aria-live="polite"></p></div><div class="payment-note">Pagamento: combinar diretamente com o restaurante. Esta demo não processa nem aprova pagamentos.</div><div class="checkout-safety-note"><strong>Tem alergia ou restrição alimentar?</strong> Confirme ingredientes e risco de contaminação cruzada diretamente com o restaurante antes de concluir o pedido.</div><label class="checkout-legal-consent"><input type="checkbox" name="termsAccepted" required><span>Confirmo que revisei os itens e li os <a href="/termos-de-uso.html" target="_blank" rel="noopener noreferrer">Termos de uso</a> e a <a href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer">Política de privacidade</a>.</span></label><div class="checkout-total"><span>Subtotal</span><span id="checkoutSubtotal">'+money(subtotal)+'</span></div><div class="checkout-total coupon-discount-row" id="checkoutDiscountRow" hidden><span>Desconto</span><span id="checkoutDiscount">−'+money(0)+'</span></div><div class="checkout-total checkout-grand-total"><strong>Total estimado</strong><strong id="checkoutTotal">'+money(subtotal)+'</strong></div><p class="error-text" id="checkoutError" aria-live="polite"></p><button class="button button-dark" type="submit" style="width:100%">Confirmar pedido <span>↗</span></button></form></div>';
   root.getElementById('checkoutForm').addEventListener('submit',submitCheckout);
@@ -401,9 +933,111 @@ function updateCheckoutTotals(){
   const sub=root.getElementById('checkoutSubtotal'),disc=root.getElementById('checkoutDiscount'),row=root.getElementById('checkoutDiscountRow'),total=root.getElementById('checkoutTotal');
   if(sub)sub.textContent=money(subtotal);if(disc)disc.textContent='−'+money(discount);if(row)row.hidden=!discount;if(total)total.textContent=money(subtotal-discount);
 }
-function openCheckout(){
+function ensureCheckoutKey(){
+  const fingerprint=JSON.stringify(app.cart);
+  try{
+    const saved=JSON.parse(sessionStorage.getItem('menuza-checkout-key')||'null');
+    if(saved&&saved.fingerprint===fingerprint&&typeof saved.key==='string'&&saved.key.length>=12){
+      app.checkoutKey=saved.key;
+      return;
+    }
+    app.checkoutKey=randomId();
+    sessionStorage.setItem('menuza-checkout-key',JSON.stringify({key:app.checkoutKey,fingerprint}));
+  }catch{app.checkoutKey=app.checkoutKey||randomId()}
+}
+function clearCheckoutKey(){
+  app.checkoutKey='';
+  try{sessionStorage.removeItem('menuza-checkout-key')}catch{}
+}
+async function openCheckout(){
+  if(!restaurantCanOrder())return toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');
   if(!app.cart.length)return toast('Adicione um prato antes de continuar.');
-  app.checkoutKey=app.checkoutKey||randomId();app.checkoutOpen=true;app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';checkoutForm();
+  for(const item of app.cart){const product=item.productId?app.catalog?.products.find(p=>p.id===item.productId):null;const combo=item.comboId?app.catalog?.combos?.find(c=>c.id===item.comboId):null;const restrictedProduct=product?.ageRestricted?product:(combo?.items||[]).find(entry=>entry.ageRestricted);if(restrictedProduct&&!await ensureAgeForProduct(restrictedProduct.productId?{id:restrictedProduct.productId,ageRestricted:true}:restrictedProduct))return;}
+  // Renderiza o checkout antes de desmontar o carrinho. Se houver qualquer erro
+  // na montagem do formulário, o cliente continua vendo seus itens e pode tentar novamente.
+  ensureCheckoutKey();
+  try{
+    checkoutForm();
+    app.checkoutOpen=true;
+    app.cartOpen=false;
+    root.getElementById('cartRoot').innerHTML='';
+  }catch(error){
+    app.checkoutOpen=false;
+    root.getElementById('checkoutRoot').innerHTML='';
+    console.error('Falha ao abrir o checkout:',error);
+    toast('Não foi possível abrir o checkout. Seu carrinho foi mantido; tente novamente.');
+  }
+}
+function updateCameraARTransform() {
+  const ar = app.arLite;
+  if (!ar?.active || !ar.target) return;
+  ar.target.style.transform = `translate(${ar.x}px, ${ar.y}px) scale(${ar.scale})`;
+  ar.target.style.transformOrigin = 'center center';
+}
+function stopCameraAR() {
+  const ar = app.arLite;
+  if (!ar?.active && !ar?.stream && !ar?.video) return;
+  try { ar?.stream?.getTracks?.().forEach(track => track.stop()); } catch {}
+  try { ar?.video?.pause?.(); if (ar?.video) ar.video.srcObject = null; ar?.video?.remove?.(); } catch {}
+  const stage = root.querySelector('.food-stage');
+  stage?.classList.remove('ar-camera-mode');
+  stage?.removeAttribute('data-ar-mode');
+  if (ar?.target) { ar.target.style.transform = ''; ar.target.style.transformOrigin = ''; }
+  const hud = root.getElementById('arHud');
+  if (hud) { hud.classList.remove('ar-active'); hud.innerHTML = ''; }
+  app.arLite = { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null };
+  if (app.scene) { app.scene.hud = hud; app.scene.last = 0; app.scene.schedule?.(); }
+}
+async function startCameraAR(productId) {
+  if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    app.viewMode = '3d';
+    if (app.builder) renderBuilder();
+    toast('Este navegador não libera a câmera. Você ainda pode girar e ampliar o prato em 3D.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    if (!app.builder || app.builder.productId !== productId) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    app.viewMode = '3d';
+    renderBuilder();
+    const stage = root.querySelector('.food-stage');
+    const hud = root.getElementById('arHud');
+    if (!stage || !hud) throw new Error('Não encontrei a área de visualização do prato.');
+    const video = root.createElement('video');
+    video.className = 'ar-camera-video';
+    video.autoplay = true; video.muted = true; video.playsInline = true;
+    video.setAttribute('aria-label', 'Imagem da câmera para posicionar o prato');
+    video.srcObject = stream;
+    stage.insertBefore(video, stage.firstChild);
+    const target = app.scene ? stage.querySelector('.food-canvas') : (stage.querySelector('.food-fallback') || stage.querySelector('.food-art-view'));
+    if (!target) throw new Error('Não foi possível preparar o prato para a câmera.');
+    app.arLite = { active: true, stream, video, x: 0, y: 0, scale: 0.82, target };
+    stage.classList.add('ar-camera-mode');
+    stage.dataset.arMode = app.scene ? '3d' : 'art';
+    hud.classList.add('ar-active');
+    hud.innerHTML = '<strong>Modo câmera · posicionamento manual</strong><span>Mova o prato com as setas e ajuste o tamanho. Este modo não detecta automaticamente a superfície.</span><div class="ar-camera-controls"><button type="button" data-action="ar-lite-left" aria-label="Mover prato para a esquerda">←</button><button type="button" data-action="ar-lite-up" aria-label="Mover prato para cima">↑</button><button type="button" data-action="ar-lite-down" aria-label="Mover prato para baixo">↓</button><button type="button" data-action="ar-lite-right" aria-label="Mover prato para a direita">→</button><button type="button" data-action="ar-lite-smaller" aria-label="Diminuir prato">−</button><button type="button" data-action="ar-lite-larger" aria-label="Aumentar prato">＋</button><button type="button" data-action="exit-ar-lite">Voltar</button></div>';
+    updateCameraARTransform();
+    try { await video.play(); } catch {}
+    video.addEventListener('error', () => { stopCameraAR(); toast('A câmera foi interrompida. Você pode continuar usando a prévia 3D.'); }, { once: true });
+  } catch (error) {
+    try { stream?.getTracks?.().forEach(track => track.stop()); } catch {}
+    stopCameraAR();
+    app.viewMode = '3d';
+    if (app.builder) renderBuilder();
+    const reason = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
+      ? 'Permita o acesso à câmera nas configurações do navegador e tente novamente.'
+      : error?.name === 'NotFoundError'
+        ? 'Não encontrei uma câmera disponível neste aparelho.'
+        : 'Não foi possível abrir a câmera neste aparelho.';
+    toast(reason + ' A visualização 3D continua disponível.');
+  }
 }
 async function launchAR(productId) {
   const product = app.catalog.products.find(p => p.id === productId);
@@ -422,8 +1056,9 @@ async function launchAR(productId) {
     }
   }
 
-  if (product.modelUrl) {
-    const url = new URL(product.modelUrl, location.href);
+  const arModelUrl = product.model3dUrl || product.modelUrl;
+  if (arModelUrl) {
+    const url = new URL(arModelUrl, location.href);
     if (url.protocol !== 'https:' && url.hostname !== 'localhost') {
       toast('O modelo de RA precisa estar em uma origem HTTPS segura.');
       return;
@@ -454,12 +1089,9 @@ async function launchAR(productId) {
     }
   }
 
-  if (app.builder) {
-    app.viewMode = '3d';
-    renderBuilder();
-  }
-  toast('A RA por câmera não é compatível com este navegador/aparelho ou não há modelo nativo configurado para este prato. A prévia 3D continua disponível.');
+  await startCameraAR(productId);
 }
+// Acompanhamento: abre a tela pública do pedido e consulta seu status atualizado.
 function showTracking(token){
   root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('trackingView').classList.remove('hidden');
   clearInterval(app.trackingTimer);loadTracking(token);app.trackingTimer=setInterval(()=>loadTracking(token),5000);
@@ -472,36 +1104,493 @@ async function loadTracking(token){
     const current=order.history.length?order.history[order.history.length-1].status:order.status,isCancelled=current==='cancelled';
     const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparação',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};
     const currentStep=current==='delivering'?4:({received:0,confirmed:1,preparing:2,ready:3,completed:flow.length-1}[current]??0);
-    const prepMinutes=Number(order.prepMinutes);const estimatedAt=Date.parse(order.createdAt)+prepMinutes*60000;const prepEstimate=!isCancelled&&['received','confirmed','preparing'].includes(current)&&Number.isFinite(estimatedAt)&&prepMinutes>0?(Date.now()>estimatedAt?'O preparo está levando mais tempo que o previsto. A estimativa inicial era por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. Acompanhe as atualizações nesta página.':'Previsão inicial: cerca de '+prepMinutes+' min de preparo, por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. É uma estimativa e pode variar.'):'';const timeline=flow.map((label,index)=>'<div class="timeline-item '+(!isCancelled&&index<currentStep?'done':!isCancelled&&index===currentStep?'current':'')+'"><div class="timeline-dot"></div><span>'+label+'</span></div>').join('');
-    const rows=order.items.map(item=>{const snapshot=item.snapshot,art=snapshot.type==='pizza'?pizzaArt(snapshot.ingredients,item.productId):snapshot.type==='burger'?burgerArt(snapshot.ingredients):plateArt();return '<div class="tracking-order-item"><div class="tracking-art">'+art+'</div><span>'+item.quantity+'× '+esc(item.name)+'<small>'+esc(item.snapshot.size.label)+' · '+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</small></span><b>'+money(item.unitPriceCents*item.quantity)+'</b></div>'}).join('');
-    target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><div class="checkmark">'+(isCancelled?'×':'✓')+'</div><div class="eyebrow" style="justify-content:center">PEDIDO ENVIADO À COZINHA</div><h1>'+(isCancelled?'Pedido cancelado.':'Estamos cuidando de tudo.')+'</h1><p>Este acompanhamento reflete as atualizações feitas pelo restaurante.<br>O número do pedido é <b>'+esc(order.id)+'</b>.</p></div><div class="tracking-card"><div class="tracking-meta"><div><small>STATUS AGORA</small><b>'+esc(labels[current]||current)+'</b></div><div class="status-pill">'+(order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):'Retirada')+'</div></div>'+(isCancelled?'<div class="ready-banner" style="background:#f5e8e2;color:#9e4e3d">O restaurante cancelou este pedido. Entre em contato com a equipe para mais informações.</div>':'<div class="status-timeline">'+timeline+'</div>')+(prepEstimate?'<div class="ready-banner tracking-estimate">'+esc(prepEstimate)+'</div>':'')+'<div class="tracking-items"><h3>Na sua sacola</h3>'+rows+'<div class="tracking-order-item" style="border-top:1px solid #e5e8df;margin-top:5px;padding-top:13px"><b>Total</b><b>'+money(order.totalCents)+'</b></div></div>'+(current==='ready'?'<div class="ready-banner">Seu pedido está pronto. Bom apetite!</div>':current==='completed'?'<div class="ready-banner">Pedido concluído. Esperamos que tenha gostado!</div>':'')+'<p class="tracking-note">Pagamento combinado diretamente com o restaurante. A animação e o status de preparo acompanham somente atualizações reais da equipe.</p></div></section>';
+    const prepMinutes=Number(order.prepMinutes);const estimatedAt=Date.parse(order.createdAt)+prepMinutes*60000;const prepEstimate=!isCancelled&&['received','confirmed','preparing'].includes(current)&&Number.isFinite(estimatedAt)&&prepMinutes>0?(Date.now()>estimatedAt?'O preparo está levando mais tempo que o previsto. A estimativa inicial era por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. Acompanhe as atualizações nesta página.':'Previsão inicial: cerca de '+prepMinutes+' min de preparo, por volta de '+new Date(estimatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. É uma estimativa e pode variar.'):'';const flowStatuses=order.fulfillment==='delivery'?['received','confirmed','preparing','ready','delivering','completed']:['received','confirmed','preparing','ready','completed'];const timeline=flow.map((label,index)=>{const changedAt=formatOrderStatusTime(order.history,flowStatuses[index]);return '<div class="timeline-item '+(!isCancelled&&index<currentStep?'done':!isCancelled&&index===currentStep?'current':'')+'"><div class="timeline-dot"></div><span>'+label+'</span>'+(changedAt?'<small class="timeline-time">'+esc(changedAt)+'</small>':'')+'</div>'}).join('');
+    const rows=order.items.map(item=>{const snapshot=item.snapshot,art=snapshot.type==='pizza'?pizzaArt(snapshot.ingredients,item.productId):snapshot.type==='burger'?burgerArt(snapshot.ingredients):hotDogArt();return '<div class="tracking-order-item"><div class="tracking-art">'+art+'</div><span>'+item.quantity+'× '+esc(item.name)+'<small>'+esc(item.snapshot.size.label)+' · '+esc(item.ingredients.map(i=>(Number(i.quantity)>1?Number(i.quantity)+'× ':'')+i.name).join(', ')||'composição da casa')+'</small></span><b>'+money(item.unitPriceCents*item.quantity)+'</b></div>'}).join('');
+    const canCustomerCancel=['received','confirmed'].includes(current);
+    target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><div class="checkmark">'+(isCancelled?'×':'✓')+'</div><div class="eyebrow" style="justify-content:center">ACOMPANHAMENTO DO PEDIDO</div><h1>'+(isCancelled?'Pedido cancelado.':'Estamos cuidando de tudo.')+'</h1><p>Este acompanhamento reflete as atualizações feitas pelo restaurante.<br>O número do pedido é <b>'+esc(order.id)+'</b>.</p></div><div class="tracking-card"><div class="tracking-meta"><div><small>STATUS AGORA</small><b>'+esc(labels[current]||current)+'</b></div><div class="status-pill">'+(order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):'Retirada')+'</div></div>'+(isCancelled?'<div class="ready-banner tracking-cancelled-banner">Este pedido foi cancelado.</div>':'<div class="status-timeline" style="grid-template-columns:repeat('+flow.length+',minmax(0,1fr))">'+timeline+'</div>')+(prepEstimate?'<div class="ready-banner tracking-estimate">'+esc(prepEstimate)+'</div>':'')+(canCustomerCancel?'<div class="tracking-cancel-actions"><div><strong>Precisa desistir do pedido?</strong><small>Você pode cancelar enquanto o restaurante ainda não iniciou o preparo.</small></div><button type="button" class="tracking-cancel-button" data-action="cancel-order" data-token="'+esc(token)+'">Cancelar pedido</button></div>':'')+'<div class="tracking-items"><h3>Itens do pedido</h3>'+rows+'<div class="tracking-order-item" style="border-top:1px solid #e5e8df;margin-top:5px;padding-top:13px"><b>Total</b><b>'+money(order.totalCents)+'</b></div></div>'+(current==='ready'?'<div class="ready-banner">Seu pedido está pronto. Bom apetite!</div>':current==='completed'?'<div class="ready-banner">Pedido concluído. Esperamos que tenha gostado!</div>':'')+'<p class="tracking-note">Pagamento combinado diretamente com o restaurante. O status acompanha as atualizações reais da equipe.</p></div></section>';
   }catch(e){target.innerHTML='<section class="tracking-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="tracking-head"><h1>Não encontramos esse pedido.</h1><p>'+esc(e.message)+'</p></div></section>'}
 }
-function showHome(){clearInterval(app.trackingTimer);root.getElementById('trackingView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('homeView').classList.remove('hidden')}
-function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()}
-async function showCustomerAccount(){clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');const target=root.getElementById('trackingView');target.classList.remove('hidden');target.innerHTML='<section class="customer-orders-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="customer-orders-heading"><div class="eyebrow">SUA EXPERIÊNCIA MENUZA</div><h1>Sua <em>conta.</em></h1><p>Entre para consultar seus pedidos com privacidade. Cada conta acessa apenas os pedidos vinculados a ela.</p></div><div class="customer-account-content"><div class="loading-line">Verificando sua conta…</div></div></section>';try{const result=await api('/api/customer/me');app.customer=result.customer;await renderCustomerDashboard()}catch{app.customer=null;renderCustomerAuth()}}
-function renderCustomerAuth(errorText=''){const content=root.querySelector('.customer-account-content');if(!content)return;const register=app.customerMode==='register';content.innerHTML='<div class="customer-auth-card"><div class="customer-auth-switch"><button type="button" data-action="customer-mode" data-mode="login" class="'+(!register?'active':'')+'">Entrar</button><button type="button" data-action="customer-mode" data-mode="register" class="'+(register?'active':'')+'">Criar conta</button></div><form id="customerAuthForm" class="customer-auth-form"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="website" tabindex="-1" autocomplete="off"></label><h2>'+(register?'Crie sua conta':'Que bom ter você de volta')+'</h2><p>'+(register?'Cadastre seus dados para manter seus pedidos reunidos.':'Entre com seu e-mail e senha para acessar seus pedidos.')+'</p>'+(register?'<label class="form-field"><span>Nome completo</span><input name="name" required minlength="2" maxlength="100" autocomplete="name" placeholder="Seu nome"></label>':'')+'<label class="form-field"><span>E-mail</span><input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="voce@exemplo.com"></label>'+(register?'<label class="form-field"><span>Telefone (opcional)</span><input name="phone" autocomplete="tel" maxlength="30" placeholder="(00) 00000-0000"></label>':'')+'<label class="form-field"><span>Senha</span><input type="password" name="password" required minlength="'+(register?'8':'1')+'" maxlength="128" autocomplete="'+(register?'new-password':'current-password')+'" placeholder="'+(register?'Mínimo de 8 caracteres':'Sua senha')+'"></label>'+(register?'<label class="checkout-legal-consent customer-legal-consent"><input type="checkbox" name="termsAccepted" required><span>Li e aceito os <a href="/termos-de-uso.html" target="_blank" rel="noopener noreferrer">Termos de uso</a> e li a <a href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer">Política de privacidade</a> e a <a href="/politica-de-cookies.html" target="_blank" rel="noopener noreferrer">Política de cookies</a>.</span></label>':'')+'<p class="error-text" id="customerAuthError" role="alert">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">'+(register?'Criar minha conta':'Entrar na minha conta')+' <span>↗</span></button></form><p class="customer-auth-privacy">Sua sessão é protegida por cookie HttpOnly. Seus pedidos são consultados no servidor usando o identificador da sua conta. <a href="/termos-de-uso.html">Termos de uso</a> · <a href="/politica-de-privacidade.html">Privacidade</a> · <a href="/politica-de-cookies.html">Cookies</a>.</p></div>';root.querySelector('#customerAuthForm input[name="name"], #customerAuthForm input[name="email"]')?.focus({preventScroll:true});root.getElementById('customerAuthForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),data=new FormData(form),payload=Object.fromEntries(data.entries());button.disabled=true;button.textContent='Aguarde…';try{const result=await api(register?'/api/customer/register':'/api/customer/login',{method:'POST',body:JSON.stringify(payload)});app.customer=result.customer;toast(register?'Conta criada com sucesso.':'Login realizado.');await renderCustomerDashboard();location.hash='menu'}catch(error){const node=root.getElementById('customerAuthError');if(node)node.textContent=error.message;button.disabled=false;button.textContent=register?'Criar minha conta ↗':'Entrar na minha conta ↗'}})}
-async function renderCustomerDashboard(){const content=root.querySelector('.customer-account-content');if(!content||!app.customer)return;content.innerHTML='<div class="customer-profile-card"><div><div class="eyebrow">CONTA DO CLIENTE</div><h2>'+esc(app.customer.name)+'</h2><p>'+esc(app.customer.email)+'</p></div><button class="button button-outline button-small" data-action="customer-logout">Sair</button></div><div class="customer-orders-section-head"><div><div class="eyebrow">HISTÓRICO PESSOAL</div><h2>Seus pedidos</h2></div><a class="text-link" href="#menu">Fazer novo pedido ↗</a></div><div class="customer-orders-list"><div class="loading-line">Carregando seus pedidos…</div></div><div class="customer-orders-footnote">Por segurança, o servidor retorna apenas pedidos vinculados à sua conta. Pedidos feitos antes de criar uma conta ou sem estar conectado não são associados automaticamente.</div><section class="account-data-panel"><h3>Privacidade e seus dados</h3><p>Você pode solicitar uma cópia, correção ou exclusão de dados pelo <a href="/contato.html#solicitacao-dados">canal de privacidade</a>. A exclusão da conta exige confirmação de senha. Registros de pedidos podem precisar ser mantidos por obrigações legais, prevenção a fraude ou defesa de direitos.</p><form id="deleteCustomerAccountForm" class="account-delete-form"><label class="form-field"><span>Confirme sua senha para excluir a conta</span><input type="password" name="password" required minlength="1" maxlength="128" autocomplete="current-password"></label><label class="delete-account-confirm"><input type="checkbox" name="confirmDelete" required><span>Entendo que a conta será excluída e que essa ação não pode ser desfeita.</span></label><p class="error-text" id="deleteAccountError" role="alert"></p><button type="submit" class="button button-outline button-small">Excluir minha conta</button></form></section>';try{const result=await api('/api/customer/orders');app.customerOrders=result.orders;renderCustomerOrders(result.orders)}catch(error){if(error?.status===401){app.customer=null;app.customerMode='login';renderCustomerAuth('Sua sessão expirou. Entre novamente para continuar.');return}const list=content.querySelector('.customer-orders-list');if(list)list.innerHTML='<div class="customer-orders-empty"><h2>Não foi possível carregar seus pedidos</h2><p>'+esc(error.message)+'</p></div>'}}
-function renderCustomerOrders(orders){const list=root.querySelector('.customer-orders-list');if(!list)return;const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};if(!orders.length){list.innerHTML='<div class="customer-orders-empty"><span class="customer-empty-mark">▱</span><h2>Ainda não há pedidos na sua conta</h2><p>Faça seu próximo pedido enquanto estiver conectado e ele ficará salvo no seu histórico pessoal.</p><a class="button button-dark" href="#menu" data-action="back-home">Explorar cardápio <span>↗</span></a></div>';return}list.innerHTML=orders.map(order=>{const status=order.history?.length?order.history[order.history.length-1].status:order.status;const fulfillment=order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel||''): 'Retirada';const date=order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'medium',timeStyle:'short'}):'Data não disponível';const items=(order.items||[]).map(item=>`${item.quantity}× ${esc(item.name)}`).join(' · ');const discount=Number(order.discountCents)>0?'<div class="customer-order-discount">Cupom '+esc(order.couponCode)+' · você economizou '+money(order.discountCents)+'</div>':'';return '<article class="customer-order-card"><div class="customer-order-card-top"><div><span class="customer-order-number">PEDIDO '+esc(order.id)+'</span><span class="customer-order-date">'+esc(date)+'</span></div><span class="customer-status status-'+esc(status)+'">'+esc(labels[status]||status)+'</span></div><div class="customer-order-items">'+items+'</div><div class="customer-order-card-bottom"><span>'+fulfillment+'</span><strong>'+money(order.totalCents)+'</strong></div><div class="customer-order-actions"><a class="customer-order-link" href="#pedido/'+encodeURIComponent(order.trackingToken)+'">Acompanhar pedido <span>↗</span></a><button class="button button-outline button-small" type="button" data-action="repeat-order" data-order-id="'+esc(order.id)+'">Repetir pedido ↻</button></div></article>'}).join('')}
+// Navegação por hash: decide qual tela renderizar conforme a rota atual do navegador.
+function showHome(){root.body.classList.remove('admin-route');renderGoogleReviewLinks();clearInterval(app.trackingTimer);root.getElementById('trackingView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');root.getElementById('homeView').classList.remove('hidden')}
+function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));return openMenu()}
+async function showCustomerAccount(){clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('adminView').classList.add('hidden');const target=root.getElementById('trackingView');target.classList.remove('hidden');target.innerHTML='<section class="customer-orders-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><div class="customer-orders-heading"><div class="eyebrow">SUA EXPERIÊNCIA MENUZA</div><h1>Sua <em>conta.</em></h1><p>Entre para consultar seus pedidos com privacidade. Cada conta acessa apenas os pedidos vinculados a ela.</p></div><div class="customer-account-content"></div></section>';app.customerMode=app.customerMode||'login';renderCustomerAuth();try{const result=await api('/api/customer/me');app.customer=result.customer;if(app.customer)await renderCustomerDashboard()}catch{app.customer=null}}
+function renderCustomerAuth(errorText=''){const content=root.querySelector('.customer-account-content');if(!content)return;const register=app.customerMode==='register';content.innerHTML='<div class="customer-auth-card"><div class="customer-auth-switch"><button type="button" data-action="customer-mode" data-mode="login" class="'+(!register?'active':'')+'">Entrar</button><button type="button" data-action="customer-mode" data-mode="register" class="'+(register?'active':'')+'">Criar conta</button></div><form id="customerAuthForm" class="customer-auth-form"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><h2>'+(register?'Crie sua conta':'Que bom ter você de volta')+'</h2><p>'+(register?'Cadastre seus dados para manter seus pedidos reunidos.':'Entre com seu e-mail e senha para acessar seus pedidos.')+'</p>'+(register?'<label class="form-field"><span>Nome completo</span><input name="name" required minlength="2" maxlength="100" autocomplete="name" placeholder="Seu nome"></label>':'')+'<label class="form-field"><span>E-mail</span><input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="voce@exemplo.com"></label>'+(register?'<label class="form-field"><span>Telefone (opcional)</span><input name="phone" autocomplete="tel" maxlength="30" placeholder="(00) 00000-0000"></label><label class="form-field"><span>Data de nascimento</span><input type="date" name="birthDate" required max="'+new Date().toISOString().slice(0,10)+'" autocomplete="bday"><small>Informe sua data de nascimento para validar sua faixa etária em compras com restrição de idade.</small></label>':'')+'<label class="form-field"><span>Senha</span><input type="password" name="password" required minlength="'+(register?'8':'1')+'" maxlength="128" autocomplete="'+(register?'new-password':'current-password')+'" placeholder="'+(register?'Mínimo de 8 caracteres':'Sua senha')+'"></label>'+(register?'<label class="checkout-legal-consent customer-legal-consent"><input type="checkbox" name="termsAccepted" required><span>Li e aceito os <a href="/termos-de-uso.html" target="_blank" rel="noopener noreferrer">Termos de uso</a> e li a <a href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer">Política de privacidade</a> e a <a href="/politica-de-cookies.html" target="_blank" rel="noopener noreferrer">Política de cookies</a>.</span></label>':'')+'<div class="menuza-turnstile" data-turnstile></div><p class="error-text" id="customerAuthError" role="alert">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">'+(register?'Criar minha conta':'Entrar na minha conta')+' <span>'+uiIcon('arrow',14)+'</span></button></form><p class="customer-auth-privacy">Sua sessão é protegida por cookie HttpOnly. Seus pedidos são consultados no servidor usando o identificador da sua conta. <a href="/termos-de-uso.html">Termos de uso</a> · <a href="/politica-de-privacidade.html">Privacidade</a> · <a href="/politica-de-cookies.html">Cookies</a>.</p></div>';root.querySelector('#customerAuthForm input[name="name"], #customerAuthForm input[name="email"]')?.focus({preventScroll:true});root.getElementById('customerAuthForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),data=new FormData(form),payload=Object.fromEntries(data.entries());try{payload.turnstileToken=await window.MenuzaIntegrations?.getTurnstileToken(form)||''}catch(error){const node=root.getElementById('customerAuthError');if(node)node.textContent=error.message;return}button.disabled=true;button.textContent='Aguarde…';try{const result=await api(register?'/api/customer/register':'/api/customer/login',{method:'POST',body:JSON.stringify(payload)});app.customer=result.customer;toast(register?'Conta criada com sucesso.':'Login realizado.');await renderCustomerDashboard();location.hash='menu';if(app.pendingAgeProductId){const pending=app.pendingAgeProductId;app.pendingAgeProductId=null;const product=app.catalog?.products.find(item=>item.id===pending);if(product)setTimeout(()=>openBuilder(pending),0)}}catch(error){const node=root.getElementById('customerAuthError');if(node)node.textContent=error.message;button.disabled=false;button.textContent=register?'Criar minha conta ↗':'Entrar na minha conta ↗'}})}
+async function renderCustomerDashboard(){const content=root.querySelector('.customer-account-content');if(!content||!app.customer)return;content.innerHTML='<div class="customer-profile-card"><div><div class="eyebrow">CONTA DO CLIENTE</div><h2>'+esc(app.customer.name)+'</h2><p>'+esc(app.customer.email)+'</p></div><button class="button button-outline button-small" data-action="customer-logout">Sair</button></div><div class="customer-orders-section-head"><div><div class="eyebrow">HISTÓRICO PESSOAL</div><h2>Seus pedidos</h2></div><a class="text-link" href="#menu">Fazer novo pedido ↗</a></div><div class="customer-orders-list">'+skeletonMarkup('content')+'</div><div class="customer-orders-footnote">Por segurança, o servidor retorna apenas pedidos vinculados à sua conta. Pedidos feitos antes de criar uma conta ou sem estar conectado não são associados automaticamente.</div><section class="account-data-panel"><h3>Privacidade e seus dados</h3><p>Você pode baixar uma cópia dos seus dados ou excluir sua conta e os dados pessoais associados. A exclusão exige sua senha. Dados de contato, endereço e observações pessoais são removidos dos pedidos vinculados à conta. Alguns registros estritamente necessários para obrigações legais, fiscais ou exercício regular de direitos podem ser conservados de forma desvinculada da sua conta.</p><button type="button" class="button button-outline button-small" data-action="download-customer-data">Baixar meus dados (JSON)</button><form id="deleteCustomerAccountForm" class="account-delete-form"><label class="form-field"><span>Confirme sua senha para excluir a conta e os dados pessoais</span><input type="password" name="password" required minlength="1" maxlength="128" autocomplete="current-password"></label><label class="delete-account-confirm"><input type="checkbox" name="confirmDelete" required><span>Confirmo que desejo excluir minha conta e os dados pessoais associados. Entendo que registros que precisem ser legalmente conservados poderão permanecer anonimizados.</span></label><p class="error-text" id="deleteAccountError" role="alert"></p><button type="submit" class="button button-outline button-small">Excluir conta e dados pessoais</button></form></section>';try{const result=await api('/api/customer/orders');app.customerOrders=result.orders;renderCustomerOrders(result.orders)}catch(error){if(error?.status===401){app.customer=null;app.customerMode='login';renderCustomerAuth('Sua sessão expirou. Entre novamente para continuar.');return}const list=content.querySelector('.customer-orders-list');if(list)list.innerHTML='<div class="customer-orders-empty"><h2>Não foi possível carregar seus pedidos</h2><p>'+esc(error.message)+'</p></div>'}}
+function renderCustomerOrders(orders){const list=root.querySelector('.customer-orders-list');if(!list)return;const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};if(!orders.length){list.innerHTML='<div class="customer-orders-empty"><span class="customer-empty-mark">▱</span><h2>Ainda não há pedidos na sua conta</h2><p>Faça seu próximo pedido enquanto estiver conectado e ele ficará salvo no seu histórico pessoal.</p><a class="button button-dark" href="#menu" data-action="back-home">Explorar cardápio <span>'+uiIcon('arrow',14)+'</span></a></div>';return}list.innerHTML=orders.map(order=>{const status=order.history?.length?order.history[order.history.length-1].status:order.status;const fulfillment=order.fulfillment==='delivery'?'Entrega':order.fulfillment==='table'?'Mesa '+esc(order.tableLabel||''): 'Retirada';const date=order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'medium',timeStyle:'short'}):'Data não disponível';const items=(order.items||[]).map(item=>`${item.quantity}× ${esc(item.name)}`).join(' · ');const discount=Number(order.discountCents)>0?'<div class="customer-order-discount">Cupom '+esc(order.couponCode)+' · você economizou '+money(order.discountCents)+'</div>':'';return '<article class="customer-order-card"><div class="customer-order-card-top"><div><span class="customer-order-number">PEDIDO '+esc(order.id)+'</span><span class="customer-order-date">'+esc(date)+'</span></div><span class="customer-status status-'+esc(status)+'">'+esc(labels[status]||status)+'</span></div><div class="customer-order-items">'+items+'</div><div class="customer-order-card-bottom"><span>'+fulfillment+'</span><strong>'+money(order.totalCents)+'</strong></div><div class="customer-order-actions"><a class="customer-order-link" href="#pedido/'+encodeURIComponent(order.trackingToken)+'">Acompanhar pedido <span>'+uiIcon('arrow',14)+'</span></a><button class="button button-outline button-small" type="button" data-action="repeat-order" data-order-id="'+esc(order.id)+'">Repetir pedido ↻</button></div></article>'}).join('')}
 async function logoutCustomer(){try{await api('/api/customer/logout',{method:'POST'})}catch{}app.customer=null;app.customerMode='login';app.catalog=null;app.cart=[];setCart();toast('Você saiu da sua conta.');location.hash='';showCustomerAccount()}
 
+const ADMIN_INACTIVITY_LIMIT = 2 * 60 * 60 * 1000;
+const ADMIN_ACTIVITY_STORAGE_KEY = 'menuza-admin-last-activity';
+
+function stopAdminInactivityMonitor(){
+  clearTimeout(app.admin.inactivityTimer);
+  app.admin.inactivityTimer = null;
+  app.admin.lastActivityAt = 0;
+  try{localStorage.removeItem(ADMIN_ACTIVITY_STORAGE_KEY)}catch{}
+}
+function scheduleAdminInactivityCheck(){
+  clearTimeout(app.admin.inactivityTimer);
+  if(!app.admin.authenticated || location.hash !== '#admin')return;
+  let lastActivity = app.admin.lastActivityAt || Date.now();
+  try{lastActivity = Math.max(lastActivity, Number(localStorage.getItem(ADMIN_ACTIVITY_STORAGE_KEY)) || 0)}catch{}
+  app.admin.lastActivityAt = lastActivity;
+  const remaining = ADMIN_INACTIVITY_LIMIT - (Date.now() - lastActivity);
+  if(remaining <= 0){
+    logoutAdmin(true);
+    return;
+  }
+  app.admin.inactivityTimer = window.setTimeout(()=>scheduleAdminInactivityCheck(), remaining + 1);
+}
+function recordAdminActivity(){
+  if(!app.admin.authenticated || location.hash !== '#admin')return;
+  const now = Date.now();
+  if(now - app.admin.lastActivityAt < 1000)return;
+  app.admin.lastActivityAt = now;
+  try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(now))}catch{}
+  scheduleAdminInactivityCheck();
+}
+function startAdminInactivityMonitor(){
+  app.admin.lastActivityAt = Date.now();
+  try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(app.admin.lastActivityAt))}catch{}
+  scheduleAdminInactivityCheck();
+}
+['pointerdown','keydown','input','change','submit','scroll','wheel','touchstart'].forEach(type=>{
+  document.addEventListener(type, recordAdminActivity, {capture:true, passive:true});
+});
+window.addEventListener('storage',event=>{
+  if(event.key === ADMIN_ACTIVITY_STORAGE_KEY && app.admin.authenticated && location.hash === '#admin'){
+    const timestamp = Number(event.newValue) || 0;
+    if(timestamp > app.admin.lastActivityAt){
+      app.admin.lastActivityAt = timestamp;
+      scheduleAdminInactivityCheck();
+    }
+  }
+});
+
 async function showAdmin(){
-  clearInterval(app.trackingTimer);root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
-  try{await api('/api/admin/me');app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch{app.admin.authenticated=false;renderAdminLogin()}
+  clearInterval(app.trackingTimer);stopPromotionCarousel();root.body.classList.add('admin-route');renderGoogleReviewLinks();root.getElementById('homeView').classList.add('hidden');root.getElementById('trackingView').classList.add('hidden');const node=root.getElementById('adminView');node.classList.remove('hidden');
+  try{
+    const session=await api('/api/admin/me');
+    if(!session.authenticated){app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin();return}
+    app.admin.authenticated=true;startAdminInactivityMonitor();renderAdmin();refreshAdmin();connectAdminEvents();
+  }catch{app.admin.authenticated=false;stopAdminInactivityMonitor();renderAdminLogin()}
 }
 function renderAdminLogin(errorText=''){
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><form class="admin-login" id="adminLogin"><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="website" tabindex="-1" autocomplete="off"></label><div class="eyebrow">ÁREA RESTRITA</div><h1>Bom trabalho começa<br>com uma boa visão.</h1><p>Entre no painel da Bela Mesa para acompanhar pedidos e atualizar o cardápio.</p><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required autocomplete="current-password"></label><p class="error-text">'+esc(errorText)+'</p><button class="button button-dark" type="submit" style="width:100%">Entrar no painel <span>↗</span></button><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Política de privacidade</a><a href="/politica-de-cookies.html">Política de cookies</a></p></form></div>';
-  root.getElementById('adminLogin').addEventListener('submit',async event=>{event.preventDefault();const formData=new FormData(event.currentTarget),password=formData.get('password'),website=formData.get('website');try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,website})});app.admin.authenticated=true;renderAdmin();refreshAdmin();connectAdminEvents()}catch(e){renderAdminLogin(e.message)}});
+  stopPromotionCarousel();
+  root.body.classList.add('admin-route');
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-login-shell"><a class="tracking-back" href="#" data-action="back-home">← Voltar ao cardápio</a><section class="admin-login-layout"><div class="admin-login-aside"><div class="admin-login-brand"><span class="admin-login-brand-mark">M</span><span><strong>MENUZA</strong><small>GESTÃO PARA RESTAURANTES</small></span></div><div class="admin-login-aside-copy"><span class="admin-login-kicker">ÁREA DO RESTAURANTE</span><h1>Seu restaurante.<br><em>Sua gestão.</em></h1><p>Pedidos, cardápio e operação em um só lugar. Entre com segurança para continuar.</p></div><div class="admin-login-aside-foot"><span class="admin-login-status-dot"></span> Ambiente protegido por autenticação em duas etapas</div></div><form class="admin-login" id="adminLogin" novalidate><label class="hp-field" aria-hidden="true">Não preencha este campo<input name="contact_check" tabindex="-1" autocomplete="off"></label><div class="admin-login-form-heading"><span class="admin-login-form-icon">'+uiIcon('info',20)+'</span><span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Digite sua senha e, em seguida, o código de seis dígitos do aplicativo autenticador.</p></div><label class="form-field"><span>Senha do restaurante</span><input type="password" name="password" required maxlength="128" autocomplete="current-password" placeholder="Digite sua senha"></label><div class="form-field admin-login-otp-field"><span>Código de autenticação</span><div class="admin-otp-boxes" role="group" aria-label="Código de autenticação de seis dígitos"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 2"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 3"><span class="admin-otp-separator" aria-hidden="true"></span><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 4"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 5"><input class="admin-otp-digit" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Dígito 6"></div><input type="hidden" name="otp" value=""><small id="adminLoginOtpHelp">O acesso será validado automaticamente ao preencher os seis números.</small><label class="admin-recovery-field"><span>Tem um código de recuperação?</span><input type="text" name="recoveryCode" autocomplete="off" maxlength="80" placeholder="Digite o código de recuperação"></label></div><p class="error-text admin-login-error" data-admin-login-error role="alert" aria-live="polite">'+esc(errorText)+'</p><button class="button button-dark admin-login-submit" type="submit">Entrar no painel <span>'+uiIcon('arrow',14)+'</span></button><p class="admin-login-security-note">'+uiIcon('info',14)+' Sua conexão é protegida e o código é validado pelo servidor.</p><p class="admin-legal-links"><a href="/termos-de-uso.html">Termos de uso</a><a href="/politica-de-privacidade.html">Privacidade</a><a href="/politica-de-cookies.html">Cookies</a></p></form></section></div>';
+  const form=root.getElementById('adminLogin');
+  const button=form.querySelector('[type="submit"]');
+  const passwordInput=form.elements.password;
+  const factorInput=form.elements.otp;
+  const recoveryInput=form.elements.recoveryCode;
+  const digitInputs=[...form.querySelectorAll('.admin-otp-digit')];
+  const errorNode=form.querySelector('[data-admin-login-error]');
+  let submitting=false;
+  const clearLoginError=()=>{
+    form.classList.remove('admin-login-has-error');
+    digitInputs.forEach(input=>input.classList.remove('is-invalid'));
+    passwordInput.classList.remove('is-invalid');
+  };
+  const showLoginError=message=>{
+    errorNode.textContent=message||'Não foi possível validar o acesso.';
+    form.classList.remove('admin-login-has-error');
+    void form.offsetWidth;
+    form.classList.add('admin-login-has-error');
+    passwordInput.classList.toggle('is-invalid',!passwordInput.value.trim());
+    digitInputs.forEach(input=>input.classList.add('is-invalid'));
+  };
+  const syncDigits=()=>{factorInput.value=digitInputs.map(input=>input.value).join('');};
+  const maybeAutoSubmit=()=>{
+    syncDigits();
+    if(!submitting&&!button.disabled&&/^\d{6}$/.test(factorInput.value)&&String(passwordInput.value||'').trim()){
+      recoveryInput.value='';
+      form.requestSubmit();
+    }
+  };
+  digitInputs.forEach((input,index)=>{
+    input.addEventListener('input',()=>{
+      const digits=String(input.value||'').replace(/\D/g,'');
+      if(digits.length>1){
+        const all=digits.slice(0,6).split('');
+        digitInputs.forEach((field,i)=>field.value=all[i]||'');
+        digitInputs[Math.min(all.length,5)].focus();
+      }else{
+        input.value=digits.slice(-1);
+        if(input.value&&index<5)digitInputs[index+1].focus();
+      }
+      maybeAutoSubmit();
+    });
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Backspace'&&!input.value&&index>0){digitInputs[index-1].focus();digitInputs[index-1].value='';syncDigits();event.preventDefault();}
+      if(event.key==='ArrowLeft'&&index>0){digitInputs[index-1].focus();event.preventDefault();}
+      if(event.key==='ArrowRight'&&index<5){digitInputs[index+1].focus();event.preventDefault();}
+    });
+    input.addEventListener('paste',event=>{
+      const pasted=(event.clipboardData?.getData('text')||'').replace(/\D/g,'').slice(0,6);
+      if(!pasted)return;
+      event.preventDefault();
+      digitInputs.forEach((field,i)=>field.value=pasted[i]||'');
+      syncDigits();
+      digitInputs[Math.min(pasted.length,5)].focus();
+      maybeAutoSubmit();
+    });
+  });
+  passwordInput.addEventListener('input',maybeAutoSubmit);
+  recoveryInput.addEventListener('input',()=>{
+    if(recoveryInput.value.trim()){
+      digitInputs.forEach(input=>input.value='');
+      syncDigits();
+    }
+  });
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(submitting)return;
+    syncDigits();
+    const password=String(passwordInput.value||'');
+    const otp=String(factorInput.value||'').trim();
+    const recoveryCode=String(recoveryInput.value||'').trim();
+    if(!password.trim()){
+      showLoginError('Informe a senha do restaurante.');
+      passwordInput.focus();
+      return;
+    }
+    if(!/^\d{6}$/.test(otp)&&!recoveryCode){
+      showLoginError('Preencha os seis dígitos ou informe um código de recuperação.');
+      digitInputs[0].focus();
+      return;
+    }
+    const secondFactor=/^\d{6}$/.test(otp)?{otp}:{recoveryCode};
+    submitting=true;
+    button.disabled=true;
+    button.innerHTML='Verificando acesso…';
+    errorNode.textContent='';
+    try{
+      const turnstileToken=await window.MenuzaIntegrations?.getTurnstileToken(form)||'';
+      await api('/api/admin/login',{method:'POST',body:JSON.stringify({password,...secondFactor,turnstileToken})});
+      // Confirma visualmente apenas depois que o servidor validar senha e segundo fator.
+      form.classList.add('admin-login-is-valid');
+      digitInputs.forEach(input=>input.classList.add('is-valid'));
+      errorNode.textContent='';
+      form.classList.remove('admin-login-has-error');
+      const success=document.createElement('div');
+      success.className='admin-login-success';
+      success.setAttribute('role','status');
+      success.innerHTML='<span class="admin-login-success-check" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m8 16 5.2 5.2L24 10.5"/></svg></span><span><strong>Verificado!</strong><small>Acesso autorizado. Entrando no painel…</small></span>';
+      button.insertAdjacentElement('beforebegin',success);
+      button.disabled=true;
+      button.innerHTML='Acesso confirmado';
+      await new Promise(resolve=>setTimeout(resolve,720));
+      app.admin.authenticated=true;
+      startAdminInactivityMonitor();
+      renderAdmin();
+      refreshAdmin();
+      connectAdminEvents();
+    }catch(error){
+      showLoginError(error.message||'Senha ou código de autenticação incorreto. Confira os dados e tente novamente.');
+      passwordInput.classList.add('is-invalid');
+      digitInputs.forEach(input=>input.value='');
+      factorInput.value='';
+      submitting=false;
+      button.disabled=false;
+      button.innerHTML='Entrar no painel <span>'+uiIcon('arrow',14)+'</span>';
+      if(recoveryCode)recoveryInput.focus();else digitInputs[0].focus();
+    }
+  });
+  [passwordInput,recoveryInput,...digitInputs].forEach(input=>input.addEventListener('input',clearLoginError));
 }
+
+function fiscalCurrentMonth(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function fiscalMoney(value){return money(Number(value)||0)}
+async function renderFiscalAdmin(){
+ const target=root.getElementById('adminBody');if(!target)return;
+ const month=fiscalCurrentMonth();target.innerHTML=''+skeletonMarkup('content')+'';
+ try{
+  const selected=app.admin.fiscalMonth||month;app.admin.fiscalMonth=selected;
+  const [profileResult,reportResult,expenseResult,documentResult]=await Promise.all([
+   api('/api/admin/fiscal/profile'),api('/api/admin/fiscal/report?month='+encodeURIComponent(selected)),
+   api('/api/admin/fiscal/expenses?month='+encodeURIComponent(selected)),api('/api/admin/fiscal/documents?month='+encodeURIComponent(selected))
+  ]);
+  const p=profileResult.profile||{},r=reportResult.report||{},expenses=expenseResult.expenses||[],documents=documentResult.documents||[];
+  const dateValue=v=>v?String(v).slice(0,10):'';
+  target.innerHTML=`
+   <section class="fiscal-hero"><div><span class="eyebrow">GESTÃO E CONTABILIDADE</span><h2>Centro Fiscal</h2><p>Organize as informações do restaurante e prepare o fechamento mensal para a contabilidade.</p></div><label class="fiscal-month-picker"><span>Competência</span><input id="fiscalMonth" type="month" value="${esc(selected)}"></label></section>
+   <div class="fiscal-notice"><strong>Importante</strong><span>Este módulo é um organizador gerencial. Os relatórios não são notas fiscais, não calculam tributos e não substituem a escrituração ou a declaração do contador.</span></div>
+   <section class="fiscal-kpis">
+    <article><span>Vendas registradas</span><b>${fiscalMoney(r.sales?.grossCents)}</b><small>${Number(r.sales?.orders||0)} pedidos não cancelados</small></article>
+    <article><span>Descontos</span><b>${fiscalMoney(r.sales?.discountsCents)}</b><small>Descontos registrados nos pedidos</small></article>
+    <article><span>Despesas lançadas</span><b>${fiscalMoney(r.expenses?.totalCents)}</b><small>${Number(r.expenses?.count||0)} lançamentos</small></article>
+    <article><span>Vendas canceladas</span><b>${Number(r.sales?.cancelled||0)}</b><small>Pedidos excluídos do faturamento</small></article>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Resumo da competência</h3><small>Dados consolidados a partir dos pedidos do Menuza.</small></div><div class="fiscal-actions"><button class="button button-outline button-small" type="button" data-action="fiscal-export-csv">Exportar CSV</button><button class="button button-dark button-small" type="button" data-action="fiscal-export-pdf">Relatório PDF</button></div></div>
+    <div class="fiscal-summary-grid"><div><span>Receita bruta registrada</span><b>${fiscalMoney(r.sales?.grossCents)}</b></div><div><span>Descontos</span><b>${fiscalMoney(r.sales?.discountsCents)}</b></div><div><span>Receita após descontos</span><b>${fiscalMoney(r.sales?.netCents)}</b></div><div><span>Despesas cadastradas</span><b>${fiscalMoney(r.expenses?.totalCents)}</b></div></div>
+    <div class="fiscal-breakdown"><strong>Vendas por modalidade</strong>${(r.byFulfillment||[]).length?(r.byFulfillment||[]).map(x=>'<div><span>'+({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||esc(x.type))+' · '+Number(x.orders)+' pedidos</span><b>'+fiscalMoney(x.totalCents)+'</b></div>').join(''):'<p class="admin-empty">Sem vendas nesta competência.</p>'}</div>
+    <p class="fiscal-footnote">${esc(r.notice||'')}</p>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Dados fiscais da empresa</h3><small>Cadastro informado para Galileu Pizzas e Lanches LTDA. Confira com a contabilidade.</small></div></div>
+    <form id="fiscalProfileForm" class="fiscal-form-grid">
+     <label class="form-field"><span>CNPJ</span><input name="cnpj" inputmode="numeric" maxlength="18" value="${esc(p.cnpj||'60908509000169')}" required></label>
+     <label class="form-field"><span>Razão social</span><input name="legalName" maxlength="160" value="${esc(p.legalName||'Galileu Pizzas e Lanches LTDA')}" required></label>
+     <label class="form-field"><span>Nome fantasia</span><input name="tradeName" maxlength="160" value="${esc(p.tradeName||'Galileu Pizzas e Lanches')}" required></label>
+     <label class="form-field"><span>Regime tributário</span><select name="taxRegime"><option value="simples_nacional" ${(p.taxRegime||'simples_nacional')==='simples_nacional'?'selected':''}>Simples Nacional</option><option value="lucro_presumido" ${p.taxRegime==='lucro_presumido'?'selected':''}>Lucro Presumido</option><option value="lucro_real" ${p.taxRegime==='lucro_real'?'selected':''}>Lucro Real</option><option value="mei" ${p.taxRegime==='mei'?'selected':''}>MEI</option><option value="outro" ${p.taxRegime==='outro'?'selected':''}>Outro</option></select></label>
+     <label class="form-field"><span>Porte</span><input name="companySize" value="${esc(p.companySize||'ME')}" readonly></label>
+     <label class="form-field"><span>Natureza jurídica</span><input name="legalNature" value="${esc(p.legalNature||'Sociedade Empresária Limitada')}"></label>
+     <label class="form-field"><span>Inscrição estadual</span><input name="stateRegistration" value="${esc(p.stateRegistration||'')}" placeholder="Se aplicável"></label>
+     <label class="form-field"><span>Inscrição municipal</span><input name="municipalRegistration" value="${esc(p.municipalRegistration||'')}" placeholder="Se aplicável"></label>
+     <label class="form-field"><span>Data de abertura</span><input type="date" name="openingDate" value="${dateValue(p.openingDate)||'2025-05-20'}"></label>
+     <label class="form-field"><span>Opção pelo Simples</span><input type="date" name="simplesStartDate" value="${dateValue(p.simplesStartDate)||'2025-05-20'}"></label>
+     <label class="form-field"><span>Capital social (R$)</span><input type="number" name="capital" min="0" step="0.01" value="${(Number(p.capitalCents??3000000)/100).toFixed(2)}"></label>
+     <div class="wide fiscal-form-actions"><span id="fiscalProfileStatus" role="status"></span><button class="button button-dark button-small" type="submit">Salvar dados fiscais</button></div>
+    </form>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Despesas e compras</h3><small>Registre gastos e vincule os dados do comprovante ou fornecedor.</small></div></div>
+    <form id="fiscalExpenseForm" class="fiscal-form-grid">
+     <label class="form-field"><span>Data</span><input type="date" name="date" value="${selected}-01" required></label>
+     <label class="form-field"><span>Descrição</span><input name="description" maxlength="180" required placeholder="Ex.: compra de ingredientes"></label>
+     <label class="form-field"><span>Categoria</span><select name="category"><option value="insumos">Insumos e alimentos</option><option value="bebidas">Bebidas</option><option value="embalagens">Embalagens</option><option value="aluguel">Aluguel</option><option value="energia">Energia e água</option><option value="servicos">Serviços</option><option value="equipamentos">Equipamentos</option><option value="impostos">Impostos e taxas</option><option value="folha">Folha e pessoal</option><option value="outros">Outros</option></select></label>
+     <label class="form-field"><span>Valor (R$)</span><input type="number" name="amount" min="0.01" max="9999999" step="0.01" required></label>
+     <label class="form-field"><span>Fornecedor</span><input name="supplierName" maxlength="160"></label>
+     <label class="form-field"><span>CNPJ do fornecedor</span><input name="supplierCnpj" inputmode="numeric" maxlength="18"></label>
+     <label class="form-field"><span>Número do documento</span><input name="documentNumber" maxlength="60"></label>
+     <label class="form-field"><span>Forma de pagamento</span><select name="paymentMethod"><option value="">Não informado</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Boleto</option><option>Transferência</option><option>Outro</option></select></label>
+     <label class="form-field fiscal-wide"><span>Observações</span><input name="notes" maxlength="500"></label>
+     <div class="wide fiscal-form-actions"><span></span><button class="button button-dark button-small" type="submit">Adicionar despesa</button></div>
+    </form>
+    <div class="fiscal-record-list">${expenses.length?expenses.map(x=>'<article><div><strong>'+esc(x.description)+'</strong><small>'+new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR')+' · '+esc(x.supplierName||'Fornecedor não informado')+' · '+esc(x.category)+'</small></div><b>'+fiscalMoney(x.amountCents)+'</b><button class="tiny-link" data-action="fiscal-delete-expense" data-id="'+esc(x.id)+'" type="button">Excluir</button></article>').join(''):'<p class="admin-empty">Nenhuma despesa lançada nesta competência.</p>'}</div>
+   </section>
+   <section class="admin-panel fiscal-panel"><div class="admin-panel-head"><div><h3>Documentos fiscais</h3><small>Guarde XML e PDF de notas recebidas ou emitidas. Os arquivos ficam associados ao restaurante.</small></div></div>
+    <form id="fiscalDocumentForm" class="fiscal-form-grid">
+     <label class="form-field"><span>Movimentação</span><select name="direction"><option value="received">Documento recebido</option><option value="issued">Documento emitido</option></select></label>
+     <label class="form-field"><span>Tipo</span><select name="documentType"><option value="xml">XML</option><option value="pdf">PDF</option><option value="other">Outro arquivo</option></select></label>
+     <label class="form-field"><span>Data do documento</span><input type="date" name="date"></label>
+     <label class="form-field"><span>Número</span><input name="documentNumber" maxlength="60"></label>
+     <label class="form-field"><span>Emitente / fornecedor</span><input name="issuerName" maxlength="160"></label>
+     <label class="form-field"><span>CNPJ do emitente</span><input name="issuerCnpj" maxlength="18" inputmode="numeric"></label>
+     <label class="form-field"><span>Valor (R$)</span><input name="amount" type="number" min="0" step="0.01" value="0"></label>
+     <label class="form-field"><span>Arquivo XML ou PDF (máx. 1,3 MB)</span><input type="file" name="file" accept=".xml,.pdf,application/xml,text/xml,application/pdf" required></label>
+     <label class="form-field fiscal-wide"><span>Observações</span><input name="notes" maxlength="500"></label>
+     <div class="wide fiscal-form-actions"><span></span><button class="button button-dark button-small" type="submit">Salvar documento</button></div>
+    </form>
+    <div class="fiscal-record-list">${documents.length?documents.map(x=>'<article><div><strong>'+esc(x.fileName)+'</strong><small>'+ (x.direction==='received'?'Recebido':'Emitido')+' · '+esc(x.documentNumber||'Sem número')+' · '+(x.date?new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR'):'Sem data')+'</small></div><b>'+fiscalMoney(x.amountCents)+'</b><button class="tiny-link" type="button" data-action="fiscal-download-document" data-id="'+esc(x.id)+'">Baixar</button></article>').join(''):'<p class="admin-empty">Nenhum documento armazenado nesta competência.</p>'}</div>
+   </section>
+   <p class="fiscal-accountant-note"><strong>Para enviar ao contador:</strong> exporte o relatório da competência, o CSV de vendas/despesas e baixe os XML/PDF armazenados. O contador deve conferir notas, enquadramento, classificação fiscal e apuração antes de declarar.</p>`;
+ }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message)+'</p><button class="button button-outline button-small" data-action="refresh-fiscal" type="button">Tentar novamente</button></section>'}
+}
+async function submitFiscalProfile(form){
+ const d=new FormData(form),data={cnpj:String(d.get('cnpj')||'').replace(/\D/g,''),legalName:d.get('legalName'),tradeName:d.get('tradeName'),taxRegime:d.get('taxRegime'),legalNature:d.get('legalNature'),stateRegistration:d.get('stateRegistration'),municipalRegistration:d.get('municipalRegistration'),openingDate:d.get('openingDate'),simplesStartDate:d.get('simplesStartDate'),capitalCents:Math.round(Number(d.get('capital'))*100)};
+ const button=form.querySelector('[type=submit]'),status=root.getElementById('fiscalProfileStatus');button.disabled=true;status.textContent='Salvando…';
+ try{await api('/api/admin/fiscal/profile',{method:'PATCH',body:JSON.stringify(data)});status.textContent='Dados fiscais salvos.';toast('Cadastro fiscal atualizado.')}
+ catch(e){status.textContent=e.message}
+ finally{button.disabled=false}
+}
+async function submitFiscalExpense(form){
+ const d=new FormData(form),data={date:d.get('date'),description:d.get('description'),category:d.get('category'),amountCents:Math.round(Number(d.get('amount'))*100),supplierName:d.get('supplierName'),supplierCnpj:String(d.get('supplierCnpj')||'').replace(/\D/g,''),documentNumber:d.get('documentNumber'),paymentMethod:d.get('paymentMethod'),notes:d.get('notes')};
+ const button=form.querySelector('[type=submit]');button.disabled=true;
+ try{await api('/api/admin/fiscal/expenses',{method:'POST',body:JSON.stringify(data)});toast('Despesa registrada.');await renderFiscalAdmin()}
+ catch(e){toast(e.message);button.disabled=false}
+}
+async function submitFiscalDocument(form){
+ const d=new FormData(form),file=d.get('file');if(!(file instanceof File)||!file.size)return toast('Selecione um arquivo XML ou PDF.');
+ if(file.size>1300000)return toast('O arquivo deve ter no máximo 1,3 MB.');
+ const extension=String(file.name||'').toLowerCase().split('.').pop(),documentType=extension==='xml'?'xml':extension==='pdf'?'pdf':'';
+ if(!documentType)return toast('Formato não permitido. Envie somente arquivos .xml ou .pdf.');
+ const expectedMime=documentType==='xml'?'application/xml':'application/pdf',mime=file.type||expectedMime;
+ if(mime!=='application/octet-stream'&&mime!==expectedMime&&!(documentType==='xml'&&mime==='text/xml'))return toast('A extensão do arquivo não corresponde ao tipo informado.');
+ const signature=new Uint8Array(await file.slice(0,8).arrayBuffer());
+ if(documentType==='pdf'&&String.fromCharCode(...signature.slice(0,5))!=='%PDF-')return toast('O conteúdo do arquivo não é um PDF válido.');
+ if(documentType==='xml'){
+  const xml=await file.text();if(/<!DOCTYPE|<!ENTITY|<\?xml-stylesheet/i.test(xml)||!/^\s*(?:<\?xml\s[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<[A-Za-z_][\w:.-]*(?:\s|>|\/)/.test(xml))return toast('O XML está inválido ou contém declarações externas não permitidas.');
+ }
+
+ const button=form.querySelector('[type=submit]');button.disabled=true;
+ try{
+  const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file)});
+  const data={direction:d.get('direction'),documentType,fileName:file.name,mimeType:documentType==='xml'&&mime==='text/xml'?'text/xml':expectedMime,contentBase64:dataUrl.split(',')[1],date:d.get('date'),documentNumber:d.get('documentNumber'),issuerName:d.get('issuerName'),issuerCnpj:String(d.get('issuerCnpj')||'').replace(/\D/g,''),amountCents:Math.round(Number(d.get('amount')||0)*100),notes:d.get('notes')};
+  await api('/api/admin/fiscal/documents',{method:'POST',body:JSON.stringify(data)});toast('Documento armazenado.');await renderFiscalAdmin();
+ }catch(e){toast(e.message);button.disabled=false}
+}
+async function downloadFiscalDocument(id){
+ try{const d=await api('/api/admin/fiscal/documents/'+encodeURIComponent(id)),bytes=atob(d.contentBase64),array=new Uint8Array(bytes.length);for(let i=0;i<bytes.length;i++)array[i]=bytes.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([array],{type:d.mimeType})),link=root.createElement('a');link.href=url;link.download=d.fileName;root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+ }catch(e){toast(e.message)}
+}
+async function exportFiscalReport(format){
+ const reportWindow=format==='pdf'?window.open('','_blank'):null;if(format==='pdf'&&!reportWindow)return toast('Permita pop-ups para gerar o PDF.');
+ try{
+  const month=app.admin.fiscalMonth||fiscalCurrentMonth(),[report,expenses,documents]=await Promise.all([api('/api/admin/fiscal/report?month='+month),api('/api/admin/fiscal/expenses?month='+month),api('/api/admin/fiscal/documents?month='+month)]);
+  const r=report.report;
+  if(format==='pdf'){
+   const win=reportWindow;
+   const rows=[['Vendas registradas',fiscalMoney(r.sales.grossCents)],['Descontos',fiscalMoney(r.sales.discountsCents)],['Receita após descontos',fiscalMoney(r.sales.netCents)],['Pedidos válidos',r.sales.orders],['Pedidos cancelados',r.sales.cancelled],['Despesas lançadas',fiscalMoney(r.expenses.totalCents)],['Documentos recebidos',r.documents.received],['Documentos emitidos',r.documents.issued]];
+   openPdfReport('Fechamento gerencial fiscal','Competência '+month,rows,['Modalidade','Pedidos','Total'],(r.byFulfillment||[]).map(x=>[({table:'Mesas',pickup:'Retirada',delivery:'Entrega'}[x.type]||x.type),x.orders,fiscalMoney(x.totalCents)]),win);return;
+  }
+  const rows=[['Tipo','Data','Descrição','Fornecedor','Documento','Valor'],['Vendas',month+'-01','Receita bruta registrada','','',(Number(r.sales.grossCents)/100).toFixed(2)],['Vendas',month+'-01','Descontos','','',(Number(r.sales.discountsCents)/100).toFixed(2)],['Vendas',month+'-01','Receita após descontos','','',(Number(r.sales.netCents)/100).toFixed(2)]];
+  for(const x of r.sales.records||[])rows.push(['Pedido',x.date,x.id+' · '+x.customer,({table:'Mesa',pickup:'Retirada',delivery:'Entrega'}[x.fulfillment]||x.fulfillment),x.status+' · desconto '+(Number(x.discountCents)/100).toFixed(2),(Number(x.netCents)/100).toFixed(2)]);
+  for(const x of expenses.expenses)rows.push(['Despesa',x.date,x.description,x.supplierName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
+  for(const x of documents.documents)rows.push(['Documento '+(x.direction==='received'?'recebido':'emitido'),x.date||'',x.fileName,x.issuerName,x.documentNumber,(Number(x.amountCents)/100).toFixed(2)]);
+  const csv='\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=root.createElement('a');a.href=url;a.download='menuza-contabilidade-'+month+'.csv';root.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV de despesas exportado. Baixe também os documentos XML/PDF da lista.');
+ }catch(e){toast(e.message||'Não foi possível exportar a competência.')}
+}
+async function deleteFiscalExpense(id){
+ if(!window.confirm('Excluir este lançamento de despesa?'))return;
+ try{await api('/api/admin/fiscal/expenses/'+encodeURIComponent(id),{method:'DELETE'});toast('Despesa excluída.');await renderFiscalAdmin()}catch(e){toast(e.message)}
+}
+
+function skeletonMarkup(kind='content'){
+  const dashboard=kind==='dashboard',catalog=kind==='catalog';
+  if(catalog)return '<section class="mz-skeleton mz-skeleton-catalog" role="status" aria-label="Carregando cardápio"><span class="sr-only">Carregando cardápio…</span>'+Array.from({length:6},()=>'<article class="mz-skeleton-product"><i class="mz-skeleton-product-image"></i><div><i class="mz-skeleton-line medium"></i><i class="mz-skeleton-line short"></i><i class="mz-skeleton-line metric"></i></div></article>').join('')+'</section>';
+  const cards=dashboard?'<div class="mz-skeleton-metrics">'+Array.from({length:4},()=>'<div class="mz-skeleton-card"><i class="mz-skeleton-line short"></i><i class="mz-skeleton-line metric"></i><i class="mz-skeleton-line medium"></i></div>').join('')+'</div>':'';
+  return '<section class="mz-skeleton" role="status" aria-label="Carregando conteúdo"><span class="sr-only">Carregando conteúdo…</span>'+cards+'<div class="mz-skeleton-panel"><div class="mz-skeleton-heading"><i class="mz-skeleton-line title"></i><i class="mz-skeleton-line action"></i></div><div class="mz-skeleton-table">'+Array.from({length:dashboard?5:4},()=>'<div class="mz-skeleton-row"><i class="mz-skeleton-avatar"></i><span><i class="mz-skeleton-line medium"></i><i class="mz-skeleton-line short"></i></span><i class="mz-skeleton-line end"></i></div>').join('')+'</div></div></section>';
+}
+async function renderDailyClosingAdmin(){
+ const target=root.getElementById('adminBody');if(!target)return;
+ const today=new Date(),localDate=app.admin.dailyClosingDate||[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');app.admin.dailyClosingDate=localDate;
+ target.innerHTML=skeletonMarkup('content');
+ try{
+  const result=await api('/api/admin/daily-closing?date='+encodeURIComponent(localDate));
+  if(app.admin.tab!=='daily-closing')return;
+  const orders=Array.isArray(result.orders)?result.orders:[],valid=orders.filter(o=>o.status!=='cancelled'),total=valid.reduce((sum,o)=>sum+Number(o.totalCents||0),0),cancelled=orders.filter(o=>o.status==='cancelled').length;
+  const modes=[['delivery','Entrega'],['pickup','Retirada'],['table','Mesas']].map(([key,label])=>({key,label,orders:valid.filter(o=>o.fulfillment===key)}));
+  const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
+  const fulfillment=o=>o.fulfillment==='delivery'?'Entrega':o.fulfillment==='table'?'Mesa '+(o.tableLabel||'—'):'Retirada';
+  const rows=orders.map(o=>'<tr><td><strong>#'+esc(o.id)+'</strong><small>'+new Date(o.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</small></td><td>'+esc(o.customerName||'Cliente')+'<small>'+esc(o.phone||'')+'</small></td><td>'+esc(fulfillment(o))+'</td><td>'+esc((o.items||[]).map(i=>i.quantity+'× '+i.name).join(', '))+'</td><td><span class="daily-status daily-status-'+esc(o.status)+'">'+esc(statusLabels[o.status]||o.status)+'</span></td><td class="daily-value">'+money(o.totalCents)+'</td></tr>').join('');
+  target.innerHTML='<section class="daily-closing-page"><div class="daily-closing-heading"><div><div class="eyebrow">OPERAÇÃO · CONFERÊNCIA</div><h2>Fechamento <em>diário.</em></h2><p>Confira todos os pedidos registrados na data selecionada.</p></div><div class="daily-closing-actions"><label class="daily-date-field"><span>Data do fechamento</span><input id="dailyClosingDate" type="date" value="'+esc(localDate)+'"></label><button class="button button-dark" type="button" data-action="daily-closing-pdf">Exportar PDF ↓</button></div></div><div class="daily-closing-metrics"><article class="daily-closing-metric"><span>Pedidos no dia</span><strong>'+orders.length+'</strong><small>Inclui pedidos cancelados</small></article><article class="daily-closing-metric"><span>Faturamento válido</span><strong>'+money(total)+'</strong><small>Exclui pedidos cancelados</small></article><article class="daily-closing-metric"><span>Ticket médio</span><strong>'+money(valid.length?Math.round(total/valid.length):0)+'</strong><small>Pedidos não cancelados</small></article><article class="daily-closing-metric"><span>Cancelados</span><strong>'+cancelled+'</strong><small>Não entram no faturamento</small></article></div><div class="daily-closing-columns"><section class="admin-panel"><div class="admin-panel-head"><div><h3>Resumo por modalidade</h3><small>Somente pedidos válidos</small></div></div><div class="daily-mode-list">'+modes.map(m=>'<div class="daily-mode-row"><span>'+m.label+'</span><strong>'+m.orders.length+' pedido(s)</strong><b>'+money(m.orders.reduce((sum,o)=>sum+Number(o.totalCents||0),0))+'</b></div>').join('')+'</div></section><section class="admin-panel daily-closing-note"><div class="admin-panel-head"><h3>Conferência do dia</h3></div><p>O total considera o valor final dos pedidos, já com descontos aplicados. Pedidos cancelados aparecem na listagem, mas ficam fora do faturamento e do ticket médio.</p><div class="daily-total-line"><span>Faturamento do dia</span><strong>'+money(total)+'</strong></div></section></div><section class="admin-panel daily-orders-panel"><div class="admin-panel-head"><div><h3>Pedidos do dia</h3><small>'+orders.length+' registro(s) · '+esc(new Date(localDate+'T12:00:00').toLocaleDateString('pt-BR',{dateStyle:'full'}))+'</small></div><button class="button button-outline button-small" type="button" data-action="refresh-daily-closing">Atualizar</button></div><div class="daily-orders-table-wrap"><table class="daily-orders-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Modalidade</th><th>Itens</th><th>Status</th><th>Total</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" class="daily-empty">Nenhum pedido registrado nesta data.</td></tr>')+'</tbody></table></div></section></section>';
+  app.admin.dailyClosingOrders=orders;app.admin.dailyClosingSummary={total,validCount:valid.length,cancelled,average:valid.length?Math.round(total/valid.length):0,modes,localDate};
+ }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message||'Não foi possível carregar o fechamento diário.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-daily-closing">Tentar novamente</button></section>'}
+}
+function exportDailyClosingPdf(){
+ const orders=app.admin.dailyClosingOrders||[],summary=app.admin.dailyClosingSummary;if(!summary)return toast('Carregue o fechamento antes de exportar.');
+ const win=window.open('','_blank');if(!win)return toast('Permita pop-ups para gerar o PDF.');
+ const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
+ const modes={delivery:'Entrega',pickup:'Retirada',table:'Mesa'};
+ const rows=orders.map(o=>['#'+o.id,new Date(o.createdAt).toLocaleString('pt-BR'),o.customerName||'—',o.phone||'—',modes[o.fulfillment]||o.fulfillment,o.tableLabel||'—',(o.items||[]).map(i=>i.quantity+'× '+i.name).join(' · '),statusLabels[o.status]||o.status,money(o.totalCents)]);
+ const modeSummary=summary.modes.flatMap(m=>[[m.label+' · pedidos',m.orders.length],[m.label+' · total',money(m.orders.reduce((sum,o)=>sum+Number(o.totalCents||0),0))]]);
+ openPdfReport('Fechamento diário','Data: '+new Date(summary.localDate+'T12:00:00').toLocaleDateString('pt-BR'),[['Pedidos registrados',orders.length],['Pedidos válidos',summary.validCount],['Faturamento',money(summary.total)],['Ticket médio',money(summary.average)],['Cancelados',summary.cancelled],...modeSummary],['Pedido','Data e hora','Cliente','Telefone','Modalidade','Mesa','Itens','Status','Total'],rows,win);
+ toast('Fechamento diário pronto para salvar em PDF.');
+}
+async function renderPizzaConfigAdmin(){
+ const target=root.getElementById('adminBody');target.innerHTML=skeletonMarkup('content');
+ try{const data=await api('/api/admin/pizza-config');const sizes=data.sizes||[],crusts=data.crusts||[],catalog=await api('/api/admin/catalog');app.catalog=catalog;
+ const existingPizza=catalog.products.find(product=>product.type==='pizza'),savedSizePrices=Object.fromEntries(sizes.filter(size=>Number(size.priceCents)>=500).map(size=>[size.key,Number(size.priceCents)])),initialSharedPrices={...(existingPizza?.sizePrices||{}),...savedSizePrices};
+ target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Tamanhos de pizza</h2><small>Cadastre uma vez. Cada tamanho define diâmetro e quantidade máxima de sabores.</small></div></div><form id="pizzaConfigForm"><div class="admin-form-grid"><div class="form-field wide"><div class="admin-panel-head"><b>Tamanhos e limites de sabores</b></div><div id="pizzaSizeRows">'+sizes.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="sizeKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome</span><input name="sizeLabel" value="'+esc(x.label)+'" required maxlength="40"></label><label class="form-field"><span>Diâmetro (cm)</span><input name="sizeDiameter" type="number" min="10" max="60" value="'+Number(x.diameterCm)+'" required></label><label class="form-field"><span>Máximo de sabores</span><input name="sizeFlavors" type="number" min="1" max="8" value="'+Number(x.maxFlavors)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-size">Adicionar tamanho</button></div><div class="form-field wide"><div class="admin-panel-head"><b>Bordas e preços adicionais</b></div><div id="pizzaCrustRows">'+crusts.map(x=>'<div class="admin-form-grid pizza-config-row"><input type="hidden" name="crustKey" value="'+esc(x.key)+'"><label class="form-field"><span>Nome da borda</span><input name="crustLabel" value="'+esc(x.label)+'" required maxlength="50"></label><label class="form-field"><span>Preço adicional (R$)</span><input name="crustPrice" type="number" min="0" max="10000" step="0.01" value="'+(Number(x.priceCents)/100).toFixed(2)+'" required></label></div>').join('')+'</div><button type="button" class="button button-outline button-small" data-action="add-pizza-crust">Adicionar borda</button></div><div class="form-field wide"><button class="button button-dark" type="submit">Salvar tamanhos e bordas</button></div></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Preço único das pizzas por tamanho</h2><small>Cadastre um único preço para cada tamanho. Esse valor será aplicado automaticamente a todas as pizzas e a todos os sabores.</small></div></div><div class="product-size-price-entry" id="sharedPizzaPricing"><div class="product-size-price-editor">'+productSizePriceMarkup('pizza',initialSharedPrices,existingPizza?.baseCents||null,true)+'</div><button type="button" class="button button-dark button-small" data-save-shared-pizza-prices>Salvar preços de todas as pizzas</button><small>Ao salvar, todos os sabores de pizza passam a usar exatamente os mesmos valores por tamanho.</small></div></section>';
+ target.querySelector('[data-save-shared-pizza-prices]')?.addEventListener('click',async buttonEvent=>{const button=buttonEvent.currentTarget,row=target.querySelector('#sharedPizzaPricing');if(!row||button.disabled)return;let sizePrices;try{sizePrices=readProductSizePrices(row)}catch(error){toast(error.message);return}button.disabled=true;button.textContent='Salvando preços dos tamanhos…';try{await api('/api/admin/pizza-size-prices',{method:'PATCH',body:JSON.stringify({sizePrices})});toast('Preços salvos nos tamanhos e atualizados no cardápio do cliente.');await renderPizzaConfigAdmin()}catch(error){toast(error.message||'Não foi possível salvar os preços dos tamanhos.');button.disabled=false;button.textContent='Tentar novamente'}});
+ const form=target.querySelector('#pizzaConfigForm');form.addEventListener('submit',async e=>{e.preventDefault();const sizeRows=[...form.querySelectorAll('#pizzaSizeRows .pizza-config-row')],crustRows=[...form.querySelectorAll('#pizzaCrustRows .pizza-config-row')];const makeKey=(label,index)=>label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+index;const sizes=sizeRows.map((row,i)=>({key:row.querySelector('[name=sizeKey]')?.value||makeKey(row.querySelector('[name=sizeLabel]').value.trim(),i),label:row.querySelector('[name=sizeLabel]').value.trim(),diameterCm:Number(row.querySelector('[name=sizeDiameter]').value),maxFlavors:Number(row.querySelector('[name=sizeFlavors]').value)}));const crusts=crustRows.map((row,i)=>({key:row.querySelector('[name=crustKey]')?.value||makeKey(row.querySelector('[name=crustLabel]').value.trim(),i),label:row.querySelector('[name=crustLabel]').value.trim(),priceCents:Math.round(Number(row.querySelector('[name=crustPrice]').value)*100)}));const button=form.querySelector('[type=submit]');button.disabled=true;try{await api('/api/admin/pizza-config',{method:'PUT',body:JSON.stringify({sizes,crusts})});app.catalog=await api('/api/admin/catalog');toast('Tamanhos e bordas atualizados.');renderPizzaConfigAdmin()}catch(error){toast(error.message||'Não foi possível salvar.');button.disabled=false}});
+ }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar tamanhos e bordas</h2><p>'+esc(error.message)+'</p></section>'}
+}
+// Estrutura do painel: desenha a navegação e encaminha para a seção administrativa selecionada.
 function renderAdmin(){
-  const tabs=[['orders','Pedidos'],['tables','Mesas 3D'],['catalog','Cardápio'],['ingredients','Adicionais'],['coupons','Cupons'],['privacy','Solicitações de dados'],['settings','Configurações']];
-  root.getElementById('adminView').innerHTML='<div class="admin-shell"><div class="admin-top"><div><div class="eyebrow">BELA MESA · OPERAÇÃO</div><h1>Painel da cozinha</h1><p>Pedidos e cardápio em um só lugar.</p></div><div class="admin-top-actions"><a href="#" class="button button-outline button-small" data-action="back-home">Ver cardápio</a><button class="button button-dark button-small" data-action="admin-logout">Sair da conta</button></div></div><div class="admin-tabs">'+tabs.map(t=>'<button class="admin-tab '+(app.admin.tab===t[0]?'active':'')+'" data-admin-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div><div id="adminBody"><div class="loading-line">Carregando dados da cozinha…</div></div></div>';
-  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else renderSettingsAdmin();
+  const groups=[{title:'Operação',items:[['orders','Pedidos','◷'],['daily-closing','Fechamento diário','▤'],['analytics','Vendas','↗']]},{title:'Cardápio',items:[['pizza-products','Pizzas',uiIcon('pizza',18)],['burger-products','Hambúrgueres','▣'],['hotdog-products','Hot Dogs','▤'],['pizza-config','Tamanhos e bordas',uiIcon('pizza',18)],['beverages','Bebidas','◉'],['categories','Categorias','▦'],['ingredients','Ingredientes','utensils'],['promotions','Promoções','✦']]},{title:'Gestão',items:[['delivery','Entrega','⌁'],['opening-hours','Horários','◷'],['coupons','Cupons','％'],['fiscal','Centro Fiscal','▧'],['privacy','Privacidade','⌑'],['settings','Restaurante','⚙']] }];
+  const tabs=groups.flatMap(group=>group.items);
+  const nav=groups.map(group=>'<div class="admin-nav-group"><span class="admin-nav-label">'+group.title+'</span>'+group.items.map(item=>'<button type="button" class="admin-tab '+(app.admin.tab===item[0]?'active':'')+'" data-admin-tab="'+item[0]+'"><span class="admin-nav-icon" aria-hidden="true">'+(item[0]==='ingredients'?uiIcon('utensils',18):item[2])+'</span><span>'+item[1]+'</span>'+(app.admin.tab===item[0]?'<i aria-hidden="true"></i>':'')+'</button>').join('')+'</div>').join('');
+  root.getElementById('adminView').innerHTML='<div class="admin-shell admin-shell-v2" data-mz-admin-theme="' +(getAccessibilityPreferences().theme==='dark'?'dark':'light') + '"><button type="button" class="admin-mobile-menu-toggle" data-action="mobile-header-menu" aria-expanded="false" aria-label="Abrir menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button><button type="button" class="admin-mobile-nav-backdrop" data-action="mobile-nav-close" aria-label="Fechar menu" tabindex="-1"></button><aside class="admin-sidebar"><a href="#" class="admin-sidebar-brand" data-action="back-home"><span class="admin-brand-mark"><img src="/favicon-32x32.png" alt="Menuza" width="32" height="32"></span><span><b>MENUZA</b><small>PAINEL DO RESTAURANTE</small></span></a><div class="admin-sidebar-restaurant"><span class="admin-restaurant-avatar">G</span><span><b>Galileu Pizzas e Lanches</b><small>Ambiente administrativo</small></span><span class="admin-online-dot"></span></div><nav class="admin-sidebar-nav" aria-label="Navegação do painel">'+nav+'</nav><div class="admin-sidebar-footer"><a href="#" class="admin-sidebar-link" data-action="back-home">↗ <span>Visualizar cardápio</span></a><button class="admin-sidebar-link admin-logout-link" data-action="admin-logout">⇥ <span>Sair da conta</span></button></div></aside><main class="admin-main"><header class="admin-main-top"><div><div class="eyebrow">GALILEU PIZZAS E LANCHES · OPERAÇÃO</div><h1>Painel do restaurante</h1><p>Gerencie pedidos, produtos e operação em um só lugar.</p></div><div class="admin-top-actions"><span class="admin-status-chip"><i></i> Sistema conectado</span><button class="button button-outline button-small" data-action="admin-logout">Sair</button></div></header><div id="adminBody">'+skeletonMarkup('dashboard')+'</div></main></div>';
+  if(app.admin.tab==='orders')renderOrdersAdmin();else if(app.admin.tab==='daily-closing')renderDailyClosingAdmin();else if(app.admin.tab==='analytics')renderAnalyticsAdmin();else if(app.admin.tab==='combos')renderCombosAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog'||app.admin.tab==='pizza-products')renderCatalogAdmin('pizza');else if(app.admin.tab==='burger-products')renderCatalogAdmin('burger');else if(app.admin.tab==='hotdog-products')renderCatalogAdmin('plate');else if(app.admin.tab==='pizza-config')renderPizzaConfigAdmin();else if(app.admin.tab==='beverages')renderBeveragesAdmin();else if(app.admin.tab==='categories')renderCategoryAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else if(app.admin.tab==='promotions')renderPromotionsAdmin();else if(app.admin.tab==='delivery')renderDeliveryAdmin();else if(app.admin.tab==='opening-hours')renderOpeningHoursAdmin();else if(app.admin.tab==='coupons')renderCouponsAdmin();else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();else if(app.admin.tab==='fiscal')renderFiscalAdmin();else renderSettingsAdmin();
+}
+let orderAlertAudioContext=null;
+function playOrderAlert(){
+  try{
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)return;
+    orderAlertAudioContext ||= new AudioContextClass();
+    if(orderAlertAudioContext.state==='suspended')orderAlertAudioContext.resume();
+    const now=orderAlertAudioContext.currentTime;
+    [880,1175].forEach((frequency,index)=>{
+      const oscillator=orderAlertAudioContext.createOscillator(),gain=orderAlertAudioContext.createGain(),start=now+index*.16;
+      oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(.14,start+.02);gain.gain.exponentialRampToValueAtTime(.0001,start+.13);
+      oscillator.connect(gain);gain.connect(orderAlertAudioContext.destination);oscillator.start(start);oscillator.stop(start+.14);
+    });
+  }catch{}
+}
+async function sendOrderToLocalPrinter(order){
+  if(!order||order.status!=='received')return;
+  try{
+    const response=await fetch('http://127.0.0.1:17891/print',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order}),
+      signal:AbortSignal.timeout(4500),mode:'cors'
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'Agente de impressão indisponível.');
+    toast('Comanda '+String(order.id)+' enviada para impressão.');
+  }catch(error){
+    if(!app.admin.printAgentWarningShown){
+      app.admin.printAgentWarningShown=true;
+      toast('Pedido recebido. Para imprimir automaticamente, instale e inicie o Agente de Impressão Menuza neste computador.');
+    }
+  }
+}
+function trackNewOrders(orders){
+  const list=orders||[];
+  const ids=new Set(list.map(order=>String(order.id)));
+  if(app.admin.lastOrderIds===null){app.admin.lastOrderIds=ids;return}
+  const newOrders=list.filter(order=>!app.admin.lastOrderIds.has(String(order.id))&&order.status==='received');
+  app.admin.lastOrderIds=ids;
+  // Um novo pedido recebido é atividade operacional: mantém o painel aberto
+  // mesmo quando chega automaticamente, sem interação manual no computador.
+  if(newOrders.length)recordAdminActivity();
+  if(newOrders.length&&app.admin.soundEnabled)playOrderAlert();
+  for(const order of newOrders)sendOrderToLocalPrinter(order);
+}
+function toggleOrderSound(){
+  app.admin.soundEnabled=!app.admin.soundEnabled;
+  try{localStorage.setItem('menuza-order-sound',app.admin.soundEnabled?'on':'off')}catch{}
+  if(app.admin.soundEnabled){playOrderAlert();toast('Alerta sonoro ativado. Você ouvirá um aviso quando chegar um novo pedido.')}
+  else toast('Alerta sonoro desativado.');
+  const button=root.querySelector('[data-action="toggle-order-sound"]');
+  if(button){
+    button.setAttribute('aria-pressed',String(app.admin.soundEnabled));
+    button.innerHTML=orderSoundButtonContent();
+  }
+}
+function orderSoundButtonContent(){
+  const waves=app.admin.soundEnabled
+    ? '<path class="sound-wave sound-wave-one" d="M16 9a5 5 0 0 1 0 6"/><path class="sound-wave sound-wave-two" d="M19.364 18.364a9 9 0 0 0 0-12.728"/>'
+    : '<path class="sound-mute" d="m16 9 6 6m0-6-6 6"/>';
+  return '<svg class="order-sound-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/>'+waves+'</svg><span>'+(app.admin.soundEnabled?'Som ativado':'Ativar som de novos pedidos')+'</span>';
 }
 async function refreshAdmin(){
   if(!app.admin.authenticated||app.admin.tab!=='orders')return;
-  try{const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);if(app.admin.authenticated&&app.admin.tab==='orders')renderOrdersAdmin(metrics,result.orders)}
-  catch(e){if(e.message.includes('Entre no painel'))renderAdminLogin(e.message)}
+  try{
+    const [metrics,result]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/orders')]);
+    if(app.admin.authenticated&&app.admin.tab==='orders'){
+      trackNewOrders(result.orders||[]);
+      setAdminConnectionState('connected');
+      renderOrdersAdmin(metrics,result.orders);
+    }
+  }catch(e){
+    setAdminConnectionState(navigator.onLine?'reconnecting':'offline');
+    if(e.message.includes('Entre no painel'))renderAdminLogin(e.message);
+  }
+}
+async function exportSalesReport(){
+  const days=Math.max(7,Math.min(90,Number(root.getElementById('analyticsDays')?.value)||7));
+  const reportWindow=window.open('','_blank');if(!reportWindow)return toast('Permita pop-ups para gerar o PDF.');
+  try{
+    const data=await api('/api/admin/analytics?days='+days),moneyValue=value=>money(Number(value)||0);
+    const rows=(data.daily||[]).map(row=>[new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR'),Number(row.orders)||0,moneyValue(row.revenueCents)]);
+    openPdfReport('Relatório de vendas','Período dos últimos '+days+' dias',[
+      ['Faturamento',moneyValue(data.summary.revenueCents)],['Pedidos',Number(data.summary.orders)||0],
+      ['Ticket médio',moneyValue(data.summary.averageTicketCents)],['Cancelados',Number(data.summary.cancelled)||0]
+    ],['Data','Pedidos','Faturamento'],rows,reportWindow);
+    toast('Relatório de vendas pronto para salvar em PDF.');
+  }catch(error){reportWindow.close();toast(error.message||'Não foi possível gerar o relatório.')}
+}
+function printOrderTicket(orderId){
+  const order=(app.admin.orders||[]).find(item=>String(item.id)===String(orderId));
+  if(!order)return toast('Pedido não encontrado. Atualize a lista e tente novamente.');
+  const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Saiu para entrega',completed:'Concluído',cancelled:'Cancelado'};
+  const fulfillment=order.fulfillment==='table'?'Mesa '+String(order.tableLabel||''):order.fulfillment==='delivery'?'Entrega':'Retirada';
+  const items=(order.items||[]).map(item=>{
+    const size=item.snapshot?.size?.label||item.sizeLabel||'';
+    const ingredients=(item.ingredients||[]).map(ingredient=>(Number(ingredient.quantity)>1?Number(ingredient.quantity)+'× ':'')+ingredient.name).filter(Boolean);
+    return '<article class="print-ticket-item"><div class="print-ticket-item-head"><strong>'+esc(item.quantity)+'× '+esc(item.name)+'</strong><span>'+esc(size)+'</span></div>'+(ingredients.length?'<p>'+esc(ingredients.join(', '))+'</p>':'')+(item.notes?'<p><strong>Obs.:</strong> '+esc(item.notes)+'</p>':'')+'</article>';
+  }).join('');
+  const sheet=root.createElement('section');
+  sheet.id='orderPrintSheet';sheet.className='order-print-sheet';
+  sheet.innerHTML='<header><div class="print-ticket-brand">MENUZA</div><h1>Comanda do pedido</h1><p class="print-ticket-order">Pedido '+esc(order.id)+'</p></header><div class="print-ticket-meta"><p><strong>Cliente:</strong> '+esc(order.customerName||'Não informado')+'</p><p><strong>Telefone:</strong> '+esc(order.phone||'Não informado')+'</p><p><strong>Recebido:</strong> '+esc(order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR'):'Data indisponível')+'</p><p><strong>Modalidade:</strong> '+esc(fulfillment)+'</p><p><strong>Status:</strong> '+esc(statusLabels[order.status]||order.status)+'</p>'+(order.fulfillment==='delivery'&&order.deliveryAddress?'<p><strong>Endereço:</strong> '+esc(order.deliveryAddress)+'</p>':'')+'</div><div class="print-ticket-items">'+items+'</div>'+(order.note?'<div class="print-ticket-note"><strong>Observações do pedido:</strong><p>'+esc(order.note)+'</p></div>':'')+(Number(order.discountCents)>0?'<p><strong>Desconto ('+esc(order.couponCode||'cupom')+'):</strong> '+money(order.discountCents)+'</p>':'')+'<footer><span>Total do pedido</span><strong>'+money(order.totalCents)+'</strong></footer><p class="print-ticket-footer">Comanda gerada em '+esc(new Date().toLocaleString('pt-BR'))+'</p>';
+  root.body.appendChild(sheet);
+  const cleanup=()=>{sheet.remove();window.removeEventListener('afterprint',cleanup)};
+  window.addEventListener('afterprint',cleanup);
+  window.print();
 }
 function statusSelect(order){
   const labels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
@@ -515,14 +1604,20 @@ function applyOrderFilters(){
   const count=root.getElementById('ordersVisibleCount');if(count)count.textContent=String(visible);
   const empty=root.getElementById('ordersFilterEmpty');if(empty)empty.hidden=visible!==0;
 }
-function csvCell(value){
-  let text=String(value??'');
-  if(/^[=+\-@\t\r]/.test(text))text="'"+text;
-  return '"'+text.replace(/"/g,'""')+'"';
+function openPdfReport(title,subtitle,summary,headers,rows,targetWindow){
+  const reportWindow=targetWindow||window.open('','_blank');
+  if(!reportWindow){toast('Permita pop-ups para gerar o PDF.');return false}
+  const safe=value=>esc(value==null?'—':String(value));
+  const summaryHtml=(summary||[]).map(([label,value])=>'<div class="summary-item"><span>'+safe(label)+'</span><strong>'+safe(value)+'</strong></div>').join('');
+  const head='<tr>'+headers.map(value=>'<th>'+safe(value)+'</th>').join('')+'</tr>';
+  const body=rows.length?rows.map(row=>'<tr>'+row.map(value=>'<td>'+safe(value)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+headers.length+'" class="empty">Nenhum registro encontrado.</td></tr>';
+  const generated=new Date().toLocaleString('pt-BR');
+  reportWindow.document.open();
+  reportWindow.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+safe(title)+' - Menuza</title><style>*{box-sizing:border-box}body{font:12px/1.45 Arial,sans-serif;color:#172033;margin:0;padding:32px;background:#fff}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #20283b;padding-bottom:16px;margin-bottom:18px}.brand{font-size:22px;font-weight:800;letter-spacing:2px}.muted{color:#647084}.meta{text-align:right;font-size:10px}h1{font-size:19px;margin:0 0 4px}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:18px 0 22px}.summary-item{border:1px solid #dce1e9;border-radius:7px;padding:10px}.summary-item span{display:block;color:#647084;font-size:10px}.summary-item strong{display:block;font-size:15px;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:10px}thead{display:table-header-group}th{background:#eef1f6;text-align:left}th,td{padding:8px 7px;border:1px solid #dce1e9;vertical-align:top;overflow-wrap:anywhere}tr{break-inside:avoid}.empty{text-align:center;color:#647084;padding:22px}.footer{margin-top:22px;padding-top:10px;border-top:1px solid #dce1e9;font-size:9px;color:#647084;display:flex;justify-content:space-between}.actions{display:flex;gap:8px;justify-content:flex-end;margin-bottom:18px}.actions button{border:0;border-radius:6px;padding:9px 14px;background:#20283b;color:#fff;font-weight:700;cursor:pointer}@page{size:A4 landscape;margin:12mm}@media print{body{padding:0}.actions{display:none}th{background:#eef1f6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="actions"><button onclick="window.print()">Salvar / imprimir PDF</button><button onclick="window.close()">Fechar</button></div><header class="top"><div><div class="brand">MENUZA</div><h1>'+safe(title)+'</h1><div class="muted">'+safe(subtitle||'Relatório administrativo')+'</div></div><div class="meta">Documento para controle e contabilidade<br>Gerado em '+safe(generated)+'</div></header>'+(summaryHtml?'<section class="summary">'+summaryHtml+'</section>':'')+'<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table><footer class="footer"><span>Menuza · Relatório gerencial</span><span>Gerado em '+safe(generated)+'</span></footer></body></html>');
+  reportWindow.document.close();reportWindow.focus();reportWindow.onload=()=>reportWindow.print();return true;
 }
 function exportVisibleOrders(){
-  const orders=app.admin.orders||[];
-  const query=String(app.admin.orderQuery||'').trim().toLocaleLowerCase('pt-BR');
+  const orders=app.admin.orders||[],query=String(app.admin.orderQuery||'').trim().toLocaleLowerCase('pt-BR');
   const rows=orders.filter(order=>{
     const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...(order.items||[]).map(i=>i.name),...(order.items||[]).flatMap(i=>(i.ingredients||[]).map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
     return (!query||searchable.includes(query))&&(app.admin.orderStatus==='all'||order.status===app.admin.orderStatus)&&(app.admin.orderFulfillment==='all'||order.fulfillment===app.admin.orderFulfillment);
@@ -530,50 +1625,404 @@ function exportVisibleOrders(){
   if(!rows.length)return toast('Não há pedidos para exportar com os filtros atuais.');
   const statusLabels={received:'Recebido',confirmed:'Confirmado',preparing:'Em preparo',ready:'Pronto',delivering:'Em entrega',completed:'Concluído',cancelled:'Cancelado'};
   const fulfillmentLabels={delivery:'Entrega',table:'Mesa',pickup:'Retirada'};
-  const header=['Pedido','Data','Cliente','Telefone','Tipo','Mesa','Endereço','Status','Itens','Observações','Total (R$)'];
-  const csv=[header,...rows.map(order=>[
-    order.id,order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR'):'',order.customerName,order.phone,
-    fulfillmentLabels[order.fulfillment]||order.fulfillment,order.tableLabel||'',order.deliveryAddress||'',
-    statusLabels[order.status]||order.status,
-    (order.items||[]).map(item=>item.quantity+'x '+item.name+(item.ingredients?.length?' ('+item.ingredients.map(i=>i.name).join(', ')+')':'')).join(' | '),
-    order.note||'',(Number(order.totalCents||0)/100).toFixed(2).replace('.',',')
-  ])].map(row=>row.map(csvCell).join(';')).join('\r\n');
-  const blob=new Blob(['\\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob),link=document.createElement('a');
-  link.href=url;link.download='menuza-pedidos-'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
-  toast(rows.length+' pedido(s) exportado(s).');
+  const reportRows=rows.map(order=>['#'+order.id,order.createdAt?new Date(order.createdAt).toLocaleString('pt-BR'):'',order.customerName||'—',order.phone||'—',fulfillmentLabels[order.fulfillment]||order.fulfillment,order.tableLabel||'—',order.deliveryAddress||'—',statusLabels[order.status]||order.status,(order.items||[]).map(item=>item.quantity+'x '+item.name+(item.ingredients?.length?' ('+item.ingredients.map(i=>i.name).join(', ')+')':'')).join(' | '),order.note||'—',money(Number(order.totalCents||0))]);
+  openPdfReport('Relatório de pedidos','Filtros: '+(query||'sem busca')+' · Status: '+(app.admin.orderStatus==='all'?'todos':statusLabels[app.admin.orderStatus]||app.admin.orderStatus)+' · Modalidade: '+(app.admin.orderFulfillment==='all'?'todas':fulfillmentLabels[app.admin.orderFulfillment]||app.admin.orderFulfillment),[
+    ['Pedidos listados',rows.length],['Valor total',money(rows.reduce((sum,order)=>sum+Number(order.totalCents||0),0))]
+  ],['Pedido','Data','Cliente','Telefone','Tipo','Mesa','Endereço','Status','Itens','Observações','Total'],reportRows);
+  toast('Relatório de pedidos pronto para salvar em PDF.');
 }
+function updateOrderElapsedTimes(){
+  const now=Date.now();
+  for(const node of root.querySelectorAll('[data-order-elapsed]')){
+    const createdAt=Number(node.dataset.createdAt),limit=Math.max(1,Number(node.dataset.prepMinutes)||30);
+    if(!Number.isFinite(createdAt)||createdAt<=0){node.textContent='Tempo indisponível';continue}
+    const minutes=Math.max(0,Math.floor((now-createdAt)/60000));
+    node.textContent=minutes<1?'Recebido agora':'Há '+minutes+' min na fila';
+    const overdue=minutes>limit;
+    node.classList.toggle('is-overdue',overdue);
+    node.setAttribute('aria-label',overdue?'Atenção: pedido há '+minutes+' minutos, acima do tempo estimado de '+limit+' minutos':'Pedido há '+minutes+' minutos');
+  }
+}
+// Gestão de pedidos: filtros, status, tempos e ações disponíveis para a equipe.
 function renderOrdersAdmin(metrics,orders){
   app.admin.orders=orders;
-  const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML='<div class="loading-line">Atualizando pedidos…</div>';return}
+  const target=root.getElementById('adminBody');if(!target)return;if(!metrics||!orders){target.innerHTML=skeletonMarkup('dashboard');return}
   const cards=orders.map(order=>{
-    const lines=order.items.map(item=>'<div><strong>'+item.quantity+'× '+esc(item.name)+'</strong> · '+esc(item.snapshot.size.label)+'<br><span>'+esc(item.ingredients.map(i=>i.name).join(', ')||'composição da casa')+'</span></div>').join('');
+    const lines=order.items.map(item=>'<div><strong>'+item.quantity+'× '+esc(item.name)+'</strong> · '+esc(item.snapshot.size.label)+'<br><span>'+esc(item.ingredients.map(i=>(Number(i.quantity)>1?Number(i.quantity)+'× ':'')+i.name).join(', ')||'composição da casa')+'</span></div>').join('');
     const fulfillment=order.fulfillment==='table'?'Mesa '+esc(order.tableLabel):order.fulfillment==='delivery'?'Entrega · '+esc(order.deliveryAddress):'Retirada';
     const discountNote=Number(order.discountCents)>0?'<div class="order-discount-note">Cupom '+esc(order.couponCode)+' · desconto de '+money(order.discountCents)+'</div>':'';
     let whatsappPhone=String(order.phone||'').replace(/\D/g,'');if(whatsappPhone.length===10||whatsappPhone.length===11)whatsappPhone='55'+whatsappPhone;
     const whatsappMessage=encodeURIComponent('Olá, '+(order.customerName||'')+'! Aqui é do restaurante sobre o pedido '+order.id+'.');
     const whatsappAction=whatsappPhone.length>=12&&whatsappPhone.length<=15?'<a class="button button-outline button-small order-whatsapp-link" href="https://wa.me/'+whatsappPhone+'?text='+whatsappMessage+'" target="_blank" rel="noopener noreferrer">WhatsApp ↗</a>':'';
     const searchable=[order.id,order.customerName,order.phone,order.deliveryAddress,order.tableLabel,order.note,...order.items.map(i=>i.name),...order.items.flatMap(i=>i.ingredients.map(g=>g.name))].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
-    return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div></div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><div class="order-card-footer-actions">'+whatsappAction+'<b>'+money(order.totalCents)+'</b></div></div></article>';
+    const elapsed=['received','confirmed','preparing'].includes(order.status)?'<span class="order-elapsed" data-order-elapsed data-created-at="'+Date.parse(order.createdAt)+'" data-prep-minutes="'+Number(metrics.prepMinutes||30)+'" aria-live="off"></span>':'';
+    return '<article class="order-card" data-order-card data-search="'+esc(searchable)+'" data-status="'+esc(order.status)+'" data-fulfillment="'+esc(order.fulfillment)+'"><div class="order-card-head"><div><div class="order-number">'+esc(order.id)+' · '+esc(order.customerName)+'</div><div class="order-time">'+new Date(order.createdAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+' · '+esc(order.phone)+'</div>'+elapsed+'</div>'+statusSelect(order)+'</div><div class="order-customer">'+fulfillment+'</div><div class="order-lines">'+lines+(order.note?'<div style="margin-top:6px"><em>Obs.: '+esc(order.note)+'</em></div>':'')+'</div><div class="order-card-footer"><span class="order-fulfillment">Pagamento no restaurante</span><div class="order-card-footer-actions"><button class="button button-outline button-small order-print-button" type="button" data-action="print-order" data-order-id="'+esc(order.id)+'">Imprimir comanda</button>'+whatsappAction+'<b>'+money(order.totalCents)+'</b></div></div></article>';
   }).join('');
-  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar CSV ↓</button></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel"><div class="admin-panel-head"><h2>Turno de hoje</h2></div><div class="metrics-grid"><div class="metric-card"><span>Pedidos hoje</span><b>'+metrics.ordersToday+'</b><small>Todos os status</small></div><div class="metric-card"><span>Ticket médio</span><b>'+money(metrics.averageTicketCents)+'</b><small>Exclui pedidos cancelados</small></div></div><p style="font-size:9px;line-height:1.7;color:#758278;margin:12px 0 0">Valores atualizados após o registro. Pagamentos e taxas de entrega são combinados fora desta demonstração.</p></section></aside></div>';
+  target.innerHTML='<div class="metrics-grid"><div class="metric-card"><span>Pedidos recebidos</span><b>'+metrics.counts.received+'</b><small>Aguardando confirmação</small></div><div class="metric-card"><span>Em preparo</span><b>'+metrics.counts.preparing+'</b><small>Na cozinha agora</small></div><div class="metric-card"><span>Prontos</span><b>'+metrics.counts.ready+'</b><small>Aguardando retirada ou entrega</small></div><div class="metric-card"><span>Faturamento de hoje</span><b>'+money(metrics.revenueCents)+'</b><small>Pedidos não cancelados</small></div></div><div class="admin-content-grid"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Pedidos recentes</h2><small>Atualização ao vivo · <span id="ordersVisibleCount">'+orders.length+'</span> de '+orders.length+'</small></div><div class="orders-header-actions"><span class="admin-connection-status is-connecting" id="adminConnectionStatus" role="status" aria-live="polite"><span class="connection-status-dot"></span><span class="connection-status-label">Conectando…</span></span><button class="button button-outline button-small order-sound-toggle" type="button" data-action="toggle-order-sound" aria-pressed="'+String(app.admin.soundEnabled)+'">'+orderSoundButtonContent()+'</button><button class="button button-outline button-small" type="button" data-action="export-orders">Exportar PDF ↓</button></div></div><div class="orders-filter-bar"><label class="orders-search"><span aria-hidden="true">⌕</span><input id="ordersSearch" type="search" placeholder="Buscar pedido, cliente, telefone ou item" value="'+esc(app.admin.orderQuery)+'" autocomplete="off"></label><label class="orders-filter-field"><span>Status</span><select id="ordersStatusFilter"><option value="all">Todos os status</option><option value="received">Recebido</option><option value="confirmed">Confirmado</option><option value="preparing">Em preparo</option><option value="ready">Pronto</option><option value="delivering">Em entrega</option><option value="completed">Concluído</option><option value="cancelled">Cancelado</option></select></label><label class="orders-filter-field"><span>Tipo</span><select id="ordersFulfillmentFilter"><option value="all">Todos os tipos</option><option value="delivery">Entrega</option><option value="table">Mesa</option><option value="pickup">Retirada</option></select></label><button class="button button-outline button-small" type="button" data-action="clear-order-filters">Limpar filtros</button></div><div class="orders-list">'+(cards||'<div class="admin-empty">Ainda não chegou nenhum pedido. Quando chegar, ele aparece aqui.</div>')+'<div class="admin-empty orders-filter-empty" id="ordersFilterEmpty" hidden>Nenhum pedido corresponde aos filtros. Tente outra busca.</div></div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Mais pedidos</h2></div><ul class="popular-list">'+(metrics.popular.length?metrics.popular.map(p=>'<li><span>'+esc(p.name)+'</span><small>'+p.quantity+' itens</small></li>').join(''):'<li><span>Sem dados ainda</span></li>')+'</ul></section><section class="admin-panel today-shift-panel"><div class="today-shift-heading"><div><span class="today-shift-kicker">RESUMO DO DIA</span><h2>Turno de hoje</h2><p>Acompanhe o movimento do restaurante.</p></div><span class="today-shift-date">'+new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})+'</span></div><div class="today-shift-metrics"><article class="today-shift-metric today-shift-orders"><span class="today-shift-icon" aria-hidden="true">'+uiIcon('clipboard-list',19)+'</span><div class="today-shift-label">Pedidos hoje</div><strong>'+metrics.ordersToday+'</strong><small>Pedidos em todos os status</small></article><article class="today-shift-metric today-shift-ticket"><span class="today-shift-icon" aria-hidden="true">'+uiIcon('wallet',19)+'</span><div class="today-shift-label">Ticket médio</div><strong>'+money(metrics.averageTicketCents)+'</strong><small>Sem pedidos cancelados</small></article></div><div class="today-shift-foot"><span class="today-shift-live-dot"></span>Atualizado com os pedidos registrados</div></section></aside></div>';
+  updateOrderElapsedTimes();
   const statusFilter=root.getElementById('ordersStatusFilter'),fulfillmentFilter=root.getElementById('ordersFulfillmentFilter');
   if(statusFilter)statusFilter.value=app.admin.orderStatus;
   if(fulfillmentFilter)fulfillmentFilter.value=app.admin.orderFulfillment;
   applyOrderFilters();
 }
-async function renderCatalogAdmin(){
-  const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando cardápio…</div>';
+async function renderCategoryAdmin(){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML=''+skeletonMarkup('content')+'';
+  try{
+    const result=await api('/api/admin/categories');
+    const categories=Array.isArray(result.categories)?result.categories:[];
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Cadastrar categoria</h2><small>Organize os produtos em seções que aparecem no cardápio público.</small></div><span class="settings-section-icon" aria-hidden="true">'+uiIcon('grid',20)+'</span></div><form id="newCategoryForm" class="admin-form-grid"><label class="form-field wide"><span>Nome da categoria</span><input name="name" required minlength="2" maxlength="60" placeholder="Ex.: Pizzas tradicionais" autocomplete="off"></label><div class="wide"><p class="error-text" id="newCategoryError" role="alert"></p><button class="button button-dark button-small" type="submit">Cadastrar categoria +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Categorias cadastradas</h2><small>'+categories.length+' categoria(s) · os nomes atualizados aparecem no cardápio</small></div></div>'+(categories.length?'<div class="catalog-list">'+categories.map(c=>'<div class="catalog-row category-admin-row" data-category-admin="'+esc(c.id)+'"><label class="form-field"><span>Nome</span><input class="category-name-input" value="'+esc(c.name)+'" required minlength="2" maxlength="60" aria-label="Nome da categoria '+esc(c.name)+'"></label><div class="category-admin-meta"><b>'+Number(c.productCount||0)+'</b><small>produto(s)</small><small class="category-slug">'+esc(c.slug)+'</small></div><div class="category-admin-actions"><button class="tiny-link" type="button" data-action="save-category" data-id="'+esc(c.id)+'">Salvar</button><button class="tiny-link category-delete-button" type="button" data-action="delete-category" data-id="'+esc(c.id)+'" '+(Number(c.productCount)>0?'disabled title="Transfira os produtos antes de excluir"':'')+'>Excluir</button></div></div>').join('')+'</div>':'<div class="admin-empty">Nenhuma categoria cadastrada. Crie a primeira acima para começar a organizar os produtos.</div>')+'</section>';
+    root.getElementById('newCategoryForm').addEventListener('submit',async event=>{
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),error=root.getElementById('newCategoryError'),name=String(new FormData(form).get('name')||'').trim();
+      if(name.length<2||name.length>60){error.textContent='Use um nome entre 2 e 60 caracteres.';return}
+      button.disabled=true;button.textContent='Cadastrando…';error.textContent='';
+      try{await api('/api/admin/categories',{method:'POST',body:JSON.stringify({name})});toast('Categoria cadastrada.');await renderCategoryAdmin()}
+      catch(e){error.textContent=e.message;button.disabled=false;button.textContent='Cadastrar categoria +'}
+    });
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar as categorias.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-categories">Tentar novamente</button></section>'}
+}
+async function saveCategory(id){
+  const row=root.querySelector('[data-category-admin="'+CSS.escape(id)+'"]');if(!row)return;
+  const input=row.querySelector('.category-name-input'),button=row.querySelector('[data-action="save-category"]'),name=String(input.value||'').trim();
+  if(name.length<2||name.length>60){input.setAttribute('aria-invalid','true');toast('Use um nome entre 2 e 60 caracteres.');return}
+  input.removeAttribute('aria-invalid');button.disabled=true;button.textContent='Salvando…';
+  try{await api('/api/admin/categories/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name})});toast('Categoria atualizada.');await renderCategoryAdmin()}
+  catch(error){toast(error.message);button.disabled=false;button.textContent='Salvar'}
+}
+async function deleteCategory(id){
+  const row=root.querySelector('[data-category-admin="'+CSS.escape(id)+'"]');if(!row)return;
+  const name=row.querySelector('.category-name-input')?.value||'esta categoria';
+  if(!window.confirm('Excluir "'+name+'" permanentemente?'))return;
+  const button=row.querySelector('[data-action="delete-category"]');if(button){button.disabled=true;button.textContent='Excluindo…'}
+  try{await api('/api/admin/categories/'+encodeURIComponent(id),{method:'DELETE'});toast('Categoria excluída.');await renderCategoryAdmin()}
+  catch(error){toast(error.message);if(button){button.disabled=false;button.textContent='Excluir'}}
+}
+function productSizePriceMarkup(type,prices={},baseCents=null,compact=false){
+  const options=app.catalog?.sizes?.[type]||[];
+  return '<div class="size-price-grid '+(compact?'size-price-grid-compact':'')+'">'+options.map(size=>{
+    let cents=Number(prices?.[size.key]);
+    if(!Number.isInteger(cents)||cents<1)cents=Number.isInteger(baseCents)?baseCents+Number(size.deltaCents||0):0;
+    const value=cents>0?(cents/100).toFixed(2):'';
+    return '<label class="form-field"><span>'+esc(size.label)+' (R$)</span><input type="number" min="5" max="10000" step="0.01" required data-size-price-key="'+esc(size.key)+'" value="'+value+'" placeholder="0,00"></label>';
+  }).join('')+'</div>';
+}
+function readProductSizePrices(container){
+  const inputs=[...(container?.querySelectorAll('[data-size-price-key]')||[])];
+  if(!inputs.length)throw new Error('Selecione um tipo de produto com tamanhos configuráveis.');
+  const prices={};
+  for(const input of inputs){
+    const cents=Math.round(Number(input.value)*100);
+    if(!Number.isInteger(cents)||cents<500||cents>1000000){input.setAttribute('aria-invalid','true');input.focus();throw new Error('Informe um preço válido para cada tamanho.');}
+    input.removeAttribute('aria-invalid');prices[input.dataset.sizePriceKey]=cents;
+  }
+  return prices;
+}
+async function renderCatalogAdmin(productType='pizza'){
+  const target=root.getElementById('adminBody');
+  target.innerHTML=skeletonMarkup('content');
   try{
     const catalog=await api('/api/admin/catalog');
-    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos</h2><small>Preço-base, descrição e disponibilidade</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Tipo</span><select name="type"><option value="pizza">Pizza</option><option value="burger">Hambúrguer</option><option value="plate">Porção</option></select></label><label class="form-field"><span>Preço-base (R$)</span><input name="price" type="number" min="5" step="0.01" required placeholder="49,90"></label><label class="form-field wide"><span>Descrição</span><input name="description" maxlength="300" placeholder="Ingredientes e detalhes do prato"></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="catalog-list">'+catalog.products.map(p=>'<div class="catalog-row" data-product-admin="'+esc(p.id)+'"><div><b>'+esc(p.name)+'</b><small>'+esc(catalog.categories.find(c=>c.id===p.categoryId)?.name||'')+' · '+esc(p.description.slice(0,70))+'</small></div><label><span class="sr-only">Preço em reais</span><input type="number" class="product-price-input" min="5" step="0.01" value="'+(p.baseCents/100).toFixed(2)+'"></label><label><input type="checkbox" class="product-active-input" '+(p.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(p.available!==0?'checked':'')+'> Disponível</label><button class="tiny-link" data-action="save-product" data-id="'+esc(p.id)+'">Salvar</button></div>').join('')+'</div></section>';
-    root.getElementById('newProductForm').addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget),price=Math.round(Number(data.get('price'))*100);try{await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,description:data.get('description')})});toast('Produto cadastrado.');renderCatalogAdmin()}catch(e){root.getElementById('newProductError').textContent=e.message}});
-  }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
+    app.catalog=catalog;
+    const ingredientChoices=(type,selected=[],name='ingredientIds',quantities={})=>catalog.ingredients.filter(item=>item.type===type&&item.active!==0).map(item=>{const checked=selected.includes(item.id),withQuantity=name==='defaultIngredientIds'&&['burger','plate'].includes(type),quantity=Math.max(1,Math.min(20,Number(quantities?.[item.id])||1));return '<div class="ingredient-choice"><label><input type="checkbox" name="'+name+'" value="'+esc(item.id)+'" '+(checked?'checked':'')+'><span>'+esc(item.name)+'</span>'+(item.cents?'<small>+'+money(item.cents)+'</small>':'')+'</label>'+(withQuantity?'<input class="ingredient-quantity-input" type="number" min="1" max="20" step="1" inputmode="numeric" data-ingredient-quantity="'+esc(item.id)+'" value="'+quantity+'" aria-label="Quantidade de '+esc(item.name)+'" '+(!checked?'disabled':'')+'>' :'')+'</div>'}).join('');
+    target.innerHTML='<section class="admin-panel product-type-workspace"><div class="admin-panel-head"><div><h2>'+(productType==='pizza'?'Cadastro de pizzas':productType==='burger'?'Cadastro de hambúrgueres':'Cadastro de hot dogs')+'</h2><small>Cadastre e gerencie '+(productType==='pizza'?'suas pizzas':productType==='burger'?'seus hambúrgueres':'seus hot dogs')+'.</small></div></div><form id="newProductForm" class="admin-form-grid"><label class="form-field"><span>Nome do produto</span><input name="name" required minlength="2" placeholder="Ex.: Pizza de abobrinha"></label><label class="form-field"><span>Categoria</span><select name="categoryId">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><input type="hidden" name="type" id="newProductType" value="pizza"><label class="form-field burger-hotdog-price-field" data-new-product-price-field style="display:none"><span>Preço (R$)</span><input name="basePrice" type="number" min="5" max="10000" step="0.01" inputmode="decimal" placeholder="0,00"><small>Preço base do hambúrguer ou hot dog.</small></label><label class="form-field wide"><span>Descrição complementar</span><input name="description" maxlength="300" placeholder="Ex.: Massa artesanal assada em forno a lenha"></label><label class="form-field wide age-restriction-option"><span><input type="checkbox" name="ageRestricted"> Produto restrito a maiores de 18 anos</span><small>Ative para bebidas alcoólicas ou qualquer item com restrição legal de idade.</small></label><label class="form-field wide"><span>Foto real do produto (opcional)</span><input type="file" name="productPhotos" accept="image/png,image/jpeg,image/webp" multiple><small>Adicione até 8 fotos. Elas serão comprimidas em WebP e vão girar automaticamente no cardápio e na personalização.</small><div class="product-images-preview" data-new-product-images-preview aria-live="polite"><small>Nenhuma foto selecionada.</small></div></label><label class="form-field wide"><span>Ingredientes da receita padrão</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar ingrediente da receita..." aria-label="Buscar ingrediente da receita"></div><div class="ingredient-checkbox-list" data-product-select="recipe">'+ingredientChoices('pizza',[],'defaultIngredientIds')+'</div><small>Fazem parte da receita obrigatória: já vêm selecionados e o cliente não pode removê-los.</small><small data-new-recipe-preview>Ingredientes: nenhum selecionado.</small><div class="recipe-live-preview" data-new-recipe-art aria-live="polite"><span>Prévia da receita</span></div></label><label class="form-field wide"><span>Adicionais permitidos neste produto</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar adicional permitido..." aria-label="Buscar adicional permitido"></div><div class="product-addon-picker"><label class="ingredient-select-all"><input type="checkbox" data-select-all-addons> Selecionar todos os adicionais</label><div class="ingredient-checkbox-list" data-product-select="addons">'+ingredientChoices('pizza',[],'ingredientIds')+'</div></div><small>Marque a caixa para liberar todos os adicionais deste tipo de produto. Você também pode selecionar individualmente.</small></label><div class="wide"><p class="error-text" id="newProductError"></p><button class="button button-dark button-small" type="submit">Cadastrar produto +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Produtos cadastrados</h2><small>Edite a receita, os adicionais e a disponibilidade de cada produto.</small></div></div><div class="product-admin-list">'+catalog.products.filter(product=>product.type===productType).map(product=>'<article class="product-admin-entry" data-product-type="'+esc(product.type)+'" data-product-admin="'+esc(product.id)+'"><div class="product-admin-top"><div class="product-admin-heading"><b>'+esc(product.name)+'</b><small>'+esc(catalog.categories.find(item=>item.id===product.categoryId)?.name||'Sem categoria')+'</small></div><div class="product-admin-statuses"><label><input type="checkbox" class="product-active-input" '+(product.active?'checked':'')+'> Ativo</label><label><input type="checkbox" class="product-available-input" '+(product.available!==0?'checked':'')+'> Disponível</label><label><input type="checkbox" class="product-age-restricted-input" '+(product.ageRestricted?'checked':'')+'> 18+</label></div></div>'+(['burger','plate'].includes(product.type)?'<label class="form-field product-base-price-field"><span>Preço (R$)</span><input class="product-base-price-input" type="number" min="5" max="10000" step="0.01" inputmode="decimal" value="'+(Number(product.baseCents||0)/100).toFixed(2)+'" aria-label="Preço do produto"></label>':'')+'<div class="product-photo-config product-gallery-config"><label>Adicionar fotos <input type="file" class="product-photos-input" accept="image/png,image/jpeg,image/webp" multiple></label><small>Até 8 imagens no total. Elas são comprimidas em WebP e alternam automaticamente no card e no modal.</small><input type="hidden" class="product-images-json" value="'+esc(JSON.stringify(productImages(product)))+'"><div class="product-images-preview">'+(productImages(product).length?productImages(product).map((url,index)=>'<span class="product-image-admin-thumb"><img src="'+esc(url)+'" alt="Foto '+(index+1)+'"><button type="button" data-action="remove-product-image" data-index="'+index+'" aria-label="Remover foto '+(index+1)+'">×</button></span>').join(''):'<small>Nenhuma foto cadastrada.</small>')+'</div><label><input type="checkbox" class="product-photos-remove"> Remover todas as fotos</label></div><div class="product-ingredient-config"><label><span>Receita padrão</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar ingrediente da receita..." aria-label="Buscar ingrediente da receita"></div><div class="ingredient-checkbox-list product-recipe-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),'defaultIngredientIds',product.ingredientQuantities)+'</div></label><label><span>Adicionais permitidos</span><div class="ingredient-picker-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-picker-search placeholder="Buscar adicional permitido..." aria-label="Buscar adicional permitido"></div><div class="product-addon-picker"><label class="ingredient-select-all"><input type="checkbox" data-select-all-addons> Selecionar todos os adicionais</label><div class="ingredient-checkbox-list product-addons-input">'+ingredientChoices(product.type,product.ingredientsConfigured?(product.ingredientIds||[]):[],'ingredientIds')+'</div></div></label><small data-product-recipe-preview>Descrição automática: '+esc(productIngredientNames(product,product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,catalog).map(item=>item.id),catalog).join(', ')||'Nenhum ingrediente definido')+'</small><div class="recipe-live-preview" data-product-recipe-art aria-live="polite"><span>Prévia da receita</span></div></div><div class="product-3d-admin"><span class="product-3d-status">'+(product.model3dStatus==='completed'?'Modelo TripoSR pronto':product.model3dStatus==='queued'?'Na fila':product.model3dStatus==='processing'?'Gerando modelo…':product.model3dStatus==='failed'?'Falha na geração':'Sem modelo TripoSR')+'</span>'+(product.model3dUrl?'<button type="button" class="button button-outline button-small" data-action="admin-generated-3d" data-id="'+esc(product.id)+'">Ver modelo real</button>':'')+'<button type="button" class="button button-outline button-small" data-action="generate-product-3d" data-id="'+esc(product.id)+'" '+(!product.imageUrl?'disabled':'')+'>'+(product.model3dStatus==='completed'?'Gerar novamente':'Gerar modelo 3D')+'</button></div><div class="product-admin-actions"><button type="button" class="button button-dark button-small product-save-action" data-action="save-product" data-id="'+esc(product.id)+'">Salvar alterações</button><button type="button" class="button button-danger button-small" data-action="delete-product" data-kind="product" data-id="'+esc(product.id)+'">Excluir produto</button></div></article>').join('')+'</div></section>';
+    const updateRecipePreview=(select,preview,prefix='Ingredientes: ')=>{
+      if(!select||!preview)return;
+      const names=[...select.querySelectorAll('input[type="checkbox"]:checked')].map(input=>{const choice=input.closest('.ingredient-choice'),label=choice?.querySelector('span')?.textContent.trim()||'',quantity=choice?.querySelector('[data-ingredient-quantity]');return quantity&&Number(quantity.value)>1?Number(quantity.value)+'× '+label:label}).filter(Boolean);
+      preview.textContent=names.length?prefix+names.join(', ')+'.':prefix+'nenhum selecionado.';
+    };
+    const filterIngredientPicker=(searchInput)=>{
+      const list=searchInput?.parentElement?.nextElementSibling;
+      if(!list?.classList.contains('ingredient-checkbox-list'))return;
+      const query=normalizeSearch(searchInput.value||'');
+      const choices=[...list.querySelectorAll('.ingredient-choice')];
+      let visible=0;
+      choices.forEach(choice=>{
+        const match=!query||normalizeSearch(choice.textContent||'').includes(query);
+        choice.hidden=!match;
+        if(match)visible++;
+      });
+      let empty=list.querySelector('.ingredient-picker-empty');
+      if(!empty){
+        empty=root.createElement('p');
+        empty.className='ingredient-picker-empty';
+        empty.textContent='Nenhum ingrediente encontrado.';
+        empty.hidden=true;
+        list.append(empty);
+      }
+      empty.hidden=!query||visible!==0;
+    };
+    target.querySelectorAll('[data-ingredient-picker-search]').forEach(input=>{
+      input.addEventListener('input',()=>filterIngredientPicker(input));
+      filterIngredientPicker(input);
+    });
+    target.querySelectorAll('.product-addon-picker').forEach(picker=>{
+      const master=picker.querySelector('[data-select-all-addons]');
+      const sync=()=>{
+        const boxes=[...picker.querySelectorAll('.ingredient-checkbox-list input[type="checkbox"]')];
+        const checked=boxes.filter(input=>input.checked).length;
+        master.checked=boxes.length>0&&checked===boxes.length;
+        master.indeterminate=checked>0&&checked<boxes.length;
+        master.disabled=boxes.length===0;
+      };
+      master.addEventListener('change',()=>{
+        // Capture the requested state before dispatching events: each bubbling
+        // change recalculates master.checked and must not affect the remaining items.
+        const shouldCheck=master.checked;
+        const boxes=[...picker.querySelectorAll('.ingredient-checkbox-list input[type="checkbox"]')];
+        boxes.forEach(input=>{input.checked=shouldCheck;});
+        boxes.forEach(input=>input.dispatchEvent(new Event('change',{bubbles:true})));
+        sync();
+      });
+      picker.addEventListener('change',event=>{
+        if(event.target!==master)sync();
+      });
+      sync();
+    });
+    app.admin.recipePreviewCatalog=catalog;
+    const typeSelect=root.getElementById('newProductType');
+    typeSelect.value=productType;
+    const newRecipeSelect=target.querySelector('[data-product-select="recipe"]');
+    newRecipeSelect.dataset.previewProductId='admin-new-product-preview';
+    const newRecipePreview=target.querySelector('[data-new-recipe-preview]');
+    const newRecipeArt=target.querySelector('[data-new-recipe-art]');
+    const updateRecipeArtwork=(row,preview,product)=>{
+      if(!row||!preview||!product)return;
+      const ingredients=adminPreviewIngredients(row,catalog);
+      preview.innerHTML='<span class="recipe-preview-caption">Prévia atualizada pela receita e pelos adicionais permitidos</span>'+productPhotoOrArt(product,ingredients,{},'recipe-preview-photo','contain')+'<button type="button" class="recipe-preview-3d" data-action="admin-recipe-3d" data-product-id="'+esc(product.id)+'">Abrir modelo 3D</button>';
+      syncAdminRecipe3DPreview(product.id,row,catalog);
+    };
+    const refreshNewRecipePreview=()=>{
+      updateRecipePreview(newRecipeSelect,newRecipePreview);
+      updateRecipeArtwork(root.getElementById('newProductForm'),newRecipeArt,{id:'admin-new-product-preview',name:'Prévia',type:typeSelect.value,baseCents:0});
+    };
+    newRecipeSelect?.addEventListener('change',event=>{if(event.target.matches('input[type="checkbox"]')){const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;}refreshNewRecipePreview()});
+    newRecipeSelect?.addEventListener('input',refreshNewRecipePreview);
+    target.querySelector('[data-product-select="addons"]')?.addEventListener('change',refreshNewRecipePreview);
+    target.querySelectorAll('.product-admin-entry').forEach(row=>{
+      const recipeSelect=row.querySelector('.product-recipe-input');
+      recipeSelect.dataset.previewProductId=row.dataset.productAdmin;
+      const preview=row.querySelector('[data-product-recipe-preview]');
+      const product=catalog.products.find(item=>item.id===row.dataset.productAdmin);
+      const productPhotosInput=row.querySelector('.product-photos-input');
+      const productPhotosPreview=row.querySelector('.product-images-preview');
+      let productPreviewUrls=[];
+      productPhotosInput?.addEventListener('change',()=>{
+        productPreviewUrls.forEach(url=>URL.revokeObjectURL(url));
+        productPreviewUrls=[];
+        let savedImages=[];
+        try{savedImages=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
+        const selectedFiles=[...(productPhotosInput.files||[])];
+        productPhotosPreview.replaceChildren();
+        savedImages.forEach((url,index)=>{
+          const thumb=document.createElement('span');
+          thumb.className='product-image-admin-thumb';
+          const image=document.createElement('img');
+          image.src=url;
+          image.alt='Foto cadastrada '+(index+1);
+          const remove=document.createElement('button');
+          remove.type='button';
+          remove.dataset.action='remove-product-image';
+          remove.dataset.index=String(index);
+          remove.setAttribute('aria-label','Remover foto '+(index+1));
+          remove.textContent='×';
+          thumb.append(image,remove);
+          productPhotosPreview.append(thumb);
+        });
+        selectedFiles.slice(0,Math.max(0,8-savedImages.length)).forEach((file,index)=>{
+          const url=URL.createObjectURL(file);
+          productPreviewUrls.push(url);
+          const thumb=document.createElement('span');
+          thumb.className='product-image-admin-thumb';
+          const image=document.createElement('img');
+          image.src=url;
+          image.alt='Prévia da nova foto '+(index+1);
+          thumb.append(image);
+          productPhotosPreview.append(thumb);
+        });
+        if(!savedImages.length&&!selectedFiles.length)productPhotosPreview.innerHTML='<small>Nenhuma foto cadastrada.</small>';
+        if(savedImages.length+selectedFiles.length>8){
+          const warning=document.createElement('small');
+          warning.textContent='O limite é de 8 fotos no total. Remova alguma foto cadastrada ou selecione menos arquivos.';
+          productPhotosPreview.append(warning);
+        }
+      });
+      const refreshProductRecipe=()=>{
+        updateRecipePreview(recipeSelect,preview,'Descrição automática: Ingredientes: ');
+        updateRecipeArtwork(recipeSelect,row.querySelector('[data-product-recipe-art]'),product);
+      };
+      recipeSelect?.addEventListener('change',event=>{if(event.target.matches('input[type="checkbox"]')){const choice=event.target.closest('.ingredient-choice'),quantity=choice?.querySelector('[data-ingredient-quantity]');if(quantity)quantity.disabled=!event.target.checked;}refreshProductRecipe()});
+      recipeSelect?.addEventListener('input',refreshProductRecipe);
+      row.querySelector('.product-addons-input')?.addEventListener('change',refreshProductRecipe);
+      refreshProductRecipe();
+    });
+    const updateIngredientOptions=()=>{
+      const type=typeSelect.value;
+      for(const list of target.querySelectorAll('[data-product-select]')){
+        const prior=[...list.querySelectorAll('input[type="checkbox"]:checked')].map(input=>input.value);
+        const priorQuantities=Object.fromEntries([...list.querySelectorAll('[data-ingredient-quantity]')].map(input=>[input.dataset.ingredientQuantity,Number(input.value)||1]));
+        const name=list.dataset.productSelect==='recipe'?'defaultIngredientIds':'ingredientIds';
+        list.innerHTML=ingredientChoices(type,prior,name,priorQuantities);
+        const search=list.previousElementSibling?.querySelector('[data-ingredient-picker-search]');
+        if(search)filterIngredientPicker(search);
+      }
+      target.querySelectorAll('.product-addon-picker').forEach(picker=>{
+        const master=picker.querySelector('[data-select-all-addons]');
+        const boxes=[...picker.querySelectorAll('.ingredient-checkbox-list input[type="checkbox"]')];
+        const checked=boxes.filter(input=>input.checked).length;
+        master.checked=boxes.length>0&&checked===boxes.length;
+        master.indeterminate=checked>0&&checked<boxes.length;
+        master.disabled=boxes.length===0;
+      });
+      refreshNewRecipePreview();
+    };
+    const newProductPriceField=target.querySelector('[data-new-product-price-field]'),newProductPriceInput=target.querySelector('[name="basePrice"]');
+    const syncNewProductPriceField=()=>{const show=['burger','plate'].includes(typeSelect.value);newProductPriceField.style.display=show?'':'none';newProductPriceInput.required=show;newProductPriceInput.disabled=!show;};
+    typeSelect.addEventListener('change',()=>{
+      updateIngredientOptions();syncNewProductPriceField();
+    });
+    updateIngredientOptions();
+    syncNewProductPriceField();
+    refreshNewRecipePreview();
+    const newProductForm=root.getElementById('newProductForm');
+    const newProductPhotosInput=newProductForm.querySelector('[name="productPhotos"]');
+    const newProductPhotosPreview=newProductForm.querySelector('[data-new-product-images-preview]');
+    let newProductPreviewUrls=[];
+    newProductPhotosInput?.addEventListener('change',()=>{
+      newProductPreviewUrls.forEach(url=>URL.revokeObjectURL(url));
+      newProductPreviewUrls=[];
+      const files=[...(newProductPhotosInput.files||[])];
+      newProductPhotosPreview.replaceChildren();
+      if(!files.length){newProductPhotosPreview.innerHTML='<small>Nenhuma foto selecionada.</small>';return;}
+      files.slice(0,8).forEach((file,index)=>{
+        const url=URL.createObjectURL(file);
+        newProductPreviewUrls.push(url);
+        const thumb=document.createElement('span');
+        thumb.className='product-image-admin-thumb';
+        const image=document.createElement('img');
+        image.src=url;
+        image.alt='Prévia da foto '+(index+1);
+        thumb.append(image);
+        newProductPhotosPreview.append(thumb);
+      });
+      if(files.length>8){
+        const warning=document.createElement('small');
+        warning.textContent='Selecione no máximo 8 fotos.';
+        newProductPhotosPreview.append(warning);
+      }
+    });
+    newProductForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('newProductError');
+      if(button.disabled)return;
+      const data=new FormData(form),sharedPizza=catalog.products.find(product=>product.type==='pizza'),sizePrices=data.get('type')==='pizza'&&sharedPizza?{...(sharedPizza.sizePrices||{})}:{},enteredPrice=Number(String(data.get('basePrice')||'').replace(',','.')),price=data.get('type')==='pizza'&&Object.keys(sizePrices).length?Math.min(...Object.values(sizePrices)):['burger','plate'].includes(data.get('type'))?Math.round(enteredPrice*100):500;
+      if(['burger','plate'].includes(data.get('type'))&&(!Number.isFinite(enteredPrice)||enteredPrice<5||enteredPrice>10000)){const priceInput=form.querySelector('[name="basePrice"]');priceInput.setAttribute('aria-invalid','true');priceInput.focus();errorNode.textContent='Informe um preço entre R$ 5,00 e R$ 10.000,00.';return;}
+      const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
+      const ingredientQuantities=['burger','plate'].includes(data.get('type'))?Object.fromEntries(selectedRecipe.map(id=>[id,Math.max(1,Math.min(20,Number(form.querySelector('[data-ingredient-quantity="'+CSS.escape(id)+'"]')?.value)||1))])):{};
+      const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value).filter(id=>!selectedRecipe.includes(id));
+      const ingredientIds=selectedAddons;
+      button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
+      try{
+        const files=[...(form.querySelector('[name="productPhotos"]')?.files||[])];if(files.length>8)throw new Error('Adicione no máximo 8 fotos por produto.');
+        const images=await Promise.all(files.map(productPhotoData)),imageUrl=images[0]||'';
+        await api('/api/admin/products',{method:'POST',body:JSON.stringify({name:data.get('name'),categoryId:data.get('categoryId'),type:data.get('type'),baseCents:price,sizePrices,description:data.get('description'),ageRestricted:data.get('ageRestricted')==='on',ingredientIds,defaultIngredientIds:selectedRecipe,ingredientQuantities,imageUrl,images})});
+        toast('Produto cadastrado. Receita, descrição e personalização atualizadas.');
+        newProductPreviewUrls.forEach(url=>URL.revokeObjectURL(url));newProductPreviewUrls=[];
+        await renderCatalogAdmin(productType);
+      }catch(error){errorNode.textContent=error.message||'Não foi possível salvar o produto.';button.disabled=false;button.textContent='Tentar novamente';}
+    });
+  }catch(error){target.innerHTML='<p class="error-text">'+esc(error.message)+'</p>'}
+}
+async function renderBeveragesAdmin(){
+  const target=root.getElementById('adminBody');
+  if(!target)return;
+  target.innerHTML=''+skeletonMarkup('content')+'';
+  try{
+    const catalog=await api('/api/admin/catalog');
+    const drinks=catalog.products.filter(product=>product.type==='drink');
+    target.innerHTML='<section class="admin-panel beverage-create-panel"><div class="admin-panel-head"><div><h2>Cadastrar bebida</h2><small>Cadastre foto, nome, categoria e preço. A bebida entra diretamente no cardápio, sem personalização 3D.</small></div></div><form id="newBeverageForm" class="admin-form-grid beverage-form"><label class="form-field"><span>Nome da bebida</span><input name="name" required minlength="2" maxlength="80" placeholder="Ex.: Refrigerante lata 350 ml"></label><label class="form-field"><span>Categoria</span><select name="categoryId" required>'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Preço (R$)</span><input name="price" type="number" min="0.01" max="10000" step="0.01" required placeholder="6,00"></label><label class="form-field wide"><span>Descrição / volume</span><input name="description" maxlength="300" placeholder="Ex.: Lata 350 ml · gelada"></label><label class="form-field wide age-restriction-option"><span><input type="checkbox" name="ageRestricted"> Bebida restrita a maiores de 18 anos</span><small>Marque para bebidas alcoólicas ou outros itens com restrição de idade.</small></label><label class="form-field wide"><span>Foto da bebida</span><input name="photos" type="file" accept="image/png,image/jpeg,image/webp" multiple required><small>PNG, JPG ou WebP. A imagem será comprimida em WebP antes de ser salva.</small></label><div class="wide"><p class="error-text" id="newBeverageError" role="alert"></p><button class="button button-dark button-small" type="submit">Cadastrar bebida +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Bebidas cadastradas</h2><small>'+drinks.length+' bebida(s) · preço, foto e disponibilidade</small></div></div>'+(drinks.length?'<div class="beverage-admin-list">'+drinks.map(product=>'<article class="beverage-admin-entry" data-beverage-admin="'+esc(product.id)+'"><div class="beverage-admin-preview">'+(product.imageUrl?'<img src="'+esc(product.imageUrl)+'" alt="Foto de '+esc(product.name)+'">':'<span>Sem foto</span>')+'</div><div class="beverage-admin-fields"><label class="form-field"><span>Nome</span><input class="beverage-name-input" maxlength="80" value="'+esc(product.name)+'"></label><label class="form-field"><span>Categoria</span><select class="beverage-category-input">'+catalog.categories.map(item=>'<option value="'+esc(item.id)+'" '+(item.id===product.categoryId?'selected':'')+'>'+esc(item.name)+'</option>').join('')+'</select></label><label class="form-field"><span>Preço (R$)</span><input class="beverage-price-input" type="number" min="0.01" step="0.01" value="'+(product.baseCents/100).toFixed(2)+'"></label><label class="form-field wide"><span>Descrição / volume</span><input class="beverage-description-input" maxlength="300" value="'+esc(product.description||'')+'"></label><label class="form-field wide"><span>Adicionar fotos</span><input class="beverage-photos-input" type="file" accept="image/png,image/jpeg,image/webp" multiple></label><input type="hidden" class="product-images-json" value="'+esc(JSON.stringify(productImages(product)))+'"><div class="product-images-preview">'+(productImages(product).length?productImages(product).map((url,index)=>'<span class="product-image-admin-thumb"><img src="'+esc(url)+'" alt="Foto '+(index+1)+'"><button type="button" data-action="remove-product-image" data-index="'+index+'" aria-label="Remover foto '+(index+1)+'">×</button></span>').join(''):'<small>Nenhuma foto cadastrada.</small>')+'</div><label class="form-field wide"><span><input type="checkbox" class="product-photos-remove"> Remover todas as fotos</span></label><div class="beverage-status-row"><label><input class="beverage-active-input" type="checkbox" '+(Number(product.active)!==0?'checked':'')+'> Ativa no cardápio</label><label><input class="beverage-available-input" type="checkbox" '+(Number(product.available)!==0?'checked':'')+'> Disponível para pedido</label><label><input class="beverage-age-restricted-input" type="checkbox" '+(product.ageRestricted?'checked':'')+'> 18+</label></div><div class="beverage-admin-actions"><button type="button" class="button button-dark button-small" data-action="save-beverage" data-id="'+esc(product.id)+'">Salvar bebida</button><button type="button" class="button button-danger button-small" data-action="delete-product" data-kind="beverage" data-id="'+esc(product.id)+'">Excluir bebida</button></div></div></article>').join('')+'</div>':'<div class="admin-empty">Nenhuma bebida cadastrada ainda. Use o formulário acima para adicionar a primeira.</div>')+'</section>';
+    root.getElementById('newBeverageForm').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,button=form.querySelector('[type="submit"]'),error=root.getElementById('newBeverageError'),data=new FormData(form);
+      const name=String(data.get('name')||'').trim(),price=Math.round(Number(data.get('price'))*100),categoryId=String(data.get('categoryId')||'');
+      if(name.length<2||!Number.isInteger(price)||price<1||price>1000000){error.textContent='Confira o nome e informe um preço válido.';return}
+      button.disabled=true;button.textContent='Cadastrando…';error.textContent='';
+      try{
+        const files=[...(form.querySelector('[name="photos"]')?.files||[])];if(!files.length)throw new Error('Selecione pelo menos uma foto para a bebida.');if(files.length>8)throw new Error('Adicione no máximo 8 fotos.');
+        const images=await Promise.all(files.map(productPhotoData)),imageUrl=images[0]||'';
+        await api('/api/admin/products',{method:'POST',body:JSON.stringify({name,categoryId,type:'drink',baseCents:price,description:String(data.get('description')||''),ageRestricted:data.get('ageRestricted')==='on',ingredientIds:[],defaultIngredientIds:[],imageUrl,images})});
+        toast('Bebida cadastrada e publicada no cardápio.');
+        await renderBeveragesAdmin();
+      }catch(error){error.textContent=error.message||'Não foi possível cadastrar a bebida.';button.disabled=false;button.textContent='Tentar novamente'}
+    });
+  }catch(error){
+    target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar as bebidas.')+'</p><button class="button button-outline button-small" type="button" data-admin-tab="beverages">Tentar novamente</button></section>';
+  }
+}
+async function saveBeverage(id){
+  const row=root.querySelector('[data-beverage-admin="'+CSS.escape(id)+'"]');if(!row)return;
+  const button=row.querySelector('[data-action="save-beverage"]');
+  if(!button||button.disabled)return;
+  const name=String(row.querySelector('.beverage-name-input')?.value||'').trim();
+  const price=Math.round(Number(row.querySelector('.beverage-price-input')?.value)*100);
+  const categoryId=row.querySelector('.beverage-category-input')?.value||'';
+  const description=String(row.querySelector('.beverage-description-input')?.value||'').trim();
+  const active=Boolean(row.querySelector('.beverage-active-input')?.checked);
+  const available=Boolean(row.querySelector('.beverage-available-input')?.checked),ageRestricted=Boolean(row.querySelector('.beverage-age-restricted-input')?.checked);
+  if(name.length<2||!Number.isInteger(price)||price<1||price>1000000){toast('Informe nome e preço válido para a bebida.');return}
+  button.disabled=true;button.textContent='Salvando…';
+  try{
+    let images=[];try{images=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
+    const removePhotos=Boolean(row.querySelector('.product-photos-remove')?.checked),newFiles=[...(row.querySelector('.beverage-photos-input')?.files||[])];
+    if(!removePhotos&&images.length+newFiles.length>8)throw new Error('O limite é de 8 fotos por bebida.');
+    if(removePhotos)images=[];else if(newFiles.length)images=images.concat(await Promise.all(newFiles.map(productPhotoData)));
+    await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name,categoryId,description,baseCents:price,active,available,ageRestricted,images,imageUrl:images[0]||''})});
+    toast('Bebida atualizada.');
+    await renderBeveragesAdmin();
+  }catch(error){toast(error.message||'Não foi possível salvar a bebida.');button.disabled=false;button.textContent='Tentar novamente'}
+}
+async function renderAnalyticsAdmin(days=7){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML=''+skeletonMarkup('content')+'';
+  try{
+    const data=await api('/api/admin/analytics?days='+days);
+    const moneyValue=value=>money(Number(value)||0);
+    const maxRevenue=Math.max(1,...data.daily.map(row=>Number(row.revenueCents)||0));
+    const dayLabels=data.daily.map(row=>({date:row.date,label:new Date(row.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),revenue:Number(row.revenueCents)||0,orders:Number(row.orders)||0}));
+    const bars=dayLabels.map(row=>'<div class="analytics-bar-column" title="'+esc(row.date)+' · '+row.orders+' pedido(s) · '+moneyValue(row.revenue)+'"><span>'+moneyValue(row.revenue)+'</span><div class="analytics-bar-track"><i style="height:'+Math.max(3,Math.round(row.revenue/maxRevenue*100))+'%"></i></div><small>'+esc(row.label)+'</small></div>').join('');
+    const fulfillmentLabels={table:'Mesa',pickup:'Retirada',delivery:'Entrega'};
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Visão geral das vendas</h2><small>Pedidos registrados no período selecionado; valores cancelados não entram no faturamento.</small></div><div class="analytics-period-actions"><label class="analytics-period"><span>Período</span><select id="analyticsDays"><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></label><button class="button button-outline button-small" type="button" data-action="export-sales-report">Exportar PDF</button></div></div><div class="metrics-grid analytics-metrics"><div class="metric-card"><span>Faturamento</span><b>'+moneyValue(data.summary.revenueCents)+'</b><small>Pedidos não cancelados</small></div><div class="metric-card"><span>Pedidos</span><b>'+Number(data.summary.orders||0)+'</b><small>No período</small></div><div class="metric-card"><span>Ticket médio</span><b>'+moneyValue(data.summary.averageTicketCents)+'</b><small>Exclui cancelamentos</small></div><div class="metric-card"><span>Cancelados</span><b>'+Number(data.summary.cancelled||0)+'</b><small>Pedidos cancelados</small></div></div></section><div class="admin-content-grid analytics-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Faturamento por dia</h2><small>Valores em reais</small></div></div><div class="analytics-chart">'+(bars||'<p class="admin-empty">Ainda não há vendas nesse período.</p>')+'</div></section><aside><section class="admin-panel"><div class="admin-panel-head"><h2>Produtos mais vendidos</h2></div><ol class="analytics-popular">'+(data.popular.length?data.popular.map((row,index)=>'<li><span class="analytics-rank">'+(index+1)+'</span><span class="analytics-product-name">'+esc(row.name)+'</span><b>'+Number(row.quantity||0)+' un.</b></li>').join(''):'<li class="admin-empty">Sem vendas no período.</li>')+'</ol></section><section class="admin-panel"><div class="admin-panel-head"><h2>Pedidos por modalidade</h2></div><ul class="popular-list">'+(data.fulfillment.length?data.fulfillment.map(row=>'<li><span>'+esc(fulfillmentLabels[row.type]||row.type)+'</span><small>'+Number(row.orders||0)+' pedido(s)</small></li>').join(''):'<li><span>Sem pedidos no período.</span></li>')+'</ul></section></aside></div>';
+    root.getElementById('analyticsDays').value=String(days);
+    root.getElementById('analyticsDays').addEventListener('change',event=>renderAnalyticsAdmin(Number(event.target.value)));
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message||'Não foi possível carregar os indicadores.')+'</p><button class="button button-outline button-small" type="button" data-action="refresh-analytics">Tentar novamente</button></section>'}
+}
+async function renderCombosAdmin(){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML=''+skeletonMarkup('content')+'';
+  try{
+    const result=await api('/api/admin/combos');
+    const products=result.products.filter(product=>Number(product.active)!==0&&Number(product.available)!==0);
+    target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Criar combo promocional</h2><small>Escolha de 2 a 6 produtos. O preço do combo deve ser inferior à soma dos preços-base.</small></div></div><form id="newComboForm" class="admin-form-grid"><label class="form-field"><span>Nome do combo</span><input name="name" required minlength="2" maxlength="80" placeholder="Ex.: Noite de pizza"></label><label class="form-field"><span>Preço promocional (R$)</span><input name="price" type="number" min="1" step="0.01" required placeholder="59,90"></label><label class="form-field wide"><span>Descrição (opcional)</span><input name="description" maxlength="240" placeholder="Uma descrição curta para o cardápio"></label><label class="form-field wide"><span>Produtos do combo</span><select name="products" multiple size="6" required aria-describedby="comboProductsHint">'+products.map(product=>'<option value="'+esc(product.id)+'">'+esc(product.name)+' · '+money(product.baseCents)+'</option>').join('')+'</select><small id="comboProductsHint">No computador use Ctrl para selecionar vários produtos; no celular selecione os itens desejados.</small></label><div class="wide"><p class="error-text" id="newComboError" role="alert"></p><button class="button button-dark button-small" type="submit">Criar combo +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Combos cadastrados</h2><small>'+result.combos.length+' combo(s)</small></div></div><div class="combo-admin-list">'+(result.combos.map(combo=>'<article class="combo-admin-row" data-combo-row="'+esc(combo.id)+'"><div><b>'+esc(combo.name)+'</b><small>'+esc(combo.items.map(item=>(item.quantity>1?item.quantity+'× ':'')+item.name).join(' · '))+'</small><small>Preço: '+money(combo.priceCents)+(combo.active?' · Ativo':' · Inativo')+'</small></div><label><input type="checkbox" class="combo-active-input" '+(combo.active?'checked':'')+'> Ativo</label><button class="button button-outline button-small" data-action="save-combo-status" data-id="'+esc(combo.id)+'">Salvar status</button></article>').join('')||'<div class="admin-empty">Nenhum combo criado ainda.</div>')+'</div></section>';
+    root.getElementById('newComboForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form),selected=[...form.elements.products.selectedOptions].map(option=>({productId:option.value,quantity:1})),error=root.getElementById('newComboError');if(selected.length<2||selected.length>6){error.textContent='Selecione de 2 a 6 produtos.';return}try{await api('/api/admin/combos',{method:'POST',body:JSON.stringify({name:data.get('name'),description:data.get('description'),priceCents:Math.round(Number(data.get('price'))*100),items:selected})});if(app.catalog)app.catalog=null;toast('Combo criado e publicado no cardápio.');renderCombosAdmin()}catch(e){error.textContent=e.message}});
+  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
+}
+async function saveComboStatus(id){
+  const row=root.querySelector('[data-combo-row="'+CSS.escape(id)+'"]');if(!row)return;
+  try{
+    const catalog=await api('/api/admin/combos'),combo=catalog.combos.find(item=>item.id===id);if(!combo)return;
+    await api('/api/admin/combos/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name:combo.name,description:combo.description,priceCents:combo.priceCents,items:combo.items.map(item=>({productId:item.productId,quantity:item.quantity})),active:row.querySelector('.combo-active-input').checked})});
+    if(app.catalog)app.catalog=null;toast('Status do combo atualizado.');renderCombosAdmin();
+  }catch(error){toast(error.message||'Não foi possível atualizar o combo.')}
+}
+async function addComboToCart(id){
+  if(!restaurantCanOrder())return toast(app.catalog.restaurant?.openingStatus?.message||'O restaurante está fechado no momento.');
+  const combo=app.catalog?.combos?.find(item=>item.id===id&&Number(item.active)!==0);if(!combo)return toast('Esse combo não está mais disponível.');
+  const restricted=(combo.items||[]).find(item=>item.ageRestricted);if(restricted&&!await ensureAgeForProduct({id:restricted.productId,ageRestricted:true}))return;
+  app.cart.push({cartId:randomId(),comboId:combo.id,name:combo.name,type:'combo',quantity:1,ingredients:[],sizeKey:'combo',crustKey:'',notes:''});
+  invalidateCheckoutKey();setCart();playCartRunAnimation();toast('Combo adicionado à carrinho.');openCart();
 }
 async function renderCouponsAdmin(){
   const target=root.getElementById('adminBody');if(!target)return;
-  target.innerHTML='<div class="loading-line">Carregando cupons…</div>';
+  target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const result=await api('/api/admin/coupons');
       target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2 id="couponFormTitle">Criar cupom</h2><small>Configure descontos e regras de utilização.</small></div></div><form id="newCouponForm" class="admin-form-grid coupon-form"><input type="hidden" name="couponId" value=""><label class="form-field"><span>Código</span><input name="code" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="EX: BEMVINDO10"></label><label class="form-field"><span>Tipo de desconto</span><select name="discountType"><option value="percent">Porcentagem (%)</option><option value="fixed">Valor fixo (R$)</option></select></label><label class="form-field"><span>Valor do desconto</span><input name="discountValue" type="number" min="1" max="100" step="1" required value="10"></label><label class="form-field"><span>Pedido mínimo (R$)</span><input name="minimum" type="number" min="0" step="0.01" value="0" required></label><label class="form-field"><span>Início (opcional)</span><input name="startsAt" type="datetime-local"></label><label class="form-field"><span>Validade final (opcional)</span><input name="expiresAt" type="datetime-local"></label><label class="form-field"><span>Limite de usos (opcional)</span><input name="maxUses" type="number" min="1" step="1" placeholder="Ilimitado"></label><div class="wide"><p class="error-text" id="newCouponError" role="alert"></p><button class="button button-dark button-small" id="couponSubmitButton" type="submit">Criar cupom +</button> <button class="button button-outline button-small" id="couponCancelEdit" type="button" hidden>Cancelar edição</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Cupons cadastrados</h2><small>'+result.coupons.length+' cupom(ns)</small></div><button class="button button-outline button-small" type="button" data-action="export-coupons">Exportar CSV ↓</button></div><label class="coupon-search"><span>⌕</span><input id="couponSearch" type="search" placeholder="Buscar cupom pelo código" autocomplete="off"></label><div class="coupon-list">'+(result.coupons.map(c=>'<article class="coupon-row" data-coupon-row="'+esc(c.id)+'" data-type="'+esc(c.discountType)+'" data-value="'+c.discountValue+'" data-minimum="'+c.minimumSubtotalCents+'" data-starts="'+esc(c.startsAt||'')+'" data-expires="'+esc(c.expiresAt||'')+'" data-max-uses="'+(c.maxUses===null?'':c.maxUses)+'"><div class="coupon-row-top"><div><b>'+esc(c.code)+'</b><small>'+(c.discountType==='percent'?c.discountValue+'% de desconto':money(c.discountValue)+' de desconto')+' · Pedido mínimo '+money(c.minimumSubtotalCents)+'</small><small>Usos: '+c.usedCount+(c.maxUses===null?' / ilimitado':' / '+c.maxUses)+(c.expiresAt?' · Até '+new Date(c.expiresAt).toLocaleDateString('pt-BR'):'')+'</small></div><label class="coupon-active"><input class="coupon-active-input" type="checkbox" '+(c.active?'checked':'')+'> Ativo</label></div><div class="coupon-row-actions"><button class="button button-outline button-small" type="button" data-action="copy-coupon" data-code="'+esc(c.code)+'">Copiar código</button><button class="button button-outline button-small" type="button" data-action="edit-coupon" data-id="'+esc(c.id)+'">Editar</button><button class="button button-outline button-small" type="button" data-action="toggle-coupon" data-id="'+esc(c.id)+'">Salvar status</button></div></article>').join('')||'<div class="admin-empty">Nenhum cupom cadastrado ainda.</div>')+'</div></section>';
@@ -596,10 +2045,17 @@ async function copyCouponCode(code){
   catch{const field=root.createElement('textarea');field.value=code;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';root.body.appendChild(field);field.select();const copied=root.execCommand('copy');field.remove();toast(copied?'Código '+code+' copiado.':'Não foi possível copiar automaticamente.');}
 }
 function exportCouponsCsv(){
-  const rows=[...root.querySelectorAll('[data-coupon-row]')].filter(row=>!row.hidden).map(row=>{const text=row.querySelectorAll('small');const code=row.querySelector('b')?.textContent||'';const active=row.querySelector('.coupon-active-input')?.checked?'Ativo':'Inativo';return [code,row.dataset.type==='percent'?'Percentual':'Valor fixo',row.dataset.type==='percent'?row.dataset.value:(Number(row.dataset.value)/100).toFixed(2).replace('.',','),(Number(row.dataset.minimum||0)/100).toFixed(2).replace('.',','),row.dataset.starts||'',row.dataset.expires||'',row.dataset.maxUses||'Ilimitado',text[1]?.textContent.match(/Usos: ([^·]+)/)?.[1]?.trim()||'0',active]});
-  const quote=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
-  const csv='Código;Tipo;Desconto;Pedido mínimo (R$);Início;Validade;Limite de usos;Utilizações;Status\r\n'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
-  const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));const link=root.createElement('a');link.href=url;link.download='menuza-cupons.csv';root.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);toast('Lista de cupons exportada.');
+  const rows=[...root.querySelectorAll('[data-coupon-row]')].filter(row=>!row.hidden).map(row=>{const text=row.querySelectorAll('small'),code=row.querySelector('b')?.textContent||'',active=row.querySelector('.coupon-active-input')?.checked?'Ativo':'Inativo';return [code,row.dataset.type==='percent'?'Percentual':'Valor fixo',row.dataset.type==='percent'?row.dataset.value:money(Number(row.dataset.value)),money(Number(row.dataset.minimum||0)),row.dataset.starts?new Date(row.dataset.starts).toLocaleDateString('pt-BR'):'—',row.dataset.expires?new Date(row.dataset.expires).toLocaleDateString('pt-BR'):'—',row.dataset.maxUses||'Ilimitado',text[1]?.textContent.match(/Usos: ([^·]+)/)?.[1]?.trim()||'0',active]});
+  if(!rows.length)return toast('Não há cupons visíveis para exportar.');
+  openPdfReport('Relatório de cupons','Lista conforme a busca e os filtros exibidos',[['Cupons listados',rows.length]],['Código','Tipo','Desconto','Pedido mínimo','Início','Validade','Limite de usos','Utilizações','Status'],rows);
+  toast('Relatório de cupons pronto para salvar em PDF.');
+}
+function dateTimeLocalValue(value){
+  if(!value)return '';
+  const date=new Date(value);
+  if(!Number.isFinite(date.getTime()))return '';
+  const pad=part=>String(part).padStart(2,'0');
+  return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'T'+pad(date.getHours())+':'+pad(date.getMinutes());
 }
 function editCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]'),form=root.getElementById('newCouponForm');
@@ -610,8 +2066,8 @@ function editCoupon(id){
   form.elements.discountValue.value=row.dataset.type==='fixed'?(Number(row.dataset.value)/100):Number(row.dataset.value);
   form.elements.discountValue.max=row.dataset.type==='percent'?'100':'10000';
   form.elements.minimum.value=(Number(row.dataset.minimum||0)/100).toFixed(2);
-  form.elements.startsAt.value=row.dataset.starts?new Date(row.dataset.starts).toISOString().slice(0,16):'';
-  form.elements.expiresAt.value=row.dataset.expires?new Date(row.dataset.expires).toISOString().slice(0,16):'';
+  form.elements.startsAt.value=dateTimeLocalValue(row.dataset.starts);
+  form.elements.expiresAt.value=dateTimeLocalValue(row.dataset.expires);
   form.elements.maxUses.value=row.dataset.maxUses||'';
   root.getElementById('couponFormTitle').textContent='Editar cupom '+row.querySelector('b').textContent;
   root.getElementById('couponSubmitButton').textContent='Salvar alterações';
@@ -630,58 +2086,269 @@ async function toggleCoupon(id){
   const row=root.querySelector('[data-coupon-row="'+CSS.escape(id)+'"]');if(!row)return;
   try{await api('/api/admin/coupons/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({code:row.querySelector('b').textContent,discountType:row.dataset.type,discountValue:Number(row.dataset.value),minimumSubtotalCents:Number(row.dataset.minimum||0),startsAt:row.dataset.starts||null,expiresAt:row.dataset.expires||null,maxUses:row.dataset.maxUses?Number(row.dataset.maxUses):null,active:row.querySelector('.coupon-active-input').checked})});toast('Status do cupom atualizado.');renderCouponsAdmin()}catch(e){toast(e.message)}
 }
+async function renderPromotionsAdmin(){
+ const target=root.getElementById('adminBody');if(!target)return;target.innerHTML=''+skeletonMarkup('content')+'';
+ try{
+  const [result,bannerResult]=await Promise.all([api('/api/admin/promotions'),api('/api/admin/promotion-banner')]),products=result.products||[],sizes=result.sizes||[],crusts=result.crusts||[],promotions=result.promotions||[],banner=bannerResult.banner||{};
+  const sellable=products.filter(p=>p.type!=='pizza'&&Number(p.active)!==0);
+  const days=[['1','Segunda'],['2','Terça'],['3','Quarta'],['4','Quinta'],['5','Sexta'],['6','Sábado'],['7','Domingo']];
+  const productOptions='<option value="__all_pizzas__">Todas as pizzas (qualquer sabor)</option>'+sellable.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' · '+esc(p.type)+'</option>').join('');
+  const sizeOptions='<option value="">Selecione o tamanho</option>'+sizes.map(s=>'<option value="'+esc(s.key)+'">'+esc(s.label)+' · '+money(s.priceCents)+'</option>').join('');
+  const crustOptions='<option value="">Nenhuma borda incluída</option>'+crusts.map(c=>'<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>').join('');
+  const makeItemRow=()=>'<article class="promotion-item-editor admin-panel" data-promotion-item><div class="admin-panel-head"><div><h3>Item da promoção</h3><small>Configure o desconto deste produto separadamente.</small></div><button class="button button-outline button-small" type="button" data-remove-promotion-item>Remover item</button></div><div class="admin-form-grid"><label class="form-field wide"><span>Produto</span><select name="promotionProduct" required>'+productOptions+'</select></label><label class="form-field promotion-pizza-size"><span>Tamanho da pizza</span><select name="sizeKey">'+sizeOptions+'</select></label><label class="form-field promotion-pizza-crust"><span>Borda incluída (opcional)</span><select name="includedCrustKey">'+crustOptions+'</select></label><label class="form-field"><span>Tipo de desconto</span><select name="discountType"><option value="fixed">Preço promocional</option><option value="percent">Desconto percentual</option></select></label><label class="form-field"><span>Preço promocional (R$)</span><input name="promotionalPrice" type="number" min="0.01" step="0.01" placeholder="Ex.: 39,90"></label><label class="form-field"><span>Desconto (%)</span><input name="discountPercent" type="number" min="1" max="90" step="1" placeholder="Ex.: 15" disabled></label></div></article>';
+  const productName=id=>id==='__all_pizzas__'?'Todas as pizzas':(products.find(p=>p.id===id)?.name||'Produto não encontrado');
+  target.innerHTML='<section class="admin-panel promo-banner-admin"><div class="admin-panel-head"><div><h2>Banner de ofertas</h2><small>Escolha uma imagem de destaque para aparecer no topo do cardápio, abaixo dos horários.</small></div><label class="promotion-active-toggle"><input type="checkbox" name="promoBannerActive" '+(banner.active?'checked':'')+'> Exibir banner</label></div><form id="promoBannerForm" class="admin-form-grid"><label class="form-field wide"><span>Imagem do banner</span><input type="file" name="promoBannerFile" accept="image/png,image/jpeg,image/webp,image/avif"><small>Use uma imagem horizontal. O Menuza ajusta e comprime automaticamente.</small></label><div class="promo-banner-preview-wrap wide" id="promoBannerPreviewWrap" '+(banner.image?'':'hidden')+'><img class="promo-banner-preview" id="promoBannerPreview" src="'+esc(banner.image||'')+'" alt="Prévia do banner"></div><label class="form-field wide"><span>Título</span><input name="promoBannerTitle" maxlength="90" required value="'+esc(banner.title||'Ofertas especiais')+'"></label><label class="form-field wide"><span>Texto de apoio</span><input name="promoBannerText" maxlength="180" value="'+esc(banner.text||'Confira nossas promoções e aproveite')+'"></label><div class="wide"><button class="button button-dark button-small" type="submit">Salvar banner</button></div><p class="form-hint wide">O banner aparece somente quando existe pelo menos uma promoção ativa.</p></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Criar promoções</h2><small>Adicione um ou vários produtos. Cada item terá seu próprio preço ou desconto e também poderá ser cadastrado sozinho.</small></div></div><form id="promotionForm"><div class="promotion-image-upload-grid wide"><label class="form-field"><span>Imagem do banner</span><input type="file" name="promotionBannerFile" accept="image/png,image/jpeg,image/webp,image/avif"><small>Imagem exibida no banner grande do topo do cardápio.</small><div class="promo-banner-preview-wrap" id="promotionBannerPreviewWrap" hidden><img class="promo-banner-preview" id="promotionItemBannerPreview" alt="Prévia da imagem do banner"></div></label><label class="form-field"><span>Imagem do card</span><input type="file" name="promotionCardFile" accept="image/png,image/jpeg,image/webp,image/avif"><small>Imagem exibida no produto da aba Ofertas especiais.</small><div class="promo-banner-preview-wrap" id="promotionCardPreviewWrap" hidden><img class="promo-banner-preview" id="promotionCardPreview" alt="Prévia da imagem do card"></div></label></div><label class="form-field wide"><span>Nome da promoção</span><input name="promotionName" type="text" maxlength="80" required placeholder="Ex.: Combo da Família, Quarta da Pizza"></label><div id="promotionItems">'+makeItemRow()+'</div><div class="admin-form-actions"><button class="button button-outline button-small" type="button" data-add-promotion-item>+ Adicionar outro produto</button></div><fieldset class="promotion-days"><legend>Dias em que as promoções ficam ativas</legend>'+days.map(([v,label])=>'<label><input type="checkbox" name="weekdays" value="'+v+'" checked> '+label+'</label>').join('')+'</fieldset><p class="form-hint">Pizza: escolha o tamanho e a promoção valerá para todos os sabores e combinações. Outros produtos: selecione diretamente o hambúrguer, bebida, hot dog ou produto desejado. Você pode criar uma promoção individual ou adicionar vários itens de uma vez. Horário de Brasília.</p><p class="error-text" id="promotionError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar promoções</button></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Promoções cadastradas</h2><small>'+promotions.length+' item(ns) promocional(is), cada um com controle independente</small></div></div><div class="promotion-admin-list">'+(promotions.map(p=>'<article class="promotion-admin-row" data-promotion-row="'+esc(p.id)+'"><div class="promotion-admin-info"><strong>'+esc(p.promotionName||'Promoção sem nome')+'</strong><small>'+esc(p.productId==='__all_pizzas__'?'Todas as pizzas · '+(sizes.find(s=>s.key===p.sizeKey)?.label||p.sizeKey):productName(p.productId))+' · '+(p.productId==='__all_pizzas__'&&p.includedCrustKey?'Borda incluída: '+esc(crusts.find(c=>c.key===p.includedCrustKey)?.label||p.includedCrustKey)+' · ':'')+(p.discountType==='fixed'?'Preço: '+money(p.promotionalPriceCents):p.discountPercent+'% de desconto')+'</small><div class="promotion-weekday-editor">'+days.map(([day,label])=>'<label title="'+label+'"><input type="checkbox" name="promotionWeekday" value="'+day+'" '+((p.weekdays||[]).map(Number).includes(Number(day))?'checked':'')+'><span>'+label.slice(0,3)+'</span></label>').join('')+'</div></div><div class="promotion-admin-image-control promotion-admin-image-control--split"><div><small>Banner</small>'+(p.bannerImage?'<img src="'+esc(p.bannerImage)+'" alt="Imagem atual do banner" loading="lazy">':'<span>Sem imagem</span>')+'<label class="button button-outline button-small">Alterar<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" data-promotion-image-input="banner" data-promotion-id="'+esc(p.id)+'" hidden></label></div><div><small>Card</small>'+(p.cardImage?'<img src="'+esc(p.cardImage)+'" alt="Imagem atual do card" loading="lazy">':'<span>Sem imagem</span>')+'<label class="button button-outline button-small">Alterar<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" data-promotion-image-input="card" data-promotion-id="'+esc(p.id)+'" hidden></label></div></div><label><input class="promotion-active-input" type="checkbox" '+(p.active?'checked':'')+'> Ativa</label><button class="button button-outline button-small" type="button" data-action="toggle-promotion" data-id="'+esc(p.id)+'">Salvar</button><button class="button button-outline button-small" type="button" data-action="delete-promotion" data-id="'+esc(p.id)+'" aria-label="Excluir promoção">Excluir</button></article>').join('')||'<p class="admin-empty">Nenhuma promoção cadastrada.</p>')+'</div></section>';
+  const form=root.getElementById('promotionForm'),items=root.getElementById('promotionItems'),error=root.getElementById('promotionError');
+  const promotionBannerFile=form.querySelector('[name="promotionBannerFile"]'),promotionCardFile=form.querySelector('[name="promotionCardFile"]'),promotionBannerPreview=root.getElementById('promotionItemBannerPreview'),promotionBannerPreviewWrap=root.getElementById('promotionBannerPreviewWrap'),promotionCardPreview=root.getElementById('promotionCardPreview'),promotionCardPreviewWrap=root.getElementById('promotionCardPreviewWrap');const bindPromotionPreview=(input,preview,wrap,key)=>input.addEventListener('change',async()=>{const file=input.files?.[0];if(!file)return;try{const image=await imageFileToWebp(file,{maxDimension:1800,quality:.84,maxBytes:900000,background:'#24131b'});form.dataset[key]=image;preview.src=image;wrap.hidden=false}catch(error){input.value='';toast(error.message||'Não foi possível preparar a imagem.')}});bindPromotionPreview(promotionBannerFile,promotionBannerPreview,promotionBannerPreviewWrap,'promotionBannerImage');bindPromotionPreview(promotionCardFile,promotionCardPreview,promotionCardPreviewWrap,'promotionCardImage');const bannerForm=root.getElementById('promoBannerForm'),bannerFile=bannerForm.querySelector('[name="promoBannerFile"]'),bannerPreview=root.getElementById('promoBannerPreview'),bannerPreviewWrap=root.getElementById('promoBannerPreviewWrap');let bannerImage=banner.image||'';bannerFile.addEventListener('change',async()=>{const file=bannerFile.files?.[0];if(!file)return;try{bannerImage=await imageFileToWebp(file,{maxDimension:1800,quality:.84,maxBytes:900000,background:'#24131b'});bannerPreview.src=bannerImage;bannerPreviewWrap.hidden=false}catch(error){bannerFile.value='';toast(error.message||'Não foi possível preparar a imagem.')}});bannerForm.addEventListener('submit',async event=>{event.preventDefault();const button=bannerForm.querySelector('[type="submit"]');button.disabled=true;button.textContent='Salvando banner…';try{const saved=await api('/api/admin/promotion-banner',{method:'PATCH',body:JSON.stringify({image:bannerImage,title:bannerForm.querySelector('[name="promoBannerTitle"]').value,text:bannerForm.querySelector('[name="promoBannerText"]').value,active:bannerForm.querySelector('[name="promoBannerActive"]').checked})});app.promotionBanner=saved.banner;toast('Banner atualizado com sucesso.');button.textContent='Banner salvo'}catch(error){toast(error.message||'Não foi possível salvar o banner.');button.disabled=false;button.textContent='Salvar banner'}});
+  target.addEventListener('change',async e=>{const input=e.target.closest('[data-promotion-image-input]');if(!input)return;const file=input.files?.[0],promotionId=input.dataset.promotionId,imageType=input.dataset.promotionImageInput;if(!file||!promotionId||!['banner','card'].includes(imageType))return;input.disabled=true;try{const image=await imageFileToWebp(file,{maxDimension:1800,quality:.84,maxBytes:900000,background:'#24131b'});await api('/api/admin/promotions/'+encodeURIComponent(promotionId),{method:'PATCH',body:JSON.stringify(imageType==='banner'?{bannerImage:image}:{cardImage:image})});app.catalog=null;toast('Imagem do '+(imageType==='banner'?'banner':'card')+' atualizada.');renderPromotionsAdmin()}catch(err){toast(err.message||'Não foi possível atualizar a imagem.');input.disabled=false;input.value=''}});
+  target.addEventListener('click',async e=>{const button=e.target.closest('[data-action="delete-promotion"]');if(!button)return;const promotionId=button.dataset.id;if(!promotionId||!confirm('Excluir esta promoção permanentemente? Essa ação não pode ser desfeita.'))return;button.disabled=true;try{await api('/api/admin/promotions/'+encodeURIComponent(promotionId),{method:'DELETE'});app.catalog=null;toast('Promoção excluída.');renderPromotionsAdmin()}catch(err){button.disabled=false;toast(err.message||'Não foi possível excluir a promoção.')}});
+
+  const syncRow=row=>{const all=row.querySelector('[name="promotionProduct"]').value==='__all_pizzas__',size=row.querySelector('.promotion-pizza-size'),crust=row.querySelector('.promotion-pizza-crust'),fixed=row.querySelector('[name="discountType"]').value==='fixed',price=row.querySelector('[name="promotionalPrice"]'),percent=row.querySelector('[name="discountPercent"]');size.style.display=all?'':'none';crust.style.display=all?'':'none';row.querySelector('[name="sizeKey"]').required=all;price.disabled=!fixed;price.required=fixed;percent.disabled=fixed;percent.required=!fixed};
+  const first=items.firstElementChild;first.querySelector('[name="promotionProduct"]').value='__all_pizzas__';syncRow(first);
+  form.addEventListener('click',e=>{const add=e.target.closest('[data-add-promotion-item]'),remove=e.target.closest('[data-remove-promotion-item]');if(add){items.insertAdjacentHTML('beforeend',makeItemRow());const next=items.lastElementChild;next.querySelector('[name="promotionProduct"]').value=sellable[0]?.id||'__all_pizzas__';syncRow(next)}if(remove){const rows=items.querySelectorAll('[data-promotion-item]');if(rows.length>1)remove.closest('[data-promotion-item]').remove();else{const row=rows[0];row.querySelector('[name="promotionProduct"]').value='__all_pizzas__';row.querySelector('[name="sizeKey"]').value='';row.querySelector('[name="includedCrustKey"]').value='';row.querySelector('[name="promotionalPrice"]').value='';row.querySelector('[name="discountPercent"]').value='';syncRow(row)}}});
+  form.addEventListener('change',e=>{const row=e.target.closest('[data-promotion-item]');if(row&&(e.target.name==='promotionProduct'||e.target.name==='discountType'))syncRow(row)});
+  form.addEventListener('submit',async e=>{e.preventDefault();error.textContent='';const weekdays=[...form.querySelectorAll('[name="weekdays"]:checked')].map(x=>Number(x.value));if(!weekdays.length){error.textContent='Marque pelo menos um dia da semana.';return}
+   const promotionBannerImage=String(form.dataset.promotionBannerImage||''),promotionCardImage=String(form.dataset.promotionCardImage||'');const promotionName=String(form.querySelector('[name="promotionName"]').value||'').trim();if(promotionName.length<2){error.textContent='Informe um nome para a promoção.';return}const rows=[...items.querySelectorAll('[data-promotion-item]')],payloads=[],seen=new Set();
+   for(let index=0;index<rows.length;index++){const row=rows[index],productId=row.querySelector('[name="promotionProduct"]').value,all=productId==='__all_pizzas__',sizeKey=all?row.querySelector('[name="sizeKey"]').value:'',discountType=row.querySelector('[name="discountType"]').value,priceInput=row.querySelector('[name="promotionalPrice"]').value,percentInput=row.querySelector('[name="discountPercent"]').value;
+    if(!productId){error.textContent='Selecione o produto do item '+(index+1)+'.';return}if(all&&!sizeKey){error.textContent='Selecione o tamanho da pizza no item '+(index+1)+'.';return}
+    const key=productId+'|'+sizeKey;if(seen.has(key)){error.textContent='O mesmo produto/tamanho foi adicionado mais de uma vez. Cada item precisa ser único.';return}seen.add(key);
+    if(discountType==='fixed'&&(!priceInput||Number(priceInput)<=0)){error.textContent='Informe o preço promocional do item '+(index+1)+'.';return}if(discountType==='percent'&&(!percentInput||Number(percentInput)<1||Number(percentInput)>90)){error.textContent='Informe um percentual entre 1 e 90 no item '+(index+1)+'.';return}
+    payloads.push({promotionName,bannerImage:promotionBannerImage,cardImage:promotionCardImage,applyToAllPizzas:all,productId,sizeKey,includedCrustKey:all?row.querySelector('[name="includedCrustKey"]').value:'',discountType,promotionalPriceCents:discountType==='fixed'?Math.round(Number(priceInput)*100):null,discountPercent:discountType==='percent'?Number(percentInput):null,weekdays,active:true});
+   }
+   let saved=0,errors=[];for(const payload of payloads){try{await api('/api/admin/promotions',{method:'POST',body:JSON.stringify(payload)});saved++}catch(err){errors.push(err.message)}}
+   if(saved){app.catalog=null;toast(saved+' promoção(ões) salva(s).');renderPromotionsAdmin()}if(errors.length)error.textContent=saved?'Alguns itens não foram salvos: '+errors.join(' · '):errors.join(' · ');
+  });
+ }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message)+'</p></section>'}
+}
+async function togglePromotion(id){
+ const row=root.querySelector('[data-promotion-row="'+CSS.escape(id)+'"]');if(!row)return;
+ const weekdays=[...row.querySelectorAll('[name="promotionWeekday"]:checked')].map(input=>Number(input.value));
+ if(!weekdays.length){toast('Marque pelo menos um dia para a promoção.');return}
+ try{
+  await api('/api/admin/promotions/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({active:row.querySelector('.promotion-active-input').checked,weekdays})});
+  app.catalog=null;toast('Promoção e dias de validade atualizados.');renderPromotionsAdmin();
+ }catch(e){toast(e.message)}
+}
+async function renderDeliveryAdmin(){
+ const target=root.getElementById('adminBody');if(!target)return;target.innerHTML=''+skeletonMarkup('content')+'';
+ try{
+  const config=await api('/api/admin/delivery'),r=config.restaurant||{};
+  target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Endereço da pizzaria</h2><small>Endereço de referência: Rua Luiz Vendramin, 267 · Boa Vista · Pouso Redondo/SC.</small></div></div><form id="deliveryLocationForm" class="admin-form-grid"><label class="form-field wide"><span>Endereço</span><input name="address" required maxlength="220" value="'+esc(r.address||'')+'"></label><div class="wide"><button class="button button-dark button-small" type="submit">Salvar endereço</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Cadastrar região de entrega</h2><small>O cliente seleciona o bairro ou a área no checkout. Você define a taxa para cada região.</small></div></div><form id="deliveryZoneForm" class="admin-form-grid"><label class="form-field"><span>Nome da região / bairro</span><input name="name" required minlength="2" maxlength="70" placeholder="Ex.: Centro, Boa Vista, Arroio Grande"></label><label class="form-field"><span>Tipo de cobrança</span><select name="feeMode"><option value="fixed">Taxa fixa por região</option><option value="per_km">Por quilômetro estimado</option></select></label><label class="form-field"><span>Taxa fixa (R$)</span><input name="fee" type="number" min="0" step="0.01" value="8.00"></label><label class="form-field"><span>Valor por km (R$)</span><input name="perKm" type="number" min="0.01" step="0.01" value="1.00"></label><label class="form-field"><span>Distância estimada da região (km)</span><input name="distanceKm" type="number" min="0.1" max="100" step="0.1" value="1" required></label><p class="form-hint wide">Exemplo: configure R$ 1,00 por km e 6 km para a região. O sistema calcula R$ 6,00 automaticamente. A distância é definida pelo restaurante para cada área.</p><div class="wide"><button class="button button-dark button-small" type="submit">Adicionar região +</button></div></form></section><section class="admin-panel"><div class="admin-panel-head"><div><h2>Regiões cadastradas</h2><small>Taxas aplicadas no checkout</small></div></div><div class="delivery-zone-list">'+(config.zones||[]).map(z=>'<article class="delivery-zone-row" data-delivery-zone="'+esc(z.id)+'"><div><strong>'+esc(z.name)+'</strong><small>'+(z.feeMode==='fixed'?'Taxa fixa: '+money(z.feeCents):'R$ '+(z.perKmCents/100).toFixed(2).replace('.',',')+' × '+z.distanceKm+' km = '+money(Math.round(z.perKmCents*z.distanceKm)))+'</small></div><div class="delivery-zone-values"><label>Tipo<select class="zone-mode"><option value="fixed" '+(z.feeMode==='fixed'?'selected':'')+'>Taxa fixa</option><option value="per_km" '+(z.feeMode==='per_km'?'selected':'')+'>Por km</option></select></label><label>Taxa fixa (R$)<input class="zone-fee" type="number" min="0" step="0.01" value="'+(z.feeCents/100).toFixed(2)+'"></label><label>R$/km<input class="zone-rate" type="number" min="0.01" step="0.01" value="'+(z.perKmCents/100).toFixed(2)+'"></label><label>Distância (km)<input class="zone-distance" type="number" min="0.1" max="100" step="0.1" value="'+(z.distanceKm||1)+'"></label></div><label><input class="delivery-zone-active" type="checkbox" '+(z.active?'checked':'')+'> Ativa</label><button class="button button-outline button-small" type="button" data-action="toggle-delivery-zone" data-id="'+esc(z.id)+'">Salvar alterações</button></article>').join('')||'<p class="admin-empty">Nenhuma região cadastrada.</p>'+'</div></section>';
+  root.getElementById('deliveryLocationForm').addEventListener('submit',async e=>{e.preventDefault();const d=new FormData(e.currentTarget);try{await api('/api/admin/delivery/location',{method:'PATCH',body:JSON.stringify({address:d.get('address'),latitude:null,longitude:null})});toast('Endereço salvo.')}catch(err){toast(err.message)}});
+  root.getElementById('deliveryZoneForm').addEventListener('submit',async e=>{e.preventDefault();const d=new FormData(e.currentTarget);try{await api('/api/admin/delivery/zones',{method:'POST',body:JSON.stringify({name:d.get('name'),feeMode:d.get('feeMode'),feeCents:Math.round(Number(d.get('fee'))*100),perKmCents:Math.round(Number(d.get('perKm'))*100),distanceKm:Number(d.get('distanceKm')||0),active:true})});toast('Região cadastrada.');renderDeliveryAdmin()}catch(err){toast(err.message)}});
+ }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text">'+esc(error.message)+'</p></section>'}
+}
+async function toggleDeliveryZone(id){
+ const row=root.querySelector('[data-delivery-zone="'+CSS.escape(id)+'"]');if(!row)return;
+ try{await api('/api/admin/delivery/zones/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name:row.querySelector('strong').textContent,feeMode:row.querySelector('.zone-mode').value,feeCents:Math.round(Number(row.querySelector('.zone-fee').value)*100),perKmCents:Math.round(Number(row.querySelector('.zone-rate').value)*100),distanceKm:Number(row.querySelector('.zone-distance').value),active:row.querySelector('.delivery-zone-active').checked})});toast('Região atualizada.');renderDeliveryAdmin()}catch(e){toast(e.message)}
+}
+async function loadDeliveryOptions(){
+ const select=root.getElementById('deliveryZoneSelect');if(!select||select.dataset.loaded==='true')return;
+ try{const result=await api('/api/delivery/options');if(!select.isConnected)return;const zones=result.zones||[];select.innerHTML='<option value="">Selecione sua região</option>'+zones.map(z=>'<option value="'+esc(z.id)+'" data-fee-mode="'+esc(z.feeMode)+'">'+esc(z.name)+' · '+(z.feeMode==='fixed'?money(z.feeCents):'R$ '+(z.perKmCents/100).toFixed(2).replace('.',',')+'/km · '+z.distanceKm+' km = '+money(Math.round(z.perKmCents*z.distanceKm)))+'</option>').join('');select.dataset.loaded='true';const hint=root.getElementById('deliveryZoneHint');if(hint)hint.textContent='Escolha sua região. A taxa será adicionada ao total após a validação do pedido.'}catch(e){select.innerHTML='<option value="">Não foi possível carregar regiões</option>';toast(e.message)}
+}
 async function renderPrivacyRequestsAdmin(){
  const target=root.getElementById('adminBody');if(!target)return;
- target.innerHTML='<div class="loading-line">Carregando solicitações…</div>';
+ target.innerHTML=skeletonMarkup('content');
  try{
   const result=await api('/api/admin/privacy-requests');
-  const labels={access:'Acesso aos dados',correction:'Correção',deletion:'Exclusão de dados',question:'Dúvida sobre privacidade',support:'Suporte geral'};
-  target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Solicitações de clientes</h2><small>Pedidos de acesso, correção, exclusão e atendimento. Trate os dados com confidencialidade.</small></div><span class="settings-status">'+result.requests.filter(item=>item.status!=='closed').length+' pendentes</span></div>'+(result.requests.length?'<div class="privacy-request-list">'+result.requests.map(item=>'<article class="privacy-request-card"><div class="privacy-request-head"><div><span class="eyebrow">'+esc(labels[item.requestType]||item.requestType)+'</span><h3>'+esc(item.name)+'</h3><p><a href="mailto:'+encodeURIComponent(item.email)+'">'+esc(item.email)+'</a>'+(item.phone?' · '+esc(item.phone):'')+'</p></div><label class="privacy-request-status"><span>Status</span><select data-privacy-request-status="'+esc(item.id)+'"><option value="open" '+(item.status==='open'?'selected':'')+'>Aberta</option><option value="in_progress" '+(item.status==='in_progress'?'selected':'')+'>Em andamento</option><option value="closed" '+(item.status==='closed'?'selected':'')+'>Concluída</option></select></label></div><p class="privacy-request-details">'+esc(item.details)+'</p><small>Protocolo '+esc(item.id)+' · Recebida em '+esc(new Date(item.createdAt).toLocaleString('pt-BR'))+'</small></article>').join('')+'</div>':'<div class="customer-orders-empty"><h3>Nenhuma solicitação recebida</h3><p>As solicitações enviadas pelo formulário público aparecerão aqui.</p></div>')+'</section>';
-  target.querySelectorAll('[data-privacy-request-status]').forEach(select=>select.addEventListener('change',async()=>{select.disabled=true;try{await api('/api/admin/privacy-requests/'+encodeURIComponent(select.dataset.privacyRequestStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status da solicitação atualizado.')}catch(error){toast(error.message);select.disabled=false}}));
+  const labels={access:'Confirmação ou acesso',correction:'Correção de dados',anonymization:'Anonimização ou bloqueio',deletion:'Eliminação de dados',portability:'Portabilidade',sharing_info:'Informações sobre compartilhamento',revocation:'Revogação de consentimento',automated_decision:'Decisão automatizada',question:'Dúvida sobre privacidade',support:'Suporte geral'};
+  target.innerHTML='<section class="admin-panel"><div class="admin-panel-head"><div><h2>Solicitações de clientes</h2><small>Pedidos de acesso, correção, exclusão e atendimento. Trate os dados com confidencialidade.</small></div><span class="settings-status">'+result.requests.filter(item=>item.status!=='closed').length+' pendentes</span></div>'+(result.requests.length?'<div class="privacy-request-list">'+result.requests.map(item=>'<article class="privacy-request-card"><div class="privacy-request-head"><div><span class="eyebrow">'+esc(labels[item.requestType]||item.requestType)+'</span><h3>'+esc(item.name)+'</h3><p><a href="mailto:'+encodeURIComponent(item.email)+'">'+esc(item.email)+'</a>'+(item.phone?' · '+esc(item.phone):'')+'</p></div><label class="privacy-request-status"><span>Status</span><select data-previous-status="'+esc(item.status)+'" data-privacy-request-status="'+esc(item.id)+'"><option value="open" '+(item.status==='open'?'selected':'')+'>Aberta</option><option value="in_progress" '+(item.status==='in_progress'?'selected':'')+'>Em andamento</option><option value="closed" '+(item.status==='closed'?'selected':'')+'>Concluída</option></select></label></div><p class="privacy-request-details">'+esc(item.details)+'</p>'+(item.responseNote?'<div class="privacy-request-resolution"><strong>Resposta/providência registrada</strong><p>'+esc(item.responseNote)+'</p>'+(item.retentionReason?'<small>Retenção: '+esc(item.retentionReason)+'</small>':'')+'</div>':'')+(item.events?.length?'<div class="privacy-request-events"><strong>Histórico de atendimento</strong>'+item.events.map(event=>'<div><span>'+esc(event.eventType==='created'?'Solicitação recebida':event.eventType==='status_changed'?'Status alterado': 'Resposta/providência atualizada')+'</span><small>'+(event.fromStatus&&event.toStatus&&event.fromStatus!==event.toStatus?esc(event.fromStatus)+' → '+esc(event.toStatus)+' · ':'')+esc(new Date(event.createdAt).toLocaleString('pt-BR'))+'</small></div>').join('')+'</div>':'')+'<small>Protocolo '+esc(item.id)+' · Recebida em '+esc(new Date(item.createdAt).toLocaleString('pt-BR'))+'</small></article>').join('')+'</div>':'<div class="customer-orders-empty"><h3>Nenhuma solicitação recebida</h3><p>As solicitações enviadas pelo formulário público aparecerão aqui.</p></div>')+'</section>';
+  target.querySelectorAll('[data-privacy-request-status]').forEach(select=>select.addEventListener('change',async()=>{const previous=select.dataset.previousStatus||'open';let responseNote='',retentionReason='';if(select.value==='closed'){responseNote=window.prompt('Registre a resposta enviada ou a providência tomada (obrigatório):','')||'';if(responseNote.trim().length<10){select.value=previous;toast('Registre a resposta antes de concluir.');return}retentionReason=window.prompt('Se algum dado foi mantido, informe o motivo. Se não se aplica, deixe em branco:','')||''}select.disabled=true;try{await api('/api/admin/privacy-requests/'+encodeURIComponent(select.dataset.privacyRequestStatus),{method:'PATCH',body:JSON.stringify({status:select.value,responseNote,retentionReason})});select.dataset.previousStatus=select.value;toast('Solicitação atualizada com registro de atendimento.');renderPrivacyRequestsAdmin()}catch(error){toast(error.message);select.disabled=false}}));
  }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
+}
+function tableQrUrl(number,token){const url=new URL(location.pathname,location.origin);url.searchParams.set('mesa',String(number));url.searchParams.set('t',token);url.hash='menu';return url.href}
+function menuQrUrl(){const url=new URL(location.pathname,location.origin);url.hash='menu';return url.href}
+function openMenuQr(){
+  const url=menuQrUrl(),target=root.getElementById('menuQrModalRoot');if(!target)return;
+  target.innerHTML='<div class="table-qr-backdrop" data-action="close-menu-qr"><section class="table-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="menuQrTitle"><button class="icon-button table-qr-close" type="button" data-action="close-menu-qr" aria-label="Fechar">'+uiIcon('close',18)+'</button><div class="eyebrow">DIVULGUE SEU CARDÁPIO</div><h2 id="menuQrTitle">QR Code geral do cardápio</h2><p>Este código abre o cardápio público do restaurante. Não identifica mesa nem vincula o pedido a uma mesa específica.</p><div class="table-qr-code" id="menuQrCode" aria-label="QR Code geral do cardápio"></div><label class="table-qr-url"><span>Link público do cardápio</span><input id="menuQrUrl" readonly value="'+esc(url)+'"></label><div class="table-qr-actions"><button class="button button-outline" type="button" data-action="copy-menu-qr">Copiar link</button><button class="button button-outline" type="button" data-action="download-menu-qr">Baixar PNG</button><button class="button button-dark" type="button" data-action="print-menu-qr">Imprimir</button></div><p class="table-qr-footnote">Use em fachada, redes sociais, panfletos ou balcão. O cliente escolhe retirada, entrega ou mesa durante o checkout.</p></section></div>';
+  try{new QRCode(root.getElementById('menuQrCode'),{text:url,width:280,height:280,colorDark:'#1b1530',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H})}
+  catch(error){root.getElementById('menuQrCode').innerHTML='<p class="error-text">Não foi possível gerar o QR Code neste navegador. Tente novamente.</p>';toast('Falha ao gerar o QR Code.')}
+}
+function closeMenuQr(){const target=root.getElementById('menuQrModalRoot');if(target)target.innerHTML=''}
+function downloadMenuQr(){
+  const canvas=root.querySelector('#menuQrCode canvas');const image=root.querySelector('#menuQrCode img');let dataUrl='';
+  try{if(canvas)dataUrl=canvas.toDataURL('image/png');else if(image?.src?.startsWith('data:image/'))dataUrl=image.src}catch{}
+  if(!dataUrl)return toast('O QR Code ainda não está pronto para baixar.');
+  const link=root.createElement('a');link.href=dataUrl;link.download='menuza-cardapio-geral-qrcode.png';root.body.appendChild(link);link.click();link.remove();
+}
+function openTableQr(number,token){
+  if(!/^\d{1,3}$/.test(String(number))||!/^[A-Za-z0-9_-]{32,64}$/.test(String(token)))return toast('Não foi possível abrir o QR Code desta mesa. Atualize o mapa.');
+  const url=tableQrUrl(number,token),target=root.getElementById('tableQrModalRoot');if(!target)return;
+  target.innerHTML='<div class="table-qr-backdrop" data-action="close-table-qr"><section class="table-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="tableQrTitle"><button class="icon-button table-qr-close" type="button" data-action="close-table-qr" aria-label="Fechar">'+uiIcon('close',18)+'</button><div class="eyebrow">CARDÁPIO NA MESA</div><h2 id="tableQrTitle">QR Code · Mesa '+esc(number)+'</h2><p>O cliente escaneia este código para abrir o cardápio já vinculado à mesa '+esc(number)+'.</p><div class="table-qr-code" id="tableQrCode" aria-label="QR Code da mesa '+esc(number)+'"></div><label class="table-qr-url"><span>Link exclusivo desta mesa</span><input id="tableQrUrl" readonly value="'+esc(url)+'"></label><div class="table-qr-actions"><button class="button button-outline" type="button" data-action="copy-table-qr">Copiar link</button><button class="button button-outline" type="button" data-action="download-table-qr" data-table-number="'+esc(number)+'">Baixar PNG</button><button class="button button-dark" type="button" data-action="print-table-qr" data-table-number="'+esc(number)+'">Imprimir</button></div><p class="table-qr-footnote">Imprima em tamanho legível e teste o código com a câmera de um celular antes de fixá-lo na mesa.</p></section></div>';
+  try{new QRCode(root.getElementById('tableQrCode'),{text:url,width:280,height:280,colorDark:'#1b1530',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H})}
+  catch(error){root.getElementById('tableQrCode').innerHTML='<p class="error-text">Não foi possível gerar o QR Code neste navegador. Tente novamente.</p>';toast('Falha ao gerar o QR Code.')}
+}
+function closeTableQr(){const target=root.getElementById('tableQrModalRoot');if(target)target.innerHTML=''}
+function downloadTableQr(number){
+  const canvas=root.querySelector('#tableQrCode canvas');const image=root.querySelector('#tableQrCode img');let dataUrl='';
+  try{if(canvas)dataUrl=canvas.toDataURL('image/png');else if(image?.src?.startsWith('data:image/'))dataUrl=image.src}catch{}
+  if(!dataUrl)return toast('O QR Code ainda não está pronto para baixar.');
+  const link=root.createElement('a');link.href=dataUrl;link.download='menuza-mesa-'+String(number).padStart(2,'0')+'-qrcode.png';root.body.appendChild(link);link.click();link.remove();
 }
 async function renderTablesAdmin(){
   const target=root.getElementById('adminBody');
   if(!target)return;
-  target.innerHTML='<div class="loading-line">Carregando salão 3D…</div>';
+  target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const result=await api('/api/admin/tables'),tables=result.tables||[],counts=result.counts||{};
     const labels={free:'Livre',occupied:'Ocupada',cleaning:'Precisa de limpeza'};
     const icons={free:'✓',occupied:'●',cleaning:'✦'};
-    const cards=tables.map(table=>'<article class="table-unit status-'+esc(table.status)+'">'+
-      '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+'">'+
-      '<span class="table-chair chair-n"></span><span class="table-chair chair-e"></span><span class="table-chair chair-s"></span><span class="table-chair chair-w"></span>'+
-      '<span class="table-top"><span class="table-top-number">'+String(table.number).padStart(2,'0')+'</span><span class="table-top-status">'+icons[table.status]+'</span></span>'+
-      '<span class="table-leg table-leg-a"></span><span class="table-leg table-leg-b"></span></button>'+
-      '<div class="table-unit-meta"><strong>Mesa '+table.number+'</strong><span>'+table.seats+' lugares</span></div>'+
+    const cards=tables.map(table=>{
+      const seats=Math.max(1,Math.min(8,Number(table.seats)||4));
+      const shape=seats<=2?'round':seats>=6?'rectangle':'square';
+      const chairPositions = {
+        2: ['n','s'],
+        3: ['n','e','s'],
+        4: ['n','e','s','w'],
+        5: ['n','n2','e','s','w'],
+        6: ['n','n2','s','s2','e','w'],
+        7: ['n','n2','s','s2','e','w','w2'],
+        8: ['n','n2','s','s2','e','e2','w','w2']
+      };
+      const chairs = (chairPositions[seats] || chairPositions[4])
+        .map(position => '<span class="table-chair chair-'+position+'" aria-hidden="true"></span>').join('');
+      return '<article class="table-unit status-'+esc(table.status)+' table-shape-'+shape+'">'+
+      '<button class="table-object" type="button" data-table-status="select" data-table-id="'+esc(table.id)+'" aria-label="Mesa '+table.number+', '+labels[table.status]+', '+seats+' lugares">'+
+      chairs+
+      '<span class="table-top"><span class="table-setting table-setting-a"><i></i><b></b></span><span class="table-setting table-setting-b"><i></i><b></b></span><span class="table-top-number">'+String(table.number).padStart(2,'0')+'</span><span class="table-top-status">'+icons[table.status]+'</span></span>'+
+      '<span class="table-leg table-leg-a"></span><span class="table-leg table-leg-b"></span><span class="table-leg table-leg-c"></span><span class="table-leg table-leg-d"></span></button>'+
+      '<div class="table-unit-meta"><strong>Mesa '+table.number+'</strong><span>'+seats+' '+(seats===1?'lugar':'lugares')+'</span></div>'+
       '<div class="table-status-label">'+labels[table.status]+'</div><div class="table-status-actions">'+
       '<button type="button" data-table-status="free" data-table-id="'+esc(table.id)+'" '+(table.status==='free'?'aria-pressed="true"':'')+'>Livre</button>'+
       '<button type="button" data-table-status="occupied" data-table-id="'+esc(table.id)+'" '+(table.status==='occupied'?'aria-pressed="true"':'')+'>Ocupada</button>'+
-      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div></article>').join('');
+      '<button type="button" data-table-status="cleaning" data-table-id="'+esc(table.id)+'" '+(table.status==='cleaning'?'aria-pressed="true"':'')+'>Limpeza</button></div>'+
+      '<button class="button button-outline button-small table-qr-button" type="button" data-action="show-table-qr" data-table-number="'+esc(table.number)+'" data-table-token="'+esc(table.qrToken)+'">QR Code da mesa</button></article>';
+    }).join('');
     target.innerHTML='<section class="table-manager"><div class="table-manager-heading"><div><div class="eyebrow">MAPA DO SALÃO</div><h2>Gerenciamento de mesas</h2><p>Visualize o salão e atualize a situação de cada mesa.</p></div><div class="table-live"><span></span> Dados salvos no sistema</div></div>'+
       '<div class="table-stats"><div class="table-stat table-stat-free"><span>Livres</span><b>'+(counts.free||0)+'</b></div><div class="table-stat table-stat-occupied"><span>Ocupadas</span><b>'+(counts.occupied||0)+'</b></div><div class="table-stat table-stat-cleaning"><span>Precisam de limpeza</span><b>'+(counts.cleaning||0)+'</b></div></div>'+
-      '<div class="table-map-shell"><div class="table-map-top"><span>VISÃO ISOMÉTRICA</span><span>'+tables.length+' mesas · clique nos status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-grid">'+cards+'</div></div></div>'+
-      '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section>';
+      '<div class="table-map-shell"><div class="table-map-top"><span>PLANTA DO SALÃO</span><span>'+tables.length+' mesas · selecione o status para atualizar</span></div><div class="table-map"><div class="table-map-wall table-map-wall-back"></div><div class="table-map-wall table-map-wall-side"></div><div class="table-map-counter"><span>ATENDIMENTO</span><i></i><i></i><i></i></div><div class="table-map-entry"><span>ENTRADA</span><i></i></div><div class="table-map-plant table-map-plant-a"><i></i></div><div class="table-map-plant table-map-plant-b"><i></i></div><div class="table-map-grid">'+cards+'</div></div></div>'+
+      '<div class="table-manager-foot"><span>As alterações ficam salvas no banco de dados. Cada mesa tem um QR Code exclusivo.</span><button class="button button-outline button-small" type="button" data-action="refresh-tables">Atualizar mapa</button></div></section><div id="tableQrModalRoot"></div>';
   }catch(error){target.innerHTML='<section class="admin-panel"><p class="error-text" role="alert">'+esc(error.message)+'</p></section>'}
+}
+
+const ACCESSIBILITY_STORAGE_KEY='menuza-accessibility-v1';
+const ACCESSIBILITY_DEFAULTS={fontScale:1,theme:'light',palette:'violet',contrast:false,readableFont:false,spacing:'normal',underlineLinks:false,reduceMotion:false};
+function getAccessibilityPreferences(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ACCESSIBILITY_STORAGE_KEY)||'{}');
+    const value={...ACCESSIBILITY_DEFAULTS,...(saved&&typeof saved==='object'?saved:{})};
+    value.fontScale=[0.9,1,1.1,1.2,1.3,1.4].includes(Number(value.fontScale))?Number(value.fontScale):1;
+    value.theme=['light','dark'].includes(value.theme)?value.theme:'light';
+    value.palette=['violet','ocean','green','amber','rose'].includes(value.palette)?value.palette:'violet';
+    value.spacing=['normal','comfortable','wide'].includes(value.spacing)?value.spacing:'normal';
+    for(const key of ['contrast','readableFont','underlineLinks','reduceMotion'])value[key]=value[key]===true;
+    return value;
+  }catch{return {...ACCESSIBILITY_DEFAULTS}}
+}
+function applyAccessibilityPreferences(preferences=getAccessibilityPreferences()){
+  const html=root.documentElement;
+  // O tema visual é exclusivo do painel autenticado do restaurante.
+  // A página pública do cardápio e a experiência do cliente permanecem claras.
+  html.dataset.mzPalette=preferences.palette;
+  html.dataset.mzContrast=preferences.contrast?'high':'normal';
+  html.dataset.mzFont=preferences.readableFont?'readable':'default';
+  html.dataset.mzSpacing=preferences.spacing;
+  html.dataset.mzLinks=preferences.underlineLinks?'underlined':'default';
+  html.dataset.mzMotion=preferences.reduceMotion?'reduced':'default';
+  html.style.setProperty('--mz-access-font-scale',String(preferences.fontScale));
+  applyRestaurantTheme(preferences.theme);
+}
+function applyRestaurantTheme(theme=getAccessibilityPreferences().theme){
+  const shell=root.querySelector('.admin-shell-v2');
+  if(shell)shell.dataset.mzAdminTheme=theme==='dark'?'dark':'light';
+}
+function saveAccessibilityPreferences(preferences){
+  try{localStorage.setItem(ACCESSIBILITY_STORAGE_KEY,JSON.stringify(preferences));applyAccessibilityPreferences(preferences);return true}
+  catch{applyAccessibilityPreferences(preferences);return false}
+}
+applyAccessibilityPreferences();
+
+async function renderOpeningHoursAdmin(){
+  const target=root.getElementById('adminBody');if(!target)return;
+  target.innerHTML=skeletonMarkup('content');
+  const names=[['1','Segunda-feira'],['2','Terça-feira'],['3','Quarta-feira'],['4','Quinta-feira'],['5','Sexta-feira'],['6','Sábado'],['7','Domingo']];
+  try{
+    const result=await api('/api/admin/opening-hours');
+    const schedule=result.openingHours||{configured:false,days:{}};
+    const rows=names.map(([key,label])=>{
+      const day=schedule.days?.[key]||{enabled:false,periods:[]};
+      const periods=(day.periods||[]).map(period=>'<div class="opening-hours-period" data-hours-period><label><span>Abertura</span><input type="time" data-hours-open value="'+esc(period.open)+'" required></label><label><span>Fechamento</span><input type="time" data-hours-close value="'+esc(period.close)+'" required></label><button type="button" class="opening-hours-remove" data-action="remove-hours-period" aria-label="Remover período">×</button></div>').join('');
+      return '<section class="opening-hours-day" data-hours-day="'+key+'"><div class="opening-hours-day-head"><label><input type="checkbox" data-hours-enabled '+(day.enabled?'checked':'')+'><strong>'+label+'</strong></label><span class="opening-hours-day-state">'+(day.enabled?'Aberto':'Fechado')+'</span></div><div class="opening-hours-periods">'+periods+'</div><button type="button" class="button button-outline button-small" data-action="add-hours-period" data-day="'+key+'">+ Adicionar período</button></section>';
+    }).join('');
+    target.innerHTML='<div class="settings-intro"><div><div class="eyebrow">EXPEDIENTE DO RESTAURANTE</div><h2>Horários de funcionamento</h2><p>Defina quando o cardápio aceita novos pedidos. Os horários serão exibidos para os clientes.</p></div><span class="settings-status"><span></span> Fuso de Brasília</span></div><section class="admin-panel opening-hours-panel"><div class="opening-hours-help"><strong>Configure cada dia da semana</strong><p>Você pode cadastrar até quatro períodos por dia, por exemplo, almoço e jantar. Desmarque os dias em que o restaurante não abre.</p></div><form id="openingHoursForm" novalidate><div class="opening-hours-days">'+rows+'</div><div class="settings-actions"><p class="error-text" id="openingHoursError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar horários</button></div></form></section>';
+    const form=root.getElementById('openingHoursForm');
+    form.addEventListener('change',event=>{if(event.target.matches('[data-hours-enabled]')){const day=event.target.closest('[data-hours-day]');day?.querySelector('.opening-hours-day-state')?.replaceChildren(document.createTextNode(event.target.checked?'Aberto':'Fechado'));}});
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const button=form.querySelector('[type=submit]'),error=root.getElementById('openingHoursError');
+      const days={};
+      for(const day of form.querySelectorAll('[data-hours-day]')){
+        const enabled=day.querySelector('[data-hours-enabled]').checked;
+        const rows=[...day.querySelectorAll('[data-hours-period]')];
+        const periods=enabled?rows.map(row=>({open:row.querySelector('[data-hours-open]').value,close:row.querySelector('[data-hours-close]').value})).filter(period=>period.open||period.close):[];
+        if(enabled&&!periods.length){
+          error.textContent='Informe pelo menos um período completo para cada dia marcado como aberto.';
+          day.querySelector('[data-hours-open]')?.focus();
+          return;
+        }
+        for(const period of periods){
+          if(!period.open||!period.close){
+            error.textContent='Preencha os horários de abertura e fechamento de todos os períodos dos dias abertos.';
+            return;
+          }
+          if(period.close<=period.open){
+            error.textContent='O horário de fechamento deve ser posterior ao de abertura. Para atravessar a meia-noite, cadastre o período em dois dias.';
+            return;
+          }
+        }
+        days[day.dataset.hoursDay]={enabled,periods};
+      }
+      button.disabled=true;button.textContent='Salvando…';error.textContent='';
+      try{
+        await api('/api/admin/opening-hours',{method:'PATCH',body:JSON.stringify({days})});
+        toast('Horários de funcionamento salvos.');
+        button.disabled=false;button.textContent='Salvar horários';
+      }catch(e){
+        error.textContent=e.message||'Não foi possível salvar os horários.';
+        button.disabled=false;button.textContent='Salvar horários';
+      }
+    });
+  }catch(error){target.innerHTML='<section class="admin-panel"><h2>Não foi possível carregar os horários</h2><p>'+esc(error.message)+'</p></section>'}
 }
 async function renderSettingsAdmin(){
   const target=root.getElementById('adminBody');
   if(!target)return;
-  target.innerHTML='<div class="loading-line">Carregando configurações…</div>';
+  target.innerHTML=''+skeletonMarkup('content')+'';
   try{
-    const {restaurant}=await api('/api/admin/settings');
+    const settingsResult=await api('/api/admin/settings');
+    const securityResult=await api('/api/admin/security');
+    const restaurant=settingsResult?.restaurant&&typeof settingsResult.restaurant==='object'?settingsResult.restaurant:{};
     const initialName=String(restaurant.name||'').trim();
     const initialPrep=Number(restaurant.prepMinutes)||30;
+    const initialLogoUrl=String(restaurant.logoUrl||'').trim();
+    const initialGoogleReviewUrl=String(restaurant.googleReviewUrl||'').trim();
     target.innerHTML=`
       <div class="settings-intro">
-        <div><div class="eyebrow">PERSONALIZE SUA EXPERIÊNCIA</div><h2>Seu restaurante, do seu jeito.</h2><p>Atualize as informações que seus clientes veem no cardápio.</p></div>
+        <div><div class="eyebrow">RESTAURANTE E SEGURANÇA</div><h2>Configurações do restaurante.</h2><p>Gerencie os dados exibidos aos clientes e proteja o acesso administrativo nesta mesma aba.</p></div>
         <span class="settings-status" id="settingsStatus"><span></span> Tudo salvo</span>
       </div>
+      <section class="admin-panel menu-general-qr-panel" id="adminSecuritySettings">
+        <div class="admin-panel-head"><div><h2>Autenticação em duas etapas</h2><small>Proteja o acesso administrativo com um aplicativo autenticador.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('shield',20)}</span></div>
+        <div id="adminSecurityContent">
+          <p id="adminSecurityStatus">${securityResult.twoFactorEnabled?'A autenticação em duas etapas está ativa.':'A autenticação em duas etapas está desativada.'}</p>
+          ${securityResult.managedByEnvironment?'<p class="field-hint">A autenticação está protegida pela variável ADMIN_TOTP_SECRET da Vercel. O QR Code permite cadastrar a chave atual no aplicativo sem alterar a configuração do servidor.</p>':''}
+          <div class="settings-actions"><button class="button button-dark button-small" type="button" id="adminTwoFactorSetup" ${securityResult.twoFactorEnabled&&!securityResult.managedByEnvironment?'disabled':''}>${securityResult.managedByEnvironment?'Gerar QR Code do autenticador atual':'Ativar autenticação em duas etapas'}</button>${securityResult.twoFactorEnabled&&!securityResult.managedByEnvironment?'<button class="button button-outline button-small" type="button" id="adminTwoFactorDisable">Desativar 2FA</button>':''}</div>
+          ${securityResult.twoFactorEnabled&&securityResult.recoveryCodesRemaining!==null?'<small class="field-hint">Códigos de recuperação disponíveis: '+Number(securityResult.recoveryCodesRemaining)+'</small>':''}
+          <p class="field-hint" id="adminSecurityMessage" role="status" aria-live="polite"></p>
+        </div>
+      </section>
       <div class="settings-layout">
         <section class="admin-panel settings-panel">
-          <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">✳</span></div>
+          <div class="admin-panel-head"><div><h2>Informações do restaurante</h2><small>Esses dados aparecem para seus clientes.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('sparkles',20)}</span></div>
           <form id="restaurantSettingsForm" class="settings-form">
             <label class="form-field"><span>Nome do restaurante</span><input name="name" required minlength="2" maxlength="80" value="${esc(initialName)}" placeholder="Ex.: Bela Mesa" autocomplete="organization"><small class="field-hint">Escolha um nome curto e fácil de reconhecer.</small></label>
+            <div class="form-field logo-upload-field"><span>Logo do restaurante</span><div class="logo-upload-control"><label class="logo-upload-button" for="restaurantLogoFile"><span aria-hidden="true">${uiIcon('arrow',16)}</span> Escolher imagem</label><input id="restaurantLogoFile" name="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="logo-upload-preview" id="restaurantLogoPreview">${initialLogoUrl ? `<img src="${esc(initialLogoUrl)}" alt="Prévia da logo atual">` : '<span>Logo</span>'}</div></div><small class="field-hint">Envie PNG, JPG ou WebP de até 8 MB. A imagem será comprimida e salva automaticamente em WebP, preservando a transparência.</small><label class="logo-remove-option"><input type="checkbox" name="removeLogo" id="restaurantLogoRemove"><span>Remover logo e usar as iniciais do restaurante</span></label></div>
+            <label class="form-field"><span>Link de avaliação no Google</span><input name="googleReviewUrl" type="url" maxlength="1000" value="${esc(initialGoogleReviewUrl)}" placeholder="https://share.google/..."><small class="field-hint">Esse link cria a aba “Avalie no Google” no cardápio do cliente. Deixe vazio para ocultar a aba.</small></label>
             <label class="form-field"><span>Tempo médio de preparo</span><div class="settings-number-wrap"><input name="prepMinutes" type="number" min="5" max="240" step="5" required value="${initialPrep}"><span>minutos</span></div><small class="field-hint">Use uma estimativa realista. Você pode alterar quando precisar.</small></label>
             <div class="settings-note"><span aria-hidden="true">i</span><p>O tempo informado é uma estimativa para orientar o cliente, não uma promessa de horário exato.</p></div>
             <div class="settings-actions"><p class="error-text" id="settingsError" role="alert"></p><button class="button button-dark button-small" type="submit">Salvar alterações <span aria-hidden="true">↗</span></button></div>
@@ -690,62 +2357,240 @@ async function renderSettingsAdmin(){
         <aside class="settings-side">
           <section class="settings-preview-card">
             <div class="settings-preview-top"><span>PRÉVIA DO CARDÁPIO</span><span class="preview-live-dot">AO VIVO</span></div>
-            <div class="settings-preview-art" aria-hidden="true"><div class="preview-plate"><span>✳</span></div><i class="preview-spark spark-one"></i><i class="preview-spark spark-two"></i></div>
+            <div class="settings-preview-art" aria-hidden="true"><div class="preview-plate"><span>${uiIcon('sparkles',18)}</span></div><i class="preview-spark spark-one"></i><i class="preview-spark spark-two"></i></div>
             <div class="settings-preview-copy"><span class="eyebrow">BEM-VINDO AO</span><h3 id="settingsPreviewName">${esc(initialName||'Seu restaurante')}</h3><p>Feito para deixar sua experiência mais saborosa.</p><div class="settings-preview-meta"><span><span aria-hidden="true">◷</span> <b id="settingsPreviewPrep">${initialPrep} min</b> de preparo</span><span class="preview-open-pill"><i></i> Cardápio</span></div></div>
           </section>
-          <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">⌑</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
+          <section class="admin-panel settings-security-card"><div class="settings-security-icon" aria-hidden="true">${uiIcon('shield',22)}</div><div><h3>Acesso protegido</h3><p>Seu painel usa uma sessão protegida por cookie HttpOnly. Mantenha as credenciais administrativas configuradas no ambiente de produção.</p></div></section>
         </aside>
-      </div>`;
+      </div>
+
+      <section class="admin-panel menu-general-qr-panel"><div class="admin-panel-head"><div><h2>QR Code geral do cardápio</h2><small>Um único código para divulgar o cardápio inteiro, sem associação a mesas.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('grid',20)}</span></div><p>Baixe ou imprima o QR para colocar na entrada, balcão, embalagens e materiais de divulgação. O código permanece igual enquanto o endereço público do sistema não mudar.</p><div class="settings-actions"><button class="button button-dark button-small" type="button" data-action="show-menu-qr">Gerar QR Code do cardápio</button></div><div id="menuQrModalRoot"></div></section>
+      <section class="admin-panel accessibility-settings-panel" aria-labelledby="accessibilitySettingsTitle">
+        <div class="admin-panel-head"><div><h2 id="accessibilitySettingsTitle">Acessibilidade e aparência</h2><small>Personalize a leitura e a navegação em todo o Menuza. As escolhas ficam salvas neste dispositivo.</small></div><span class="settings-section-icon" aria-hidden="true">${uiIcon('info',20)}</span></div>
+        <div class="accessibility-settings-grid">
+          <div class="accessibility-setting-group">
+            <label for="accessibilityFontScale">Tamanho da fonte</label>
+            <div class="accessibility-range-row"><input id="accessibilityFontScale" type="range" min="0.9" max="1.4" step="0.1" value="1" aria-describedby="accessibilityFontScaleValue"><output id="accessibilityFontScaleValue" for="accessibilityFontScale">100%</output></div>
+            <p>Amplia os textos do sistema sem precisar usar o zoom do navegador.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilityTheme">Tema</label>
+            <select id="accessibilityTheme"><option value="light">Claro</option><option value="dark">Escuro</option></select>
+            <p>Escolha um tema mais confortável para o ambiente.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilityPalette">Cor de destaque</label>
+            <select id="accessibilityPalette"><option value="violet">Roxo Menuza</option><option value="ocean">Azul oceano</option><option value="green">Verde</option><option value="amber">Âmbar</option><option value="rose">Rosa</option></select>
+            <p>Altera a cor de destaque e os controles do sistema.</p>
+          </div>
+          <div class="accessibility-setting-group">
+            <label for="accessibilitySpacing">Espaçamento</label>
+            <select id="accessibilitySpacing"><option value="normal">Padrão</option><option value="comfortable">Confortável</option><option value="wide">Amplo</option></select>
+            <p>Aumenta o espaço entre linhas e elementos para facilitar a leitura.</p>
+          </div>
+          <label class="accessibility-toggle"><input id="accessibilityContrast" type="checkbox"><span><strong>Alto contraste</strong><small>Reforça o contraste entre texto, fundo, bordas e controles.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityReadableFont" type="checkbox"><span><strong>Fonte de alta legibilidade</strong><small>Usa uma família de fontes simples e bem distinguíveis.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityUnderlineLinks" type="checkbox"><span><strong>Sublinhar links</strong><small>Ajuda a identificar links sem depender apenas da cor.</small></span></label>
+          <label class="accessibility-toggle"><input id="accessibilityReduceMotion" type="checkbox"><span><strong>Reduzir animações</strong><small>Reduz movimentos e transições decorativas.</small></span></label>
+        </div>
+        <div class="accessibility-preview" aria-live="polite"><div><strong>Prévia de leitura</strong><p>Este é um exemplo de texto com as suas preferências de acessibilidade. Botões, links e campos também acompanham as configurações.</p><a href="#accessibilitySettingsTitle">Exemplo de link acessível</a></div><button type="button" class="button button-outline" id="accessibilityReset">Restaurar padrão</button></div>
+        <p class="accessibility-save-status" id="accessibilitySaveStatus" role="status" aria-live="polite">Preferências aplicadas automaticamente neste dispositivo.</p>
+      </section>`;
+    const accessibility=getAccessibilityPreferences();
+    const accessibilityControls={
+      fontScale:root.getElementById('accessibilityFontScale'),
+      theme:root.getElementById('accessibilityTheme'),
+      palette:root.getElementById('accessibilityPalette'),
+      spacing:root.getElementById('accessibilitySpacing'),
+      contrast:root.getElementById('accessibilityContrast'),
+      readableFont:root.getElementById('accessibilityReadableFont'),
+      underlineLinks:root.getElementById('accessibilityUnderlineLinks'),
+      reduceMotion:root.getElementById('accessibilityReduceMotion')
+    };
+    accessibilityControls.fontScale.value=String(accessibility.fontScale);
+    accessibilityControls.theme.value=accessibility.theme;
+    accessibilityControls.palette.value=accessibility.palette;
+    accessibilityControls.spacing.value=accessibility.spacing;
+    for(const key of ['contrast','readableFont','underlineLinks','reduceMotion'])accessibilityControls[key].checked=accessibility[key];
+    const fontScaleValue=root.getElementById('accessibilityFontScaleValue');
+    const accessibilityStatus=root.getElementById('accessibilitySaveStatus');
+    const syncAccessibility=()=>{
+      const next={
+        fontScale:Number(accessibilityControls.fontScale.value),
+        theme:accessibilityControls.theme.value,
+        palette:accessibilityControls.palette.value,
+        spacing:accessibilityControls.spacing.value,
+        contrast:accessibilityControls.contrast.checked,
+        readableFont:accessibilityControls.readableFont.checked,
+        underlineLinks:accessibilityControls.underlineLinks.checked,
+        reduceMotion:accessibilityControls.reduceMotion.checked
+      };
+      fontScaleValue.value=Math.round(next.fontScale*100)+'%';
+      fontScaleValue.textContent=fontScaleValue.value;
+      const saved=saveAccessibilityPreferences(next);
+      accessibilityStatus.textContent=saved?'Preferências aplicadas e salvas neste dispositivo.':'Preferências aplicadas nesta sessão; o navegador não permitiu salvá-las.';
+    };
+    for(const control of Object.values(accessibilityControls))control.addEventListener('input',syncAccessibility);
+    root.getElementById('accessibilityReset').addEventListener('click',()=>{
+      for(const [key,control] of Object.entries(accessibilityControls)){
+        if(key==='fontScale')control.value=String(ACCESSIBILITY_DEFAULTS.fontScale);
+        else if(key==='theme'||key==='palette'||key==='spacing')control.value=ACCESSIBILITY_DEFAULTS[key];
+        else control.checked=ACCESSIBILITY_DEFAULTS[key];
+      }
+      syncAccessibility();
+    });
+
+    const securityContent=root.getElementById('adminSecurityContent'),setupTwoFactor=root.getElementById('adminTwoFactorSetup'),disableTwoFactor=root.getElementById('adminTwoFactorDisable'),securityMessage=root.getElementById('adminSecurityMessage');
+    async function loadSecurityQrLibrary(){
+      if(window.QRCode)return;
+      await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/qrcode.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('Não foi possível carregar o gerador local de QR Code. Atualize a página e tente novamente.'));document.head.appendChild(script);});
+      if(!window.QRCode)throw new Error('Gerador local de QR Code indisponível.');
+    }
+    function renderSecurityQr(element,uri,size=240){
+      if(!element||!window.QRCode)throw new Error('Gerador de QR Code indisponível.');
+      element.replaceChildren();
+      new window.QRCode(element,{text:uri,width:size,height:size,colorDark:'#111111',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
+    }
+    if(setupTwoFactor)setupTwoFactor.addEventListener('click',async()=>{
+      const password=window.prompt('Confirme sua senha administrativa para configurar o autenticador:');if(password===null)return;
+      setupTwoFactor.disabled=true;securityMessage.textContent='Preparando configuração segura…';
+      try{
+        if(securityResult.managedByEnvironment){
+          const setup=await api('/api/admin/security/environment-qr',{method:'POST',body:JSON.stringify({password})});
+          securityContent.innerHTML='<div class="settings-note"><span>1</span><p>Escaneie este QR Code com Google Authenticator, Microsoft Authenticator ou outro aplicativo compatível com TOTP. Ele representa a chave já configurada na Vercel; não é necessário alterar a variável de ambiente.</p></div><div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin:18px 0"><div id="adminTwoFactorQr" role="img" aria-label="QR Code do autenticador administrativo Menuza" style="width:240px;height:240px;background:#fff;padding:8px;border-radius:8px"></div><div style="min-width:220px;flex:1"><strong>Autenticador administrativo Menuza</strong><p class="field-hint">Não compartilhe este QR Code. Qualquer pessoa que o escanear poderá gerar códigos para acessar a área administrativa.</p></div></div><div class="settings-actions"><button type="button" class="button button-outline button-small" id="adminTwoFactorCloseQr">Fechar QR Code</button></div>';
+          try{await loadSecurityQrLibrary();renderSecurityQr(root.getElementById('adminTwoFactorQr'),setup.otpauthUri,240);}
+          catch(error){root.getElementById('adminTwoFactorQr').insertAdjacentHTML('afterend','<p class="field-hint">'+esc(error.message)+'</p>');}
+          root.getElementById('adminTwoFactorCloseQr').addEventListener('click',()=>renderSettingsAdmin());
+          securityMessage.textContent='';
+          return;
+        }
+        const setup=await api('/api/admin/security/setup',{method:'POST',body:JSON.stringify({password})});
+        securityContent.innerHTML='<div class="settings-note"><span>1</span><p>Escaneie o QR Code com Google Authenticator, Microsoft Authenticator ou outro aplicativo TOTP. A chave também pode ser cadastrada manualmente.</p></div><div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin:18px 0"><div id="adminTwoFactorQr" role="img" aria-label="QR Code para configurar autenticação em duas etapas" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:8px"></div><div style="min-width:220px;flex:1"><strong>Chave de configuração manual</strong><p id="adminTwoFactorSecret" style="font-family:monospace;overflow-wrap:anywhere;letter-spacing:1px"></p><button type="button" class="button button-outline button-small" id="adminCopyTwoFactorSecret">Copiar chave</button><p class="field-hint">Esta chave é exibida somente durante a configuração. Não compartilhe com ninguém.</p></div></div><form id="adminTwoFactorConfirmForm" class="settings-form"><label class="form-field"><span>2. Código de seis dígitos do aplicativo</span><input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></label><p class="error-text" id="adminTwoFactorConfirmError" role="alert"></p><div class="settings-actions"><button class="button button-dark button-small" type="submit">Confirmar e ativar 2FA</button><button class="button button-outline button-small" type="button" id="adminTwoFactorCancel">Cancelar</button></div></form>';
+        root.getElementById('adminTwoFactorSecret').textContent=setup.secret;
+        root.getElementById('adminCopyTwoFactorSecret').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(setup.secret);toast('Chave copiada.');}catch{toast('Não foi possível copiar automaticamente.');}});
+        root.getElementById('adminTwoFactorCancel').addEventListener('click',()=>renderSettingsAdmin());
+        try{await loadSecurityQrLibrary();renderSecurityQr(root.getElementById('adminTwoFactorQr'),setup.otpauthUri,220);}
+        catch(error){root.getElementById('adminTwoFactorQr').insertAdjacentHTML('afterend','<p class="field-hint">'+esc(error.message)+'</p>');}
+        root.getElementById('adminTwoFactorConfirmForm').addEventListener('submit',async event=>{
+          event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('adminTwoFactorConfirmError');
+          button.disabled=true;button.textContent='Validando…';errorNode.textContent='';
+          try{
+            const result=await api('/api/admin/security/confirm',{method:'POST',body:JSON.stringify({otp:String(new FormData(form).get('otp')||'').trim()})});
+            securityContent.innerHTML='<h3>Autenticação em duas etapas ativada</h3><p>Guarde estes códigos em um local seguro. Cada código pode ser usado uma única vez e eles não serão exibidos novamente.</p><pre id="adminRecoveryCodes" style="white-space:pre-wrap;padding:14px;background:var(--surface-muted,#f4f4f5);border-radius:10px;font-family:monospace;line-height:1.8"></pre><div class="settings-actions"><button type="button" class="button button-dark button-small" id="adminCopyRecoveryCodes">Copiar códigos de recuperação</button><button type="button" class="button button-outline button-small" id="adminFinishTwoFactor">Concluir</button></div>';
+            const recoveryText=result.recoveryCodes.join('\n');root.getElementById('adminRecoveryCodes').textContent=recoveryText;
+            root.getElementById('adminCopyRecoveryCodes').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(recoveryText);toast('Códigos de recuperação copiados.');}catch{toast('Não foi possível copiar automaticamente.');}});
+            root.getElementById('adminFinishTwoFactor').addEventListener('click',()=>renderAdminLogin('2FA ativado. Entre novamente com sua senha e o código do autenticador.'));
+            toast('Autenticação em duas etapas ativada.');
+          }catch(error){errorNode.textContent=error.message;button.disabled=false;button.textContent='Tentar novamente';}
+        });
+      }catch(error){securityMessage.textContent=error.message;setupTwoFactor.disabled=false;}
+    });
+    if(disableTwoFactor)disableTwoFactor.addEventListener('click',async()=>{
+      const password=window.prompt('Confirme sua senha administrativa:');if(password===null)return;
+      const factor=window.prompt('Informe o código atual de 6 dígitos ou um código de recuperação:');if(factor===null)return;
+      disableTwoFactor.disabled=true;securityMessage.textContent='Validando…';
+      try{const value=factor.trim(),body={password,...(/^\d{6}$/.test(value)?{otp:value}:{recoveryCode:value})};await api('/api/admin/security/disable',{method:'POST',body:JSON.stringify(body)});toast('2FA desativado. Entre novamente para iniciar uma nova sessão.');renderAdminLogin('A autenticação em duas etapas foi desativada. Entre novamente.');}
+      catch(error){securityMessage.textContent=error.message;disableTwoFactor.disabled=false;}
+    });
     const form=root.getElementById('restaurantSettingsForm');
     const nameInput=form.elements.name;
     const prepInput=form.elements.prepMinutes;
+    const googleReviewInput=form.elements.googleReviewUrl;
+    const logoFileInput=form.elements.logoFile;
+    const removeLogoInput=form.elements.removeLogo;
+    const logoPreview=root.getElementById('restaurantLogoPreview');
+    let selectedLogoData='';
     const status=root.getElementById('settingsStatus');
     const saveButton=form.querySelector('button[type="submit"]');
     const setDirty=()=>{
       root.getElementById('settingsPreviewName').textContent=nameInput.value.trim()||'Seu restaurante';
       root.getElementById('settingsPreviewPrep').textContent=(Number(prepInput.value)||0)+' min';
-      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep;
+      const dirty=nameInput.value.trim()!==initialName||Number(prepInput.value)!==initialPrep||googleReviewInput.value.trim()!==initialGoogleReviewUrl||Boolean(logoFileInput.files?.length)||removeLogoInput.checked;
       status.classList.toggle('is-dirty',dirty);
       status.innerHTML=dirty?'<span></span> Alterações não salvas':'<span></span> Tudo salvo';
       saveButton.disabled=!dirty;
       root.getElementById('settingsError').textContent='';
     };
     form.addEventListener('input',setDirty);
+    logoFileInput.addEventListener('change',async()=>{
+      selectedLogoData='';
+      const file=logoFileInput.files?.[0],error=root.getElementById('settingsError');
+      if(!file){logoPreview.innerHTML=initialLogoUrl?'<img src="'+esc(initialLogoUrl)+'" alt="Prévia da logo atual">':'<span>Logo</span>';setDirty();return}
+      try{
+        error.textContent='Comprimindo logo em WebP…';
+        selectedLogoData=await imageFileToWebp(file,{maxDimension:1000,quality:0.84,maxBytes:900*1024,background:null});
+        logoPreview.innerHTML='<img alt="Prévia da nova logo">';
+        logoPreview.querySelector('img').src=selectedLogoData;
+        removeLogoInput.checked=false;
+        error.textContent='';
+        setDirty();
+      }catch(e){
+        error.textContent=e.message||'Não foi possível preparar a logo.';
+        logoFileInput.value='';
+        selectedLogoData='';
+      }
+    });
+    removeLogoInput.addEventListener('change',()=>{
+      if(removeLogoInput.checked){logoFileInput.value='';selectedLogoData='';logoPreview.innerHTML='<span>Logo</span>'}
+      else logoPreview.innerHTML=initialLogoUrl?'<img src="'+esc(initialLogoUrl)+'" alt="Prévia da logo atual">':'<span>Logo</span>';
+      setDirty();
+    });
     saveButton.disabled=true;
     form.addEventListener('submit',async event=>{
       event.preventDefault();
       const data=new FormData(form);
       const name=String(data.get('name')||'').trim();
       const prepMinutes=Number(data.get('prepMinutes'));
+      const logoUrl=removeLogoInput.checked?'':(selectedLogoData||initialLogoUrl);
+      const googleReviewUrl=googleReviewInput.value.trim();
       const error=root.getElementById('settingsError');
       if(name.length<2||!Number.isFinite(prepMinutes)||prepMinutes<5||prepMinutes>240){error.textContent='Confira o nome e o tempo de preparo antes de salvar.';return}
+      if(googleReviewUrl&&!/^https:\/\//i.test(googleReviewUrl)){error.textContent='Informe um link seguro do Google começando com https://.';return}
       saveButton.disabled=true;saveButton.textContent='Salvando…';error.textContent='';
       try{
-        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes})});
-        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes}
-        applyRestaurantBranding(result.restaurant.name);
+        const result=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({name,prepMinutes,logoUrl,googleReviewUrl})});
+        if(app.catalog?.restaurant){app.catalog.restaurant.name=result.restaurant.name;app.catalog.restaurant.prepMinutes=result.restaurant.prepMinutes;app.catalog.restaurant.logoUrl=result.restaurant.logoUrl||'';app.catalog.restaurant.googleReviewUrl=result.restaurant.googleReviewUrl||'';renderGoogleReviewLinks()}
+        applyRestaurantBranding(result.restaurant.name,result.restaurant.logoUrl);
         toast('Configurações salvas.');
         await renderSettingsAdmin();
       }catch(e){error.textContent=e.message;saveButton.disabled=false;saveButton.innerHTML='Tentar novamente <span aria-hidden="true">↗</span>'}
     });
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
-function applyRestaurantBranding(name){
+function applyRestaurantBranding(name,logoUrl=''){
   const clean=String(name||'').trim();
   if(!clean)return;
-  const announcement=root.querySelector('.announcement');
-  if(announcement){const label=announcement.querySelector('span:not(.live-dot):not(.announcement-divider):not(.announcement-right)');if(label)label.textContent='Restaurante: '+clean}
+  const initials=clean.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toLocaleUpperCase('pt-BR');
+  for(const brand of root.querySelectorAll('[data-restaurant-brand]')){
+    const label=brand.querySelector('[data-restaurant-name]');
+    if(label)label.textContent=clean;
+    const image=brand.querySelector('[data-restaurant-logo]');
+    const fallback=brand.querySelector('[data-restaurant-initials]');
+    if(image){
+      image.alt='Logo de '+clean;
+      image.hidden=!logoUrl;
+      image.onerror=()=>{image.hidden=true;if(fallback)fallback.hidden=false};
+      image.onload=()=>{if(fallback)fallback.hidden=true};
+      if(logoUrl){image.src=logoUrl}else{image.removeAttribute('src')}
+    }
+    if(fallback){fallback.textContent=initials;fallback.hidden=Boolean(logoUrl)}
+    brand.setAttribute('aria-label',clean+' — início');
+  }
   const footer=root.querySelector('.footer-bottom');
-  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© Menuza · Cardápio digital de '+clean;
+  if(footer&&footer.firstElementChild)footer.firstElementChild.textContent='© '+clean+' · Cardápio digital com Menuza / Desenvolvido por Alexssander C. C. Cristino';
+  const announcement=root.querySelector('.announcement');
+  if(announcement)announcement.setAttribute('aria-label','Menuza, sistema de cardápio digital');
 }
 async function renderIngredientsAdmin(){
-  const target=root.getElementById('adminBody');target.innerHTML='<div class="loading-line">Carregando adicionais…</div>';
+  const target=root.getElementById('adminBody');target.innerHTML=''+skeletonMarkup('content')+'';
   try{
     const catalog=await api('/api/admin/catalog');
-    target.innerHTML=['pizza','burger'].map(type=>{
+    app.admin.ingredientsCache=catalog.ingredients||[];
+    target.innerHTML='<section class="ingredient-admin-panel ingredient-create-panel"><div class="ingredient-create-heading"><h2>Novo ingrediente</h2><p>Escolha em quais tipos de alimento este ingrediente poderá ser usado.</p></div><form class="ingredient-create-form" data-new-ingredient><div class="ingredient-create-fields"><label class="form-field"><span>Nome</span><input name="name" required minlength="2" maxlength="80" placeholder="Ex.: Pão, queijo, bacon..."></label><label class="form-field"><span>Grupo</span><input name="groupName" maxlength="50" value="Adicionais" placeholder="Ex.: Queijos, molhos, bases"></label></div><fieldset class="ingredient-type-picker"><legend>Tipos de alimento</legend><div class="ingredient-type-options"><label class="ingredient-type-option"><input type="checkbox" name="types" value="pizza"><span>Pizza</span></label><label class="ingredient-type-option"><input type="checkbox" name="types" value="burger"><span>Hambúrguer</span></label><label class="ingredient-type-option"><input type="checkbox" name="types" value="plate"><span>Hot dog</span></label></div></fieldset><div class="ingredient-create-footer"><label class="form-field ingredient-price-field"><span>Preço adicional</span><div class="ingredient-price-control"><span>R$</span><input name="price" type="number" min="0" max="9999.99" step="0.01" value="0.00" required inputmode="decimal"></div></label><button class="button button-dark ingredient-create-submit" type="submit">Cadastrar ingrediente</button></div><p class="ingredient-create-note">O mesmo nome pode ser cadastrado em tipos diferentes. A duplicidade só é bloqueada dentro do mesmo tipo.</p></form></section>'+['pizza','burger','plate'].map(type=>{
       const items=catalog.ingredients.filter(i=>i.type===type);
-      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes de pizza':'Adicionais de hambúrguer')+'</h2><small>'+items.length+' itens · preço por porção</small></div><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar '+(type==='pizza'?'ingrediente':'adicional')+'..." aria-label="Buscar '+(type==='pizza'?'ingredientes':'adicionais')+'"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
+      return '<section class="admin-panel ingredient-admin-panel"><div class="admin-panel-head"><h2>'+(type==='pizza'?'Ingredientes e adicionais de pizza':type==='burger'?'Ingredientes e adicionais de hambúrguer':'Ingredientes e adicionais de hot dogs')+'</h2><small>'+items.length+' itens · os adicionais pagos não são obrigatórios</small></div><label class="ingredient-admin-search"><span aria-hidden="true">⌕</span><input type="search" data-ingredient-search="'+type+'" placeholder="Buscar ingrediente..." aria-label="Buscar ingredientes"></label><div class="ingredient-admin-grid">'+items.map(i=>'<div class="ingredient-admin-row" data-ingredient-admin="'+esc(i.id)+'" data-name="'+esc(normalizeSearch(i.name))+'"><span>'+esc(i.name)+(i.included?' · incluso':'')+'</span><input type="number" min="0" max="9999.99" step="0.01" inputmode="decimal" aria-label="Preço adicional de '+esc(i.name)+'" value="'+(i.cents/100).toFixed(2)+'"><label><input type="checkbox" aria-label="Disponível: '+esc(i.name)+'" '+(i.active?'checked':'')+'></label><div class="ingredient-admin-actions"><button class="tiny-link" data-action="save-ingredient" data-id="'+esc(i.id)+'">Salvar</button><button class="tiny-link button-danger" data-action="delete-ingredient" data-id="'+esc(i.id)+'">Excluir</button></div></div>').join('')+'<p class="ingredient-search-empty" data-ingredient-empty="'+type+'" hidden>Nenhum item encontrado nessa busca.</p></div></section>';
     }).join('');
+    target.querySelector('[data-new-ingredient]').addEventListener('submit',event=>{event.preventDefault();createIngredient(target.querySelector('[data-new-ingredient]'))});
     target.querySelectorAll('[data-ingredient-search]').forEach(input=>input.addEventListener('input',()=>{
       const type=input.dataset.ingredientSearch,query=normalizeSearch(input.value);
       let visible=0;
@@ -754,15 +2599,145 @@ async function renderIngredientsAdmin(){
     }));
   }catch(e){target.innerHTML='<p class="error-text">'+esc(e.message)+'</p>'}
 }
+function adminPreviewIngredients(row,catalog){
+  if(!row)return [];
+  const ids=[...row.querySelectorAll('[data-product-select="recipe"] input:checked,[data-product-select="addons"] input:checked,.product-recipe-input input:checked,.product-addons-input input:checked')].map(input=>input.value);
+  return [...new Set(ids)].map(id=>catalog.ingredients.find(item=>item.id===id)).filter(Boolean).map(item=>{const quantityInput=row.querySelector('[data-ingredient-quantity="'+CSS.escape(item.id)+'"]');return {...item,quantity:quantityInput?Math.max(1,Math.min(20,Number(quantityInput.value)||1)):1}});
+}
+function syncAdminRecipe3DPreview(productId,row,catalog){
+  const preview=app.admin.recipePreview;
+  if(!preview||preview.productId!==productId||!preview.scene)return;
+  const product=productId==='admin-new-product-preview'
+    ? {id:productId,name:'Prévia',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  const ingredients=adminPreviewIngredients(row,catalog);
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{preview.scene.update(product,ingredients,size,{crustKey:'tradicional'});}catch(error){toast(error.message||'Não foi possível atualizar o modelo 3D.');}
+}
+function openAdminRecipe3D(productId){
+  const catalog=app.admin.recipePreviewCatalog;
+  if(!catalog)return;
+  const isNew=productId==='admin-new-product-preview';
+  const row=isNew?root.getElementById('newProductForm'):root.querySelector('[data-product-admin="'+CSS.escape(productId)+'"]');
+  const select=row?.querySelector(isNew?'[data-product-select="recipe"]':'.product-recipe-input');
+  if(!select)return;
+  const product=isNew
+    ? {id:productId,name:'Prévia da receita',type:root.getElementById('newProductType')?.value||'pizza',baseCents:0}
+    : catalog.products.find(item=>item.id===productId);
+  if(!product)return;
+  app.admin.recipePreview?.scene?.dispose?.();
+  root.getElementById('adminRecipe3dPreview')?.remove();
+  const overlay=root.createElement('div');
+  overlay.id='adminRecipe3dPreview';
+  overlay.className='modal-backdrop admin-recipe-3d-backdrop';
+  overlay.innerHTML='<section class="admin-recipe-3d-modal" role="dialog" aria-modal="true" aria-label="Prévia 3D da receita"><header><div><strong>Modelo 3D em tempo real</strong><small>Altere a receita padrão e os adicionais permitidos para atualizar o prato.</small></div><button type="button" data-action="close-admin-recipe-3d" aria-label="Fechar prévia 3D">×</button></header><div class="admin-recipe-3d-stage"><canvas id="adminRecipe3dCanvas" aria-label="Modelo 3D da receita"></canvas><div id="adminRecipe3dHud" aria-live="polite"></div></div><p>O modelo acompanha os ingredientes marcados na receita padrão.</p></section>';
+  root.body.append(overlay);
+  const ingredients=adminPreviewIngredients(row,catalog);
+  const sizes=catalog.sizes?.[product.type]||[];
+  const size=sizes.find(item=>item.key===(product.type==='pizza'?'media':product.type==='burger'?'classico':'unico'))||sizes[0]||null;
+  try{
+    const scene=new FoodScene(root.getElementById('adminRecipe3dCanvas'),product,ingredients,size,root.getElementById('adminRecipe3dHud'),{crustKey:'tradicional'});
+    app.admin.recipePreview={productId,scene};
+    scene.setActive(true);
+  }catch(error){
+    overlay.remove();app.admin.recipePreview=null;
+    toast(error.message||'Não foi possível abrir o modelo 3D neste navegador.');
+  }
+}
+function closeAdminRecipe3D(){
+  app.admin.recipePreview?.scene?.dispose?.();
+  app.admin.recipePreview=null;
+  root.getElementById('adminRecipe3dPreview')?.remove();
+}
+ function openCustomerGenerated3D(productId){
+  const product=app.catalog?.products?.find(item=>item.id===productId);
+  if(!product?.model3dUrl){toast('O modelo 3D deste produto ainda não está disponível.');return;}
+  root.getElementById('customerGenerated3dPreview')?.remove();
+  const overlay=root.createElement('div');
+  overlay.id='customerGenerated3dPreview';
+  overlay.className='modal-backdrop customer-generated-3d-backdrop';
+  overlay.innerHTML='<section class="admin-generated-3d-modal customer-generated-3d-modal" role="dialog" aria-modal="true" aria-label="Modelo 3D de '+esc(product.name)+'"><header><div><strong>'+esc(product.name)+'</strong><small>Visualize o produto em 3D antes de fazer seu pedido</small></div><button type="button" data-action="close-customer-generated-3d" aria-label="Fechar modelo 3D">×</button></header><div class="admin-generated-3d-stage"><model-viewer class="admin-generated-3d-viewer" src="'+esc(product.model3dUrl)+'" alt="Modelo 3D de '+esc(product.name)+'" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ar></model-viewer></div><p>Arraste para girar, aproxime com os dedos ou abra em realidade aumentada</p></section>';
+  root.body.append(overlay);
+}
+function closeCustomerGenerated3D(){root.getElementById('customerGenerated3dPreview')?.remove();}
+function openAdminGenerated3D(productId){
+   const product=app.admin.recipePreviewCatalog?.products?.find(item=>item.id===productId);
+   if(!product?.model3dUrl){toast('Este produto ainda não possui um modelo TripoSR publicado.');return;}
+   root.getElementById('adminGenerated3dPreview')?.remove();
+   const overlay=root.createElement('div');
+   overlay.id='adminGenerated3dPreview';
+   overlay.className='modal-backdrop admin-generated-3d-backdrop';
+   overlay.innerHTML='<section class="admin-generated-3d-modal" role="dialog" aria-modal="true" aria-label="Modelo 3D real do produto"><header><div><strong>'+esc(product.name)+'</strong><small>Modelo gerado pelo TripoSR a partir da foto do produto</small></div><button type="button" data-action="close-admin-generated-3d" aria-label="Fechar modelo 3D">×</button></header><div class="admin-generated-3d-stage"><model-viewer class="admin-generated-3d-viewer" src="'+esc(product.model3dUrl)+'" alt="Modelo 3D de '+esc(product.name)+'" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral" ar></model-viewer></div><p>Arraste para girar e use os gestos para aproximar ou afastar</p></section>';
+   root.body.append(overlay);
+ }
+ function closeAdminGenerated3D(){root.getElementById('adminGenerated3dPreview')?.remove();}
+function setAdminConnectionState(state){
+  app.admin.connectionState=state;
+  const node=root.getElementById('adminConnectionStatus');
+  if(!node)return;
+  const labels={connected:'Ao vivo',connecting:'Conectando…',reconnecting:'Reconectando…',offline:'Sem conexão'};
+  node.classList.remove('is-connected','is-connecting','is-reconnecting','is-offline');
+  node.classList.add('is-'+(labels[state]?state:'connecting'));
+  const label=node.querySelector('.connection-status-label');
+  if(label)label.textContent=labels[state]||labels.connecting;
+  node.setAttribute('aria-label','Conexão do painel: '+(labels[state]||labels.connecting));
+}
+function handleAdminOnline(){
+  if(!app.admin.authenticated)return;
+  setAdminConnectionState('connecting');
+  refreshAdmin();
+  // EventSource tenta reconectar sozinho; fechar e abrir garante recuperação
+  // também em navegadores que ficaram suspensos por muito tempo.
+  connectAdminEvents();
+}
+// Eventos em tempo real: mantém o painel informado sobre novos pedidos e mudanças no servidor.
 function connectAdminEvents(){
   if(app.admin.eventSource)app.admin.eventSource.close();
-  app.admin.eventSource=new EventSource('/api/admin/events');
-  app.admin.eventSource.addEventListener('update',()=>{if(app.admin.tab==='orders')refreshAdmin();else if(app.admin.tab==='tables')renderTablesAdmin();else if(app.admin.tab==='catalog')renderCatalogAdmin();else if(app.admin.tab==='ingredients')renderIngredientsAdmin();else renderSettingsAdmin()});
-  clearInterval(app.admin.refreshTimer);app.admin.refreshTimer=setInterval(refreshAdmin,20000);
+  setAdminConnectionState(navigator.onLine?'connecting':'offline');
+  app.admin.eventSource=new EventSource('/api/dispatch?path=admin%2Fevents');
+  app.admin.eventSource.onopen=()=>{
+    setAdminConnectionState('connected');
+    if(app.admin.tab==='orders')refreshAdmin();
+    else if(app.admin.tab==='fiscal')renderFiscalAdmin();
+  };
+  app.admin.eventSource.onerror=()=>{
+    setAdminConnectionState(navigator.onLine?'reconnecting':'offline');
+    // O polling continua ativo como contingência enquanto o canal ao vivo volta.
+  };
+  app.admin.eventSource.addEventListener('update',()=>{
+    setAdminConnectionState('connected');
+    if(app.admin.tab==='orders')refreshAdmin();
+    else if(app.admin.tab==='analytics')renderAnalyticsAdmin();
+    else if(app.admin.tab==='combos')renderCombosAdmin();
+    else if(app.admin.tab==='tables')renderTablesAdmin();
+    else if(app.admin.tab==='catalog')renderCatalogAdmin();
+    else if(app.admin.tab==='ingredients')renderIngredientsAdmin();
+    else if(app.admin.tab==='coupons')renderCouponsAdmin();
+    else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();
+    else if(app.admin.tab==='fiscal')renderFiscalAdmin();
+    else renderSettingsAdmin();
+  });
+  clearInterval(app.admin.refreshTimer);
+  app.admin.refreshTimer=setInterval(()=>{
+    if(!app.admin.authenticated)return;
+    if(app.admin.tab==='fiscal'){
+      const body=root.getElementById('adminBody');
+      if(!body?.contains(document.activeElement))renderFiscalAdmin();
+    }else refreshAdmin();
+  },15000);
+  if(!app.admin.networkListenersBound){
+    window.addEventListener('online',handleAdminOnline);
+    window.addEventListener('offline',()=>setAdminConnectionState('offline'));
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&app.admin.authenticated){refreshAdmin();if(app.admin.eventSource?.readyState===EventSource.CLOSED)connectAdminEvents()}});
+    app.admin.networkListenersBound=true;
+  }
 }
-async function logoutAdmin(){
+async function logoutAdmin(inactivity=false){
+  stopAdminInactivityMonitor();
   try{await api('/api/admin/logout',{method:'POST'})}catch{}
-  app.admin.authenticated=false;if(app.admin.eventSource)app.admin.eventSource.close();clearInterval(app.admin.refreshTimer);location.hash='';showHome();toast('Sessão encerrada.');
+  app.admin.authenticated=false;if(app.admin.eventSource)app.admin.eventSource.close();clearInterval(app.admin.refreshTimer);location.hash='';showHome();toast(inactivity?'Sessão encerrada após 2 horas sem atividade.':'Sessão encerrada.');
 }
 function renderCheckoutMode(form,mode){
   form.querySelector('[name=fulfillment]').value=mode;form.querySelectorAll('.fulfillment-option').forEach(button=>button.classList.toggle('active',button.dataset.fulfillment===mode));
@@ -785,8 +2760,60 @@ async function loadAvailableTables(select){
 }
 async function saveProduct(id){
   const row=root.querySelector('[data-product-admin="'+CSS.escape(id)+'"]');if(!row)return;
-  const cents=Math.round(Number(row.querySelector('.product-price-input').value)*100),active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked;
-  try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({baseCents:cents,active,available})});toast('Produto atualizado.')}catch(e){toast(e.message)}
+  const button=row.querySelector('[data-action="save-product"]');if(!button||button.disabled)return;
+  const active=row.querySelector('.product-active-input').checked,available=row.querySelector('.product-available-input').checked,ageRestricted=Boolean(row.querySelector('.product-age-restricted-input')?.checked);
+  const defaultIngredientIds=[...row.querySelectorAll('.product-recipe-input input:checked')].map(input=>input.value);
+  const productType=app.catalog?.products.find(item=>item.id===id)?.type;
+  const ingredientQuantities=['burger','plate'].includes(productType)?Object.fromEntries(defaultIngredientIds.map(ingredientId=>[ingredientId,Math.max(1,Math.min(20,Number(row.querySelector('[data-ingredient-quantity="'+CSS.escape(ingredientId)+'"]')?.value)||1))])):{},priceInput=row.querySelector('.product-base-price-input'),baseCents=priceInput?Math.round(Number(String(priceInput.value||'').replace(',','.'))*100):undefined;
+   if(priceInput&&(!Number.isInteger(baseCents)||baseCents<500||baseCents>1000000)){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 5,00 e R$ 10.000,00.');return;}
+  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value).filter(id=>!defaultIngredientIds.includes(id));
+  const ingredientIds=selectedAddons;
+  button.disabled=true;button.textContent='Salvando…';
+  try{
+    let images=[];try{images=JSON.parse(row.querySelector('.product-images-json')?.value||'[]')}catch{}
+    const removePhotos=Boolean(row.querySelector('.product-photos-remove')?.checked),newFiles=[...(row.querySelector('.product-photos-input')?.files||[])];
+    if(!removePhotos&&images.length+newFiles.length>8)throw new Error('O limite é de 8 fotos por produto.');
+    if(removePhotos)images=[];else if(newFiles.length)images=images.concat(await Promise.all(newFiles.map(productPhotoData)));
+    await api('/api/admin/products/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({active,available,ageRestricted,ingredientIds,defaultIngredientIds,ingredientQuantities,...(baseCents!==undefined?{baseCents}:{}),images,imageUrl:images[0]||''})});
+    toast('Produto salvo. Receita, descrição e modelo atualizados.');
+    await renderCatalogAdmin();
+  }catch(error){toast(error.message||'Não foi possível salvar o produto.');if(button.isConnected){button.disabled=false;button.textContent='Tentar novamente'}}
+}
+async function deleteProduct(id,kind='product',button=null){
+  const selector=kind==='beverage'?'[data-beverage-admin="'+CSS.escape(id)+'"]':'[data-product-admin="'+CSS.escape(id)+'"]';
+  const row=root.querySelector(selector);
+  if(!row)return;
+  const name=kind==='beverage'
+    ?String(row.querySelector('.beverage-name-input')?.value||'esta bebida').trim()
+    :String(row.querySelector('.catalog-row b')?.textContent||'este produto').trim();
+  const label=kind==='beverage'?'bebida':'produto';
+  if(!window.confirm('Excluir "'+name+'" permanentemente?\n\nO item deixará de aparecer no cardápio. O histórico dos pedidos já realizados será preservado. Esta ação não pode ser desfeita.'))return;
+  const actionButton=button||row.querySelector('[data-action="delete-product"]');
+  if(actionButton){actionButton.disabled=true;actionButton.textContent='Excluindo…'}
+  try{
+    await api('/api/admin/products/'+encodeURIComponent(id),{method:'DELETE'});
+    toast((kind==='beverage'?'Bebida':'Produto')+' excluído com sucesso.');
+    if(kind==='beverage')await renderBeveragesAdmin();else await renderCatalogAdmin();
+  }catch(error){
+    toast(error.message||'Não foi possível excluir o '+label+'.');
+    if(actionButton){actionButton.disabled=false;actionButton.textContent='Excluir '+label}
+  }
+}
+async function createIngredient(form){
+  const data=new FormData(form),name=String(data.get('name')||'').trim(),groupName=String(data.get('groupName')||'Adicionais').trim()||'Adicionais',price=Number(String(data.get('price')||'0').replace(',','.')),types=[...new Set(data.getAll('types').map(value=>String(value)))];
+  const priceInput=form.querySelector('[name="price"]'),normalizedName=normalizeSearch(name).replace(/\s+/g,' ');
+  if(!types.length){toast('Selecione pelo menos um tipo de alimento.');return}
+  if(types.some(type=>!['pizza','burger','plate'].includes(type))){toast('Tipo de alimento inválido.');return}
+  const duplicate=(app.admin.ingredientsCache||[]).find(item=>types.includes(item.type)&&normalizeSearch(item.name).replace(/\s+/g,' ')===normalizedName);
+  if(duplicate){toast('Já existe "'+duplicate.name+'" para '+({pizza:'pizza',burger:'hambúrguer',plate:'hot dog'}[duplicate.type])+'. Remova esse tipo da seleção ou escolha outro nome.');form.querySelector('[name="name"]').setAttribute('aria-invalid','true');form.querySelector('[name="name"]').focus();return}
+  if(!name||name.length<2){toast('Informe um nome com pelo menos 2 caracteres.');return}
+  if(!Number.isFinite(price)||price<0||price>9999.99){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 0,00 e R$ 9.999,99.');return}
+  priceInput.removeAttribute('aria-invalid');
+  const button=form.querySelector('button[type="submit"]'),original=button.textContent;button.disabled=true;button.textContent='Cadastrando…';
+  try{
+    await api('/api/admin/ingredients',{method:'POST',body:JSON.stringify({name,types,groupName,cents:Math.round(price*100)})});
+    toast('Ingrediente cadastrado nos tipos selecionados.');await renderIngredientsAdmin();
+  }catch(e){button.disabled=false;button.textContent=original;toast(e.message||'Não foi possível cadastrar o ingrediente.')}
 }
 async function saveIngredient(id){
   const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');if(!row)return;
@@ -799,12 +2826,28 @@ async function saveIngredient(id){
   try{await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({cents,active})});button.textContent='Salvo ✓';toast('Adicional atualizado.');setTimeout(()=>{if(button.isConnected){button.textContent=original;button.disabled=false}},1400)}
   catch(e){button.textContent='Tentar novamente';button.disabled=false;toast(e.message)}
 }
+async function deleteIngredient(id,actionButton){
+  const row=root.querySelector('[data-ingredient-admin="'+CSS.escape(id)+'"]');
+  if(!row)return;
+  const name=row.querySelector('span')?.textContent?.replace(/ · incluso$/,'').trim()||'este ingrediente';
+  if(!window.confirm('Excluir "'+name+'"? Ele deixará de aparecer nas personalizações futuras. O histórico de pedidos anteriores será preservado.'))return;
+  const original=actionButton?.textContent;
+  if(actionButton){actionButton.disabled=true;actionButton.textContent='Excluindo…'}
+  try{
+    await api('/api/admin/ingredients/'+encodeURIComponent(id),{method:'DELETE'});
+    toast('Ingrediente excluído. O histórico de pedidos foi preservado.');
+    await renderIngredientsAdmin();
+  }catch(error){
+    toast(error.message||'Não foi possível excluir o ingrediente.');
+    if(actionButton){actionButton.disabled=false;actionButton.textContent=original||'Excluir'}
+  }
+}
 async function repeatCustomerOrder(orderId){
   const order=app.customerOrders.find(item=>item.id===orderId);
   if(!order)return toast('Não encontrei esse pedido no seu histórico.');
-  if(app.cart.length&&!window.confirm('Deseja substituir os itens atuais da sacola pelo pedido anterior?'))return;
+  if(app.cart.length&&!window.confirm('Deseja substituir os itens atuais da carrinho pelo pedido anterior?'))return;
   try{
-    if(!app.catalog){app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name);renderCatalog()}
+    if(!app.catalog){app.catalog=await api('/api/catalog');applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);renderCatalog()}
     const available=new Map(app.catalog.products.filter(item=>Number(item.active)!==0).map(item=>[item.id,item]));
     const validIngredients=new Map(app.catalog.ingredients.filter(item=>Number(item.active)!==0).map(item=>[item.id,item]));
     const rebuilt=[];
@@ -814,40 +2857,183 @@ async function repeatCustomerOrder(orderId){
       const sizeKey=options.some(option=>option.key===old.sizeKey)?old.sizeKey:(options.find(option=>option.key==='medium')||options[0])?.key;
       if(!sizeKey)continue;
       const crustKey=product.type==='pizza'?(app.catalog.crusts.some(item=>item.key===old.crustKey)?old.crustKey:(app.catalog.crusts.find(item=>item.key==='tradicional')||app.catalog.crusts[0])?.key):'';
-      const ingredients=(old.ingredients||[]).filter(entry=>validIngredients.has(entry.id)&&validIngredients.get(entry.id).type===product.type).map(entry=>({id:entry.id,quantity:Math.max(1,Math.min(3,Number(entry.quantity)||1))})).slice(0,12);
+      const ingredients=(old.ingredients||[]).filter(entry=>validIngredients.has(entry.id)&&validIngredients.get(entry.id).type===product.type).map(entry=>({id:entry.id,quantity:1})).slice(0,12);
       rebuilt.push({cartId:randomId(),productId:product.id,name:product.name,type:product.type,quantity:Math.max(1,Math.min(10,Number(old.quantity)||1)),sizeKey,crustKey,ingredients,notes:typeof old.notes==='string'?old.notes.slice(0,500):''});
     }
     if(!rebuilt.length)return toast('Os produtos desse pedido não estão mais disponíveis.');
-    app.cart=rebuilt;invalidateCheckoutKey();setCart();showHome();renderCatalog();toast(rebuilt.length<(order.items||[]).length?'Pedido recuperado; alguns itens indisponíveis foram ignorados.':'Pedido anterior recuperado na sacola.');openCart();
+    app.cart=rebuilt;invalidateCheckoutKey();setCart();showHome();renderCatalog();toast(rebuilt.length<(order.items||[]).length?'Pedido recuperado; alguns itens indisponíveis foram ignorados.':'Pedido anterior recuperado na carrinho.');openCart();
   }catch(error){toast(error.message||'Não foi possível repetir esse pedido.');}
 }
-function handleClick(event){
-  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-ingredient],[data-ingredient-qty],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
-  if(target.dataset.category){app.category=target.dataset.category;renderCatalog();return}
-  if(target.dataset.size&&app.builder){app.builder.sizeKey=target.dataset.size;renderBuilder();return}
-  if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
-  if(target.dataset.ingredientQty&&app.builder){
-    const entry=app.builder.ingredients.find(i=>i.id===target.dataset.ingredientQty);
-    if(entry){entry.quantity=Math.max(1,Math.min(3,entry.quantity+Number(target.dataset.delta)));app.builder.lastAdded=entry.id;renderBuilder()}
-    return;
+function closeMobileSiteMenu(){
+  const menu=root.getElementById('mobileSiteMenu');
+  if(!menu)return;
+  const toggle=root.querySelector('.mobile-menu-button');
+  // Move o foco para fora do drawer antes de ocultá-lo para tecnologias assistivas.
+  if(toggle)toggle.focus({preventScroll:true});
+  menu.classList.remove('is-open');
+  menu.setAttribute('inert','');
+  menu.setAttribute('aria-hidden','true');
+  root.body.classList.remove('mobile-site-menu-open');
+  toggle?.setAttribute('aria-expanded','false');
+  toggle?.setAttribute('aria-label','Abrir menu');
+}
+function openMobileSiteMenu(){
+  const menu=root.getElementById('mobileSiteMenu');
+  if(!menu)return;
+  // Reabilita os controles antes de expor e focar o conteúdo do drawer.
+  menu.removeAttribute('inert');
+  menu.setAttribute('aria-hidden','false');
+  menu.classList.add('is-open');
+  root.body.classList.add('mobile-site-menu-open');
+  const toggle=root.querySelector('.mobile-menu-button');
+  toggle?.setAttribute('aria-expanded','true');
+  toggle?.setAttribute('aria-label','Fechar menu');
+  menu.querySelector('.mobile-site-menu-close')?.focus({preventScroll:true});
+}
+async function handleClick(event){
+  const target=event.target.closest('[data-action],[data-category],[data-size],[data-crust],[data-flavor-product],[data-ingredient],[data-fulfillment],[data-admin-tab],[data-table-status]');if(!target)return;
+  if(target.dataset.action==='mobile-site-menu-close'){closeMobileSiteMenu();return}
+  if(target.dataset.action==='mobile-site-menu-go'){
+    const destination=target.dataset.destination;
+    closeMobileSiteMenu();
+    if(destination==='account'){if(location.hash==='#conta')showCustomerAccount();else location.hash='conta';return}
+    if(destination==='restaurant'){if(location.hash==='#admin')showAdmin();else location.hash='admin';return}
+    if(destination==='review'){const reviewUrl=String(app.catalog?.restaurant?.googleReviewUrl||'').trim();if(reviewUrl)window.open(reviewUrl,'_blank','noopener,noreferrer');return}
+    showHome();
+    if(destination==='popular'){
+      root.getElementById('favoritos')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+    }
+    const targetId=destination==='promotions'?'promotionsPage':destination==='about'?'sobre':'menu';
+    if(destination==='menu')location.hash='menu';
+    root.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'start'});return;
   }
+  if(target.dataset.action==='open-promotions'){root.getElementById('promotionsPage')?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(target.dataset.action==='open-promotion-product'){const productId=target.dataset.product,promotionId=target.dataset.promotion;if(productId)openBuilder(productId,null,promotionId||null);return}
+  if(target.dataset.action==='promo-prev'){setPromotionSlide(promotionCarouselIndex-1);return}
+  if(target.dataset.action==='promo-next'){setPromotionSlide(promotionCarouselIndex+1);return}
+  if(target.dataset.action==='promo-slide'){setPromotionSlide(Number(target.dataset.promoIndex)||0);return}
+  if(target.dataset.action==='product-image-prev'||target.dataset.action==='product-image-next'||target.dataset.action==='product-image-go'){
+    const carousel=target.closest('[data-image-carousel]');if(carousel){const current=Number(carousel.dataset.imageIndex)||0;const next=target.dataset.action==='product-image-prev'?current-1:target.dataset.action==='product-image-next'?current+1:Number(target.dataset.index)||0;setProductImageSlide(carousel,next)}return;
+  }
+  if(target.dataset.action==='remove-product-image'){
+    const row=target.closest('[data-product-admin],[data-beverage-admin]'),field=row?.querySelector('.product-images-json');if(row&&field){let images=[];try{images=JSON.parse(field.value||'[]')}catch{}images.splice(Number(target.dataset.index),1);field.value=JSON.stringify(images);const preview=row.querySelector('.product-images-preview');if(preview)preview.innerHTML=images.map((url,index)=>'<span class="product-image-admin-thumb"><img src="'+esc(url)+'" alt="Foto '+(index+1)+'"><button type="button" data-action="remove-product-image" data-index="'+index+'" aria-label="Remover foto '+(index+1)+'">×</button></span>').join('')||'<small>Nenhuma foto cadastrada.</small>'}return;
+  }
+  if(target.dataset.category){app.category=target.dataset.category;renderCatalog();return}
+  if(target.dataset.size&&app.builder){if(app.builder.promotion&&target.dataset.size!==app.builder.promotion.sizeKey)return;app.builder.sizeKey=target.dataset.size;renderBuilder();return}
+  if(target.dataset.crust&&app.builder){app.builder.crustKey=target.dataset.crust;renderBuilder();return}
+  if(target.dataset.flavorProduct&&app.builder){const product=app.catalog.products.find(p=>p.id===app.builder.productId),size=app.catalog.sizes.pizza.find(x=>x.key===app.builder.sizeKey),limit=Number(size?.maxFlavors)||1,ids=app.builder.flavorProductIds||[product.id],previousFlavorIds=[...ids],index=ids.indexOf(target.dataset.flavorProduct),beforeByo=buildYourOwnFlavorProduct(product,ids);if(index>=0){if(ids.length===1&&!app.builder.promotion)return toast('Selecione pelo menos um sabor.');ids.splice(index,1)}else if(ids.length<limit)ids.push(target.dataset.flavorProduct);else return toast('Esse tamanho permite até '+limit+' sabor(es).');const afterByo=buildYourOwnFlavorProduct(product,ids);if(app.builder.promotion&&product.type==='pizza'){if(!ids.length)app.builder.ingredients=[];else {const previousDefaults=new Set(previousFlavorIds.flatMap(id=>{const flavor=app.catalog.products.find(item=>item.id===id);return flavor?defaultIngredients(flavor,app.catalog).map(entry=>entry.id):[];}));const customEntries=app.builder.ingredients.filter(entry=>!previousDefaults.has(entry.id));const mergedDefaults=new Map();for(const id of ids){const flavor=app.catalog.products.find(item=>item.id===id);if(!flavor)continue;for(const entry of defaultIngredients(flavor,app.catalog)){const previous=mergedDefaults.get(entry.id);mergedDefaults.set(entry.id,{id:entry.id,quantity:Math.max(previous?.quantity||1,entry.quantity||1)});}}for(const entry of customEntries)if(!mergedDefaults.has(entry.id))mergedDefaults.set(entry.id,{...entry});app.builder.ingredients=[...mergedDefaults.values()];}}else if((beforeByo?.id||null)!==(afterByo?.id||null))app.builder.ingredients=defaultIngredients(afterByo||product,app.catalog);app.builder.flavorProductIds=ids;renderBuilder();return}
   if(target.dataset.ingredient&&app.builder){
-    const id=target.dataset.ingredient,index=app.builder.ingredients.findIndex(i=>i.id===id);
-    if(index>=0)app.builder.ingredients.splice(index,1);else if(app.builder.ingredients.length<12){app.builder.ingredients.push({id,quantity:1});app.builder.lastAdded=id}else return toast('O limite é de 12 componentes.');
+    const id=target.dataset.ingredient,index=app.builder.ingredients.findIndex(i=>i.id===id),product=app.catalog.products.find(item=>item.id===app.builder.productId),ingredient=app.catalog.ingredients.find(item=>item.id===id);
+    const byoFlavor=buildYourOwnFlavorProduct(product,app.builder.flavorProductIds||[product.id]),buildYourOwn=Boolean(byoFlavor),defaults=buildYourOwn?(byoFlavor.defaultIngredientIds||[]):(product?.defaultIngredientIds||[]);
+    const required=buildYourOwn?defaults.includes(id):(product?.ingredientsConfigured?defaults.includes(id):Boolean(ingredient?.included));
+    if(index>=0&&required)return toast('Este ingrediente faz parte da receita padrão e não pode ser removido.');
+    if(index>=0)app.builder.ingredients.splice(index,1);else if(buildYourOwn?app.builder.ingredients.filter(item=>!defaults.includes(item.id)).length<3:app.builder.ingredients.length<12){app.builder.ingredients.push({id,quantity:1});app.builder.lastAdded=id}else return toast(buildYourOwn?'A Monte a sua permite até 3 adicionais, além da receita padrão.':'O limite é de 12 componentes.');
     renderBuilder();return
   }
-  if(target.dataset.fulfillment){renderCheckoutMode(root.getElementById('checkoutForm'),target.dataset.fulfillment);return}
-  if(target.dataset.adminTab){app.admin.tab=target.dataset.adminTab;renderAdmin();return}
-  if(target.dataset.tableStatus){if(target.dataset.tableStatus==='select')return;const tableId=target.dataset.tableId,status=target.dataset.tableStatus;target.disabled=true;api('/api/admin/tables/'+encodeURIComponent(tableId),{method:'PATCH',body:JSON.stringify({status})}).then(()=>{toast('Status da mesa atualizado.');renderTablesAdmin()}).catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');target.disabled=false});return;}
+  if(target.dataset.fulfillment){const checkoutForm=root.getElementById('checkoutForm');if(!checkoutForm){toast('Abra o carrinho antes de escolher a modalidade do pedido.');return}renderCheckoutMode(checkoutForm,target.dataset.fulfillment);return}
+  if(target.dataset.action==='mobile-header-menu'){if(!root.body.classList.contains('admin-route')){const menu=root.getElementById('mobileSiteMenu');if(menu?.classList.contains('is-open'))closeMobileSiteMenu();else openMobileSiteMenu();return}const shell=target.closest('.admin-shell-v2')||root.querySelector('.admin-shell-v2');if(shell){const open=!shell.classList.contains('mobile-nav-open');shell.classList.toggle('mobile-nav-open',open);target.setAttribute('aria-expanded',String(open));target.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');}return}
+  if(target.dataset.action==='mobile-nav-close'){const shell=target.closest('.admin-shell-v2');if(shell){shell.classList.remove('mobile-nav-open');const toggle=shell.querySelector('.admin-mobile-menu-toggle');toggle?.setAttribute('aria-expanded','false');toggle?.setAttribute('aria-label','Abrir menu');}return}
+  if(target.dataset.action==='add-pizza-size'){const box=root.getElementById('pizzaSizeRows');if(box)box.insertAdjacentHTML('beforeend','<div class="admin-form-grid pizza-config-row"><label class="form-field"><span>Nome</span><input name="sizeLabel" required maxlength="40"></label><label class="form-field"><span>Diâmetro (cm)</span><input name="sizeDiameter" type="number" min="10" max="60" value="30" required></label><label class="form-field"><span>Máximo de sabores</span><input name="sizeFlavors" type="number" min="1" max="8" value="1" required></label></div>');return}
+  if(target.dataset.action==='add-pizza-crust'){const box=root.getElementById('pizzaCrustRows');if(box)box.insertAdjacentHTML('beforeend','<div class="admin-form-grid pizza-config-row"><label class="form-field"><span>Nome da borda</span><input name="crustLabel" required maxlength="50"></label><label class="form-field"><span>Preço adicional (R$)</span><input name="crustPrice" type="number" min="0" max="10000" step="0.01" value="0.00" required></label></div>');return}
+  if(target.dataset.adminTab){const shell=target.closest('.admin-shell-v2');shell?.classList.remove('mobile-nav-open');const toggle=shell?.querySelector('.admin-mobile-menu-toggle');toggle?.setAttribute('aria-expanded','false');toggle?.setAttribute('aria-label','Abrir menu');app.admin.tab=target.dataset.adminTab;renderAdmin();return}
+  if(target.dataset.tableStatus){
+    if(target.dataset.tableStatus==='select'){
+      const unit=target.closest('.table-unit');
+      if(!unit)return;
+      root.querySelectorAll('.table-unit.table-selected').forEach(node=>node.classList.remove('table-selected'));
+      unit.classList.add('table-selected');
+      unit.querySelector('.table-status-actions button')?.focus({preventScroll:true});
+      toast('Mesa '+(unit.querySelector('.table-unit-meta strong')?.textContent.replace('Mesa ','')||'')+' selecionada. Escolha o status abaixo.');
+      return;
+    }
+    const tableId=target.dataset.tableId,status=target.dataset.tableStatus;
+    const unit=target.closest('.table-unit');
+    if(unit)unit.querySelectorAll('.table-status-actions button').forEach(button=>button.disabled=true);
+    target.disabled=true;
+    api('/api/admin/tables/'+encodeURIComponent(tableId),{method:'PATCH',body:JSON.stringify({status})})
+      .then(()=>{toast('Status da mesa atualizado.');renderTablesAdmin()})
+      .catch(error=>{toast(error.message||'Não foi possível atualizar a mesa.');if(unit)unit.querySelectorAll('.table-status-actions button').forEach(button=>button.disabled=false);else target.disabled=false});
+    return;
+  }
+  if(target.dataset.action==='download-customer-data'){
+    const button=target;
+    if(button.disabled)return;
+    const originalLabel=button.textContent;
+    button.disabled=true;
+    button.textContent='Preparando arquivo…';
+    try{
+      const data=await api('/api/customer/data-export');
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
+      const objectUrl=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=objectUrl;
+      link.download='menuza-meus-dados-'+new Date().toISOString().slice(0,10)+'.json';
+      link.style.display='none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1500);
+      button.textContent='Download iniciado';
+      toast('Download iniciado. Confira a pasta Downloads do navegador.');
+      window.setTimeout(()=>{if(button.isConnected){button.textContent=originalLabel;button.disabled=false}},1800);
+    }catch(error){
+      button.textContent=originalLabel;
+      button.disabled=false;
+      toast(error?.message||'Não foi possível baixar seus dados. Entre novamente na sua conta e tente outra vez.');
+    }
+    return;
+  }
   const action=target.dataset.action;
+  if(action==='refresh-fiscal'){renderFiscalAdmin();return}
+  if(action==='daily-closing-pdf'){exportDailyClosingPdf();return}
+  if(action==='refresh-daily-closing'){renderDailyClosingAdmin();return}
+  if(action==='fiscal-export-pdf'){exportFiscalReport('pdf');return}
+  if(action==='fiscal-export-csv'){exportFiscalReport('csv');return}
+  if(action==='fiscal-download-document'){downloadFiscalDocument(target.dataset.id);return}
+  if(action==='fiscal-delete-expense'){deleteFiscalExpense(target.dataset.id);return}
+  if(action==='add-hours-period'){
+    const day=target.closest('[data-hours-day]'),box=day?.querySelector('.opening-hours-periods');
+    if(!box)return;
+    if(box.querySelectorAll('[data-hours-period]').length>=4){toast('Cada dia permite até quatro períodos.');return}
+    const existing=[...box.querySelectorAll('[data-hours-period]')],previousClose=existing.at(-1)?.querySelector('[data-hours-close]')?.value;
+    const open=previousClose||'18:00',[hour,minute]=open.split(':').map(Number),startMinutes=hour*60+minute,closeMinutes=Math.min(1439,startMinutes+240);
+    if(closeMinutes<=startMinutes){toast('Não há espaço para outro período depois do último horário. Ajuste os períodos existentes.');return}
+    const close=String(Math.floor(closeMinutes/60)).padStart(2,'0')+':'+String(closeMinutes%60).padStart(2,'0');
+    box.insertAdjacentHTML('beforeend','<div class="opening-hours-period" data-hours-period><label><span>Abertura</span><input type="time" data-hours-open value="'+esc(open)+'" required></label><label><span>Fechamento</span><input type="time" data-hours-close value="'+close+'" required></label><button type="button" class="opening-hours-remove" data-action="remove-hours-period" aria-label="Remover período">×</button></div>');
+    const enabled=day.querySelector('[data-hours-enabled]');if(enabled)enabled.checked=true;
+    day.querySelector('.opening-hours-day-state')?.replaceChildren(document.createTextNode('Aberto'));
+    return;
+  }
+  if(action==='remove-hours-period'){const row=target.closest('[data-hours-period]');row?.remove();return}
+  if(action==='show-menu-qr'){openMenuQr();return}
+  if(action==='close-menu-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeMenuQr();return}
+  if(action==='copy-menu-qr'){const input=root.getElementById('menuQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link público do cardápio copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
+  if(action==='download-menu-qr'){downloadMenuQr();return}
+  if(action==='print-menu-qr'){window.print();return}
+  if(action==='export-sales-report'){exportSalesReport();return}
+  if(action==='show-table-qr'){openTableQr(target.dataset.tableNumber,target.dataset.tableToken);return}
+  if(action==='close-table-qr'){if(target.classList.contains('table-qr-backdrop')&&event.target!==target)return;closeTableQr();return}
+  if(action==='copy-table-qr'){const input=root.getElementById('tableQrUrl');if(input){input.select();try{const ok=document.execCommand('copy');if(ok)toast('Link exclusivo da mesa copiado.');else toast('Selecione e copie o link manualmente.')}catch{toast('Selecione e copie o link manualmente.')}}return}
+  if(action==='download-table-qr'){downloadTableQr(target.dataset.tableNumber);return}
+  if(action==='print-table-qr'){window.print();return}
   if(action==='refresh-tables'){renderTablesAdmin();return}
+   if(action==='refresh-categories'){renderCategoryAdmin();return}
+   if(action==='save-category'){saveCategory(target.dataset.id);return}
+   if(action==='delete-category'){deleteCategory(target.dataset.id);return}
+   if(action==='refresh-analytics'){renderAnalyticsAdmin();return}
+   if(action==='add-combo'){addComboToCart(target.dataset.id);return}
+   if(action==='save-combo-status'){saveComboStatus(target.dataset.id);return}
   if(action==='share-menu'){shareMenu();return}
   if(action==='share-product'){shareMenu(target.dataset.product);return}
   if(action==='export-orders'){exportVisibleOrders();return}
+  if(action==='print-order'){printOrderTicket(target.dataset.orderId);return}
+  if(action==='toggle-order-sound'){toggleOrderSound();return}
   if(action==='export-coupons'){exportCouponsCsv();return}
   if(action==='copy-coupon'){copyCouponCode(target.dataset.code);return}
   if(action==='apply-coupon'){applyCheckoutCoupon();return}
   if(action==='toggle-coupon'){toggleCoupon(target.dataset.id);return}
+  if(action==='toggle-promotion'){togglePromotion(target.dataset.id);return}
+  if(action==='toggle-delivery-zone'){toggleDeliveryZone(target.dataset.id);return}
   if(action==='edit-coupon'){editCoupon(target.dataset.id);return}
   if(action==='repeat-order'){repeatCustomerOrder(target.dataset.orderId);return}
    if(action==='clear-recent-products'){app.recentProducts=[];try{localStorage.removeItem('menuza-recent-products')}catch{}renderRecentProducts();toast('Histórico de pratos limpo.');return}
@@ -860,7 +3046,13 @@ function handleClick(event){
     renderCatalog();return;
   }
   if(action==='clear-order-filters'){app.admin.orderQuery='';app.admin.orderStatus='all';app.admin.orderFulfillment='all';const q=root.getElementById('ordersSearch'),st=root.getElementById('ordersStatusFilter'),ft=root.getElementById('ordersFulfillmentFilter');if(q)q.value='';if(st)st.value='all';if(ft)ft.value='all';applyOrderFilters();return}
-  if(action==='start-builder'||action==='build'){openBuilder(target.dataset.product);return}
+  if(action==='admin-recipe-3d'){openAdminRecipe3D(target.dataset.productId);return}
+   if(action==='customer-generated-3d'){openCustomerGenerated3D(target.dataset.product);return}
+   if(action==='close-customer-generated-3d'){closeCustomerGenerated3D();return}
+   if(action==='admin-generated-3d'){openAdminGenerated3D(target.dataset.id);return}
+   if(action==='close-admin-generated-3d'){closeAdminGenerated3D();return}
+  if(action==='close-admin-recipe-3d'){closeAdminRecipe3D();return}
+  if(action==='start-builder'||action==='build'){const product=app.catalog?.products.find(item=>item.id===target.dataset.product);if(product?.type==='drink')addBeverageToCart(product.id);else openBuilder(target.dataset.product);return}
   if(action==='cart'){openCart();return}
   if(action==='close-builder'){app.builder=null;renderBuilder();return}
   if(action==='builder-backdrop'&&event.target===target){app.builder=null;renderBuilder();return}
@@ -868,45 +3060,111 @@ function handleClick(event){
   if(app.builder&&['rotate-left','rotate-right','zoom-in','zoom-out'].includes(action)&&app.viewMode!=='3d'){app.viewMode='3d';renderBuilder();}
   if(action==='view-art'&&app.builder){app.viewMode='art';renderBuilder();return}
   if(action==='view-3d'&&app.builder){app.viewMode='3d';renderBuilder();return}
+  if(action==='view-generated-3d'&&app.builder){app.viewMode='generated';renderBuilder();return}
   if(action==='rotate-left'&&app.builder){app.scene?.rotateBy(-18);return}
   if(action==='rotate-right'&&app.builder){app.scene?.rotateBy(18);return}
   if(action==='reset-view'&&app.builder){app.scene?.resetView();return}
   if(action==='toggle-auto'&&app.builder){app.scene?.toggleAuto();return}
   if(action==='zoom-in'&&app.builder){app.scene?.zoomBy(1.15);return}
   if(action==='zoom-out'&&app.builder){app.scene?.zoomBy(1/1.15);return}
-  if(action==='view-ar'){launchAR(target.dataset.product);return}if(action==='exit-ar'){app.scene?.exitAR();return}
+  if(action==='view-ar'){launchAR(target.dataset.product);return}
+  if(action==='exit-ar-lite'){stopCameraAR();return}
+  if(action==='ar-lite-left'||action==='ar-lite-right'||action==='ar-lite-up'||action==='ar-lite-down'||action==='ar-lite-smaller'||action==='ar-lite-larger'){
+    const ar=app.arLite;
+    if(ar?.active){
+      const stage=root.querySelector('.food-stage');
+      const step=Math.max(12,Math.round(Math.min(stage?.clientWidth||300,stage?.clientHeight||240)*.055));
+      if(action==='ar-lite-left')ar.x-=step;
+      if(action==='ar-lite-right')ar.x+=step;
+      if(action==='ar-lite-up')ar.y-=step;
+      if(action==='ar-lite-down')ar.y+=step;
+      if(action==='ar-lite-smaller')ar.scale=Math.max(.35,ar.scale-.1);
+      if(action==='ar-lite-larger')ar.scale=Math.min(1.65,ar.scale+.1);
+      updateCameraARTransform();
+    }
+    return;
+  }
+  if(action==='exit-ar'){app.scene?.exitAR();return}
   if(action==='close-cart'||(action==='cart-backdrop'&&event.target===target)){app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';return}
   if(action==='qty'){const item=app.cart.find(i=>i.cartId===target.dataset.id);if(item){const next=Math.max(1,Math.min(10,item.quantity+Number(target.dataset.delta)));if(next!==item.quantity){item.quantity=next;invalidateCheckoutKey();setCart();renderCart()}}return}
   if(action==='remove-cart-item'){const next=app.cart.filter(i=>i.cartId!==target.dataset.id);if(next.length!==app.cart.length){app.cart=next;invalidateCheckoutKey();setCart();renderCart()}return}
   if(action==='edit-cart-item'){const item=app.cart.find(i=>i.cartId===target.dataset.id);app.cartOpen=false;root.getElementById('cartRoot').innerHTML='';if(item)openBuilder(item.productId,item);return}
   if(action==='checkout'){openCheckout();return}
   if(action==='close-checkout'||(action==='checkout-backdrop'&&event.target===target)){app.checkoutOpen=false;root.getElementById('checkoutRoot').innerHTML='';return}
+  if(action==='cancel-order'){
+    if(target.disabled)return;
+    if(!window.confirm('Tem certeza de que deseja cancelar este pedido? Essa ação não pode ser desfeita.'))return;
+    target.disabled=true;
+    target.textContent='Cancelando…';
+    try{
+      await api('/api/tracking/'+encodeURIComponent(target.dataset.token)+'/cancel',{method:'POST',body:JSON.stringify({})});
+      toast('Pedido cancelado com sucesso.');
+      await loadTracking(target.dataset.token);
+    }catch(error){
+      toast(error.message||'Não foi possível cancelar o pedido.');
+      target.disabled=false;
+      target.textContent='Cancelar pedido';
+    }
+    return;
+  }
   if(action==='back-home'){location.hash='menu';openMenu();return}
   if(action==='admin'){location.hash='admin';return}
    if(action==='my-orders'){location.hash='conta';return}
   if(action==='customer-mode'){app.customerMode=target.dataset.mode;renderCustomerAuth();return}
+  if(action==='download-customer-data'){
+    if(target.disabled)return;
+    target.disabled=true;const originalLabel=target.textContent;target.textContent='Preparando arquivo…';
+    try{
+      const data=await api('/api/customer/data-export');
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
+      const url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download='menuza-meus-dados-'+new Date().toISOString().slice(0,10)+'.json';
+      document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+      toast('Cópia dos seus dados baixada.');
+    }catch(error){toast(error.message||'Não foi possível exportar seus dados.')}
+    finally{target.disabled=false;target.textContent=originalLabel}
+    return;
+  }
   if(action==='customer-logout'){logoutCustomer();return}
   if(action==='admin-logout'){logoutAdmin();return}
   if(action==='save-product'){saveProduct(target.dataset.id);return}
+  if(action==='generate-product-3d'){generateProduct3D(target.dataset.id,target);return}
+  if(action==='save-beverage'){saveBeverage(target.dataset.id);return}
+  if(action==='delete-product'){deleteProduct(target.dataset.id,target.dataset.kind==='beverage'?'beverage':'product',target);return}
   if(action==='save-ingredient'){saveIngredient(target.dataset.id);return}
+  if(action==='delete-ingredient'){deleteIngredient(target.dataset.id,target);return}
 }
 function syncFilters(){
   root.getElementById('searchInput').addEventListener('input',event=>{app.search=event.target.value;renderCatalog()});
   root.getElementById('sortSelect').addEventListener('change',event=>{app.sort=event.target.value;renderCatalog()});
   root.getElementById('vegetarianFilter').addEventListener('click',event=>{app.vegetarianOnly=!app.vegetarianOnly;event.currentTarget.setAttribute('aria-pressed',String(app.vegetarianOnly));renderCatalog()});
   root.getElementById('favoritesFilter')?.addEventListener('click',()=>{app.favoritesOnly=!app.favoritesOnly;renderCatalog()});
-  root.querySelector('[data-scroll="#menu"]').addEventListener('click',()=>root.getElementById('menu').scrollIntoView({behavior:'smooth'}));
+  // O antigo botão data-scroll foi substituído pelo menu Morph; sua ação é tratada no handler global.
   root.getElementById('searchInput').addEventListener('keydown',event=>{if(event.key==='Enter')root.getElementById('menu').scrollIntoView({behavior:'smooth'})});
 }
 async function openMenu(){
   try{
-    if(!app.catalog){
-      app.catalog=await api('/api/catalog');
-      app.cart=normalizeCartForCatalog(app.cart,app.catalog);
-      setCart();
-      applyRestaurantBranding(app.catalog.restaurant?.name);
-      renderCatalog();
+    // Sempre busca a configuração atual do restaurante ao voltar ao cardápio.
+    // Sem isso, o cliente continuava usando o catálogo antigo carregado antes
+    // de o administrador salvar tamanhos, preços, bordas ou produtos.
+    const menuGrid=root.getElementById('menuGrid');if(menuGrid&&!app.catalog)menuGrid.innerHTML=skeletonMarkup('catalog');
+    const resultCount=root.getElementById('resultCount');if(resultCount&&!app.catalog)resultCount.textContent='Preparando cardápio…';
+    const [catalogResult,hoursResult]=await Promise.all([
+      api('/api/catalog',{cache:'no-store'}),
+      api('/api/opening-hours',{cache:'no-store'}).catch(()=>null)
+    ]);
+    app.catalog=catalogResult;
+    // Consulta os horários por uma rota pública e independente do catálogo.
+    // Assim o cardápio do cliente sempre recebe a configuração recém-salva.
+    if(hoursResult?.openingHours){
+      app.catalog.restaurant=app.catalog.restaurant||{};
+      app.catalog.restaurant.openingHours=hoursResult.openingHours;
+      app.catalog.restaurant.openingStatus=hoursResult.status||app.catalog.restaurant.openingStatus;
     }
+    app.cart=normalizeCartForCatalog(app.cart,app.catalog);
+    setCart();
+    applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl);
+    renderCatalog();
     showHome();
   }catch(error){
     if(error?.status===401){
@@ -1032,7 +3290,11 @@ function bindScrollStorytelling(){
 
 async function start(){
  root.body.addEventListener('click',handleClick);
+ startProductImageRotation();
  root.addEventListener('submit',async event=>{
+  if(event.target.id==='fiscalProfileForm'){event.preventDefault();await submitFiscalProfile(event.target);return}
+  if(event.target.id==='fiscalExpenseForm'){event.preventDefault();await submitFiscalExpense(event.target);return}
+  if(event.target.id==='fiscalDocumentForm'){event.preventDefault();await submitFiscalDocument(event.target);return}
   if(event.target.id!=='deleteCustomerAccountForm')return;
   event.preventDefault();
   const form=event.target,button=form.querySelector('[type="submit"]'),errorNode=root.getElementById('deleteAccountError');
@@ -1045,26 +3307,79 @@ async function start(){
    for(const key of ['bela-cart','menuza-favorites','menuza-recent-products'])try{localStorage.removeItem(key)}catch{}
    location.hash='conta';showCustomerAccount();renderCustomerAuth();toast('Conta excluída com sucesso.');
   }catch(error){if(errorNode)errorNode.textContent=error.message;button.disabled=false}
- });
+ }
+
+);
  
+  let activeUploadDropZone=null;
+  const uploadDropZone=element=>element?.closest?.('.logo-upload-control, .form-field:has(input[type="file"]), .product-gallery-config > label:has(input[type="file"]), .beverage-admin-fields > label:has(input[type="file"])')||null;
+  const uploadDropZoneAtPointer=event=>uploadDropZone(event.target)||uploadDropZone(document.elementFromPoint(event.clientX,event.clientY));
+  const setActiveUploadDropZone=zone=>{
+    if(activeUploadDropZone===zone)return;
+    activeUploadDropZone?.classList.remove('is-dragover');
+    activeUploadDropZone=zone||null;
+    activeUploadDropZone?.classList.add('is-dragover');
+  };
+  const isFileDrag=event=>{
+    const types=event.dataTransfer?.types;
+    return Boolean(types&&(types.includes?.('Files')||types.contains?.('Files')||types.includes?.('application/x-moz-file')||types.contains?.('application/x-moz-file')));
+  };
+  // Um único elemento sob o cursor: evita percorrer toda a pilha a cada dragover.
+  window.addEventListener('dragenter',event=>{
+    if(!isFileDrag(event))return;
+    event.preventDefault();
+    setActiveUploadDropZone(uploadDropZoneAtPointer(event));
+  },true);
+  window.addEventListener('dragover',event=>{
+    if(!isFileDrag(event))return;
+    event.preventDefault();
+    if(event.dataTransfer)event.dataTransfer.dropEffect='copy';
+    setActiveUploadDropZone(uploadDropZoneAtPointer(event));
+  },true);
+  window.addEventListener('dragleave',event=>{
+    if(!event.relatedTarget&&(event.clientX<=0||event.clientY<=0||event.clientX>=innerWidth||event.clientY>=innerHeight))setActiveUploadDropZone(null);
+  },true);
+  window.addEventListener('drop',event=>{
+    if(!isFileDrag(event))return;
+    const zone=uploadDropZoneAtPointer(event)||activeUploadDropZone;
+    event.preventDefault();
+    setActiveUploadDropZone(null);
+    const input=zone?.querySelector('input[type="file"]');
+    const dropped=event.dataTransfer?.files;
+    if(!input||!dropped?.length)return;
+    const accept=(input.accept||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);
+    const valid=Array.from(dropped).filter(file=>!accept.length||accept.some(rule=>rule.startsWith('.')?file.name.toLowerCase().endsWith(rule):rule.endsWith('/*')?file.type.startsWith(rule.slice(0,-1)):file.type===rule));
+    if(!valid.length){toast('Tipo de arquivo não permitido neste campo.');return}
+    const transfer=new DataTransfer();
+    (input.multiple?valid:valid.slice(0,1)).forEach(file=>transfer.items.add(file));
+    try{input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}catch{toast('Não foi possível carregar os arquivos arrastados.')}
+  },true);
+  window.addEventListener('dragend',()=>setActiveUploadDropZone(null),true);
+  window.addEventListener('blur',()=>setActiveUploadDropZone(null));
   root.addEventListener('input',event=>{if(event.target.id==='ordersSearch'){app.admin.orderQuery=event.target.value;applyOrderFilters()}});
   root.addEventListener('change',async event=>{
+    if(event.target.id==='fiscalMonth'){app.admin.fiscalMonth=event.target.value;renderFiscalAdmin();return}
+    if(event.target.id==='dailyClosingDate'){app.admin.dailyClosingDate=event.target.value;renderDailyClosingAdmin();return}
     if(event.target.id==='ordersStatusFilter'){app.admin.orderStatus=event.target.value;applyOrderFilters();return}
     if(event.target.id==='ordersFulfillmentFilter'){app.admin.orderFulfillment=event.target.value;applyOrderFilters();return}
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
-  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
+  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(root.getElementById('mobileSiteMenu')?.classList.contains('is-open')){closeMobileSiteMenu();return}if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
   syncFilters();updateCartCount();bindSpellCardInteractions();bindGetLayersHeroMotion();bindScrollStorytelling();
+  const query=new URLSearchParams(location.search),qrToken=query.get('t'),qrNumber=query.get('mesa');
+  if(qrToken&&qrNumber){try{const verified=await api('/api/tables/qr/'+encodeURIComponent(qrToken));if(String(verified.table.number)===qrNumber)app.tableQr={token:qrToken,number:verified.table.number,seats:verified.table.seats,status:verified.table.status};else toast('O QR Code não corresponde à mesa informada.')}catch{toast('Não foi possível validar o QR Code desta mesa. Confira se o link está correto.')}}
   window.addEventListener('hashchange',onRoute);
   const initialHash=location.hash.replace(/^#/,'');
   try{const result=await api('/api/customer/me');app.customer=result.customer}
   catch{app.customer=null}
+  try{const branding=await api('/api/restaurant/branding');applyRestaurantBranding(branding.restaurant?.name,branding.restaurant?.logoUrl);app.promotionBanner={active:Number(branding.restaurant?.promoBannerActive)===1,image:branding.restaurant?.promoBannerImage||'',title:branding.restaurant?.promoBannerTitle||'Ofertas especiais',text:branding.restaurant?.promoBannerText||'Confira nossas promoções e aproveite'}}catch{}
+  // Rotas públicas/específicas devem ser resolvidas antes do bloqueio de sessão do cliente.
+  // O painel do restaurante usa #admin e precisa continuar acessível após atualizar a página.
   if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}
-  if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}
+  // O cardápio é público: a ausência de sessão não deve redirecionar o visitante para a conta.
   await openMenu();
 }
+setInterval(updateOrderElapsedTimes,30000);
 start();
-
-
 

@@ -1,7 +1,9 @@
+// Configuração persistente do endereço do servidor Menuza usado pelo aplicativo Flutter.
+// Permite apontar o app para localhost/rede local durante testes ou para a URL publicada.
 String normalizeServerUrl(String value) {
   var normalized = value.trim();
   if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
-    normalized = 'http://' + normalized;
+    normalized = 'http://$normalized';
   }
   return normalized;
 }

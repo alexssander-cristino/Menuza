@@ -3,9 +3,12 @@
 //  • Shader PBR (GGX + Fresnel) com iluminação de estúdio procedural, relevo procedural, translucidez,
 //    sombras suaves por mapa de profundidade (WebGL2), tone mapping ACES e MSAA.
 //  • Controles de órbita reais (mouse, toque, pinça, roda, teclado) com amortecimento e inércia.
-import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=1';
+import { buildFoodLayout, buildFoodGeometry } from './food-models.js?v=33';
 export { buildFoodGeometry };
 
+// Motor de visualização 3D do cardápio.
+// Converte as malhas de food-models.js em buffers WebGL, aplica materiais/iluminação,
+// desenha a cena e controla câmera, zoom, rotação, gestos e ciclo de renderização.
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -256,7 +259,7 @@ export class FoodScene {
   update(product, ingredients, size, options = {}) {
     if (this.disposed) return;
     const crustKey = options.crustKey !== undefined ? options.crustKey : this.crustKey; this.crustKey = crustKey;
-    const layout = buildFoodLayout(product, ingredients, size, { detail: this.detail, crustKey });
+    const layout = buildFoodLayout(product, ingredients, size, { detail: this.detail, crustKey, flavors: options.flavors || [] });
     const pk = `${product.id}|${layout.type}`;
     this.product = product; this.ingredients = ingredients; this.size = size; this.model = { bounds: layout.bounds, type: layout.type };
     if (pk !== this.productKey) { // outro produto: limpa a cena e reinicia o enquadramento

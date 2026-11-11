@@ -1,4 +1,7 @@
 PRAGMA foreign_keys = ON;
+-- Schema inicial do banco SQLite.
+-- Define as tabelas centrais do restaurante, catálogo, ingredientes e pedidos,
+-- incluindo chaves estrangeiras e restrições para preservar a integridade dos dados.
 CREATE TABLE IF NOT EXISTS restaurants (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
   currency TEXT NOT NULL DEFAULT 'BRL', prep_minutes INTEGER NOT NULL DEFAULT 30,

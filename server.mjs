@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { isImageDataUrl, isStoredImageUrl, storeImageDataUrl, storeImageList } from './src/storage/neon.mjs';
 import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -6,6 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHmac, timingSafeEqual, scryptSync } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { calculateItemPrice, CRUST_OPTIONS, INGREDIENTS, SIZE_OPTIONS, STATUS, STATUS_FLOW, makeSeed, slugify } from './src/catalog.mjs';
+import { restaurantLocalDatePrefix } from './src/time.mjs';
+// Menuza — servidor HTTP local e backend principal.
+// Reúne inicialização do SQLite, autenticação, regras de pedidos, rotas administrativas
+// e públicas, entrega dos arquivos estáticos e comunicação em tempo real com o painel.
+// A API hospedada na Vercel possui um adaptador próprio em api/[...path].mjs.
+import { verifyTotp } from './src/auth-totp.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(ROOT, 'public');
@@ -16,19 +23,42 @@ if (IS_PROD && (!process.env.APP_SECRET || !process.env.ADMIN_PASSWORD)) {
   throw new Error('Em produção, configure APP_SECRET e ADMIN_PASSWORD antes de iniciar.');
 }
 const SECRET = process.env.APP_SECRET || randomBytes(32).toString('hex');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'mesa-demo';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
+const ADMIN_SESSION_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_SECONDS = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
+if (IS_PROD && ADMIN_PASSWORD.length < 14) console.warn('[Menuza Security] ADMIN_PASSWORD deve ter pelo menos 14 caracteres.');
+if (IS_PROD && process.env.APP_SECRET.length < 32) console.warn('[Menuza Security] APP_SECRET deve ter pelo menos 32 caracteres aleatórios.');
 const RESTAURANT_ID = 'rest-bela-mesa';
 const MAX_BODY = 64 * 1024;
+const MAX_LOGO_BODY = 1_500_000;
+const MAX_LOGO_DATA_URL = 1_400_000;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const RATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 let lastRateCleanup = 0;
 const MIME = { '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
+// Banco de dados: cria o diretório, abre o SQLite e aplica o schema/migrações compatíveis.
 await mkdir(dirname(DATA_FILE), { recursive: true });
 const db = new DatabaseSync(DATA_FILE);
 db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;');
 db.exec(await readFile(resolve(ROOT, 'migrations/001_initial.sql'), 'utf8'));
-db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+for (const [table, column, definition] of [
+  ['restaurants','logo_url',"TEXT NOT NULL DEFAULT ''"],
+  ['products','image_url',"TEXT NOT NULL DEFAULT ''"],
+  ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','age_restricted','INTEGER NOT NULL DEFAULT 0'],
+  ['products','size_prices_json',"TEXT NOT NULL DEFAULT '{}'"],
+  ['products','ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','default_ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
+  ['products','ingredients_configured','INTEGER NOT NULL DEFAULT 0']
+]) {
+  try { db.exec('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition); }
+  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+}
+db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', birth_date TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
+try { db.exec("ALTER TABLE customers ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
@@ -36,6 +66,10 @@ db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_progress','closed')),
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );`);
+for (const [column, definition] of [['response_note', "TEXT NOT NULL DEFAULT ''"], ['retention_reason', "TEXT NOT NULL DEFAULT ''"], ['closed_at', 'TEXT']]) {
+  try { db.exec('ALTER TABLE privacy_requests ADD COLUMN ' + column + ' ' + definition); }
+  catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+}
 db.exec('CREATE INDEX IF NOT EXISTS idx_privacy_requests_status_created ON privacy_requests(status, created_at)');
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_security_rate_buckets_updated ON security_rate_buckets(updated_at)');
@@ -43,6 +77,11 @@ try { db.exec('ALTER TABLE products ADD COLUMN available INTEGER NOT NULL DEFAUL
 catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at)');
+db.exec(`CREATE TABLE IF NOT EXISTS combos (
+  id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', price_cents INTEGER NOT NULL,
+  items_json TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);`);
 db.exec(`CREATE TABLE IF NOT EXISTS coupons (
   id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   code TEXT NOT NULL, discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
@@ -56,13 +95,20 @@ for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],[
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 }
 db.exec('CREATE TABLE IF NOT EXISTS restaurant_tables (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE, table_number INTEGER NOT NULL, seats INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT \'free\' CHECK(status IN (\'free\',\'occupied\',\'cleaning\')), note TEXT NOT NULL DEFAULT \'\', updated_at TEXT NOT NULL, UNIQUE(restaurant_id, table_number));');
+try { db.exec('ALTER TABLE restaurant_tables ADD COLUMN qr_token TEXT'); }
+catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_tables_qr_token ON restaurant_tables(qr_token) WHERE qr_token IS NOT NULL');
 if (!db.prepare('SELECT id FROM restaurants LIMIT 1').get()) seedDatabase();
 if (db.prepare('SELECT COUNT(*) AS count FROM restaurant_tables WHERE restaurant_id=?').get(RESTAURANT_ID).count === 0) {
   const now = new Date().toISOString();
   const addTable = db.prepare('INSERT INTO restaurant_tables (id,restaurant_id,table_number,seats,status,note,updated_at) VALUES (?,?,?,?,?,?,?)');
   for (let number = 1; number <= 12; number++) addTable.run('table-' + number, RESTAURANT_ID, number, number <= 4 ? 2 : 4, 'free', '', now);
 }
+for (const table of db.prepare("SELECT id FROM restaurant_tables WHERE restaurant_id=? AND (qr_token IS NULL OR qr_token='')").all(RESTAURANT_ID)) {
+  db.prepare('UPDATE restaurant_tables SET qr_token=? WHERE id=? AND restaurant_id=?').run(randomBytes(24).toString('base64url'), table.id, RESTAURANT_ID);
+}
 
+// Dados iniciais: popula o restaurante demonstrativo somente quando o banco ainda está vazio.
 function seedDatabase() {
   const seed = makeSeed();
   db.exec('BEGIN');
@@ -79,20 +125,38 @@ function seedDatabase() {
 }
 
 const statement = sql => db.prepare(sql);
+// Leitura do cardápio: converte registros do banco para o formato usado pelo frontend.
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId);
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.size_prices_json AS sizePricesJson,p.ingredient_ids_json AS ingredientIdsJson,p.default_ingredient_ids_json AS defaultIngredientIdsJson,p.ingredients_configured AS ingredientsConfigured,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
+    let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
+    if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
+    images=images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8);
+    let sizePrices={},ingredientIds=[],defaultIngredientIds=[];try{sizePrices=JSON.parse(product.sizePricesJson||'{}')}catch{}try{ingredientIds=JSON.parse(product.ingredientIdsJson||'[]')}catch{}try{defaultIngredientIds=JSON.parse(product.defaultIngredientIdsJson||'[]')}catch{}
+    return {...product,sizePrices:sizePrices&&typeof sizePrices==='object'&&!Array.isArray(sizePrices)?sizePrices:{},ingredientIds:Array.isArray(ingredientIds)?ingredientIds:[],defaultIngredientIds:Array.isArray(defaultIngredientIds)?defaultIngredientIds:[],ingredientsConfigured:Number(product.ingredientsConfigured)===1,productImagesJson:JSON.stringify(images),images};
+  });
   const categories = statement('SELECT id,name,slug,sort_order AS sortOrder FROM categories WHERE restaurant_id=? ORDER BY sort_order').all(restaurantId);
   const ingredientRows = statement('SELECT id,name,type,group_name AS groupName,addon_cents AS cents,included_by_default AS included,active,sort_order AS sortOrder FROM ingredients WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY sort_order').all(restaurantId);
   const ingredients = ingredientRows.map(row => ({ ...row, included: row.included === 1, visual: INGREDIENTS.find(i => i.id === row.id)?.visual || 'herb' }));
-  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
+  const comboRows = statement('SELECT id,name,description,price_cents AS priceCents,items_json AS itemsJson,active,created_at AS createdAt,updated_at AS updatedAt FROM combos WHERE restaurant_id=?' + (admin ? '' : ' AND active=1') + ' ORDER BY created_at DESC').all(restaurantId);
+  const combos = comboRows.map(row => {
+    let itemIds = [];
+    try { itemIds = JSON.parse(row.itemsJson); } catch {}
+    const items = itemIds.map(entry => {
+      const product = products.find(item => item.id === entry.productId) || statement('SELECT id,name,description,type,base_price_cents AS baseCents,active,available FROM products WHERE id=? AND restaurant_id=?').get(entry.productId, restaurantId);
+      return product ? { productId: product.id, name: product.name, quantity: entry.quantity, baseCents: product.baseCents, ageRestricted: Boolean(product.ageRestricted) } : null;
+    }).filter(Boolean);
+    return { id: row.id, name: row.name, description: row.description, priceCents: row.priceCents, active: row.active, createdAt: row.createdAt, updatedAt: row.updatedAt, items };
+  });
+  return { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(restaurantId), categories, products, ingredients, combos, sizes: SIZE_OPTIONS, crusts: CRUST_OPTIONS };
 }
+// Sessões: assina os dados com HMAC para impedir alterações no conteúdo do cookie.
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = createHmac('sha256', SECRET).update(body).digest('base64url');
   return body + '.' + signature;
 }
-function readSession(request, cookieName = 'mesa_session') {
+function readSession(request, cookieName = ADMIN_SESSION_COOKIE) {
   const cookie = request.headers.cookie || '';
   const match = cookie.match(new RegExp('(?:^|; )' + cookieName + '=([^;]+)'));
   if (!match) return null;
@@ -107,30 +171,43 @@ function readSession(request, cookieName = 'mesa_session') {
     return session.exp > Date.now() ? session : null;
   } catch { return null; }
 }
+// Autorização: bloqueia rotas administrativas sem sessão válida do restaurante configurado.
 function requireAdmin(request) {
   const session = readSession(request);
   if (!session || session.role !== 'admin' || session.restaurantId !== RESTAURANT_ID) throw Object.assign(new Error('Entre no painel para continuar.'), { status: 401 });
   return session;
 }
+// Cliente autenticado: recupera a sessão do cliente sem tornar a autenticação obrigatória.
 function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
-  const customer = statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(session.customerId);
-  return customer ? { ...session, customer } : null;
+  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(session.customerId);
+  return customer ? { ...session, customer: {...customer,isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
 }
 function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
 function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
 function hashCustomerPassword(password, salt) { return scryptSync(password, salt, 64); }
 function verifyCustomerPassword(password, customer) { const expected = Buffer.from(customer.password_hash, 'hex'); const actual = hashCustomerPassword(password, customer.password_salt); return expected.length === actual.length && timingSafeEqual(expected, actual); }
+function parseCustomerBirthDate(value) {
+  const raw=String(value||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw Object.assign(new Error('Informe uma data de nascimento válida.'),{status:422});
+  const date=new Date(raw+'T00:00:00.000Z');
+  if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==raw) throw Object.assign(new Error('Informe uma data de nascimento válida.'),{status:422});
+  const today=new Date(); let age=today.getUTCFullYear()-date.getUTCFullYear(); const month=today.getUTCMonth()-date.getUTCMonth();
+  if(month<0||(month===0&&today.getUTCDate()<date.getUTCDate())) age--;
+  if(date.getTime()>Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate())||age>120) throw Object.assign(new Error('Confira sua data de nascimento.'),{status:422});
+  return {birthDate:raw,isAdult:age>=18};
+}
 function createCustomer(payload) {
   const name = cleanText(payload.name, 100), email = normalizeEmail(payload.email), phone = cleanText(payload.phone, 30), password = typeof payload.password === 'string' ? payload.password : '';
+  const birth=parseCustomerBirthDate(payload.birthDate);
   if (name.length < 2) throw Object.assign(new Error('Informe seu nome completo.'), { status: 422 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 422 });
   if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
   if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
   const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
-  statement('INSERT INTO customers (id,name,email,phone,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?)').run(id,name,email,phone,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
-  return statement('SELECT id,name,email,phone FROM customers WHERE id=?').get(id);
+  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
+  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(id),isAdult:birth.isAdult};
 }
 function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
 function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
@@ -171,6 +248,7 @@ function clientIp(request) {
 function rateBucketKey(value) {
   return createHmac('sha256', SECRET).update(String(value)).digest('hex');
 }
+// Proteção contra abuso: agrupa tentativas por origem/rota e aplica limites temporais.
 function consumeRateLimits(rules) {
   const now = Date.now();
   if (now - lastRateCleanup > RATE_CLEANUP_INTERVAL_MS) {
@@ -229,7 +307,7 @@ function endpointRateLimit(request, path) {
     const normalized = dynamic ? '/api/admin/' + dynamic[1] + '/:id' : path;
     const known = new Set([
       '/api/catalog','/api/admin/login','/api/admin/logout','/api/customer/register','/api/customer/login',
-      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
+      '/api/customer/logout','/api/customer/me','/api/customer/orders','/api/customer/data-export','/api/customer/account','/api/privacy-requests','/api/admin/privacy-requests','/api/admin/me','/api/admin/events',
       '/api/admin/dashboard','/api/admin/orders','/api/admin/catalog','/api/admin/settings','/api/admin/coupons','/api/coupons/validate',
       '/api/admin/tables',
       '/api/tables/available',
@@ -245,7 +323,7 @@ function rateLimitResponse(response, retryAfter = 900) {
   return send(response, 429, { error: 'Muitas solicitações. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(Math.max(1, Math.min(3600, retryAfter))), 'Cache-Control': 'no-store' });
 }
 function hasHoneypot(body) {
-  return typeof body?.website === 'string' && body.website.trim().length > 0;
+  return ['contact_check', 'website'].some(key => typeof body?.[key] === 'string' && body[key].trim().length > 0);
 }
 
 function fail(response, error) {
@@ -253,12 +331,13 @@ function fail(response, error) {
   if (status >= 500) console.error(error);
   send(response, status, { error: status >= 500 ? 'O servidor não conseguiu concluir a solicitação.' : error.message });
 }
-async function bodyOf(request) {
+// Entrada HTTP: lê o corpo da requisição respeitando o limite de bytes permitido.
+async function bodyOf(request, maxBytes = MAX_BODY) {
   let raw = '';
   let bytes = 0;
   for await (const chunk of request) {
     bytes += chunk.length;
-    if (bytes > MAX_BODY) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
+    if (bytes > maxBytes) throw Object.assign(new Error('A solicitação é grande demais.'), { status: 413 });
     raw += chunk.toString('utf8');
   }
   if (!raw) return {};
@@ -276,6 +355,7 @@ function assertSameOrigin(request) {
   const expectedSecure = 'https://' + request.headers.host;
   if (origin !== expected && origin !== expectedSecure) throw Object.assign(new Error('Origem da solicitação não permitida.'), { status: 403 });
 }
+// Pedidos: monta a representação completa de um pedido a partir do identificador.
 function orderById(id, restaurantId = RESTAURANT_ID) {
   const order = statement('SELECT id,restaurant_id AS restaurantId,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,tracking_token AS trackingToken,created_at AS createdAt,updated_at AS updatedAt,(SELECT prep_minutes FROM restaurants WHERE id=orders.restaurant_id) AS prepMinutes FROM orders WHERE id=? AND restaurant_id=?').get(id, restaurantId);
   if (!order) return null;
@@ -286,6 +366,7 @@ function orderById(id, restaurantId = RESTAURANT_ID) {
   const history = statement('SELECT status,changed_at AS changedAt,changed_by AS changedBy FROM order_status_history WHERE order_id=? ORDER BY id').all(id);
   return { ...order, items, history };
 }
+// Eventos: publica atualizações para os painéis conectados via Server-Sent Events.
 function emit(restaurantId, event) {
   const clients = streams.get(restaurantId);
   if (!clients) return;
@@ -323,18 +404,39 @@ function couponEligibility(coupon, subtotalCents, now = new Date()) {
   if (subtotalCents < coupon.minimum_subtotal_cents) throw Object.assign(new Error('O pedido mínimo para esse cupom é '+(coupon.minimum_subtotal_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'.'), { status: 422 });
   return Math.min(subtotalCents, coupon.discount_type === 'percent' ? Math.round(subtotalCents * coupon.discount_value / 100) : coupon.discount_value);
 }
+// Precificação: valida opções e calcula valores dos itens antes de persistir o pedido.
 function priceOrderItems(itemsInput) {
   if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 20) throw Object.assign(new Error('O carrinho está vazio ou tem itens demais.'), { status: 422 });
   const catalog = catalogFor(RESTAURANT_ID);
   let subtotalCents = 0;
   const pricedItems = itemsInput.map(entry => {
+    if (entry && typeof entry.comboId === 'string') {
+      const row = statement("SELECT id,name,description,price_cents AS priceCents,items_json AS itemsJson,active FROM combos WHERE id=? AND restaurant_id=?").get(entry.comboId, RESTAURANT_ID);
+      if (!row || row.active !== 1) throw Object.assign(new Error('Um dos combos está indisponível.'), { status: 409 });
+      const quantity = Number(entry.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw Object.assign(new Error('A quantidade do combo é inválida.'), { status: 422 });
+      let comboItems = [];
+      try { comboItems = JSON.parse(row.itemsJson); } catch {}
+      if (comboItems.length < 2) throw Object.assign(new Error('Este combo precisa ser revisado pelo restaurante.'), { status: 409 });
+      for (const comboItem of comboItems) {
+        const product = catalog.products.find(p => p.id === comboItem.productId && p.active === 1 && p.available === 1);
+        if (!product) throw Object.assign(new Error('Um produto de um combo está indisponível. Atualize o cardápio.'), { status: 409 });
+      }
+      const product = { id: row.id, name: row.name, description: row.description, type: 'plate', widthCm: null, heightCm: null, ageRestricted: comboItems.some(entry => catalog.products.find(p => p.id === entry.productId)?.ageRestricted) };
+      const priced = { linePriceCents: row.priceCents * quantity, unitPriceCents: row.priceCents, size: { key: 'combo', label: 'Combo' }, crust: null, ingredients: [], comboItems: comboItems.map(item => {
+        const source = catalog.products.find(p => p.id === item.productId);
+        return { productId: source.id, name: source.name, quantity: item.quantity };
+      }) };
+      subtotalCents += priced.linePriceCents;
+      return { product, quantity, notes: cleanText(entry.notes, 300), priced, combo: true };
+    }
     const product = catalog.products.find(p => p.id === entry.productId && p.active === 1);
     if (!product || product.available !== 1) throw Object.assign(new Error('Um dos produtos está indisponível ou esgotado no momento.'), { status: 409 });
     const priced = calculateItemPrice({ product, sizeKey: entry.sizeKey, crustKey: entry.crustKey, ingredients: entry.ingredients, quantity: entry.quantity, catalog: catalog.ingredients });
     subtotalCents += priced.linePriceCents;
     return { product, quantity: entry.quantity, notes: cleanText(entry.notes, 300), priced };
   });
-  return { subtotalCents, pricedItems };
+  return { subtotalCents, pricedItems, requiresAdult: pricedItems.some(item => item.product.ageRestricted === true || Number(item.product.ageRestricted) === 1) };
 }
 function validateCouponForOrder(code, itemsInput) {
   const { subtotalCents } = priceOrderItems(itemsInput);
@@ -342,6 +444,39 @@ function validateCouponForOrder(code, itemsInput) {
   if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
   const coupon = getCoupon(normalized);
   return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
+}
+function saveCombo(payload, id = null) {
+  const name = cleanText(payload.name, 80);
+  const description = cleanText(payload.description, 240);
+  const priceCents = Number(payload.priceCents);
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  if (name.length < 2 || !Number.isInteger(priceCents) || priceCents < 100 || priceCents > 1000000) throw Object.assign(new Error('Informe nome e preço válido para o combo.'), { status: 422 });
+  if (rawItems.length < 2 || rawItems.length > 6) throw Object.assign(new Error('Um combo precisa ter de 2 a 6 produtos.'), { status: 422 });
+  const items = [];
+  for (const entry of rawItems) {
+    const productId = cleanText(entry?.productId, 100);
+    const quantity = Number(entry?.quantity ?? 1);
+    const product = statement('SELECT id,name,base_price_cents AS baseCents,active,available FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
+    if (!product || product.active !== 1 || product.available !== 1) throw Object.assign(new Error('Selecione apenas produtos ativos e disponíveis.'), { status: 422 });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 5) throw Object.assign(new Error('A quantidade de cada produto deve ficar entre 1 e 5.'), { status: 422 });
+    items.push({ productId, quantity });
+  }
+  const regularTotal = items.reduce((sum, entry) => sum + statement('SELECT base_price_cents AS price FROM products WHERE id=? AND restaurant_id=?').get(entry.productId, RESTAURANT_ID).price * entry.quantity, 0);
+  if (priceCents >= regularTotal) throw Object.assign(new Error('O preço promocional deve ser menor que a soma dos preços-base dos produtos.'), { status: 422 });
+  const now = new Date().toISOString();
+  if (id) {
+    const current = statement('SELECT id FROM combos WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+    if (!current) throw Object.assign(new Error('Combo não encontrado.'), { status: 404 });
+    statement('UPDATE combos SET name=?,description=?,price_cents=?,items_json=?,active=?,updated_at=? WHERE id=? AND restaurant_id=?')
+      .run(name,description,priceCents,JSON.stringify(items),payload.active === undefined ? 1 : (payload.active ? 1 : 0),now,id,RESTAURANT_ID);
+    emit(RESTAURANT_ID, { type: 'catalog-updated' });
+    return catalogFor(RESTAURANT_ID, true).combos.find(combo => combo.id === id);
+  }
+  const newId = 'cmb_' + randomBytes(12).toString('hex');
+  statement('INSERT INTO combos (id,restaurant_id,name,description,price_cents,items_json,active,created_at,updated_at) VALUES (?,?,?,?,?,?,1,?,?)')
+    .run(newId,RESTAURANT_ID,name,description,priceCents,JSON.stringify(items),now,now);
+  emit(RESTAURANT_ID, { type: 'catalog-updated' });
+  return catalogFor(RESTAURANT_ID, true).combos.find(combo => combo.id === newId);
 }
 function saveCoupon(payload, id = null) {
   const code = couponCode(payload.code);
@@ -376,7 +511,9 @@ function saveCoupon(payload, id = null) {
   return couponPublic(statement('SELECT * FROM coupons WHERE id=? AND restaurant_id=?').get(newId,RESTAURANT_ID));
 }
 
-function createOrder(payload, customerId = null) {
+// Criação de pedido: valida cliente, itens, cupom e valores e grava a operação no banco.
+function createOrder(payload, customer = null) {
+  const customerId = customer?.id || null;
   const customerName = cleanText(payload.customerName, 100);
   const phone = cleanText(payload.phone, 30);
   const fulfillment = payload.fulfillment;
@@ -397,7 +534,8 @@ function createOrder(payload, customerId = null) {
     if ((existing.customerId || null) !== (customerId || null)) throw Object.assign(new Error('Esta chave de pedido já foi utilizada.'), { status: 409 });
     return orderById(existing.id);
   }
-  const { subtotalCents, pricedItems } = priceOrderItems(itemsInput);
+  const { subtotalCents, pricedItems, requiresAdult } = priceOrderItems(itemsInput);
+  if (requiresAdult && (!customer?.birthDate || customer.isAdult !== true)) throw Object.assign(new Error(!customer?.birthDate ? 'Informe sua data de nascimento na conta para comprar este produto restrito.' : 'Este produto é permitido apenas para maiores de 18 anos.'), { status: 403 });
   const normalizedCouponCode = couponCode(payload.couponCode);
   let discountCents = 0;
   if (normalizedCouponCode) discountCents = couponEligibility(getCoupon(normalizedCouponCode), subtotalCents);
@@ -423,11 +561,16 @@ function createOrder(payload, customerId = null) {
     if (normalizedCouponCode) {
       const coupon = getCoupon(normalizedCouponCode);
       couponEligibility(coupon, subtotalCents);
-      statement('UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=?').run(coupon.id,RESTAURANT_ID);
+      // A validade de uso também é aplicada no UPDATE: o limite continua
+      // protegido no banco, mesmo se o fluxo for alterado futuramente.
+      const usage = statement("UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=? AND active=1 AND (max_uses IS NULL OR used_count < max_uses)").run(coupon.id,RESTAURANT_ID);
+      if (usage.changes !== 1) {
+        throw Object.assign(new Error('Esse cupom atingiu o limite de utilizações.'), { status: 422 });
+      }
     }
     const insertItem = statement('INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,size_key,crust_key,ingredients_json,notes,unit_price_cents,snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
     for (const item of pricedItems) {
-      const snapshot = { productId: item.product.id, type: item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
+      const snapshot = { productId: item.product.id, type: item.combo ? 'combo' : item.product.type, name: item.product.name, size: item.priced.size, crust: item.priced.crust, ingredients: item.priced.ingredients, comboItems: item.priced.comboItems || [], unitPriceCents: item.priced.unitPriceCents, widthCm: item.product.widthCm, heightCm: item.product.heightCm };
       insertItem.run(randomBytes(12).toString('hex'), orderId, item.product.id, item.product.name, item.quantity, item.priced.size.key, item.priced.crust?.key || '', JSON.stringify(item.priced.ingredients), item.notes, item.priced.unitPriceCents, JSON.stringify(snapshot));
     }
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, 'received', now, 'cliente');
@@ -438,40 +581,96 @@ function createOrder(payload, customerId = null) {
   emit(RESTAURANT_ID, { type: 'order-created', orderId });
   return created;
 }
+// Indicadores: agrega os números usados na página inicial do painel administrativo.
 function dashboard() {
   const counts = statement('SELECT status,COUNT(*) AS count FROM orders WHERE restaurant_id=? GROUP BY status').all(RESTAURANT_ID);
-  const today = new Date().toISOString().slice(0,10) + '%';
+  const today = restaurantLocalDatePrefix(new Date()) + '%';
   const revenue = statement("SELECT COALESCE(SUM(total_cents),0) AS total FROM orders WHERE restaurant_id=? AND status NOT IN ('cancelled') AND created_at LIKE ?").get(RESTAURANT_ID,today).total;
   const todayStats = statement("SELECT COUNT(*) AS ordersToday,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents FROM orders WHERE restaurant_id=? AND created_at LIKE ?").get(RESTAURANT_ID,today);
   const popular = statement('SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.status<>\'cancelled\' GROUP BY oi.product_id ORDER BY quantity DESC LIMIT 4').all(RESTAURANT_ID);
-  return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, ordersToday: todayStats.ordersToday, averageTicketCents: todayStats.averageTicketCents, popular };
+  const prepMinutes = statement('SELECT prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID)?.prepMinutes || 30;
+  return { counts: Object.fromEntries(Object.keys(STATUS).map(key => [key, counts.find(row => row.status === key)?.count || 0])), revenueCents: revenue, ordersToday: todayStats.ordersToday, averageTicketCents: todayStats.averageTicketCents, prepMinutes, popular };
 }
 function listOrders() {
   return statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? ORDER BY CASE status WHEN 'received' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END,created_at DESC LIMIT 100").all(RESTAURANT_ID).map(order => ({ ...order, items: orderById(order.id).items }));
 }
-function patchProduct(productId, patch) {
+function validateProductImages(images) {
+  if (!Array.isArray(images) || images.length > 8 || images.some(url=>typeof url!=='string'||url.length>245000||(!isImageDataUrl(url)&&!isStoredImageUrl(url))) || images.reduce((sum,url)=>sum+url.length,0)>1950000) {
+    throw Object.assign(new Error('Envie até 8 fotos WebP comprimidas, com tamanho total reduzido.'), { status: 422 });
+  }
+  return images;
+}
+function validateSizePrices(type,value,fallbackCents){
+  if(type==='drink'||value===undefined||value===null)return {};
+  if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('Informe um preço para cada tamanho.'),{status:422});
+  const options=SIZE_OPTIONS[type]||[],result={};
+  for(const option of options){const cents=Number(value[option.key]);if(!Number.isInteger(cents)||cents<500||cents>1000000)throw Object.assign(new Error('Informe um preço válido para o tamanho '+option.label+'.'),{status:422});result[option.key]=cents;}
+  if(!options.length)throw Object.assign(new Error('Este produto não possui tamanhos configuráveis.'),{status:422});
+  return result;
+}
+function validateProductIngredientIdsLocal(value,type){
+  if(!Array.isArray(value)||value.length>40||value.some(id=>typeof id!=='string'||!id.trim())||new Set(value).size!==value.length)throw Object.assign(new Error('Selecione ingredientes válidos para o produto.'),{status:422});
+  const available=statement('SELECT id FROM ingredients WHERE restaurant_id=? AND type=? AND active=1').all(RESTAURANT_ID,type);
+  const allowed=new Set(available.map(item=>item.id));
+  if(value.some(id=>!allowed.has(id)))throw Object.assign(new Error('Um ingrediente selecionado não está disponível para este produto.'),{status:422});
+  return value;
+}
+// Produtos: valida e salva alterações do cadastro sem aceitar campos fora das regras.
+async function patchProduct(productId, patch) {
   const product = statement('SELECT * FROM products WHERE id=? AND restaurant_id=?').get(productId, RESTAURANT_ID);
   if (!product) throw Object.assign(new Error('Produto não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? product.name : cleanText(patch.name, 80);
   const description = patch.description === undefined ? product.description : cleanText(patch.description, 300);
   const price = patch.baseCents === undefined ? product.base_price_cents : Number(patch.baseCents);
+  const sizePrices = patch.sizePrices === undefined ? null : validateSizePrices(product.type,patch.sizePrices,price);
+  const ingredientIds = patch.ingredientIds === undefined ? null : validateProductIngredientIdsLocal(patch.ingredientIds,product.type);
+  const defaultIngredientIds = patch.defaultIngredientIds === undefined ? null : validateProductIngredientIdsLocal(patch.defaultIngredientIds,product.type);
   const active = patch.active === undefined ? product.active : (patch.active ? 1 : 0);
   const available = patch.available === undefined ? product.available : (patch.available ? 1 : 0);
+  const images = patch.images === undefined ? null : validateProductImages(patch.images);
+  const imageUrl = images === null ? (patch.imageUrl === undefined ? product.image_url : String(patch.imageUrl||'')) : (images[0]||'');
+  if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
+  const storedImages = images === null ? null : await storeImageList(images, 'products/' + productId);
+  const storedImageUrl = images === null ? (imageUrl ? await storeImageDataUrl(imageUrl, 'products/' + productId) : '') : (storedImages[0] || '');
   if (name.length < 2 || !Number.isInteger(price) || price < 500 || price > 1000000) throw Object.assign(new Error('Confira o nome e o preço do produto.'), { status: 422 });
-  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, new Date().toISOString(), productId, RESTAURANT_ID);
+  let currentImages=[];try{currentImages=JSON.parse(product.product_images_json||'[]')}catch{}
+  if(!Array.isArray(currentImages))currentImages=[];
+  const savedImages=images===null?(currentImages.length?await storeImageList(currentImages,'products/'+productId):(imageUrl?[storedImageUrl]:[])):storedImages;
+  const finalImageUrl=images===null?(savedImages[0]||''):storedImageUrl;
+  const ageRestricted = patch.ageRestricted === undefined ? Number(product.age_restricted || 0) : (patch.ageRestricted ? 1 : 0);
+  statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,age_restricted=?,size_prices_json=COALESCE(?,size_prices_json),ingredient_ids_json=COALESCE(?,ingredient_ids_json),default_ingredient_ids_json=COALESCE(?,default_ingredient_ids_json),ingredients_configured=CASE WHEN ? THEN 1 ELSE ingredients_configured END,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices),ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null?1:0,new Date().toISOString(), productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
-function patchRestaurantSettings(patch) {
-  const current = statement('SELECT name,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+async function patchRestaurantSettings(patch) {
+  const current = statement('SELECT name,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
   if (!current) throw Object.assign(new Error('Restaurante não encontrado.'), { status: 404 });
   const name = patch.name === undefined ? current.name : cleanText(patch.name, 80);
   const prepMinutes = patch.prepMinutes === undefined ? current.prepMinutes : Number(patch.prepMinutes);
+  const logoUrl = patch.logoUrl === undefined ? current.logoUrl : (typeof patch.logoUrl === 'string' ? patch.logoUrl.trim() : '');
+  const validUploadedLogo = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logoUrl);
+  const validRemoteLogo = /^https:\/\/[^\s<>"']+$/i.test(logoUrl) && logoUrl.length <= 500;
+  if (logoUrl && !validUploadedLogo && !validRemoteLogo) throw Object.assign(new Error('Envie uma imagem PNG, JPG ou WebP válida, ou mantenha a logo atual.'), { status: 422 });
+  if (validUploadedLogo && logoUrl.length > MAX_LOGO_DATA_URL) throw Object.assign(new Error('A logo ficou grande demais. Escolha uma imagem de até 1 MB.'), { status: 413 });
   if (name.length < 2) throw Object.assign(new Error('O nome do restaurante precisa ter pelo menos 2 caracteres.'), { status: 422 });
   if (!Number.isInteger(prepMinutes) || prepMinutes < 5 || prepMinutes > 240) throw Object.assign(new Error('O tempo médio deve ficar entre 5 e 240 minutos.'), { status: 422 });
-  statement('UPDATE restaurants SET name=?,prep_minutes=? WHERE id=?').run(name, prepMinutes, RESTAURANT_ID);
+  const storedLogo = isImageDataUrl(logoUrl) ? await storeImageDataUrl(logoUrl, 'restaurants/logos') : logoUrl;
+  statement('UPDATE restaurants SET name=?,prep_minutes=?,logo_url=? WHERE id=?').run(name, prepMinutes, storedLogo, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'settings-updated' });
-  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+  return statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID);
+}
+// Ingredientes: cadastra um ingrediente após validar nome, tipo e preço adicional.
+function createIngredient(payload) {
+  const name=cleanText(payload.name,80),type=cleanText(payload.type,20),groupName=cleanText(payload.groupName,50)||'Adicionais',cents=Number(payload.cents);
+  if(name.length<2||!['pizza','burger','plate'].includes(type)||!Number.isInteger(cents)||cents<0||cents>999999) throw Object.assign(new Error('Informe nome, tipo e preço válido para o adicional.'),{status:422});
+  const normalized=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+  const duplicate=statement('SELECT id,name FROM ingredients WHERE restaurant_id=?').all(RESTAURANT_ID).find(item=>normalized(item.name)===normalized(name));
+  if(duplicate) throw Object.assign(new Error('Já existe um ingrediente ou adicional com esse nome. Use outro nome ou exclua o cadastro existente.'),{status:409});
+  const id=slugify(name)+'-'+randomBytes(3).toString('hex');
+  const sortOrder=Number(statement('SELECT COALESCE(MAX(sort_order),-1)+1 AS nextOrder FROM ingredients WHERE restaurant_id=?').get(RESTAURANT_ID)?.nextOrder)||0;
+  statement('INSERT INTO ingredients (id,restaurant_id,name,type,group_name,addon_cents,included_by_default,active,sort_order) VALUES (?,?,?,?,?,?,0,1,?)').run(id,RESTAURANT_ID,name,type,groupName,cents,sortOrder);
+  emit(RESTAURANT_ID,{type:'catalog-updated'});
+  return catalogFor(RESTAURANT_ID,true).ingredients.find(item=>item.id===id);
 }
 function patchIngredient(ingredientId, patch) {
   const current = statement('SELECT * FROM ingredients WHERE id=? AND restaurant_id=?').get(ingredientId, RESTAURANT_ID);
@@ -483,22 +682,32 @@ function patchIngredient(ingredientId, patch) {
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).ingredients.find(i => i.id === ingredientId);
 }
-function createProduct(payload) {
+async function createProduct(payload) {
   const name = cleanText(payload.name, 80);
   const description = cleanText(payload.description, 300);
   const type = payload.type;
   const categoryId = cleanText(payload.categoryId, 50);
   const baseCents = Number(payload.baseCents);
-  if (name.length < 2 || !['pizza','burger','plate'].includes(type) || !Number.isInteger(baseCents) || baseCents < 500 || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
+  const sizePrices = validateSizePrices(type,payload.sizePrices,baseCents);
+  const ingredientIds = validateProductIngredientIdsLocal(payload.ingredientIds===undefined?[]:payload.ingredientIds,type);
+  const defaultIngredientIds = validateProductIngredientIdsLocal(payload.defaultIngredientIds===undefined?[]:payload.defaultIngredientIds,type);
+  const images = payload.images === undefined ? (payload.imageUrl ? [String(payload.imageUrl)] : []) : validateProductImages(payload.images);
+  const imageUrl = images[0] || '';
+  if (imageUrl && !isImageDataUrl(imageUrl) && !isStoredImageUrl(imageUrl)) throw Object.assign(new Error('A foto do produto precisa estar em WebP comprimido.'), { status: 422 });
+  if (name.length < 2 || !['pizza','burger','plate','drink'].includes(type) || !Number.isInteger(baseCents) || baseCents < (type === 'drink' ? 1 : 500) || baseCents > 1000000) throw Object.assign(new Error('Preencha nome, tipo e preço-base válidos.'), { status: 422 });
   const category = statement('SELECT id FROM categories WHERE id=? AND restaurant_id=?').get(categoryId, RESTAURANT_ID);
   if (!category) throw Object.assign(new Error('Escolha uma categoria válida.'), { status: 422 });
   const now = new Date().toISOString();
   const id = slugify(name) + '-' + randomBytes(3).toString('hex');
-  statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?, ?,?)')
-    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, now, now);
+  const storedImages = await storeImageList(images, 'products/' + id);
+  const storedImageUrl = storedImages[0] || '';
+statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,age_restricted,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?,?,?,?)')
+    .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), payload.ageRestricted ? 1 : 0, now, now);
+  statement('UPDATE products SET size_prices_json=?,ingredient_ids_json=?,default_ingredient_ids_json=?,ingredients_configured=? WHERE id=? AND restaurant_id=?').run(JSON.stringify(sizePrices),JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),payload.ingredientIds!==undefined||payload.defaultIngredientIds!==undefined?1:0,id,RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
+// Fluxo de atendimento: valida a transição de status e registra a atualização do pedido.
 function updateStatus(orderId, nextStatus) {
   if (!STATUS_FLOW.includes(nextStatus)) throw Object.assign(new Error('Estado de pedido inválido.'), { status: 422 });
   const order = statement('SELECT * FROM orders WHERE id=? AND restaurant_id=?').get(orderId, RESTAURANT_ID);
@@ -511,12 +720,18 @@ function updateStatus(orderId, nextStatus) {
   try {
     statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
+    // Ao concluir ou cancelar um pedido consumido na mesa, ela precisa entrar
+    // em limpeza — nunca voltar direto para livre sem a preparação da equipe.
+    if (order.fulfillment === 'table' && ['completed','cancelled'].includes(nextStatus) && order.table_label) {
+      statement("UPDATE restaurant_tables SET status='cleaning',updated_at=? WHERE restaurant_id=? AND table_number=?").run(now, RESTAURANT_ID, Number(order.table_label));
+    }
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   const updated = orderById(orderId);
   emit(RESTAURANT_ID, { type: 'order-updated', orderId });
   return updated;
 }
+// Arquivos públicos: resolve caminhos com segurança e entrega somente arquivos da pasta public.
 async function serveStatic(pathname, response) {
   let relative;
   try { relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1)); }
@@ -525,7 +740,7 @@ async function serveStatic(pathname, response) {
   if (!target.startsWith(PUBLIC + sep) && target !== resolve(PUBLIC, 'index.html')) return send(response, 403, { error: 'Acesso negado.' });
   try {
     const data = await readFile(target);
-    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+    response.writeHead(200, { 'Content-Type': MIME[extname(target)] || 'application/octet-stream', 'Cache-Control': extname(target) === '.html' ? 'no-cache' : 'public, max-age=3600', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
     response.end(data);
   } catch {
     // HTML inexistente recebe a página visual; assets ausentes mantêm resposta simples para não quebrar o tipo do recurso.
@@ -533,20 +748,32 @@ async function serveStatic(pathname, response) {
     if (!isHtmlPath) return send(response, 404, { error: 'Arquivo não encontrado.' });
     try {
       const page = await readFile(resolve(PUBLIC, '404.html'));
-      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" });
+      response.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...securityHeaders(), 'Content-Security-Policy': "default-src 'self'; script-src 'self' https://ajax.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" });
       response.end(page);
     } catch { send(response, 404, { error: 'Página não encontrada.' }); }
   }
 }
+// Roteador HTTP: aplica cabeçalhos, valida origem, identifica a rota e encaminha a operação.
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://' + (request.headers.host || 'localhost'));
-    const path = url.pathname;
+    let path = url.pathname;
+    // O frontend usa o mesmo endpoint de dispatch no Vercel e no servidor local.
+    // No servidor local, encaminha /api/dispatch?path=... para a rota /api/... real.
+    if (path === '/api/dispatch') {
+      const dispatchedPath = String(url.searchParams.get('path') || '').replace(/^\/+|\/+$/g, '');
+      if (!dispatchedPath || dispatchedPath.includes('..') || dispatchedPath.includes('\\')) {
+        return send(response, 400, { error: 'Rota da API inválida.' });
+      }
+      path = '/api/' + dispatchedPath;
+    }
     assertSameOrigin(request);
     if (path.startsWith('/api/')) {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
+      if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
+      if (request.method === 'GET' && path === '/api/restaurant/branding') { return send(response, 200, { restaurant: statement('SELECT name,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) }); }
       if (request.method === 'GET' && path === '/api/catalog') { requireCustomer(request); return send(response, 200, catalogFor()); }
       if (request.method === 'GET' && path === '/api/tables/available') {
         requireCustomer(request);
@@ -554,19 +781,23 @@ const server = createServer(async (request, response) => {
         return send(response, 200, { tables });
       }
       if (request.method === 'POST' && path === '/api/admin/login') {
+        // Campos honeypot não são usados no login: gerenciadores de senha do navegador
+        // podem preenchê-los automaticamente e bloquear usuários legítimos com HTTP 429.
+        const body = await bodyOf(request);
         const limit = authRateLimit(request, 'admin-login', 'shared-admin-account');
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        const body = await bodyOf(request);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        if (typeof body.password !== 'string' || body.password.length > 1024 || !verifyPassword(body.password)) {
+        if (!ADMIN_PASSWORD) return send(response, 503, { error: 'A autenticação administrativa não está configurada neste servidor.' });
+        if (typeof body.password !== 'string' || body.password.length > 128 || !verifyPassword(body.password) || (ADMIN_TOTP_SECRET && !verifyTotp(ADMIN_TOTP_SECRET, body.otp))) {
           return send(response, 401, { error: 'Não foi possível entrar. Confira os dados e tente novamente.' });
         }
-        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, exp: Date.now() + 8 * 60 * 60 * 1000 });
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800' + (IS_PROD ? '; Secure' : '') });
+        const token = sign({ role: 'admin', restaurantId: RESTAURANT_ID, iat: Date.now(), exp: Date.now() + ADMIN_SESSION_TTL_MS });
+        // Em produção, o prefixo __Host- impede cookies de sessão definidos por subdomínios.
+        const cookie = ADMIN_SESSION_COOKIE + '=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + ADMIN_SESSION_TTL_SECONDS + (IS_PROD ? '; Secure' : '');
+        return send(response, 200, { ok: true }, { 'Set-Cookie': cookie });
       }
       if (request.method === 'POST' && path === '/api/admin/logout') {
-        requireAdmin(request);
-        return send(response, 200, { ok: true }, { 'Set-Cookie': 'mesa_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
+        // Logout deve limpar o cookie mesmo que a sessão já tenha expirado.
+        return send(response, 200, { ok: true }, { 'Set-Cookie': ADMIN_SESSION_COOKIE + '=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0' + (IS_PROD ? '; Secure' : '') });
       }
       if (request.method === 'POST' && path === '/api/customer/register') {
         const body = await bodyOf(request);
@@ -581,17 +812,29 @@ const server = createServer(async (request, response) => {
         return send(response,201,{customer},{'Set-Cookie':customerSessionCookie(issueCustomerSession(customer))});
       }
       if (request.method === 'POST' && path === '/api/customer/login') {
+        // Não rejeitar honeypots neste endpoint: o Chrome e outros gerenciadores
+        // de credenciais podem preencher campos ocultos. O rate limit segue ativo.
         const body = await bodyOf(request), email = normalizeEmail(body.email);
         const limit = authRateLimit(request, 'customer-login', email);
         if (!limit.allowed) return rateLimitResponse(response, limit.retryAfter);
-        if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
         if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
-        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone};
+        const birthDate=customer.birth_date||null;
+        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate,isAdult:birthDate?parseCustomerBirthDate(birthDate).isAdult:null};
         return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
       if (request.method === 'GET' && path === '/api/customer/me') return send(response,200,{customer:requireCustomer(request).customer});
+      if (request.method === 'PATCH' && path === '/api/customer/birth-date') {
+        const current = requireCustomer(request), body = await bodyOf(request), birth = parseCustomerBirthDate(body.birthDate);
+        const saved = statement("UPDATE customers SET birth_date=? WHERE id=? AND (birth_date IS NULL OR birth_date='')").run(birth.birthDate, current.customerId);
+        if (!saved.changes && String(current.customer.birthDate||'').slice(0,10)!==birth.birthDate) throw Object.assign(new Error('A data de nascimento já foi registrada. Para corrigir um dado, use o canal de privacidade.'), { status: 409 });
+        return send(response,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
+      }
+      if (request.method === 'GET' && path === '/api/customer/data-export') {
+        const customer = requireCustomer(request).customer;
+        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate},orders:listCustomerOrders(customer.id)});
+      }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
         const session = requireCustomer(request), body = await bodyOf(request);
@@ -624,14 +867,17 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/admin/events') { const admin = requireAdmin(request); return addStream(admin.restaurantId, response); }
       if (request.method === 'GET' && path === '/api/admin/privacy-requests') {
         requireAdmin(request);
-        const requests = statement("SELECT id,name,email,phone,request_type AS requestType,details,status,created_at AS createdAt,updated_at AS updatedAt FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200").all();
+        const requests = statement("SELECT id,name,email,phone,request_type AS requestType,details,status,response_note AS responseNote,retention_reason AS retentionReason,closed_at AS closedAt,created_at AS createdAt,updated_at AS updatedAt FROM privacy_requests ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200").all();
         return send(response, 200, { requests });
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/privacy-requests/')) {
         requireAdmin(request);
         const id = cleanText(path.slice('/api/admin/privacy-requests/'.length), 80), body = await bodyOf(request);
         if (!['open','in_progress','closed'].includes(body.status)) return send(response, 422, { error: 'Status inválido.' });
-        const result = statement('UPDATE privacy_requests SET status=?,updated_at=? WHERE id=?').run(body.status,new Date().toISOString(),id);
+        const responseNote = cleanText(body.responseNote, 2000), retentionReason = cleanText(body.retentionReason, 1000);
+        if (body.status === 'closed' && responseNote.length < 10) return send(response, 422, { error: 'Registre uma resposta ou providência com pelo menos 10 caracteres antes de concluir.' });
+        const now = new Date().toISOString();
+        const result = statement('UPDATE privacy_requests SET status=?,response_note=?,retention_reason=?,closed_at=?,updated_at=? WHERE id=?').run(body.status,responseNote,retentionReason,body.status === 'closed' ? now : null,now,id);
         if (!result.changes) return send(response, 404, { error: 'Solicitação não encontrada.' });
         return send(response, 200, { ok: true });
       }
@@ -647,11 +893,33 @@ const server = createServer(async (request, response) => {
         const result = validateCouponForOrder(body.code, body.items);
         return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
       }
+      if (request.method === 'GET' && path === '/api/admin/analytics') {
+        requireAdmin(request);
+        const rawDays = Number(url.searchParams.get('days') || 7);
+        const days = [7, 30, 90].includes(rawDays) ? rawDays : 7;
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const summary = statement("SELECT COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents,COALESCE(ROUND(AVG(CASE WHEN status<>'cancelled' THEN total_cents END)),0) AS averageTicketCents,COALESCE(SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END),0) AS cancelled FROM orders WHERE restaurant_id=? AND created_at>=?").get(RESTAURANT_ID, since);
+        const daily = statement("SELECT substr(created_at,1,10) AS date,COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents FROM orders WHERE restaurant_id=? AND created_at>=? GROUP BY substr(created_at,1,10) ORDER BY date").all(RESTAURANT_ID, since);
+        const fulfillment = statement("SELECT fulfillment AS type,COUNT(*) AS orders FROM orders WHERE restaurant_id=? AND created_at>=? AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC").all(RESTAURANT_ID, since);
+        const popular = statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8").all(RESTAURANT_ID, since);
+        return send(response, 200, { days, summary, daily, fulfillment, popular });
+      }
+      if (request.method === 'GET' && path === '/api/admin/combos') return send(response, 200, { combos: catalogFor(RESTAURANT_ID, true).combos, products: catalogFor(RESTAURANT_ID, true).products });
+      if (request.method === 'POST' && path === '/api/admin/combos') return send(response, 201, { combo: saveCombo(await bodyOf(request)) });
+      if (request.method === 'PATCH' && path.startsWith('/api/admin/combos/')) return send(response, 200, { combo: saveCombo(await bodyOf(request), path.slice('/api/admin/combos/'.length)) });
       if (request.method === 'GET' && path === '/api/admin/dashboard') return send(response, 200, dashboard());
+      if (request.method === 'GET' && path === '/api/admin/daily-closing') {
+        requireAdmin(request);
+        const date=String(url.searchParams.get('date')||'');
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T12:00:00Z')))return send(response,422,{error:'Data do fechamento inválida.'});
+        const start=date+'T03:00:00.000Z',next=new Date(Date.parse(start)+86400000).toISOString();
+        const orders=statement("SELECT id,customer_name AS customerName,phone,fulfillment,table_label AS tableLabel,delivery_address AS deliveryAddress,note,status,total_cents AS totalCents,coupon_code AS couponCode,discount_cents AS discountCents,created_at AS createdAt FROM orders WHERE restaurant_id=? AND created_at>=? AND created_at<? ORDER BY created_at ASC").all(RESTAURANT_ID,start,next).map(order=>({...order,items:orderById(order.id).items}));
+        return send(response,200,{orders});
+      }
       if (request.method === 'GET' && path === '/api/admin/orders') return send(response, 200, { orders: listOrders() });
       if (request.method === 'GET' && path === '/api/admin/tables') {
         requireAdmin(request);
-        const tables = statement('SELECT id,table_number AS number,seats,status,note,updated_at AS updatedAt FROM restaurant_tables WHERE restaurant_id=? ORDER BY table_number').all(RESTAURANT_ID);
+        const tables = statement('SELECT id,table_number AS number,seats,status,note,qr_token AS qrToken,updated_at AS updatedAt FROM restaurant_tables WHERE restaurant_id=? ORDER BY table_number').all(RESTAURANT_ID);
         const counts = { free: 0, occupied: 0, cleaning: 0 };
         for (const table of tables) counts[table.status] = (counts[table.status] || 0) + 1;
         return send(response, 200, { tables, counts });
@@ -661,31 +929,57 @@ const server = createServer(async (request, response) => {
         const id = decodeURIComponent(path.slice('/api/admin/tables/'.length));
         const body = await bodyOf(request);
         if (!['free','occupied','cleaning'].includes(body.status)) return send(response, 422, { error: 'Selecione um status válido para a mesa.' });
-        if (!statement('SELECT id FROM restaurant_tables WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID)) return send(response, 404, { error: 'Mesa não encontrada.' });
+        const table = statement('SELECT id,table_number AS number FROM restaurant_tables WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+        if (!table) return send(response, 404, { error: 'Mesa não encontrada.' });
+        // Não libere uma mesa enquanto ainda existir um pedido de salão em andamento.
+        // Isso impede que um segundo cliente reserve a mesma mesa por engano.
+        if (body.status === 'free') {
+          const activeOrder = statement("SELECT id FROM orders WHERE restaurant_id=? AND fulfillment='table' AND table_label=? AND status IN ('received','confirmed','preparing','ready') LIMIT 1").get(RESTAURANT_ID, String(table.number));
+          if (activeOrder) return send(response, 409, { error: 'Esta mesa possui um pedido em andamento. Finalize ou cancele o pedido antes de liberá-la.' });
+        }
         const note = typeof body.note === 'string' ? cleanText(body.note, 160) : undefined;
         if (note === undefined) statement('UPDATE restaurant_tables SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,new Date().toISOString(),id,RESTAURANT_ID);
         else statement('UPDATE restaurant_tables SET status=?,note=?,updated_at=? WHERE id=? AND restaurant_id=?').run(body.status,note,new Date().toISOString(),id,RESTAURANT_ID);
-        const updated = statement('SELECT id,table_number AS number,seats,status,note,updated_at AS updatedAt FROM restaurant_tables WHERE id=?').get(id);
+        const updated = statement('SELECT id,table_number AS number,seats,status,note,qr_token AS qrToken,updated_at AS updatedAt FROM restaurant_tables WHERE id=?').get(id);
         emit(RESTAURANT_ID, { type: 'tables-updated' });
         return send(response, 200, { table: updated });
       }
       if (request.method === 'GET' && path === '/api/admin/catalog') return send(response, 200, catalogFor(RESTAURANT_ID, true));
       if (request.method === 'GET' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
+        return send(response, 200, { restaurant: statement('SELECT id,name,slug,currency,prep_minutes AS prepMinutes,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) });
       }
       if (request.method === 'PATCH' && path === '/api/admin/settings') {
-        return send(response, 200, { restaurant: patchRestaurantSettings(await bodyOf(request)) });
+        return send(response, 200, { restaurant: await patchRestaurantSettings(await bodyOf(request, MAX_LOGO_BODY)) });
       }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/orders/')) {
         const id = path.slice('/api/admin/orders/'.length);
         const body = await bodyOf(request);
         return send(response, 200, { order: updateStatus(id, body.status) });
       }
+      if (request.method === 'DELETE' && path.startsWith('/api/admin/products/')) {
+        const id = decodeURIComponent(path.slice('/api/admin/products/'.length));
+        const product = statement('SELECT id,name FROM products WHERE id=? AND restaurant_id=?').get(id, RESTAURANT_ID);
+        if (!product) return send(response, 404, { error: 'Produto não encontrado.' });
+        const jobsTable = statement("SELECT name FROM sqlite_master WHERE type='table' AND name='product_3d_jobs'").get();
+        if (jobsTable) statement('DELETE FROM product_3d_jobs WHERE product_id=? AND restaurant_id=?').run(id, RESTAURANT_ID);
+        const deleted = statement('DELETE FROM products WHERE id=? AND restaurant_id=?').run(id, RESTAURANT_ID);
+        if (!deleted.changes) return send(response, 404, { error: 'Produto não encontrado.' });
+        return send(response, 200, { ok: true, product, message: 'Produto excluído. O histórico de pedidos foi preservado.' });
+      }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/products/')) {
         const id = path.slice('/api/admin/products/'.length);
-        return send(response, 200, { product: patchProduct(id, await bodyOf(request)) });
+        return send(response, 200, { product: await patchProduct(id, await bodyOf(request, 2_100_000)) });
       }
-      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: createProduct(await bodyOf(request)) });
+      if (request.method === 'POST' && path === '/api/admin/products') return send(response, 201, { product: await createProduct(await bodyOf(request, 2_100_000)) });
+      if (request.method === 'POST' && path === '/api/admin/ingredients') return send(response, 201, { ingredient: createIngredient(await bodyOf(request)) });
+      if (request.method === 'DELETE' && path.startsWith('/api/admin/ingredients/')) {
+        const id=decodeURIComponent(path.slice('/api/admin/ingredients/'.length));
+        const ingredient=statement('SELECT id,name FROM ingredients WHERE id=? AND restaurant_id=?').get(id,RESTAURANT_ID);
+        if(!ingredient)return send(response,404,{error:'Ingrediente não encontrado.'});
+        statement('DELETE FROM ingredients WHERE id=? AND restaurant_id=?').run(id,RESTAURANT_ID);
+        emit(RESTAURANT_ID,{type:'catalog-updated'});
+        return send(response,200,{ok:true,ingredient,message:'Ingrediente excluído. O histórico de pedidos foi preservado.'});
+      }
       if (request.method === 'PATCH' && path.startsWith('/api/admin/ingredients/')) {
         const id = path.slice('/api/admin/ingredients/'.length);
         return send(response, 200, { ingredient: patchIngredient(id, await bodyOf(request)) });
@@ -694,7 +988,7 @@ const server = createServer(async (request, response) => {
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
         const customerSession = requireCustomer(request);
-        const order = createOrder(body, customerSession.customerId);
+        const order = createOrder(body, customerSession.customer);
         return send(response, 201, { order, trackingUrl: '/#pedido/' + order.trackingToken });
       }
       if (request.method === 'GET' && path.startsWith('/api/tracking/')) {
@@ -715,8 +1009,8 @@ server.requestTimeout = 15_000;
 server.headersTimeout = 10_000;
 server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 1_000;
+// Inicialização e encerramento: abre a porta configurada e fecha conexões/banco ao receber sinais do sistema.
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Mesa Studio disponível em http://localhost:' + PORT);
-  if (!process.env.ADMIN_PASSWORD) console.log('Acesso de demonstração ao painel: senha mesa-demo (configure ADMIN_PASSWORD para alterar).');
 });
 for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => { server.close(() => { db.close(); process.exit(0); }); server.closeAllConnections(); });

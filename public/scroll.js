@@ -1,3 +1,6 @@
+/* Comportamentos de rolagem e navegação por âncoras.
+   Controla revelação de elementos, rolagem suave e botão de retorno ao topo,
+   respeitando a preferência do usuário por movimento reduzido. */
 /* Menuza scroll experience: accessible anchors, dynamic reveal, and back-to-top. */
 (() => {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

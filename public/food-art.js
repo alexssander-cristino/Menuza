@@ -1,7 +1,22 @@
 // Menuza — ilustrações de alimentos (SVG procedural com textura, luz e sombra de contato).
 // Determinístico: o mesmo produto/composição sempre gera o mesmo prato.
+//
+// API (assinaturas compatíveis com a versão anterior):
+//   pizzaArt(ingredients, seed, lookup, opts)   opts.detail: 'full' (padrão) | 'lite'
+//   burgerArt(ingredients, seed, opts)          opts.double, opts.detail
+//   plateArt(seed, ingredients)
+//   inferIngredientVisual(nome, tipo)
+//
+// detail:'lite' remove os filtros feTurbulence (texturas), que são os mais pesados
+// em celulares e WebViews. O desenho continua igual, só sem o "grão" da massa.
+
+// Ilustrações 2D procedurais em SVG.
+// Constrói pizzas, hambúrgueres e hot dogs a partir dos ingredientes cadastrados,
+// usando sementes determinísticas para manter o desenho consistente entre renderizações.
 const TAU = Math.PI * 2;
 let uidCounter = 0;
+
+/* ───────────────────────────── utilidades ───────────────────────────── */
 
 function hashSeed(text) {
   let h = 2166136261;
@@ -17,7 +32,68 @@ function rngFrom(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const f = n => Math.round(n * 10) / 10;
+const f = n => Math.round((Number.isFinite(n) ? n : 0) * 10) / 10;
+const f2 = n => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
+
+// Minúsculas, sem acentos. (A versão anterior usava "\\u0300" com barra dupla, o que
+// não removia acentos e apagava letras maiúsculas e dígitos do nome.)
+function normalizeName(value) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+/* ───────────────── identificação do visual a partir do nome ─────────────────
+   Cada regra é [visual, [palavras]]. A palavra precisa COMEÇAR numa fronteira de
+   palavra, então "ham" não casa com "champignon" e "alho" não casa com "borralho".
+   A primeira regra que casar vence, por isso a ordem importa. */
+
+const compileRules = rules => rules.map(([visual, words]) => [visual, words.map(w => new RegExp('(?:^|[^a-z0-9])' + w))]);
+
+const PIZZA_RULES = compileRules([
+  ['molho-tomate', ['molho', 'sauce', 'passata']],
+  ['cream', ['catupiry', 'requeijao', 'cream cheese']],
+  ['mussarela', ['mussarela', 'mucarela', 'mozzarella', 'mozarela', 'queijo', 'cheddar', 'gorgonzola', 'parmesao', 'provolone']],
+  ['pepperoni', ['calabresa', 'pepperoni', 'salame', 'linguica']],
+  ['ham', ['presunto', 'ham', 'peito de peru']],
+  ['bacon', ['bacon', 'panceta']],
+  ['chicken', ['frango', 'chicken']],
+  ['onion', ['cebola', 'alho', 'onion', 'garlic']],
+  ['pepper', ['pimentao', 'pimenta', 'jalapeno', 'pepper']],
+  ['tomato', ['tomate', 'tomato']],
+  ['corn', ['milho', 'corn']],
+  ['olive', ['azeitona', 'olive']],
+  ['mushroom', ['champignon', 'cogumelo', 'mushroom', 'shimeji']],
+  ['basil', ['manjericao', 'basil']],
+  ['arugula', ['rucula', 'arugula', 'rocket']],
+  ['herb', ['oregano', 'erva', 'tempero', 'salsa', 'salsinha', 'cebolinha', 'coentro', 'tomilho', 'alecrim', 'parsley', 'thyme', 'rosemary']]
+]);
+
+const BURGER_RULES = compileRules([
+  ['pao-brioche', ['pao', 'brioche', 'bun']],
+  ['carne', ['carne', 'hamburguer', 'burger', 'blend', 'smash', 'frango', 'chicken', 'costela', 'picanha']],
+  ['alface', ['alface', 'lettuce']],
+  ['tomate-burger', ['tomate', 'tomato']],
+  ['cebola-burger', ['cebola', 'onion']],
+  ['picles', ['picles', 'pepino', 'pickle']],
+  ['bacon-burger', ['bacon', 'panceta']],
+  ['ovo', ['ovo', 'egg']],
+  ['queijo-mussarela-burger', ['mussarela', 'mucarela', 'mozzarella', 'mozarela']],
+  ['queijo-parmesao-burger', ['parmesao', 'parmesan']],
+  ['queijo-gorgonzola-burger', ['gorgonzola']],
+  ['queijo-provolone-burger', ['provolone']],
+  ['queijo-cheddar', ['cheddar', 'queijo', 'cheese']],
+  ['molho-especial', ['molho', 'maionese', 'ketchup', 'mostarda', 'barbecue', 'bbq', 'sauce']]
+]);
+
+/** Devolve a chave visual para um nome de ingrediente, ou '' se nada casar. */
+export function inferIngredientVisual(value, type) {
+  const name = normalizeName(value);
+  const rules = type === 'pizza' ? PIZZA_RULES : type === 'burger' ? BURGER_RULES : null;
+  if (!rules || !name) return '';
+  for (const [visual, patterns] of rules) if (patterns.some(p => p.test(name))) return visual;
+  return '';
+}
+
+/* ───────────────────────────── geometria ───────────────────────────── */
 
 // Contorno orgânico fechado (curvas suaves entre pontos com raio variável)
 function blobPath(cx, cy, r, jitter, rng, n = 26, squash = 1) {
@@ -36,11 +112,34 @@ function blobPath(cx, cy, r, jitter, rng, n = 26, squash = 1) {
 }
 
 function wrapPiece(inner, x, y, rot, scale, pop, delay) {
-  return '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(rot) + ') scale(' + f(scale) + ')"><g class="food-ingredient' + (pop ? ' ingredient-pop' : '') + '"' + (pop ? ' style="animation-delay:' + delay + 'ms"' : '') + '>' + inner + '</g></g>';
+  return '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(rot) + ') scale(' + f2(scale) + ')"><g class="food-ingredient' + (pop ? ' ingredient-pop' : '') + '"' + (pop ? ' style="animation-delay:' + delay + 'ms"' : '') + '>' + inner + '</g></g>';
+}
+
+// Folha com a base na origem e a ponta em (len, 0): contorno, brilho na metade de cima,
+// nervura central e, opcionalmente, nervuras laterais.
+function leaf(len, wid, dark, light, veins = true) {
+  const body = 'M0 0C0 ' + f(-wid * .8) + ' ' + f(len * .46) + ' ' + f(-wid) + ' ' + f(len) + ' 0C' + f(len * .46) + ' ' + f(wid) + ' 0 ' + f(wid * .8) + ' 0 0Z';
+  const sheen = 'M1 -.5C2 ' + f(-wid * .7) + ' ' + f(len * .46) + ' ' + f(-wid * .9) + ' ' + f(len * .92) + ' -.6C' + f(len * .5) + ' ' + f(-wid * .25) + ' ' + f(len * .2) + ' ' + f(-wid * .15) + ' 1 -.5Z';
+  let out = '<path d="' + body + '" fill="' + dark + '" stroke="#35552a" stroke-width="1.1" stroke-linejoin="round"/>'
+    + '<path d="' + sheen + '" fill="' + light + '" opacity=".8"/>'
+    + '<path d="M0 0L' + f(len * .9) + ' 0" stroke="#c3dc92" stroke-width="1" opacity=".85" stroke-linecap="round"/>';
+  if (veins) {
+    out += '<path d="M' + f(len * .28) + ' 0L' + f(len * .52) + ' ' + f(-wid * .55) + 'M' + f(len * .28) + ' 0L' + f(len * .52) + ' ' + f(wid * .55)
+      + 'M' + f(len * .5) + ' 0L' + f(len * .7) + ' ' + f(-wid * .38) + 'M' + f(len * .5) + ' 0L' + f(len * .7) + ' ' + f(wid * .38)
+      + '" fill="none" stroke="#a7c779" stroke-width=".8" opacity=".55" stroke-linecap="round"/>';
+  }
+  return out;
 }
 
 /* ───────────────────────────── PIZZA ───────────────────────────── */
-const PIZZA_PIECES = { pepperoni: 7, bacon: 5, chicken: 6, onion: 7, tomato: 6, corn: 4, olive: 8, mushroom: 6, cream: 4, herb: 9 };
+
+// Quantas peças cada cobertura gera por unidade escolhida.
+const PIZZA_PIECES = { pepperoni: 7, ham: 5, bacon: 5, chicken: 6, onion: 7, pepper: 6, tomato: 6, corn: 4, olive: 8, mushroom: 6, cream: 4, basil: 5, arugula: 5, herb: 5, generic: 4 };
+// Ajuste de tamanho por cobertura (folhas precisam ser maiores para serem reconhecíveis).
+const TOPPING_SCALE = { basil: 1.35, arugula: 1.2, herb: 1.1 };
+// Ordem de desenho: 0 = por baixo, 1 = normal, 2 = por cima (ervas ficam sobre o resto).
+const TOPPING_LAYER = { cream: 0, basil: 2, arugula: 2, herb: 2 };
+const KNOWN_PIZZA_VISUALS = new Set([...Object.keys(PIZZA_PIECES), 'mussarela', 'molho-tomate']);
 
 function pizzaTopping(type, rng) {
   switch (type) {
@@ -50,6 +149,8 @@ function pizzaTopping(type, rng) {
       for (let i = 0; i < 6; i++) dots += '<circle cx="' + f((rng() - .5) * r * 1.2) + '" cy="' + f((rng() - .5) * r * 1.2) + '" r="' + f(1 + rng() * 1.6) + '" fill="#e8a27a" opacity=".75"/>';
       return '<circle r="' + f(r) + '" fill="url(#PEP)" stroke="#7b261b" stroke-width="1.6"/><circle r="' + f(r - 3.5) + '" fill="none" stroke="#6f1f16" stroke-width="1.2" opacity=".35"/>' + dots + '<ellipse cx="' + f(-r * .3) + '" cy="' + f(-r * .38) + '" rx="' + f(r * .5) + '" ry="' + f(r * .22) + '" fill="#fff" opacity=".26" transform="rotate(-25)"/>';
     }
+    case 'ham':
+      return '<path d="M-16 -9q16-6 32 0q4 9 0 18q-16 6-32 0q-4-9 0-18z" fill="#e9a3a0" stroke="#b9615f" stroke-width="1.4"/><path d="M-10 -3q10-4 20 0M-10 4q10 3 20 0" fill="none" stroke="#f6cfcb" stroke-width="2" opacity=".75" stroke-linecap="round"/>';
     case 'bacon':
       return '<path d="M-22 4q6-15 14-6t13-5q8-8 15 2t10-3l-3 11q-8 9-15 0t-12 4q-9 7-15-1t-7 8z" fill="#b34a36" stroke="#6f281c" stroke-width="1.6"/><path d="M-17 2q8-8 14-1t13-3t12 1" fill="none" stroke="#f1c9a0" stroke-width="3.2" stroke-linecap="round" opacity=".9"/><path d="M-14 9q8-4 14 1t12-1" fill="none" stroke="#7d2e22" stroke-width="1.6" opacity=".6"/>';
     case 'chicken': {
@@ -62,6 +163,11 @@ function pizzaTopping(type, rng) {
     }
     case 'onion':
       return '<g transform="rotate(' + f(rng() * 180) + ')"><ellipse rx="17" ry="11" fill="none" stroke="#b66d8d" stroke-width="5" stroke-dasharray="' + f(34 + rng() * 22) + ' 9"/><ellipse rx="17" ry="11" fill="none" stroke="#f0d5de" stroke-width="1.4" opacity=".8" stroke-dasharray="26 14"/><ellipse rx="9" ry="5.5" fill="none" stroke="#c78ba5" stroke-width="3" stroke-dasharray="14 8"/></g>';
+    case 'pepper': {
+      const green = rng() > .5;
+      const c = green ? ['#5f9440', '#3c6a28', '#b6d78a'] : ['#d8452f', '#9e2b1d', '#f59a80'];
+      return '<ellipse rx="15" ry="10" fill="none" stroke="' + c[1] + '" stroke-width="7.4"/><ellipse rx="15" ry="10" fill="none" stroke="' + c[0] + '" stroke-width="5"/><ellipse rx="15" ry="10" fill="none" stroke="' + c[2] + '" stroke-width="1.3" opacity=".7" stroke-dasharray="14 18"/>';
+    }
     case 'tomato':
       return '<circle r="14.5" fill="#d84a33" stroke="#a52f20" stroke-width="1.6"/><circle r="10.5" fill="#ef7a5a" opacity=".9"/><g fill="#f7c7a2" opacity=".9"><ellipse cx="-4" cy="-3" rx="3" ry="2.2"/><ellipse cx="4" cy="-3" rx="3" ry="2.2"/><ellipse cx="0" cy="4" rx="3" ry="2.2"/></g><ellipse cx="-5" cy="-8" rx="5" ry="2" fill="#fff" opacity=".22" transform="rotate(-25)"/>';
     case 'corn': {
@@ -75,19 +181,61 @@ function pizzaTopping(type, rng) {
       return '<path d="M-17 4q1-18 17-18t17 18q-17 5-34 0z" fill="#e3d5b3" stroke="#a89468" stroke-width="1.5"/><path d="M-6 3q6 9 12 0v10q-6 5-12 0z" fill="#f0e7cf" stroke="#b09f78" stroke-width="1.2"/><path d="M-12 -4q10-8 22 0" fill="none" stroke="#fff" stroke-width="2" opacity=".35"/>';
     case 'cream':
       return '<ellipse cx="0" cy="3" rx="16" ry="11" fill="#e7cf98" opacity=".55"/><path d="M-15 0q4-13 15-11t15 11q-5 11-15 10t-15-10z" fill="#fbf0cf" stroke="#e6cf93" stroke-width="1.6"/><ellipse cx="-4" cy="-4" rx="6" ry="2.4" fill="#fff" opacity=".7"/>';
-    case 'herb': {
+    case 'basil': {
+      // Ramo com três folhas de tamanhos diferentes, saindo do mesmo ponto.
+      const base = rng() * 40 - 20;
+      const tones = [['#5b8a3a', '#7fae52'], ['#4f7a34', '#6c9a45'], ['#5b8a3a', '#7fae52']];
       let s = '';
-      for (let i = 0; i < 3; i++) s += '<path transform="rotate(' + (i * 70 + f(rng() * 30)) + ')" d="M0 0q8-12 17-5q-7 12-17 5z" fill="' + (i % 2 ? '#5f7d3f' : '#7a9a4c') + '"/>';
+      [[-52, 1], [6, .86], [58, .7]].forEach(([ang, k], i) => {
+        const a = base + ang + (rng() - .5) * 16;
+        s += '<g transform="rotate(' + f(a) + ') scale(' + k + ')">' + leaf(30, 13.5, tones[i][0], tones[i][1], true) + '</g>';
+      });
+      return '<g transform="translate(-12 0)">' + s + '<circle r="1.6" fill="#35552a"/></g>';
+    }
+    case 'arugula': {
+      const base = rng() * 40 - 20;
+      let s = '';
+      [[-34, 1], [10, .9], [46, .75]].forEach(([ang, k]) => {
+        const a = base + ang + (rng() - .5) * 14;
+        s += '<g transform="rotate(' + f(a) + ') scale(' + k + ')">' + leaf(34, 7.5, '#4a7a35', '#6b9b48', false) + '</g>';
+      });
+      return '<g transform="translate(-14 0)">' + s + '</g>';
+    }
+    case 'herb': {
+      // Orégano / ervas picadas: vários flocos pequenos espalhados.
+      const greens = ['#5f7d3f', '#7a9a4c', '#4c6b33', '#8aa95a'];
+      let s = '';
+      for (let i = 0; i < 12; i++) {
+        const a = rng() * TAU, r = Math.sqrt(rng()) * 15, cx = Math.cos(a) * r, cy = Math.sin(a) * r;
+        s += '<ellipse cx="' + f(cx) + '" cy="' + f(cy) + '" rx="' + f(2.2 + rng() * 2.2) + '" ry="' + f(1 + rng() * 1.1) + '" fill="' + greens[i % 4] + '" opacity=".92" transform="rotate(' + f(rng() * 180) + ' ' + f(cx) + ' ' + f(cy) + ')"/>';
+      }
       return s;
     }
+    case 'generic':
+      // Ingrediente desconhecido: peça neutra, em vez de virar folha por engano.
+      return '<circle r="9" fill="#f1dcae" stroke="#c9a768" stroke-width="1.4"/><ellipse cx="-3" cy="-3.5" rx="4" ry="1.8" fill="#fff" opacity=".45" transform="rotate(-25)"/>';
     default: return '';
   }
 }
 
-export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) {
+export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null, opts = {}) {
   const id = 'pz' + (++uidCounter), rng = rngFrom('pizza:' + seed);
-  const ids = new Set(ingredients.map(i => i.id));
-  const hasSauce = ids.has('molho-tomate'), hasCheese = ids.has('mussarela');
+  const lite = opts.detail === 'lite';
+  const list = (ingredients || []).filter(Boolean);
+
+  // Resolve o visual de cada ingrediente uma única vez. O nome tem prioridade; depois
+  // vem um "visual" explícito conhecido; o que sobrar vira peça neutra (nunca folha).
+  const resolved = list.map(item => {
+    const source = (lookup && lookup(item.id)) || item;
+    const fromName = inferIngredientVisual(source.name || item.name || item.id, 'pizza');
+    const candidates = [fromName, source.visual, item.visual, item.id];
+    const visual = candidates.find(v => v && KNOWN_PIZZA_VISUALS.has(v)) || 'generic';
+    return { item, visual };
+  });
+  const visuals = resolved.map(r => r.visual);
+  const ids = new Set(list.map(i => i.id));
+  const hasSauce = ids.has('molho-tomate') || visuals.includes('molho-tomate');
+  const hasCheese = ids.has('mussarela') || visuals.includes('mussarela');
   const cx = 250, cy = 250;
 
   /* base de massa */
@@ -111,31 +259,29 @@ export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) 
   /* queijo */
   let cheese = '';
   if (hasCheese) {
-    cheese += '<path d="' + blobPath(cx, cy, 160, .07, rng, 34) + '" fill="url(#' + id + 'cheese)" stroke="#d9a83f" stroke-width="2"/>';
+    cheese += '<path d="' + blobPath(cx, cy, 169, .035, rng, 38) + '" fill="url(#' + id + 'cheese)" stroke="#d9a83f" stroke-width="2"/>';
     for (let i = 0; i < 16; i++) {
-      const a = rng() * TAU, rr = Math.sqrt(rng()) * 128, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 24 + rng() * 34;
+      const a = rng() * TAU, rr = Math.sqrt(rng()) * 142, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 24 + rng() * 34;
       cheese += '<path d="' + blobPath(x, y, r0, .25, rng, 12) + '" fill="' + (i % 3 ? '#fbe9a4' : '#eec760') + '" opacity="' + f(.35 + rng() * .35) + '"/>';
     }
     for (let i = 0; i < 12; i++) {
-      const a = rng() * TAU, rr = Math.sqrt(rng()) * 145, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 5 + rng() * 11;
+      const a = rng() * TAU, rr = Math.sqrt(rng()) * 151, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 5 + rng() * 11;
       cheese += '<path d="' + blobPath(x, y, r0, .5, rng, 9) + '" fill="#c98730" opacity="' + f(.38 + rng() * .3) + '"/>';
     }
     for (let i = 0; i < 12; i++) {
-      const a = rng() * TAU, rr = Math.sqrt(rng()) * 140, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 4 + rng() * 6;
+      const a = rng() * TAU, rr = Math.sqrt(rng()) * 148, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, r0 = 4 + rng() * 6;
       cheese += '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + f(r0) + '" fill="#fbe596" stroke="#d6a43d" stroke-width="1.2"/><circle cx="' + f(x - r0 * .3) + '" cy="' + f(y - r0 * .3) + '" r="' + f(r0 * .28) + '" fill="#fffbe0"/>';
     }
-    if (hasSauce) for (let i = 0; i < 6; i++) {
-      const a = rng() * TAU, rr = 112 + rng() * 40;
-      cheese += '<path d="' + blobPath(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 5 + rng() * 9, .5, rng, 9) + '" fill="#b4452d" opacity=".85"/>';
+    if (hasSauce) for (let i = 0; i < 18; i++) {
+      const a = rng() * TAU, rr = 24 + Math.sqrt(rng()) * 132;
+      cheese += '<path d="' + blobPath(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 4 + rng() * 7, .42, rng, 9) + '" fill="#b4452d" opacity=".9"/>';
     }
   }
 
   /* coberturas */
   const pieces = [];
-  ingredients.forEach(item => {
-    const src = lookup(item.id) || item;
-    const visual = src.visual || item.visual || item.id;
-    if (!PIZZA_PIECES[visual] || ['mussarela', 'molho-tomate'].includes(item.id)) return;
+  resolved.forEach(({ item, visual }) => {
+    if (!PIZZA_PIECES[visual]) return; // molho e queijo já foram desenhados acima
     const units = Math.max(1, Math.min(3, Number(item.quantity) || 1));
     const count = Math.min(14, PIZZA_PIECES[visual] * units);
     for (let n = 0; n < count; n++) pieces.push({ visual, pop: !!item.pop });
@@ -143,30 +289,38 @@ export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) 
   for (let i = pieces.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]]; }
   const used = pieces.slice(0, 44), total = used.length;
   const sizeK = total > 30 ? .8 : total > 18 ? .92 : 1.05;
-  let toppings = '';
+  const placed = [];
   used.forEach((piece, k) => {
     const rr = 142 * Math.sqrt((k + .6) / Math.max(total, 1)), a = k * 2.39996 + rng() * .5;
     const x = cx + Math.cos(a) * rr + (rng() - .5) * 10, y = cy + Math.sin(a) * rr + (rng() - .5) * 10;
     const inner = pizzaTopping(piece.visual, rng).replace('url(#PEP)', 'url(#' + id + 'pep)');
-    toppings += wrapPiece(inner, x, y, rng() * 360, sizeK * (.9 + rng() * .22), piece.pop, k % 5 * 40);
+    const rot = rng() * 360;
+    const scale = sizeK * (.9 + rng() * .22) * (TOPPING_SCALE[piece.visual] || 1);
+    placed.push({ layer: TOPPING_LAYER[piece.visual] ?? 1, markup: wrapPiece(inner, x, y, rot, scale, piece.pop, k % 5 * 40) });
   });
+  // As posições vêm da ordem original (o sorteio fica estável); só o desenho é reordenado.
+  const toppings = placed.map((p, i) => ({ ...p, i })).sort((p, q) => p.layer - q.layer || p.i - q.i).map(p => p.markup).join('');
+
+  const filters = lite ? '' :
+    '<filter id="' + id + 'rough" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="3" seed="4" result="t"/><feDisplacementMap in="SourceGraphic" in2="t" scale="9"/></filter>'
+    + '<filter id="' + id + 'grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .36  0 0 0 0 .2  0 0 0 0 .07  0 0 0 1.7 -.7"/></filter>';
 
   const defs = '<defs>'
     + '<radialGradient id="' + id + 'crust" cx="36%" cy="28%" r="85%"><stop stop-color="#f6d79c"/><stop offset=".55" stop-color="#dba45c"/><stop offset="1" stop-color="#a8652f"/></radialGradient>'
     + '<radialGradient id="' + id + 'sauce" cx="45%" cy="40%"><stop stop-color="#d4623f"/><stop offset=".85" stop-color="#b8472c"/><stop offset="1" stop-color="#a03a26"/></radialGradient>'
-    + '<radialGradient id="' + id + 'cheese" cx="36%" cy="30%" r="80%"><stop stop-color="#fff0b8"/><stop offset=".7" stop-color="#f4d77d"/><stop offset="1" stop-color="#e3b84f"/></radialGradient>'
+    + '<radialGradient id="' + id + 'cheese" cx="36%" cy="30%" r="80%"><stop stop-color="#fff8e8"/><stop offset=".7" stop-color="#f0e2c4"/><stop offset="1" stop-color="#ddc99e"/></radialGradient>'
     + '<radialGradient id="' + id + 'pep" cx="38%" cy="32%" r="75%"><stop stop-color="#cf5b3f"/><stop offset=".6" stop-color="#b13f2b"/><stop offset="1" stop-color="#8d2c20"/></radialGradient>'
-    + '<filter id="' + id + 'rough" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="3" seed="4" result="t"/><feDisplacementMap in="SourceGraphic" in2="t" scale="9"/></filter>'
-    + '<filter id="' + id + 'grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .36  0 0 0 0 .2  0 0 0 0 .07  0 0 0 1.7 -.7"/></filter>'
+    + filters
     + '<filter id="' + id + 'ts" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="1.6" dy="3.2" stdDeviation="2.2" flood-color="#40170a" flood-opacity=".42"/></filter>'
     + '<filter id="' + id + 'blur"><feGaussianBlur stdDeviation="9"/></filter>'
     + '<clipPath id="' + id + 'cc"><path d="' + crustBlob + '"/></clipPath>'
     + '</defs>';
 
+  const crust = '<path d="' + crustBlob + '" fill="url(#' + id + 'crust)" stroke="#9a5a2a" stroke-width="3"/>';
   return '<svg viewBox="0 0 500 500" role="img" aria-label="Pizza com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg">' + defs
     + '<ellipse cx="258" cy="278" rx="214" ry="204" fill="#1b1530" opacity=".20" filter="url(#' + id + 'blur)"/>'
-    + '<g filter="url(#' + id + 'rough)"><path d="' + crustBlob + '" fill="url(#' + id + 'crust)" stroke="#9a5a2a" stroke-width="3"/></g>'
-    + '<g clip-path="url(#' + id + 'cc)"><rect width="500" height="500" fill="#000" filter="url(#' + id + 'grain)" opacity=".55"/></g>'
+    + (lite ? crust : '<g filter="url(#' + id + 'rough)">' + crust + '</g>')
+    + (lite ? '' : '<g clip-path="url(#' + id + 'cc)"><rect width="500" height="500" fill="#000" filter="url(#' + id + 'grain)" opacity=".55"/></g>')
     + '<circle cx="' + cx + '" cy="' + cy + '" r="190" fill="none" stroke="#fff1c4" stroke-width="5" opacity=".35" stroke-dasharray="210 980" stroke-dashoffset="-540" stroke-linecap="round"/>'
     + blisters + flour
     + '<circle cx="' + cx + '" cy="' + cy + '" r="178" fill="#8e5224" opacity=".30"/>'
@@ -176,19 +330,13 @@ export function pizzaArt(ingredients = [], seed = 'pizza', lookup = () => null) 
 }
 
 /* ───────────────────────────── HAMBÚRGUER ───────────────────────────── */
-function wavyEdge(x0, x1, y, amp, waves, rng, down = true) {
-  let d = '';
-  const w = (x1 - x0) / waves;
-  for (let i = 0; i < waves; i++) {
-    const x = x0 + i * w, a = amp * (.6 + rng() * .8) * (down ? 1 : -1);
-    d += 'Q' + f(x + w / 2) + ' ' + f(y + a) + ' ' + f(x + w) + ' ' + f(y);
-  }
-  return d;
-}
 
 export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   const id = 'bg' + (++uidCounter), rng = rngFrom('burger:' + seed);
-  const get = key => ingredients.find(i => i.id === key);
+  const lite = opts.detail === 'lite';
+  const list = (ingredients || []).filter(Boolean);
+  const visualOf = i => inferIngredientVisual(i.name || i.id, 'burger') || i.visual || '';
+  const get = key => list.find(i => i.id === key || visualOf(i) === key);
   const has = key => !!get(key);
   const qty = key => Math.max(1, Math.min(3, Number(get(key)?.quantity) || 1));
   const cls = key => 'food-ingredient' + (get(key)?.pop ? ' ingredient-pop' : '');
@@ -197,7 +345,15 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   let out = '';
 
   const bunBottom = () => {
-    out += '<g class="food-ingredient"><path d="M' + (L + 6) + ' ' + (y - 40) + 'h' + (W - 12) + 'q10 0 8 14q-6 34-' + 70 + ' 36h-' + (W - 96) + 'q-76-2-' + 82 + '-36q-2-14 8-14z" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/><path d="M' + (L + 22) + ' ' + (y - 36) + 'h' + (W - 44) + '" stroke="#f4cf8b" stroke-width="3" opacity=".7"/></g>';
+    // Pão inferior simétrico: curvas esquerda/direita espelhadas e largura constante.
+    const bottomPath = 'M' + (L + 8) + ' ' + (y - 34)
+      + 'C' + (L + 8) + ' ' + (y - 18) + ' ' + (L + 24) + ' ' + (y - 2) + ' ' + (L + 48) + ' ' + y
+      + 'H' + (R - 48)
+      + 'C' + (R - 24) + ' ' + (y - 2) + ' ' + (R - 8) + ' ' + (y - 18) + ' ' + (R - 8) + ' ' + (y - 34)
+      + 'Q' + (R - 8) + ' ' + (y - 42) + ' ' + (R - 20) + ' ' + (y - 42)
+      + 'H' + (L + 20) + 'Q' + (L + 8) + ' ' + (y - 42) + ' ' + (L + 8) + ' ' + (y - 34) + 'Z';
+    out += '<g class="food-ingredient"><path d="' + bottomPath + '" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/>'
+      + '<path d="M' + (L + 24) + ' ' + (y - 35) + 'H' + (R - 24) + '" fill="none" stroke="#f4cf8b" stroke-width="3" opacity=".7"/></g>';
     y -= 38;
   };
   const sauceLayer = () => {
@@ -207,7 +363,7 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   const lettuce = () => {
     const top = y - 22;
     let d = 'M' + (L - 10) + ' ' + y + 'Q' + (L - 22) + ' ' + (y - 14) + ' ' + (L - 4) + ' ' + (top + 6);
-    for (let i = 0; i < 9; i++) { const x = L - 4 + i * ((W + 8) / 9); d += 'q' + f((W + 8) / 18) + ' ' + f(-10 - rng() * 8) + ' ' + f((W + 8) / 9) + ' ' + f(rng() * 6 - 3); }
+    for (let i = 0; i < 9; i++) d += 'q' + f((W + 8) / 18) + ' ' + f(-10 - rng() * 8) + ' ' + f((W + 8) / 9) + ' ' + f(rng() * 6 - 3);
     d += 'L' + (R + 8) + ' ' + y;
     out += '<g class="' + cls('alface') + '"><path d="' + d + 'q-30 10-60 2t-60 6t-60-3t-60 5t-60-4t-60 3t-' + f(W - 360 + 18) + ' -2z" fill="url(#' + id + 'let)" stroke="#4f6d34" stroke-width="2.4"/><path d="M' + (L + 20) + ' ' + (y - 8) + 'q30-10 52 0t52 0t52 0t52 0t52 0t52 0" fill="none" stroke="#b3cf86" stroke-width="2.4" opacity=".7"/></g>';
     y -= 20;
@@ -246,12 +402,25 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
     y -= 12;
   };
   const cheese = () => {
-    const n = Math.min(3, (has('queijo-cheddar') ? qty('queijo-cheddar') : 0) + (has('queijo-extra') ? qty('queijo-extra') : 0)) || 1;
-    for (let k = 0; k < n; k++) {
+    const cheeseTypes = [
+      ['queijo-cheddar', '#f4bd45', '#b97a22', '#ffe08a'],
+      ['queijo-extra', '#f4bd45', '#b97a22', '#ffe08a'],
+      ['queijo-mussarela-burger', '#f1e8d5', '#c9b99a', '#fffaf0'],
+      ['queijo-parmesao-burger', '#e8d6a8', '#bca16b', '#fff0c9'],
+      ['queijo-gorgonzola-burger', '#e8e1cf', '#aeb69a', '#fff8e8'],
+      ['queijo-provolone-burger', '#eadcb9', '#c2ad7d', '#fff2d2']
+    ];
+    const chosen = cheeseTypes.flatMap(([key, fill, stroke, highlight]) => {
+      if (!has(key)) return [];
+      return Array.from({ length: qty(key) }, () => ({ key, fill, stroke, highlight }));
+    }).slice(0, 4);
+    chosen.forEach(({ key, fill, stroke, highlight }, index) => {
       const drips = [L + 26, L + 120, L + 214, L + 292].map((x, i) => 'M' + f(x) + ' ' + (y - 4) + 'q6 ' + (12 + i * 3 % 9) + ' 14 ' + (14 + i * 2) + 'q8 -4 8 -14z').join('');
-      out += '<g class="' + cls('queijo-cheddar') + '"><path d="M' + (L - 14) + ' ' + (y - 12) + 'h' + (W + 28) + 'l-6 11q-20 8-40 0t-40 6t-40-5t-40 6t-40-4t-40 5t-40-3t-' + f(W - 266) + ' 0z" fill="url(#' + id + 'chz)" stroke="#b97a22" stroke-width="2.2"/><path d="' + drips + '" fill="#efae35" stroke="#b97a22" stroke-width="1.6"/><path d="M' + (L + 12) + ' ' + (y - 9) + 'h' + (W - 20) + '" stroke="#ffe08a" stroke-width="2.6" opacity=".8" stroke-linecap="round"/></g>';
+      const edge = key === 'queijo-mussarela-burger' ? '#e7dcc7' : stroke;
+      const dripFill = key === 'queijo-mussarela-burger' ? '#e8ddc8' : fill;
+      out += '<g class="' + cls(key) + '"><path d="M' + (L - 14) + ' ' + (y - 12) + 'h' + (W + 28) + 'l-6 11q-20 8-40 0t-40 6t-40-5t-40 6t-40-4t-40 5t-40-3t-' + f(W - 266) + ' 0z" fill="' + fill + '" stroke="' + edge + '" stroke-width="2.2"/><path d="' + drips + '" fill="' + dripFill + '" stroke="' + edge + '" stroke-width="1.6"/><path d="M' + (L + 12) + ' ' + (y - 9) + 'h' + (W - 20) + '" stroke="' + highlight + '" stroke-width="2.6" opacity=".8" stroke-linecap="round"/></g>';
       y -= 12;
-    }
+    });
   };
   const domePath = yy => 'M' + (L - 4) + ' ' + yy + 'C' + (L - 12) + ' ' + (yy - 26) + ' ' + (L + 4) + ' ' + (yy - 66) + ' ' + (L + 52) + ' ' + (yy - 96) + 'C' + (L + 120) + ' ' + (yy - 134) + ' ' + (R - 120) + ' ' + (yy - 134) + ' ' + (R - 52) + ' ' + (yy - 96) + 'C' + (R - 4) + ' ' + (yy - 66) + ' ' + (R + 12) + ' ' + (yy - 26) + ' ' + (R + 4) + ' ' + yy + 'q0 13-16 13H' + (L + 12) + 'q-16 0-16-13z';
   const bunTop = () => {
@@ -260,7 +429,8 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
       const t = .12 + rng() * .76, x = L + t * W, arch = Math.sin(t * Math.PI), sy = y - 24 - Math.pow(arch, .6) * 118 * (.22 + rng() * .62);
       seeds += '<ellipse cx="' + f(x) + '" cy="' + f(sy) + '" rx="5.4" ry="2.6" fill="#fbebc0" stroke="#d9b57a" stroke-width=".7" transform="rotate(' + f((t - .5) * 70 + rng() * 40 - 20) + ' ' + f(x) + ' ' + f(sy) + ')"/>';
     }
-    out += '<g class="' + cls('pao-brioche') + '"><path d="' + domePath(y) + '" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/><g clip-path="url(#' + id + 'bc)"><rect width="500" height="500" fill="#000" filter="url(#' + id + 'grain)" opacity=".5"/></g><path d="M' + (L + 30) + ' ' + (y - 50) + 'C' + (L + 50) + ' ' + (y - 96) + ' ' + (L + 100) + ' ' + (y - 114) + ' ' + (L + 160) + ' ' + (y - 118) + '" fill="none" stroke="#fff0c2" stroke-width="7" stroke-linecap="round" opacity=".5"/><path d="M' + (L + 6) + ' ' + (y - 8) + 'h' + (W - 12) + '" stroke="#8a5124" stroke-width="3" opacity=".25"/>' + seeds + '</g>';
+    const grain = lite ? '' : '<g clip-path="url(#' + id + 'bc)"><rect width="500" height="500" fill="#000" filter="url(#' + id + 'grain)" opacity=".5"/></g>';
+    out += '<g class="' + cls('pao-brioche') + '"><path d="' + domePath(y) + '" fill="url(#' + id + 'bun)" stroke="#935a2c" stroke-width="3"/>' + grain + '<path d="M' + (L + 30) + ' ' + (y - 50) + 'C' + (L + 50) + ' ' + (y - 96) + ' ' + (L + 100) + ' ' + (y - 114) + ' ' + (L + 160) + ' ' + (y - 118) + '" fill="none" stroke="#fff0c2" stroke-width="7" stroke-linecap="round" opacity=".5"/><path d="M' + (L + 6) + ' ' + (y - 8) + 'h' + (W - 12) + '" stroke="#8a5124" stroke-width="3" opacity=".25"/>' + seeds + '</g>';
   };
   // pilha de baixo para cima
   bunBottom();
@@ -272,10 +442,9 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
   if (has('carne')) { patty(); if (opts.double) patty(); }
   if (has('bacon-burger')) bacon();
   if (has('ovo')) egg();
-  if (has('queijo-cheddar') || has('queijo-extra')) cheese();
+  if (['queijo-cheddar', 'queijo-extra', 'queijo-mussarela-burger', 'queijo-parmesao-burger', 'queijo-gorgonzola-burger', 'queijo-provolone-burger'].some(has)) cheese();
   const topY = y;
   if (has('pao-brioche')) bunTop();
-  const total = 372 - topY;
   const vbTop = topY - (has('pao-brioche') ? 150 : 40);
 
   const defs = '<defs>'
@@ -283,36 +452,45 @@ export function burgerArt(ingredients = [], seed = 'burger', opts = {}) {
     + '<linearGradient id="' + id + 'meat" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7a4a35"/><stop offset=".5" stop-color="#5a3224"/><stop offset="1" stop-color="#3b2017"/></linearGradient>'
     + '<linearGradient id="' + id + 'chz" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f7c75a"/><stop offset="1" stop-color="#e6a02c"/></linearGradient>'
     + '<linearGradient id="' + id + 'let" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#98bb62"/><stop offset="1" stop-color="#6c9143"/></linearGradient>'
-    + '<filter id="' + id + 'grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="11" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .36  0 0 0 0 .2  0 0 0 0 .07  0 0 0 1.7 -.72"/></filter>'
+    + (lite ? '' : '<filter id="' + id + 'grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="11" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .36  0 0 0 0 .2  0 0 0 0 .07  0 0 0 1.7 -.72"/></filter>')
     + '<filter id="' + id + 'blur"><feGaussianBlur stdDeviation="8"/></filter>'
     + '<clipPath id="' + id + 'bc"><path d="' + domePath(topY) + '"/></clipPath>'
     + '</defs>';
-  void total;
   return '<svg viewBox="0 ' + f(vbTop) + ' 500 ' + f(430 - vbTop) + '" role="img" aria-label="Hambúrguer com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg">' + defs
     + '<ellipse cx="256" cy="398" rx="196" ry="20" fill="#1b1530" opacity=".25" filter="url(#' + id + 'blur)"/>'
     + out + '</svg>';
 }
 
-/* ───────────────────────────── PORÇÃO (BATATAS) ───────────────────────────── */
-export function plateArt(seed = 'plate') {
-  const id = 'pl' + (++uidCounter), rng = rngFrom('plate:' + seed);
-  let fries = '';
-  for (let i = 0; i < 34; i++) {
-    const t = i / 34, x = 250 + (t - .5) * 220 + (rng() - .5) * 24, y = 214 + Math.sin(t * Math.PI) * -10 + (rng() - .5) * 30;
-    const len = 104 + rng() * 52, rot = -70 + rng() * 140 + (t - .5) * 50, w = 15 + rng() * 5;
-    fries += '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(rot) + ')"><rect x="' + f(-w / 2) + '" y="' + f(-len / 2) + '" width="' + f(w) + '" height="' + f(len) + '" rx="3" fill="url(#' + id + 'fry)" stroke="#a96d26" stroke-width="1.6"/><path d="M' + f(-w / 2 + 3) + ' ' + f(-len / 2 + 4) + 'v' + f(len - 8) + '" stroke="#fbe3a1" stroke-width="2" opacity=".7" stroke-linecap="round"/>' + (rng() > .5 ? '<ellipse cx="0" cy="' + f((rng() - .5) * len * .6) + '" rx="' + f(w / 2) + '" ry="2.5" fill="#8c5518" opacity=".35"/>' : '') + '</g>';
-  }
-  let salt = '';
-  for (let i = 0; i < 40; i++) salt += '<circle cx="' + f(150 + rng() * 200) + '" cy="' + f(150 + rng() * 110) + '" r="' + f(.8 + rng() * 1.1) + '" fill="#fff" opacity=".85"/>';
-  let herbs = '';
-  for (let i = 0; i < 6; i++) herbs += '<path transform="translate(' + f(170 + rng() * 160) + ' ' + f(165 + rng() * 80) + ') rotate(' + f(rng() * 360) + ')" d="M0 0q9-14 19-6q-8 13-19 6z" fill="#5f7d3f"/>';
-  return '<svg viewBox="0 0 500 420" role="img" aria-label="Porção de batatas fritas" xmlns="http://www.w3.org/2000/svg"><defs>'
-    + '<linearGradient id="' + id + 'fry" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#f2c15f"/><stop offset=".6" stop-color="#e0a043"/><stop offset="1" stop-color="#c98a32"/></linearGradient>'
-    + '<radialGradient id="' + id + 'pl" cx="40%" cy="30%" r="85%"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcdae4"/></radialGradient>'
-    + '<filter id="' + id + 'blur"><feGaussianBlur stdDeviation="9"/></filter>'
-    + '<filter id="' + id + 'ts"><feDropShadow dx="1.5" dy="3" stdDeviation="2" flood-color="#2a1608" flood-opacity=".35"/></filter></defs>'
-    + '<ellipse cx="258" cy="262" rx="216" ry="134" fill="#1b1530" opacity=".22" filter="url(#' + id + 'blur)"/>'
-    + '<ellipse cx="250" cy="236" rx="206" ry="130" fill="url(#' + id + 'pl)" stroke="#cfcddb" stroke-width="3"/>'
-    + '<ellipse cx="250" cy="238" rx="150" ry="88" fill="#efedf5" stroke="#d9d7e3" stroke-width="2"/>'
-    + '<g filter="url(#' + id + 'ts)">' + fries + '</g>' + salt + herbs + '</svg>';
+/* ───────────────────────────── HOT DOG ───────────────────────────── */
+
+export function hotDogArt(seed = 'hotdog', ingredients = []) {
+  if (Array.isArray(seed)) { const first = seed; seed = typeof ingredients === 'string' ? ingredients : 'hotdog'; ingredients = first; }
+  const id = 'hd' + (++uidCounter), rng = rngFrom('hotdog:' + seed);
+  const list = (ingredients || []).filter(Boolean);
+  const has = pattern => list.some(item => pattern.test(normalizeName(item.name || item.id)));
+  const toppings = [];
+  if (has(/queijo|cheddar|mussarela|catupiry/)) toppings.push('<path d="M105 190Q250 148 395 190L382 213Q250 181 118 213Z" fill="#f2c34d" stroke="#c58a29" stroke-width="3"/>');
+  if (has(/bacon|calabresa|linguica/)) toppings.push('<path d="M115 184q24-18 48 0t48 0t48 0t48 0t48 0t48 0" fill="none" stroke="#9d3d2d" stroke-width="13" stroke-linecap="round"/>');
+  if (has(/alface|rucula|repolho|salada/)) toppings.push('<path d="M112 187q15-28 35-8t34-8t36 9t37-9t37 8t37-8t39 17" fill="none" stroke="#57913e" stroke-width="15" stroke-linecap="round"/>');
+  if (has(/tomate|pimentao/)) toppings.push('<g fill="#d94a35" stroke="#a62d22" stroke-width="2"><ellipse cx="165" cy="181" rx="22" ry="10"/><ellipse cx="230" cy="174" rx="22" ry="10"/><ellipse cx="300" cy="174" rx="22" ry="10"/><ellipse cx="365" cy="181" rx="22" ry="10"/></g>');
+  if (has(/cebola|onion/)) toppings.push('<path d="M130 178q22-18 44 0t44 0t44 0t44 0t44 0t44 0" fill="none" stroke="#f3e4cf" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/picles|pepino/)) toppings.push('<g fill="#789b43" stroke="#49682b" stroke-width="2"><ellipse cx="180" cy="170" rx="24" ry="8"/><ellipse cx="260" cy="165" rx="24" ry="8"/><ellipse cx="340" cy="170" rx="24" ry="8"/></g>');
+  const sauces = [];
+  if (has(/ketchup|molho|tomate/)) sauces.push('<path d="M120 165q32-15 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#c83d2c" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/mostarda/)) sauces.push('<path d="M120 154q32-14 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#e9b52e" stroke-width="7" stroke-linecap="round"/>');
+  if (has(/maionese|barbecue|bbq/)) sauces.push('<path d="M125 176q32-12 60 0t60 0t60 0t60 0t60 0" fill="none" stroke="#e8d3ae" stroke-width="6" stroke-linecap="round"/>');
+  const sesame = Array.from({length:22},(_,i)=>'<ellipse cx="'+(142+(i*37)%220)+'" cy="'+(116+(i*19)%24)+'" rx="4" ry="2" transform="rotate(-18 '+(142+(i*37)%220)+' '+(116+(i*19)%24)+')" fill="#f7e5bd"/>').join('');
+  return '<svg viewBox="0 0 500 320" role="img" aria-label="Hot dog personalizado com os ingredientes selecionados" xmlns="http://www.w3.org/2000/svg"><defs>'
+    + '<linearGradient id="'+id+'bun" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f4c77f"/><stop offset=".55" stop-color="#d99448"/><stop offset="1" stop-color="#a85e2b"/></linearGradient>'
+    + '<linearGradient id="'+id+'sausage" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b85b35"/><stop offset=".5" stop-color="#87351f"/><stop offset="1" stop-color="#5b2518"/></linearGradient>'
+    + '<filter id="'+id+'shadow"><feGaussianBlur stdDeviation="9"/></filter></defs>'
+    + '<ellipse cx="250" cy="258" rx="190" ry="24" fill="#24180f" opacity=".2" filter="url(#'+id+'shadow)"/>'
+    + '<path d="M68 195Q65 115 132 103Q250 70 368 103Q435 115 432 195Q428 250 360 255H140Q72 250 68 195Z" fill="url(#'+id+'bun)" stroke="#985322" stroke-width="5"/>'
+    + '<path d="M91 192Q95 135 145 125Q250 101 355 125Q405 135 409 192Q402 218 355 222H145Q98 218 91 192Z" fill="#f5d69b" opacity=".75"/>'
+    + sesame
+    + '<path d="M105 190Q105 143 150 139H350Q395 143 395 190Q390 216 350 219H150Q110 216 105 190Z" fill="url(#'+id+'sausage)" stroke="#672817" stroke-width="4"/>'
+    + '<path d="M130 157Q250 139 370 157" fill="none" stroke="#e18b5c" stroke-width="6" opacity=".6" stroke-linecap="round"/>'
+    + toppings.join('') + sauces.join('')
+    + '<path d="M83 202Q250 236 417 202" fill="none" stroke="#8d4b25" stroke-width="4" opacity=".6"/>'
+    + '</svg>';
 }

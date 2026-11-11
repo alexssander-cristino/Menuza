@@ -1,3 +1,6 @@
+// Aplicativo Android do Menuza.
+// Inicializa a conexão com o servidor configurado, exibe a aplicação web em uma WebView
+// e trata navegação, permissões e estados de carregamento/erro do conteúdo remoto.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,10 +11,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'server_address.dart';
 
 const _defaultUrl = 'http://192.168.0.105:4173';
-const _purple = Color(0xFF6D4CF5);
-const _background = Color(0xFFF6F5F9);
-const _ink = Color(0xFF211B35);
-const _muted = Color(0xFF736F82);
+const _purple = Color(0xFFD21404);
+const _background = Color(0xFFFFFAF2);
+const _ink = Color(0xFF321B16);
+const _muted = Color(0xFF806B5F);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -113,11 +116,13 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
               requestUri.host != serverUri.host ||
               requestUri.port != serverUri.port ||
               (requestUri.path != serverUri.path &&
-                  !(serverUri.path.isEmpty && requestUri.path == '/'))) return;
+                  !(serverUri.path.isEmpty && requestUri.path == '/'))) {
+            return;
+          }
+          final statusCode = error.response?.statusCode;
           setState(() {
             _loading = false;
-            _loadError = 'O servidor respondeu com erro HTTP ' +
-                (error.response?.statusCode?.toString() ?? '') + '.';
+            _loadError = 'O servidor respondeu com erro HTTP ${statusCode ?? 'desconhecido'}.';
           });
         },
         onWebResourceError: (error) {
@@ -185,7 +190,11 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
       _progress = 0;
     });
     try {
-      await _controller.loadRequest(Uri.parse(normalized));
+      final appUri = Uri.parse(normalized);
+      final customerLoginUri = appUri.replace(
+        fragment: appUri.fragment.isEmpty ? 'conta' : appUri.fragment,
+      );
+      await _controller.loadRequest(customerLoginUri);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('menuza_server_url', normalized);
     } catch (_) {
@@ -219,6 +228,41 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
         _loading = false;
         _loadError = 'Falha ao recarregar. Confira a conexão e tente novamente.';
       });
+    }
+  }
+
+  Future<void> _openAccount() async {
+    try {
+      await _controller.runJavaScript("window.location.hash = '#conta';");
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível abrir a conta agora.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logoutFromMobile() async {
+    try {
+      await _controller.runJavaScript("""
+        (async () => {
+          const adminPage = window.location.hash === '#admin';
+          const endpoint = adminPage ? '/api/admin/logout' : '/api/customer/logout';
+          try {
+            await fetch(endpoint, { method: 'POST', credentials: 'include' });
+          } finally {
+            window.location.hash = adminPage ? '#admin' : '#conta';
+            window.location.reload();
+          }
+        })();
+      """);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível encerrar a sessão.')),
+        );
+      }
     }
   }
 
@@ -384,8 +428,8 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE8E4F0))),
-            child: SelectableText(_serverUrl, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF5C43D6))),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFF0D9BD))),
+            child: SelectableText(_serverUrl, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFFD21404))),
           ),
           const SizedBox(height: 20),
           SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: const Text('Tentar novamente'))),
@@ -420,6 +464,41 @@ class _MenuzaWebScreenState extends State<MenuzaWebScreen>
             backgroundColor: Colors.transparent,
             color: _purple,
           )),
+        if (!_initializing && _loadError == null)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Material(
+              color: Colors.white.withValues(alpha: .96),
+              elevation: 5,
+              shadowColor: _ink.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  TextButton.icon(
+                    onPressed: _openAccount,
+                    icon: const Icon(Icons.person_outline_rounded, size: 18),
+                    label: const Text('Minha conta'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _purple,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  IconButton(
+                    tooltip: 'Sair da conta',
+                    onPressed: _logoutFromMobile,
+                    icon: const Icon(Icons.logout_rounded, size: 19),
+                    color: _ink,
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                  ),
+                ]),
+              ),
+            ),
+          ),
       ])),
     ),
   );

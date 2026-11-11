@@ -1,4 +1,8 @@
+// Testes de integração do backend e dos fluxos principais do Menuza.
+// Cada cenário inicia uma instância isolada com banco temporário para validar rotas,
+// autenticação, pedidos, catálogo e regras operacionais sem depender de dados reais.
 import test from 'node:test';
+import { formatOrderStatusTime } from '../public/order-status-time.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -6,7 +10,13 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateItemPrice, makeSeed, INGREDIENTS } from '../src/catalog.mjs';
+import { restaurantLocalDatePrefix } from '../src/time.mjs';
 import { buildFoodGeometry } from '../public/food-scene.js';
+
+test('dashboard usa a data local do restaurante em vez do dia UTC do servidor', () => {
+  assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T02:00:00.000Z')), '2026-10-27');
+  assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T04:00:00.000Z')), '2026-10-28');
+});
 
 test('pizza calcula tamanho e adicionais sem confiar em preço do cliente', () => {
   const pizza = { type: 'pizza', baseCents: 4990 };
@@ -34,13 +44,34 @@ test('hambúrguer valida tamanho, porções e composição', () => {
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
 });
 
-test('visitante sem sessão é direcionado ao login antes de acessar o cardápio', async () => {
+test('timeline do pedido mostra o horário real de cada mudança de status', () => {
+  const history = [
+    { status: 'received', changedAt: '2026-10-28T12:05:00.000Z' },
+    { status: 'preparing', changedAt: '2026-10-28T12:12:00.000Z' },
+    { status: 'ready', changedAt: '2026-10-28T12:25:00.000Z' }
+  ];
+  assert.match(formatOrderStatusTime(history, 'received'), /09:05/);
+  assert.match(formatOrderStatusTime(history, 'preparing'), /09:12/);
+  assert.equal(formatOrderStatusTime(history, 'confirmed'), '');
+  assert.equal(formatOrderStatusTime([{ status: 'ready', changedAt: 'invalid' }], 'ready'), '');
+});
+
+test('checkout mantém a chave idempotente após recarregar e invalida quando o carrinho muda', async () => {
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');return showCustomerAccount()}return openMenu()"), 'route changes must not bypass the login gate');
-  assert.ok(client.includes("if(!app.customer){history.replaceState(null,'',location.pathname+location.search+'#conta');onRoute();return}"), 'initial visits without a valid session must open the account login');
+  assert.ok(client.includes("sessionStorage.getItem('menuza-checkout-key')"), 'checkout key is restored from the current browser session');
+  assert.ok(client.includes("sessionStorage.setItem('menuza-checkout-key',JSON.stringify({key:app.checkoutKey,fingerprint}))"), 'checkout key is stored with the cart fingerprint');
+  assert.ok(client.includes("savedCheckout.fingerprint !== serializedCart"), 'a changed cart invalidates the previous checkout key');
+  assert.ok(client.includes("sessionStorage.removeItem('menuza-checkout-key')"), 'successful or invalidated checkout clears persisted idempotency data');
+});
+
+test('cardápio público abre sem sessão e rotas privadas continuam separadas', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("function onRoute(){const hash=location.hash.replace(/^#/,'');if(hash==='admin')return showAdmin();if(hash==='conta')return showCustomerAccount();if(hash.startsWith('pedido/'))return showTracking(hash.slice(7));return openMenu()}"), 'public menu route remains available without customer authentication');
+  assert.ok(client.includes("if(initialHash==='admin'||initialHash==='conta'||initialHash.startsWith('pedido/')){onRoute();return}"), 'admin, account and order tracking routes are resolved before opening the public menu');
+  assert.ok(client.includes("await openMenu();"), 'a new visitor is sent to the public menu');
   assert.ok(client.includes("if(hash==='admin')return showAdmin()"), 'restaurant login remains independently accessible');
   assert.ok(client.includes("if(hash==='conta')return showCustomerAccount()"), 'customer login and account remain accessible');
-  assert.ok(client.includes("'/api/customer/me'"), 'session is validated by the server cookie, not a client-side flag');
+  assert.ok(client.includes("'/api/customer/me'"), 'customer session is validated by the server cookie');
 });
 
 test('o catálogo de demonstração tem tenants, categorias, produtos e recursos AR vazios', () => {
@@ -97,9 +128,24 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const privacyTicket = await privacySubmission.json();
   assert.match(privacyTicket.id, /^pr_/);
   const sameOrigin = { Origin: base };
-  const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', password: 'senha-teste-123' }) });
+  const registration = await fetch(base + '/api/customer/register', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ name: 'Joana Silva', email: 'joana@example.test', phone: '11999999999', birthDate: '1995-04-10', password: 'senha-teste-123' }) });
   assert.equal(registration.status, 201);
   const customerCookie = registration.headers.get('set-cookie').split(';')[0];
+  const dataExportResponse = await fetch(base + '/api/customer/data-export', { headers: { cookie: customerCookie } });
+  assert.equal(dataExportResponse.status, 200, 'authenticated customers can export their own account data');
+  const dataExport = await dataExportResponse.json();
+  assert.equal(dataExport.customer.email, 'joana@example.test');
+  assert.equal(dataExport.format, 'menuza-customer-data-v1');
+  assert.deepEqual(dataExport.orders, []);
+  const anonymousDataExport = await fetch(base + '/api/customer/data-export');
+  assert.equal(anonymousDataExport.status, 401, 'data export is never public');
+
+  const customerSqlInjectionEmail = await fetch(base + '/api/customer/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ email: "' OR '1'='1' --", password: 'senha-teste-123' }) });
+  assert.equal(customerSqlInjectionEmail.status, 401, 'SQL injection in the email field must not authenticate a customer');
+  assert.equal(customerSqlInjectionEmail.headers.get('set-cookie'), null, 'failed SQL injection attempts must not receive a session cookie');
+  const customerSqlInjectionPassword = await fetch(base + '/api/customer/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ email: 'joana@example.test', password: "' OR '1'='1' --" }) });
+  assert.equal(customerSqlInjectionPassword.status, 401, 'SQL injection payload in the password field must not authenticate a customer');
+  assert.equal(customerSqlInjectionPassword.headers.get('set-cookie'), null, 'invalid customer credentials must not receive a session cookie');
   const catalogResponse = await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } });
   const catalog = await catalogResponse.json();
   assert.equal(catalog.products.length, 6);
@@ -122,6 +168,9 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(created.items[0].ingredients.length, 4);
   assert.equal(created.items[0].snapshot.size.diameterCm, 35);
 
+  const adminSqlInjection = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: "' OR '1'='1' --" }) });
+  assert.equal(adminSqlInjection.status, 401, 'SQL injection payload must not authenticate the administrator');
+  assert.equal(adminSqlInjection.headers.get('set-cookie'), null, 'failed admin authentication must not issue a session cookie');
   const loginResponse = await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin }, body: JSON.stringify({ password: 'test-pass' }) });
   assert.equal(loginResponse.status, 200);
   const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
@@ -132,6 +181,14 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(privacyList.requests[0].id, privacyTicket.id);
   const privacyStatusResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'in_progress' }) });
   assert.equal(privacyStatusResponse.status, 200);
+  const closeWithoutResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'closed' }) });
+  assert.equal(closeWithoutResponse.status, 422, 'a privacy request cannot be closed without a recorded response');
+  const closeWithResponse = await fetch(base + '/api/admin/privacy-requests/' + privacyTicket.id, { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ status: 'closed', responseNote: 'Enviamos a cópia dos dados solicitados ao titular após validar sua identidade.', retentionReason: 'Os registros financeiros do pedido permanecem sujeitos aos prazos legais aplicáveis.' }) });
+  assert.equal(closeWithResponse.status, 200);
+  const resolvedPrivacyList = await (await fetch(base + '/api/admin/privacy-requests', { headers: { cookie } })).json();
+  assert.equal(resolvedPrivacyList.requests[0].responseNote.includes('cópia dos dados'), true);
+  assert.ok(resolvedPrivacyList.requests[0].closedAt);
+
   const adminOrders = await fetch(base + '/api/admin/orders', { headers: { cookie } });
   const tablesUnauthenticated = await fetch(base + '/api/admin/tables');
   assert.equal(tablesUnauthenticated.status, 401, 'table API requires an admin session');
@@ -140,6 +197,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const dashboardMetrics = await dashboardResponse.json();
   assert.ok(dashboardMetrics.ordersToday >= 1, 'dashboard counts orders created today');
   assert.ok(dashboardMetrics.averageTicketCents > 0, 'dashboard calculates the average ticket excluding cancelled orders');
+  assert.ok(Number.isInteger(dashboardMetrics.prepMinutes) && dashboardMetrics.prepMinutes > 0, 'dashboard exposes the configured preparation estimate for kitchen queue timers');
   const tableListResponse = await fetch(base + '/api/admin/tables', { headers: { cookie } });
   assert.equal(tableListResponse.status, 200);
   const tableList = await tableListResponse.json();
@@ -197,12 +255,31 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   const exhaustedCoupon = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'SAVE10', items: couponItems }) });
   assert.equal(exhaustedCoupon.status, 422);
   assert.match((await exhaustedCoupon.json()).error, /limite de utilizações/);
+
+  const oneUseCoupon = await fetch(base + '/api/admin/coupons', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ code: 'ONEUSE', discountType: 'fixed', discountValue: 500, maxUses: 1, active: true }) });
+  assert.equal(oneUseCoupon.status, 201);
+  const competingOrders = await Promise.all([
+    fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-oneuse-race-001', couponCode: 'ONEUSE' }) }),
+    fetch(base + '/api/orders', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ ...orderPayload, idempotencyKey: 'integration-oneuse-race-002', couponCode: 'ONEUSE' }) })
+  ]);
+  assert.deepEqual(competingOrders.map(response => response.status).sort(), [201, 422], 'a one-use coupon must not be redeemed by two distinct orders');
+  const oneUseExhausted = await fetch(base + '/api/coupons/validate', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ code: 'ONEUSE', items: couponItems }) });
+  assert.equal(oneUseExhausted.status, 422, 'the winning checkout consumes exactly one coupon use');
   assert.equal(adminOrders.status, 200);
   assert.equal((await adminOrders.json()).orders[0].items[0].ingredients[3].name, 'Bacon crocante');
   const newProductResponse = await fetch(base + '/api/admin/products', { method: 'POST', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ name: 'Pão de alho da casa', categoryId: 'acompanhamentos', type: 'plate', baseCents: 2500, description: 'Alho assado e ervas.' }) });
   assert.equal(newProductResponse.status, 201);
   const newProduct = (await newProductResponse.json()).product;
   assert.equal(newProduct.name, 'Pão de alho da casa');
+  const deniedProductDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin } });
+  assert.equal(deniedProductDelete.status, 401, 'product deletion requires an authenticated restaurant session');
+  const productDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie } });
+  assert.equal(productDelete.status, 200);
+  assert.equal((await productDelete.json()).ok, true);
+  const catalogAfterDelete = await (await fetch(base + '/api/admin/catalog', { headers: { cookie } })).json();
+  assert.equal(catalogAfterDelete.products.some(product => product.id === newProduct.id), false, 'deleted product is removed from the catalog');
+  const missingProductDelete = await fetch(base + '/api/admin/products/' + encodeURIComponent(newProduct.id), { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie } });
+  assert.equal(missingProductDelete.status, 404, 'deleting a missing product returns 404');
   const soldOutUpdate = await fetch(base + '/api/admin/products/pizza-calabresa', { method: 'PATCH', headers: { 'content-type': 'application/json', ...sameOrigin, cookie }, body: JSON.stringify({ available: false }) });
   assert.equal((await soldOutUpdate.json()).product.available, 0);
   const catalogWithSoldOut = await (await fetch(base + '/api/catalog', { headers: { cookie: customerCookie } })).json();
@@ -308,4 +385,82 @@ test('modelo 3D do hambúrguer muda a composição conforme os adicionais e tama
   assert.equal(classic.bounds[1], .1);
   assert.ok(double.geometry.positions.length > classic.geometry.positions.length);
   assert.ok(withBacon.geometry.positions.length > double.geometry.positions.length);
+});
+
+test('login do cliente aparece antes de terminar a verificação da sessão', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const accountView = client.slice(client.indexOf('async function showCustomerAccount()'), client.indexOf('function renderCustomerAuth('));
+  assert.ok(accountView.includes("renderCustomerAuth();try{const result=await api('/api/customer/me')"), 'customer login must render before the session request resolves');
+  assert.ok(accountView.includes("if(app.customer)await renderCustomerDashboard()"), 'a valid session must still open the customer dashboard');
+});
+
+
+test('alerta sonoro de novos pedidos é opcional e guarda a preferência local', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes("localStorage.getItem('menuza-order-sound')==='on'"));
+  assert.ok(client.includes('function trackNewOrders(orders)'));
+  assert.ok(client.includes("if(newOrders.length&&app.admin.soundEnabled)playOrderAlert()"));
+  assert.ok(client.includes('data-action="toggle-order-sound"'));
+});
+
+test('comanda imprimível inclui dados do pedido e escapa conteúdo dinâmico', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function printOrderTicket(orderId)'));
+  assert.ok(client.includes('data-action="print-order"'));
+  assert.ok(client.includes("esc(order.customerName||'Não informado')"));
+  assert.ok(client.includes("esc(order.deliveryAddress)"));
+  assert.ok(client.includes("window.addEventListener('afterprint',cleanup)"));
+});
+
+test('QR geral abre o cardápio sem parâmetros de mesa', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const start = client.indexOf('function menuQrUrl()');
+  const end = client.indexOf('function openMenuQr()', start);
+  assert.ok(start >= 0 && end > start, 'general menu QR URL helper must exist');
+  const helper = client.slice(start, end);
+  assert.ok(helper.includes("url.hash='menu'"));
+  assert.ok(!helper.includes("searchParams.set('mesa'"));
+  assert.ok(!helper.includes("searchParams.set('t'"));
+  assert.ok(client.includes("menuza-cardapio-geral-qrcode.png"));
+});
+
+test('biblioteca QR Code não acessa this no escopo do módulo ES', async () => {
+  const qr = await readFile(new URL('../public/qrcode.js', import.meta.url), 'utf8');
+  assert.ok(qr.includes('if (_getAndroid() && _getAndroid() <= 2.1)'), 'Android compatibility check must use the detector function');
+  assert.ok(!qr.includes('if (this._android && this._android <= 2.1)'), 'top-level this is undefined in ES modules');
+});
+
+
+test('painel mostra estado da conexão e recupera atualizações ao voltar online', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function setAdminConnectionState(state)'));
+  assert.ok(client.includes("app.admin.eventSource.onopen=()"));
+  assert.ok(client.includes("app.admin.eventSource.onerror=()"));
+  assert.ok(client.includes("window.addEventListener('online',handleAdminOnline)"));
+  assert.ok(client.includes('adminConnectionStatus'));
+  assert.ok(client.includes("app.admin.refreshTimer=setInterval(()=>")&&client.includes("},15000);"), '15-second polling remains as a fallback if live updates fail');
+});
+
+test('editar validade de cupom preserva o horário local do navegador', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('function dateTimeLocalValue(value)'));
+  assert.ok(client.includes('form.elements.startsAt.value=dateTimeLocalValue(row.dataset.starts)'));
+  assert.ok(client.includes('form.elements.expiresAt.value=dateTimeLocalValue(row.dataset.expires)'));
+  assert.ok(!client.includes("new Date(row.dataset.starts).toISOString().slice(0,16)"));
+});
+
+
+test('logo do restaurante oculta a imagem quando não há URL e mostra as iniciais como fallback', async () => {
+  const styles = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(styles.includes('.brand-mark img[hidden]{display:none!important}'));
+  assert.ok(styles.includes('.brand-mark [data-restaurant-initials][hidden]{display:none!important}'));
+  assert.ok(client.includes('image.hidden=!logoUrl'));
+  assert.ok(client.includes('if(fallback)fallback.hidden=false'));
+});
+
+
+test('abrir o cardápio preserva a logo configurada do restaurante', async () => {
+  const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(client.includes('applyRestaurantBranding(app.catalog.restaurant?.name,app.catalog.restaurant?.logoUrl)'));
 });
