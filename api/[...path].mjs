@@ -164,6 +164,21 @@ function verifyPassword(password, row) {
   const expected = Buffer.from(row.password_hash, 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
+async function verifyTurnstile(token, req) {
+  const secret = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+  if (!secret) return true;
+  if (!token || typeof token !== 'string' || token.length > 4096) throw fail('Confirme a verificação de segurança e tente novamente.', 403);
+  const form = new URLSearchParams({ secret, response: token });
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  if (ip) form.set('remoteip', ip);
+  let result;
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form });
+    result = await response.json();
+  } catch { throw fail('Não foi possível validar a proteção antirrobô. Tente novamente.', 503); }
+  if (!result?.success) throw fail('A verificação de segurança expirou ou é inválida. Tente novamente.', 403);
+  return true;
+}
 function hasHoneypot(body) {
   return ['website', 'companyWebsite', 'faxNumber'].some(key => typeof body[key] === 'string' && body[key].trim());
 }
@@ -903,7 +918,7 @@ export default async function handler(req, res) {
       if (origin&&host&&origin!=='https://'+host&&origin!=='http://'+host) throw fail('Origem da solicitação não permitida.',403);
     }
     if (method==='GET'&&path==='/api/public/integrations') {
-      return json(res,200,{sentryDsn:process.env.SENTRY_DSN||''});
+      return json(res,200,{sentryDsn:process.env.SENTRY_DSN||'',turnstileSiteKey:process.env.TURNSTILE_SITE_KEY||'',gaMeasurementId:process.env.GA_MEASUREMENT_ID||''});
     }
     const globalRetry=await limit(req,'api-global',240,60000);
     if(globalRetry) return json(res,429,{error:'Muitas solicitações. Aguarde um pouco e tente novamente.'},{'Retry-After':String(globalRetry)});
@@ -955,7 +970,7 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/tables/available') { await requireCustomer(req); return json(res,200,{tables:(await query("SELECT id,table_number AS number,seats FROM restaurant_tables WHERE restaurant_id=$1 AND status='free' ORDER BY table_number",[RESTAURANT_ID])).rows}); }
     if (method==='POST'&&path==='/api/admin/login') {
-      const body=await bodyOf(req), retry=await limit(req,'admin-login',15,900000);
+      const body=await bodyOf(req); await verifyTurnstile(body.turnstileToken,req); const retry=await limit(req,'admin-login',15,900000);
       if (retry) return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
       // Retorna falhas de configuração separadamente para que o painel local
       // não esconda problemas de ambiente como se fossem senha incorreta.
@@ -972,7 +987,7 @@ export default async function handler(req, res) {
     }
     if (method==='POST'&&path==='/api/admin/logout') { await revokeSession(req,ADMIN_COOKIE); return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,'',0)}); }
     if (method==='POST'&&path==='/api/customer/register') {
-      const body=await bodyOf(req), email=normalizeEmail(body.email);
+      const body=await bodyOf(req); await verifyTurnstile(body.turnstileToken,req); const email=normalizeEmail(body.email);
       const retry=await limit(req,'customer-register:'+email,5,3600000);
       if (retry||hasHoneypot(body)) return json(res,429,{error:'Muitas solicitações. Tente novamente mais tarde.'},{'Retry-After':String(retry||900)});
       const name=clean(body.name,100), phone=clean(body.phone,30), password=typeof body.password==='string'?body.password:'';
@@ -987,7 +1002,7 @@ export default async function handler(req, res) {
       return json(res,201,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
     if (method==='POST'&&path==='/api/customer/login') {
-      const body=await bodyOf(req), email=normalizeEmail(body.email), retry=await limit(req,'customer-login:'+email,15,900000);
+      const body=await bodyOf(req); await verifyTurnstile(body.turnstileToken,req); const email=normalizeEmail(body.email), retry=await limit(req,'customer-login:'+email,15,900000);
       if(retry) return json(res,429,{error:'Muitas tentativas. Aguarde antes de tentar novamente.'},{'Retry-After':String(retry)});
       await ensureCustomerSchema();
       const row=(await query('SELECT * FROM customers WHERE email=$1',[email])).rows[0];
