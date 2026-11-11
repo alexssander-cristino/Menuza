@@ -1,6 +1,8 @@
 name: Food 3D validation
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "public/food-models.js"
