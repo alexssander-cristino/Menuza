@@ -89,12 +89,9 @@ function bunTopMesh(R, H, seed, detail) {
       const blister = sstep(.76, .9, nz(p, 148, seed + 47)) * toastIsland;
       const pore = sstep(.78, .91, nz(p, 310, seed + 53));
       const streak = .5 + .5 * Math.sin(Math.atan2(p[2], p[0]) * 6 + hy * 8 + seed);
-      let glaze = mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy));
-      glaze = mix(glaze, lin('#9c572d'), toastIsland * .62);
-      glaze = mix(glaze, lin('#63371f'), blister * .55);
-      glaze = mix(glaze, C.bunToast, streak * .035);
-      glaze = mix(glaze, lin('#edc58d'), pore * .08);
-      return MAT(mul(glaze, tv), .68 - toastIsland * .06, .10, 1.18, hy < .18 ? .8 : 1);
+      const glaze = mix(mix(C.bunSide, C.bunCrown, sstep(.05, .85, hy)), C.bunToast, streak * .12);
+      const blotch = sstep(.55, .74, nz(p, 28, seed + 11));
+      return MAT(mul(mix(glaze, C.bunDeep, blotch * .42), tv), .30, .12, .28, hy < .18 ? .8 : 1);
     }
   });
   // sementes de gergelim: pequenos elipsoides pousados sobre a cúpula
@@ -132,11 +129,8 @@ function pattyMesh(R, H, seed, detail) {
         const fatGrain = sstep(.58, .78, nz(p, 55, seed + 7));
         const base = mix(C.patty, C.pattyFat, fatGrain * .34);
         // Crosta tostada irregular, com pontos de selagem e pequenas áreas de gordura.
-        let cooked = mix(base, lin('#382016'), irregularCrust * .58 + contactSear * .32);
-        cooked = mix(cooked, C.pattySear, irregularCrust * contactSear * .54);
-        cooked = mix(cooked, lin('#160d09'), charSpecks * irregularCrust * .34);
-        cooked = mix(cooked, lin('#b4774d'), fatGrain * (1 - irregularCrust) * .12);
-        return MAT(mul(cooked, tv), .57, .08, 1.32, lerp(1, .86, sstep(.7, 1, rn)));
+        const cooked = mix(base, C.pattySear, clamp(irregularCrust * .9 + contactSear * .6, 0, .96));
+        return MAT(mul(cooked, tv), .5, .06, .9, lerp(1, .88, sstep(.7, 1, rn)));
       }
       if (n[1] < -.5) return MAT(mul(C.patty, .8 * tv), .7, .05, 1, .6);
       const sideGrain = fbm(p[0] * 58, p[1] * 115, p[2] * 58, seed + 61, 3);
@@ -299,8 +293,8 @@ function baconStripInto(m, { L, W, t, seed, xf, curl = .003, detail = 1 }) {
     const edge = sstep(.12, 0, Math.min(u, 1 - u)) * .8;
     let c = mix(C.baconLean, C.baconFat, fat * .88);
     c = mix(c, lin('#bd704b'), cookedPatch * .28);
-    c = mix(c, C.baconCrisp, edge * .62 + cookedPatch * fat * .26 + (part === 1 ? .3 : 0));
-    return MAT(c, .74 - fat * .12, .16, 1.15, part === 1 ? .72 : 1);
+    c = mix(c, C.baconCrisp, clamp(edge + .15 + (part === 1 ? .4 : 0), 0, 1));
+    return MAT(c, .3, .35, .6, part === 1 ? .6 : 1);
   }, { xf, ref: () => [0, 0, 0] });
 }
 function baconMesh(R, kH, seed, detail, q) {
@@ -466,7 +460,7 @@ function doughMesh(ctx, detail) {
     R: a => 1 + .026 * (noise3(Math.cos(a) * 1.2 + 4, Math.sin(a) * 1.2, seed) - .5) * 2 + .012 * Math.sin(a * 5 + ph) + .006 * Math.sin(a * 11 + ph * 1.7),
     disp: (a, r, y) => {
       const x = Math.cos(a) * r, z = Math.sin(a) * r, rim = sstep(rStart - .003, rStart + .005, r);
-      const bl = sstep(.62, .84, noise3(x * 34, z * 34, seed + 9));
+      const bl = sstep(.36, .62, noise3(x * 34, z * 34, seed + 9));
       const small = (fbm(x * 118, z * 118, seed + 2, 2) - .5) * .0032;
       const blister = (fbm(x * 74, z * 74, seed + 26, 3) - .5) * .0038;
       const notch = rim * ctx.cutGroove(x, z) * .0016;
@@ -563,8 +557,8 @@ function cheeseMeshPizza(ctx, detail) {
     // Queijo de forno: base marfim, com gratinado localizado em manchas suaves.
     // O tostado ocupa apenas pequenas ilhas, sem transformar a cobertura em crosta marrom.
     const toastNoise = fbm(x * 27, z * 27, seed + 51, 3);
-    const toast = sstep(.38, .64, toastNoise) * (.85 + .15 * sstep(.15, .9, v));
-    const browned = sstep(.52, .76, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
+    const toast = sstep(.30, .56, toastNoise) * (.85 + .15 * sstep(.15, .9, v));
+    const browned = sstep(.44, .68, fbm(x * 58, z * 58, seed + 53, 2)) * toast;
     const freckles = sstep(.74, .89, fbm(x * 108, z * 108, seed + 59, 2)) * browned;
     const bub = sstep(.64, .81, fbm(x * 112, z * 112, seed + 41, 2));
     const blisterEdge = sstep(.76, .9, fbm(x * 178, z * 178, seed + 61, 2)) * bub;
@@ -712,11 +706,8 @@ function onionInto(m, x, y, z, R, seed, rnd, detail) {
       R: rr, y: 0, rw: .0019, rh: .0012, a0: 0, a1: len, seed: seed + i, wob: .06, nu: 40, nv: 8,
       xf: rigid({ yaw: yaw0 + rnd() * .8, pitch: (rnd() - .5) * .1, t: [x, y - .0003 + i * .0007, z] }),
       shade: (u, v, p) => {
-        const toast = sstep(.38, .66, nz(p, 70, seed + i));
-        const caramel = sstep(.48, .72, fbm(p[0] * 85, p[2] * 85, seed + i * 9, 2));
-        let c = mix(lin('#f2dfb9'), lin('#d69a53'), toast * .58);
-        c = mix(c, lin('#92502b'), caramel * toast * .38);
-        return MAT(c, .48, .38, .48, .92);
+        const toast = sstep(.4, .7, nz(p, 70, seed + i));
+        return MAT(mix(mix(lin('#e9d6a8'), lin('#f3e4bd'), .4), C.onionGold, toast * .8), .3, .65, .25, .95);
       }
     });
   }
@@ -751,12 +742,8 @@ function chickenInto(m, x, y, z, R, seed, rnd) {
       seed: seed + i * 19, amp: .24, nu: 18, nv: 12,
       xf: rigid({ yaw, pitch, roll, t: [x + offsetX, y + offsetY, z + offsetZ] }),
       shade: (u, v, p) => {
-        const fiber = nz(p, 185, seed + i * 17), sear = sstep(.68, .88, nz(p, 34, seed + i * 23));
-        const brownedEdge = sstep(.72, .9, nz(p, 72, seed + i * 29));
-        let color = mix(C.chicken, lin('#f1dcb4'), .10 + fiber * .18);
-        color = mix(color, C.chickenBrown, sstep(.59, .8, fiber) * .30 + sear * .2);
-        color = mix(color, lin('#875b32'), brownedEdge * sear * .32);
-        return MAT(color, .68 - sear * .035, .27, 1.12, .92);
+        const color = mix(mix(C.chicken, lin('#e6c48e'), nz(p, 185, seed + i * 17) * .5), C.chickenBrown, sstep(.4, .65, nz(p, 150, seed + i)) * .8);
+        return MAT(color, .5, .25, 1, .9);
       }
     });
   }
@@ -1180,7 +1167,7 @@ function friesMesh(R, seed, detail, quantity = 1) {
       return [(v - .5) * L, bend * Math.sin(Math.PI * v) + rho * Math.sin(phi), rho * Math.cos(phi)];
     }, (u, v, p) => {
       const phi = u * TAU, corner = sstep(.55, .95, Math.cos(3 * phi + ph)), roast = sstep(.45, .75, fbm(p[0] * 60, p[1] * 60, p[2] * 60, seed + i, 2));
-      let c = mix(C.potato, C.potatoSkin, clamp(corner * .85 + roast * .35, 0, 1)); c = mix(c, C.potatoDark, sstep(.8, 1, corner * roast));
+      let c = mix(C.potato, C.potatoSkin, clamp(corner * .9 + roast * .5, 0, 1)); c = mix(c, C.potatoDark, sstep(.8, 1, corner * roast));
       return MAT(c, .42, .15, .9, .9);
     }, { wrapV: false, xf, ref: p => [p[0], 0, 0] });
     for (const [sx, sz] of samples) { const ix = clamp(Math.floor((sx + R) / cell), 0, N - 1), iz = clamp(Math.floor((sz + R) / cell), 0, N - 1); for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const a = clamp(ix + dx, 0, N - 1), b = clamp(iz + dz, 0, N - 1); hm[b * N + a] = Math.max(hm[b * N + a], yc + r * .62); } }
@@ -1932,11 +1919,12 @@ function hotDogBunMesh(L, W, H, seed, detail) {
     }, (u, v, p, n) => {
       const hy = clamp(p[1] / H, 0, 1), toward = -side * n[2];
       const toastNoise = fbm(p[0] * 38, p[1] * 52 + p[2] * 24, seed + 7, 3);
-      const toast = sstep(.34, .62, toastNoise) * sstep(.06, .62, hy);
+      const toast = sstep(.34, .62, toastNoise) * sstep(.08, .58, hy);
       const freckles = sstep(.70, .86, nz(p, 126, seed + 15)) * toast;
       const bakeBlotch = sstep(.48, .7, fbm(p[0] * 20, p[1] * 24, p[2] * 20, seed + 19, 3));
       let c = mix(C.bunSide, C.bunCrown, sstep(.12, .78, hy));
-      c = mix(c, lin('#a45a2c'), toast * .72 + bakeBlotch * .16);
+      c = mix(c, lin('#8a481c'), toast * .85);
+      c = mix(c, lin('#a45a2c'), bakeBlotch * .16);
       c = mix(c, lin('#63351d'), freckles * .62);
       const inner = sstep(.5, .85, toward);
       c = mix(c, mix(C.bunCrumb, lin('#f6e6bf'), nz(p, 90, seed + 9) * .5), inner);
@@ -1971,16 +1959,13 @@ function hotDogSausageMesh(L, R, seed, detail) {
     const upper = sstep(-.12, .48, n[1]);
     const grillBands = Math.pow(Math.max(0, Math.cos(p[0] * 118 + p[2] * 34 + seed * .17)), 18);
     const mark = Math.max(sstep(.36, .66, searField) * upper, grillBands * upper * .72);
-    const meat = mix(lin('#71301f'), lin('#a84b2c'), .48 + .16 * (nz(p, 34, seed + 11) - .5));
+    const meat = mix(lin('#7a3420'), lin('#a8482a'), .42 + .10 * (nz(p, 34, seed + 11) - .5));
     const casingGrain = fbm(p[0] * 155, p[1] * 210, p[2] * 155, seed + 39, 2);
     const blister = sstep(.52, .74, fbm(p[0] * 48, p[2] * 92, seed + 21, 2));
     const char = sstep(.68, .88, nz(p, 122, seed + 23)) * mark;
     const oil = sstep(.58, .82, fbm(p[0] * 34, p[2] * 36, seed + 45, 2));
-    let cooked = mix(meat, lin('#4a2417'), mark * .82);
-    cooked = mix(cooked, lin('#2a1710'), char * .48);
-    cooked = mix(cooked, lin('#d18a55'), blister * .18);
-    cooked = mix(cooked, lin('#e6a16a'), casingGrain * .08);
-    return MAT(mul(cooked, 1 + (nz(p, 54, seed + 12) - .5) * .07), .70 - oil * .08, .13, 1.12, .98);
+    const cooked = mix(meat, lin('#3b1d14'), mark * .85);
+    return MAT(mul(mix(cooked, lin('#593526'), char * .12), 1 + (nz(p, 54, seed + 12) - .5) * .035), .32, .12, .24, .98);
   }, { wrapV: false, ref: p => [p[0], 0, 0] });
   return m.finish();
 }
