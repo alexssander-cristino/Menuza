@@ -2468,14 +2468,19 @@ function resolveVisualIngredient(type, ingredient) {
 
 export function buildFoodLayout(product, ingredients, size, options = {}) {
   const o = { detail: options.detail || 1, crustKey: options.crustKey, flavors: Array.isArray(options.flavors) ? options.flavors : [] };
-  const type = String(product?.type || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
-  const explicitHotDogType = /^(?:hot\s*dog|hotdog|cachorro\s*quente|dogao|dogoes|vinao|vinaoes)$/.test(type);
+  const rawType = String(product?.type ?? product?.productType ?? product?.foodType ?? product?.kind ?? '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+  const type = rawType;
+  const explicitHotDogType = /^(?:hot\s*dog|hotdog|cachorro\s*quente|dogao|dogoes|vinao|vinaoes)$/.test(rawType);
+  // Detecta antes de normalizar ingredientes: IDs internos podem ser genéricos
+  // e esconder "pão"/"salsicha" depois da resolução visual.
+  const hotDogByOriginalIngredients = isHotDogProduct(product, ingredients || []);
+  const hotDog = explicitHotDogType || hotDogByOriginalIngredients;
   const ingredientType = explicitHotDogType ? 'plate' : type;
   const combined = new Map();
   for (const original of (ingredients || [])) {
     const item = resolveVisualIngredient(ingredientType, original);
     const previous = combined.get(item.id);
-    const maxQuantity = (type === 'burger' || type === 'plate' || explicitHotDogType) ? 10 : 3;
+    const maxQuantity = (type === 'burger' || type === 'plate' || explicitHotDogType || hotDog) ? 10 : 3;
     if (previous) previous.quantity = clamp((Number(previous.quantity) || 1) + (Number(item.quantity) || 1), 1, maxQuantity);
     else combined.set(item.id, { ...item, quantity: clamp(Number(item.quantity) || 1, 1, maxQuantity) });
   }
@@ -2498,7 +2503,7 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     const footprint = layout.container === 'can' ? .064 : layout.container === 'bottle' ? .056 : .076;
     bounds = [footprint, layout.extentH[1], footprint];
   } else {
-    if (explicitHotDogType || isHotDogProduct(product, list)) {
+    if (hotDog || isHotDogProduct(product, list)) {
       layout = hotDogLayout(product, list, o);
       bounds = [Math.max(.17, Math.min(.25, (Number(product.widthCm ?? product.width) || 20) / 100)), .09, .12];
     } else {
@@ -2506,7 +2511,7 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
       bounds = [(Number(product.widthCm ?? product.width) || 20) / 100, .062, (Number(product.depthCm ?? product.depth) || Number(product.widthCm ?? product.width) || 20) / 100];
     }
   }
-  const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (explicitHotDogType || isHotDogProduct(product, list) ? 'hotdog' : 'plate');
+  const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (hotDog || isHotDogProduct(product, list) ? 'hotdog' : 'plate');
   return { type: visualType, parts: withRoastedIngredients(layout.parts, type), bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
 }
 
