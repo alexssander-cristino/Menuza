@@ -902,6 +902,9 @@ export default async function handler(req, res) {
       const origin=req.headers.origin, host=req.headers.host;
       if (origin&&host&&origin!=='https://'+host&&origin!=='http://'+host) throw fail('Origem da solicitação não permitida.',403);
     }
+    if (method==='GET'&&path==='/api/public/integrations') {
+      return json(res,200,{sentryDsn:process.env.SENTRY_DSN||''});
+    }
     const globalRetry=await limit(req,'api-global',240,60000);
     if(globalRetry) return json(res,429,{error:'Muitas solicitações. Aguarde um pouco e tente novamente.'},{'Retry-After':String(globalRetry)});
     if(method==='POST'&&path==='/api/orders') {
