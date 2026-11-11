@@ -1267,6 +1267,193 @@ function friedPiecesMesh(R, seed, detail, family, quantity = 1) {
   return m.finish();
 }
 
+function dessertMesh(R, seed, detail, text) {
+  const m = new Mesh(), rnd = randomFor(seed);
+  if (/pudim|flan|panna cotta/.test(text)) {
+    const base = R * .39, top = .047;
+    const profilePoints = [[0, .004], [base * .62, .004], [base * .88, .008], [base, .021], [base * .94, .031], [base * .72, .043], [base * .36, top], [0, top - .001]];
+    m.revolve(profile(smoothPoly(profilePoints, 2)), {
+      nu: 72, nv: 42, detail,
+      R: a => 1 + .018 * Math.sin(a * 12 + seed) + .009 * Math.sin(a * 25 + seed * .3),
+      shade: (u, v, p, n, [r, y]) => {
+        const caramel = sstep(.72, .98, y / top);
+        const glaze = sstep(.66, .82, noise3(p[0] * 92, p[1] * 160, p[2] * 92, seed + 13));
+        const custard = mix(lin('#dfb56b'), lin('#f0d394'), sstep(.2, .8, nz(p, 46, seed + 7)) * .34);
+        const sauce = mix(lin('#9b4d22'), lin('#cb8237'), sstep(.18, .82, nz(p, 58, seed + 11)) * .7);
+        return MAT(mix(custard, sauce, clamp(caramel * (.78 + glaze * .2), 0, .94)), .42 - caramel * .1, .16, .55, .98);
+      }
+    });
+  } else if (/sorvete|gelato|ice cream|sundae/.test(text)) {
+    const flavors = /chocolate|cacau/.test(text) ? [lin('#563126'), lin('#79503b'), lin('#e7cba0')]
+      : /morango|strawberry/.test(text) ? [lin('#d85858'), lin('#f09b83'), lin('#f4d8ad')]
+        : [lin('#e7d5ae'), lin('#f2e8cf'), lin('#d4b981')];
+    for (let i = 0; i < 3; i++) {
+      const a = i * TAU / 3 + .2, x = Math.cos(a) * R * .17, z = Math.sin(a) * R * .17;
+      blobInto(m, {
+        rx: R * (.22 + rnd() * .025), ry: R * .19, rz: R * (.21 + rnd() * .025), seed: seed + i * 31,
+        amp: .095, nu: 30, nv: 22, xf: rigid({ yaw: rnd() * TAU, t: [x, .038 + i * .006, z] }),
+        shade: (u, v, p) => {
+          const scoopNoise = fbm(p[0] * 68, p[1] * 74, p[2] * 68, seed + i * 17, 3);
+          const melt = sstep(.76, .94, noise3(p[0] * 40, p[1] * 34, p[2] * 40, seed + i * 13));
+          return MAT(mix(flavors[i], lin('#f8e8c9'), scoopNoise * .12 + melt * .18), .68 - melt * .12, .2, .64, .96);
+        }
+      });
+    }
+    // Confeito e raspas individuais, em quantidade baixa para manter a cena leve.
+    if (/sundae|granulado|confeito/.test(text)) for (let i = 0; i < 12; i++) {
+      const a = rnd() * TAU, r = Math.sqrt(rnd()) * R * .3, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      blobInto(m, { rx: .0012, ry: .00045, rz: .00045, seed: seed + 90 + i, amp: .05, nu: 8, nv: 6,
+        xf: rigid({ yaw: rnd() * TAU, t: [x, .063 + rnd() * .006, z] }),
+        shade: () => MAT(lin(['#c53a32', '#e6b432', '#477b49', '#593e7b'][i % 4]), .45, .08, .12, .95) });
+    }
+  } else if (/churros?|donut|rosquinha/.test(text)) {
+    const count = /churros?/.test(text) ? 4 : 3;
+    for (let i = 0; i < count; i++) {
+      const x = (i - (count - 1) / 2) * R * .21, yaw = (rnd() - .5) * .22;
+      m.revolve(superPuck(R * .095, R * .10, 2.4, 26, .06), {
+        nu: 48, nv: 20, detail, xf: rigid({ yaw, roll: .08 + rnd() * .1, t: [x, .023 + rnd() * .004, 0] }),
+        R: a => 1 + .025 * Math.sin(a * 7 + seed + i),
+        shade: (u, v, p) => {
+          const toast = sstep(.46, .74, fbm(p[0] * 82, p[1] * 95, p[2] * 82, seed + i * 13, 3));
+          const sugar = sstep(.8, .91, noise3(p[0] * 260, p[1] * 220, p[2] * 260, seed + i * 17));
+          return MAT(mix(mix(lin('#c5843c'), lin('#e4b566'), .35), lin('#75421f'), toast * .55 + sugar * .08), .76, .08, 1.05, .92);
+        }
+      });
+    }
+  } else {
+    const chocolate = /brownie|chocolate|brigadeiro|cacau/.test(text), cheesecake = /cheesecake|torta|bolo|cake|brownie/.test(text);
+    const base = chocolate ? lin('#563126') : cheesecake ? lin('#d9bd8d') : lin('#dfc69b');
+    const top = chocolate ? lin('#713c2b') : cheesecake ? lin('#f2dfb9') : lin('#f1e5c9');
+    const centerY = .026, radius = R * .39, h = .026;
+    m.revolve(superPuck(radius, h, 3.4, 42, .055), {
+      nu: 84, nv: 32, detail, xf: rigid({ yaw: rnd() * TAU, t: [0, centerY, 0] }),
+      R: a => 1 + .018 * Math.sin(a * 6 + seed) + .008 * Math.sin(a * 13 + seed * .2),
+      shade: (u, v, p, n, [r, y]) => {
+        const crumb = fbm(p[0] * 72, p[1] * 105, p[2] * 72, seed + 21, 3);
+        const baked = sstep(.58, .8, noise3(p[0] * 105, p[1] * 135, p[2] * 105, seed + 29));
+        let color = mix(base, top, sstep(.74, .95, y / h) * .88);
+        color = mix(color, chocolate ? lin('#351d17') : lin('#a86737'), baked * (chocolate ? .18 : .25));
+        color = mix(color, chocolate ? lin('#b27b52') : lin('#f7e9cc'), (crumb - .5) * .18 + sstep(.88, .98, r / radius) * .08);
+        return MAT(color, .7, .12, .88, .94);
+      }
+    });
+    if (/bolo|cake|cheesecake|torta/.test(text)) {
+      m.revolve(superPuck(radius * .98, .0032, 3.2, 40, 0), {
+        nu: 80, nv: 16, detail, xf: rigid({ t: [0, centerY + h * .73, 0] }),
+        shade: (u, v, p) => MAT(mix(top, lin('#fff0d2'), nz(p, 68, seed + 38) * .22), .44, .18, .28, .98)
+      });
+    }
+  }
+  return m.finish();
+}
+
+function drinkPalette(text) {
+  if (/cola|coca|pepsi|guarana|refrigerante/.test(text)) return { liquid: lin('#583322'), shell: lin('#a72a20'), accent: lin('#e9d4a0'), cap: lin('#a72a20') };
+  if (/energetico|energy/.test(text)) return { liquid: lin('#c9a52e'), shell: lin('#3c6d45'), accent: lin('#d8c43a'), cap: lin('#31543a') };
+  if (/laranja|orange|manga|maracuja|abacaxi|suco|juice/.test(text)) return { liquid: lin('#dc8126'), shell: lin('#edba46'), accent: lin('#f4dfab'), cap: lin('#df9e31') };
+  if (/cafe|coffee|espresso|capuccino|cappuccino/.test(text)) return { liquid: lin('#55351f'), shell: lin('#ece5d8'), accent: lin('#c8b99d'), cap: lin('#f2eee6') };
+  if (/leite|milk|shake|vitamina/.test(text)) return { liquid: lin('#e8dfc6'), shell: lin('#e8d7bd'), accent: lin('#f6eee0'), cap: lin('#c9a2bd') };
+  return { liquid: lin('#a6d5db'), shell: lin('#b6dbe0'), accent: lin('#f1fbfa'), cap: lin('#5c9daf') };
+}
+
+function drinkLayout(product, detail) {
+  const text = normalizedProductText(product), seed = hash(product.id || 'drink'), palette = drinkPalette(text);
+  const family = /lata|cola|coca|pepsi|guarana|refrigerante|energy|energetico/.test(text) ? 'can'
+    : /garrafa|agua|water|cerveja|beer/.test(text) ? 'bottle'
+      : /cafe|coffee|espresso|capuccino|cappuccino/.test(text) ? 'mug' : 'glass';
+  const radius = family === 'can' ? .032 : family === 'bottle' ? .028 : .038;
+  const height = family === 'can' ? .12 : family === 'bottle' ? .16 : .132;
+  const key = part => `drink|${family}|${part}|${detail}|${seed}`;
+  const parts = [];
+  if (family === 'can') {
+    parts.push({ kind: 'drink-can', key: key('can'), y: 0, build: () => {
+      const m = new Mesh();
+      const pts = [[0, .001], [radius * .9, .001], [radius, .004], [radius, .008], [radius, .105], [radius * .94, .114], [radius * .82, .118], [0, .118]];
+      m.revolve(profile(smoothPoly(pts, 2)), { nu: 72, nv: 44, detail,
+        R: a => 1 + .0025 * Math.sin(a * 9 + seed),
+        shade: (u, v, p, n, [r, y]) => {
+          const label = sstep(.014, .022, y) * (1 - sstep(.092, .104, y));
+          const stripe = .5 + .5 * Math.sin(p[0] * 145 + p[2] * 92 + seed);
+          const color = mix(lin('#b8b9b6'), mix(palette.shell, palette.accent, sstep(.82, .97, stripe) * .32), label);
+          return MAT(color, label ? .38 : .24, .04, label ? .32 : .18, .94);
+        }
+      });
+      m.ringTube({ R: radius * .88, y: .116, rw: .0011, rh: .001, seed: seed + 3, wob: .01, shade: () => MAT(lin('#999d9d'), .28, .03, .08, .98), nu: 56, nv: 10 });
+      m.revolve(superPuck(radius * .82, .0009, 3, 30, 0), { nu: 56, nv: 10, detail, xf: rigid({ t: [0, .1165, 0] }), shade: (u, v, p) => MAT(mix(lin('#858b8c'), lin('#d1d1cc'), nz(p, 42, seed + 8) * .28), .24, .04, .06, .98) });
+      m.ringTube({ R: radius * .23, y: .118, rw: radius * .14, rh: .00042, seed: seed + 4, wob: .015, shade: () => MAT(lin('#9fa2a0'), .29, .03, .05, .95), nu: 40, nv: 9 });
+      m.ringTube({ R: radius * .91, y: .003, rw: .001, rh: .001, seed: seed + 5, wob: .012, shade: () => MAT(lin('#9da19f'), .32, .02, .08, .96), nu: 56, nv: 10 });
+      return m.finish();
+    }});
+  } else if (family === 'bottle') {
+    parts.push({ kind: 'drink-bottle', key: key('bottle'), y: 0, build: () => {
+      const m = new Mesh();
+      const pts = [[0, .001], [radius * .72, .001], [radius * .92, .006], [radius, .015], [radius * .98, .084], [radius * .86, .1], [radius * .55, .112], [radius * .43, .123], [radius * .41, .142], [radius * .45, .146], [radius * .45, .154], [radius * .4, .159], [0, .159]];
+      m.revolve(profile(smoothPoly(pts, 2)), { nu: 72, nv: 56, detail,
+        R: a => 1 + .006 * Math.sin(a * 5 + seed) + .003 * Math.sin(a * 11),
+        shade: (u, v, p, n, [r, y]) => {
+          const label = sstep(.026, .032, y) * (1 - sstep(.071, .079, y));
+          const rib = .5 + .5 * Math.sin(y * 740 + seed);
+          const plastic = mix(lin('#d8f1ef'), lin('#92c5c8'), rib * .16);
+          return MAT(mix(plastic, mix(palette.shell, palette.accent, .22), label), label ? .48 : .13, label ? .08 : .16, label ? .3 : .12, .9);
+        }
+      });
+      m.revolve(superPuck(radius * .47, .006, 3, 28), { nu: 52, nv: 18, detail, xf: rigid({ t: [0, .157, 0] }), shade: (u, v, p) => MAT(mix(palette.cap, lin('#f1d9a9'), nz(p, 63, seed + 9) * .12), .5, .04, .22, .95) });
+      for (let i = 0; i < 3; i++) m.ringTube({ R: radius * .42, y: .143 + i * .0025, rw: .00055, rh: .00045, seed: seed + 13 + i, wob: .01, nu: 40, nv: 8, shade: () => MAT(mix(palette.cap, lin('#e8e0d0'), .18), .58, .02, .04, .94) });
+      return m.finish();
+    }});
+  } else {
+    parts.push({ kind: family === 'mug' ? 'drink-mug' : 'drink-glass', key: key('vessel'), y: 0, build: () => {
+      const m = new Mesh(), ceramic = family === 'mug';
+      if (ceramic) {
+        const pts = [[0, .001], [radius * .74, .001], [radius * .86, .004], [radius * .93, .014], [radius, .108], [radius * .96, .116], [radius * .83, .116], [radius * .79, .108], [radius * .7, .016], [0, .015]];
+        m.revolve(profile(smoothPoly(pts, 2)), { nu: 64, nv: 42, detail,
+          R: a => 1 + .008 * Math.sin(a * 5 + seed),
+          shade: (u, v, p) => MAT(mix(palette.shell, palette.accent, sstep(.45, .94, nz(p, 54, seed + 4)) * .1), .24, .08, .18, .96)
+        });
+        m.ringTube({ R: radius * .82, y: .108, rw: .0014, rh: .0013, seed: seed + 8, wob: .008, nu: 56, nv: 10, shade: () => MAT(palette.accent, .2, .08, .08, .98) });
+      } else {
+        const height = .132, glassR = radius * .92;
+        m.ringTube({ R: glassR, y: .012, rw: .0013, rh: .0011, seed: seed + 4, wob: .009, nu: 64, nv: 11, shade: () => MAT(lin('#b9d8d9'), .12, .24, .08, .92) });
+        m.ringTube({ R: glassR * 1.015, y: height, rw: .0015, rh: .0011, seed: seed + 7, wob: .006, nu: 64, nv: 12, shade: () => MAT(lin('#d8edeb'), .1, .34, .06, .9) });
+        for (const angle of [-.58, .72]) m.grid(4, 32, (u, v) => {
+          const a = angle + (u - .5) * .07, r = glassR * (1 + .008 * Math.sin(v * 7 + seed));
+          return [Math.cos(a) * r, .014 + v * (height - .02), Math.sin(a) * r];
+        }, (u, v, p) => MAT(mix(lin('#f6ffff'), lin('#86b4b6'), v * .35), .1, .42, .04, .94), { wrapU: false, ref: p => [0, p[1], 0] });
+      }
+      return m.finish();
+    }});
+    const liquidTop = family === 'mug' ? .103 : .1;
+    parts.push({ kind: 'drink-liquid', key: key('liquid'), y: 0, build: () => {
+      const m = new Mesh(), r = family === 'mug' ? radius * .72 : radius * .82;
+      const pts = [[0, .014], [r * .94, .014], [r, .025], [r * .99, liquidTop - .005], [r * .95, liquidTop], [r * .55, liquidTop + .001], [0, liquidTop - .001]];
+      m.revolve(profile(smoothPoly(pts, 2)), { nu: 72, nv: 32, detail,
+        R: a => 1 + .004 * Math.sin(a * 4 + seed),
+        shade: (u, v, p, n, [r0, y]) => {
+          const meniscus = sstep(liquidTop - .004, liquidTop, y);
+          const swirl = .5 + .5 * Math.sin(p[0] * 92 + p[2] * 61 + seed);
+          return MAT(mix(palette.liquid, palette.accent, meniscus * .16 + swirl * .035), .24, .2, .14, .94);
+        }
+      });
+      return m.finish();
+    }});
+    if (!family.startsWith('mug') && !/agua|water|cafe|coffee|espresso/.test(text)) {
+      parts.push({ kind: 'drink-ice', key: key('ice'), y: 0, build: () => {
+        const m = new Mesh(), rnd = randomFor(seed + 37), count = /shake|vitamina/.test(text) ? 0 : 3;
+        for (let i = 0; i < count; i++) {
+          const a = i * TAU / count + .4, r = radius * .31, x = Math.cos(a) * r, z = Math.sin(a) * r;
+          m.revolve(superPuck(radius * (.16 + rnd() * .025), .009, 1.8, 18, .05), {
+            nu: 30, nv: 18, detail, R: angle => 1 + .035 * Math.sin(angle * 5 + i),
+            xf: rigid({ yaw: rnd() * TAU, pitch: (rnd() - .5) * .18, roll: (rnd() - .5) * .18, t: [x, liquidTop - .006 + rnd() * .006, z] }),
+            shade: (u, v, p) => MAT(mix(lin('#b9dadd'), lin('#f5ffff'), nz(p, 62, seed + i) * .22), .18, .28, .22, .95)
+          });
+        }
+        return m.finish();
+      }});
+    }
+  }
+  return { parts, radius: radius * 1.35, extentH: [0, height], container: family };
+}
+
 function normalizedProductText(product) {
   return [product?.id, product?.name, product?.description, product?.categoryId, product?.categoryName]
     .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1943,7 +2130,9 @@ function plateLayout(product, ings, size, o) {
   const W = (Number(product.widthCm ?? product.width) || 20) / 100;
   const R = W / 2 * 1.2, detail = o.detail, seed = hash(product.id || 'plate');
   const text = normalizedProductText(product);
-  const family = /onion\s?rings?|aneis?\s+de\s+cebola/.test(text) ? 'onion-rings'
+  const isDessert = /sobremesa|dessert|bolo|brownie|cheesecake|pudim|flan|panna cotta|mousse|sorvete|gelato|ice cream|sundae|churros?|donut|rosquinha|waffle|panqueca|brigadeiro/.test(text);
+  const family = isDessert ? 'dessert'
+    : /onion\s?rings?|aneis?\s+de\s+cebola/.test(text) ? 'onion-rings'
     : /nuggets?|nugget/.test(text) ? 'nuggets'
       : /frango\s+frito|fried\s+chicken|frango\s+a\s+passarinho|tenders?/.test(text) ? 'chicken'
         : 'fries';
@@ -1954,10 +2143,12 @@ function plateLayout(product, ings, size, o) {
   } else if (family === 'nuggets' || family === 'chicken') {
     parts.push({ kind: family === 'nuggets' ? 'nuggets' : 'fried-chicken', key: key(family), y: 0, base: false,
       build: () => friedPiecesMesh(R, seed + 17, detail, family, 1) });
+  } else if (family === 'dessert') {
+    parts.push({ kind: 'dessert', key: key('dessert'), y: 0, base: false, build: () => dessertMesh(R, seed + 23, detail, text) });
   } else {
     parts.push({ kind: 'fries', key: key('fries'), y: 0, base: false, build: () => friesMesh(R, seed + 7, detail) });
   }
-  parts.push({ kind: 'ramekin', key: key('ramekin-aioli'), y: .0074, x: -R * .5, z: R * .38, base: false, build: () => ramekinMesh(seed, detail) });
+  if (family !== 'dessert') parts.push({ kind: 'ramekin', key: key('ramekin-aioli'), y: .0074, x: -R * .5, z: R * .38, base: false, build: () => ramekinMesh(seed, detail) });
 
   // Adicionais seguem como componentes independentes, mantendo o fluxo dinâmico
   // de adicionar/remover ingredientes e evitando que a seleção altere o prato base.
@@ -1994,7 +2185,7 @@ function plateLayout(product, ings, size, o) {
     }
     parts.push({ kind: `plate-${kind}`, key: key(extra), y: .009 + (i % 3) * .001, x, z, base: false, build });
   }
-  return { parts, total: .052, radius: R * 1.12, extentH: [0, .062] };
+  return { parts, total: .052, radius: R * 1.12, extentH: [0, family === 'dessert' ? .078 : .062] };
 }
 
 // Converte nomes personalizados do painel em peças procedurais conhecidas.
@@ -2228,6 +2419,10 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
     // ficava presa à altura cadastrada e cortava/achatava lanches com adicionais.
     const fittedHeight = Math.max(H, layout.extentH[1]);
     bounds = [(Number(product.widthCm) || 12) / 100, fittedHeight, (Number(product.depthCm) || 12) / 100];
+  } else if (type === 'drink') {
+    layout = drinkLayout(product, o.detail);
+    const footprint = layout.container === 'can' ? .064 : layout.container === 'bottle' ? .056 : .076;
+    bounds = [footprint, layout.extentH[1], footprint];
   } else {
     if (isHotDogProduct(product)) {
       layout = hotDogLayout(product, list, o);
@@ -2237,7 +2432,7 @@ export function buildFoodLayout(product, ingredients, size, options = {}) {
       bounds = [(Number(product.widthCm ?? product.width) || 20) / 100, .062, (Number(product.depthCm ?? product.depth) || Number(product.widthCm ?? product.width) || 20) / 100];
     }
   }
-  const visualType = type === 'pizza' || type === 'burger' ? type : (isHotDogProduct(product) ? 'hotdog' : 'plate');
+  const visualType = type === 'pizza' || type === 'burger' || type === 'drink' ? type : (isHotDogProduct(product) ? 'hotdog' : 'plate');
   return { type: visualType, parts: layout.parts, bounds, hint: { radius: layout.radius, minY: layout.extentH[0], maxY: layout.extentH[1] } };
 }
 

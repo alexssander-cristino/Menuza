@@ -394,6 +394,19 @@ test('acompanhamentos: anéis, nuggets e frango frito recebem geometrias própri
   }
 });
 
+test('sobremesas recebem malhas diferentes de batatas e preservam a geometria por produto', () => {
+  for (const name of ['Pudim de leite', 'Bolo de chocolate', 'Sorvete de morango', 'Churros']) {
+    const layout = buildFoodLayout({ ...plate, id: 'dessert-' + name, name, categoryName: 'Sobremesas' }, [], { key: 'unico' }, { detail: .35 });
+    const part = layout.parts.find(item => item.kind === 'dessert');
+    assert.ok(part, name + ' deve usar o modelo de sobremesa');
+    assert.ok(!layout.parts.some(item => item.kind === 'fries'), name + ' não pode ser representado como batatas');
+    const geometry = part.build();
+    assert.ok(geometry.positions.length > 300, name + ' deve ter volume visível');
+    assert.ok(geometry.positions.every(Number.isFinite));
+    assert.ok(geometry.materials.every(Number.isFinite));
+  }
+});
+
 test('acompanhamentos: adicionais aparecem e podem ser removidos sem alterar a base', () => {
   const base = buildFoodLayout(plate, [], { key: 'unico' }, { detail: .35 });
   const withExtras = buildFoodLayout(plate, [
