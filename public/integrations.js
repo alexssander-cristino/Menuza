@@ -79,11 +79,27 @@
   configPromise.then(()=>{
     initAnalytics();
     document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
-    const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
-      if(node.nodeType!==1)return;
-      if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
-      node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
-    })));
+    const observer=new MutationObserver(records=>records.forEach(record=>{
+      record.removedNodes.forEach(node=>{
+        if(node.nodeType!==1)return;
+        const holders=[];
+        if(node.matches?.('[data-turnstile]'))holders.push(node);
+        node.querySelectorAll?.('[data-turnstile]').forEach(holder=>holders.push(holder));
+        holders.forEach(holder=>{
+          if(holder.isConnected)return;
+          const widgetId=holder.dataset.widgetId;
+          if(widgetId&&window.turnstile?.remove){
+            try{window.turnstile.remove(widgetId);}catch{}
+            delete holder.dataset.widgetId;
+          }
+        });
+      });
+      record.addedNodes.forEach(node=>{
+        if(node.nodeType!==1)return;
+        if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
+        node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
+      });
+    }));
     observer.observe(document.documentElement,{childList:true,subtree:true});
   });
   window.MenuzaIntegrations={getTurnstileToken};
