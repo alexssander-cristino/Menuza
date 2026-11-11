@@ -2,59 +2,57 @@
 (function(){
   const configPromise=fetch('/api/dispatch?path=public/integrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
   let turnstilePromise=null;
+  const turnstileStatus=(holder,message,isError=false)=>{
+    if(!holder)return;
+    holder.replaceChildren();
+    const status=document.createElement('div');
+    status.className='menuza-turnstile-status'+(isError?' is-error':'');
+    status.setAttribute('role',isError?'alert':'status');
+    status.textContent=message;
+    holder.appendChild(status);
+  };
   async function loadTurnstile(){
-    if(window.turnstile)return window.turnstile;
+    if(window.turnstile?.render)return window.turnstile;
     if(!turnstilePromise)turnstilePromise=new Promise((resolve,reject)=>{
       const script=document.createElement('script');
       script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      script.async=true;script.defer=true;
-      script.onload=()=>resolve(window.turnstile);
-      script.onerror=reject;
+      script.async=true;
+      script.onload=()=>window.turnstile?.render?resolve(window.turnstile):reject(new Error('A API da Cloudflare não foi inicializada.'));
+      script.onerror=()=>reject(new Error('O navegador não conseguiu carregar o desafio da Cloudflare.'));
       document.head.appendChild(script);
-    });
+    }).catch(error=>{turnstilePromise=null;throw error;});
     return turnstilePromise;
   }
   async function mountTurnstile(form){
+    const holder=form?.querySelector('[data-turnstile]');
+    if(!holder||!form.isConnected||holder.dataset.widgetId)return;
+    turnstileStatus(holder,'Verificando proteção antirrobô…');
     const config=await configPromise;
-    if(!config.turnstileSiteKey||!form?.isConnected||!window.turnstile)return;
-    const holder=form.querySelector('[data-turnstile]');
-    if(!holder||holder.dataset.widgetId)return;
+    if(!config.turnstileSiteKey)throw new Error('A chave pública do Cloudflare Turnstile não foi recebida.');
+    const turnstile=await loadTurnstile();
+    if(!form.isConnected||!holder.isConnected)return;
     let hidden=form.querySelector('input[name="turnstileToken"]');
-    if(!hidden){
-      hidden=document.createElement('input');
-      hidden.type='hidden';
-      hidden.name='turnstileToken';
-      form.appendChild(hidden);
-    }
+    if(!hidden){hidden=document.createElement('input');hidden.type='hidden';hidden.name='turnstileToken';form.appendChild(hidden);}
+    holder.replaceChildren();
     try{
-      const id=window.turnstile.render(holder,{
-        sitekey:config.turnstileSiteKey,
-        theme:'auto',
+      const id=turnstile.render(holder,{sitekey:config.turnstileSiteKey,theme:'auto',
         callback:token=>{if(hidden.isConnected)hidden.value=token;},
         'expired-callback':()=>{if(hidden.isConnected)hidden.value='';},
-        'error-callback':()=>{if(hidden.isConnected)hidden.value='';}
+        'error-callback':()=>{if(hidden.isConnected)hidden.value='';turnstileStatus(holder,'A Cloudflare não conseguiu concluir a verificação. Recarregue a página.',true);}
       });
       holder.dataset.widgetId=String(id);
-    }catch{}
+    }catch(error){turnstileStatus(holder,error?.message||'Falha ao exibir a verificação.',true);throw error;}
   }
   async function getTurnstileToken(form){
     const config=await configPromise;
-    if(!config.turnstileSiteKey)return '';
-    try{
-      await loadTurnstile();
-      await mountTurnstile(form);
-      const hidden=form?.querySelector('input[name="turnstileToken"]');
-      // O callback oficial mantém o token atualizado. Evitamos consultar o widget
-      // por um ID que pode ter ficado obsoleto após a recriação do formulário.
-      const token=hidden?.value||'';
-      if(!token)throw new Error('Conclua a verificação antirrobô antes de continuar.');
-      return token;
-    }catch(error){throw new Error(error?.message||'Não foi possível carregar a verificação de segurança. Atualize a página.');}
+    if(!config.turnstileSiteKey)throw new Error('A proteção antirrobô não recebeu a chave do Cloudflare.');
+    try{await mountTurnstile(form);const hidden=form?.querySelector('input[name="turnstileToken"]');const token=hidden?.value||'';if(!token)throw new Error('Conclua a verificação antirrobô antes de continuar.');return token;}
+    catch(error){throw new Error(error?.message||'Não foi possível carregar a verificação de segurança. Atualize a página.');}
   }
   async function initForm(form){
-    const config=await configPromise;
-    if(!config.turnstileSiteKey||!form?.querySelector('[data-turnstile]'))return;
-    try{await loadTurnstile();await mountTurnstile(form);}catch{}
+    if(!form?.querySelector('[data-turnstile]'))return;
+    try{await mountTurnstile(form);}
+    catch(error){turnstileStatus(form.querySelector('[data-turnstile]'),error?.message||'Falha ao carregar a Cloudflare.',true);console.error('[Menuza Turnstile]',error);}
   }
   function initAnalytics(){
     const banner=document.getElementById('analyticsConsent');
@@ -105,31 +103,26 @@
       if(value==='granted')load();else setConsent('denied');
     });
   }
-  configPromise.then(config=>{
-    initAnalytics();
-    document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
-    const observer=new MutationObserver(records=>records.forEach(record=>{
-      record.removedNodes.forEach(node=>{
-        if(node.nodeType!==1)return;
-        const holders=[];
-        if(node.matches?.('[data-turnstile]'))holders.push(node);
-        node.querySelectorAll?.('[data-turnstile]').forEach(holder=>holders.push(holder));
-        holders.forEach(holder=>{
-          if(holder.isConnected)return;
-          const widgetId=holder.dataset.widgetId;
-          if(widgetId&&window.turnstile?.remove){
-            try{window.turnstile.remove(widgetId);}catch{}
-            delete holder.dataset.widgetId;
-          }
-        });
+  configPromise.then(()=>initAnalytics()).catch(error=>console.error('[Menuza integrations]',error));
+  const observer=new MutationObserver(records=>records.forEach(record=>{
+    record.removedNodes.forEach(node=>{
+      if(node.nodeType!==1)return;
+      const holders=[];
+      if(node.matches?.('[data-turnstile]'))holders.push(node);
+      node.querySelectorAll?.('[data-turnstile]').forEach(holder=>holders.push(holder));
+      holders.forEach(holder=>{
+        if(holder.isConnected)return;
+        const widgetId=holder.dataset.widgetId;
+        if(widgetId&&window.turnstile?.remove){try{window.turnstile.remove(widgetId);}catch{}delete holder.dataset.widgetId;}
       });
-      record.addedNodes.forEach(node=>{
-        if(node.nodeType!==1)return;
-        if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
-        node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
-      });
-    }));
-    observer.observe(document.documentElement,{childList:true,subtree:true});
-  });
+    });
+    record.addedNodes.forEach(node=>{
+      if(node.nodeType!==1)return;
+      if(node.matches?.('form#adminLogin,form#customerAuthForm'))initForm(node);
+      node.querySelectorAll?.('form#adminLogin,form#customerAuthForm').forEach(initForm);
+    });
+  }));
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
   window.MenuzaIntegrations={getTurnstileToken};
 })();
