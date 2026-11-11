@@ -949,7 +949,7 @@ export default async function handler(req, res) {
       if (origin&&host&&origin!=='https://'+host&&origin!=='http://'+host) throw fail('Origem da solicitação não permitida.',403);
     }
     if (method==='GET'&&path==='/api/public/integrations') {
-      return json(res,200,{sentryDsn:process.env.SENTRY_DSN||'',turnstileSiteKey:process.env.TURNSTILE_SECRET_KEY&&process.env.TURNSTILE_SITE_KEY?process.env.TURNSTILE_SITE_KEY:'',gaMeasurementId:process.env.GA_MEASUREMENT_ID||''});
+      return json(res,200,{sentryDsn:process.env.SENTRY_DSN||'',turnstileSiteKey:process.env.TURNSTILE_SITE_KEY||'',gaMeasurementId:process.env.GA_MEASUREMENT_ID||''});
     }
     const globalRetry=await limit(req,'api-global',240,60000);
     if(globalRetry) return json(res,429,{error:'Muitas solicitações. Aguarde um pouco e tente novamente.'},{'Retry-After':String(globalRetry)});
