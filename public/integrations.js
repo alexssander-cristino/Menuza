@@ -1,4 +1,4 @@
-// Integrações opcionais do Menuza: Cloudflare Turnstile e Google Analytics com consentimento.
+// Integrações do Menuza: Google Tag Manager com Consent Mode e Cloudflare Turnstile.
 (function(){
   const configPromise=fetch('/api/public/integrations',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
   let turnstilePromise=null;
@@ -43,34 +43,38 @@
     if(!config.turnstileSiteKey||!form?.querySelector('[data-turnstile]'))return;
     try{await loadTurnstile();await mountTurnstile(form);}catch{}
   }
-  function initAnalytics(config){
+  function initAnalytics(){
     const banner=document.getElementById('analyticsConsent');
-    if(!config.gaMeasurementId||!banner)return;
     const key='menuza-analytics-consent-v1';
-    const load=()=>{
-      if(window.__menuzaGaLoaded)return;
-      window.__menuzaGaLoaded=true;
-      window.dataLayer=window.dataLayer||[];
-      function gtag(){window.dataLayer.push(arguments);}
-      window.gtag=gtag;gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
-      gtag('consent','update',{analytics_storage:'granted'});
-      gtag('js',new Date());gtag('config',config.gaMeasurementId,{send_page_view:true,anonymize_ip:true});
-      const script=document.createElement('script');script.async=true;script.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(config.gaMeasurementId);document.head.appendChild(script);
-    };
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};
+    const gtag=window.gtag;
+    // O container carrega para ser detectado, mas o consentimento não essencial começa negado.
+    gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500});
+    if(!window.__menuzaGtmLoaded){
+      window.__menuzaGtmLoaded=true;
+      window.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+      const script=document.createElement('script');
+      script.async=true;
+      script.src='https://www.googletagmanager.com/gtm.js?id=GTM-WG6783J6';
+      document.head.appendChild(script);
+    }
+    const applyConsent=value=>gtag('consent','update',{analytics_storage:value,ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
     let choice='';try{choice=localStorage.getItem(key)||'';}catch{}
-    if(choice==='granted')load();else if(choice!=='denied')banner.hidden=false;
-    document.addEventListener('click',event=>{if(event.target.closest('[data-analytics-manage]')){event.preventDefault();banner.hidden=false;}});
-    banner.addEventListener('click',event=>{
+    if(choice==='granted')applyConsent('granted');
+    else {applyConsent('denied');if(choice!=='denied'&&banner)banner.hidden=false;}
+    document.addEventListener('click',event=>{if(event.target.closest('[data-analytics-manage]')){event.preventDefault();if(banner)banner.hidden=false;}});
+    banner?.addEventListener('click',event=>{
       const button=event.target.closest('[data-analytics-consent]');if(!button)return;
       const value=button.dataset.analyticsConsent;
       if(value!=='granted'&&value!=='denied')return;
       try{localStorage.setItem(key,value);}catch{}
       banner.hidden=true;
-      if(value==='granted')load();else if(window.gtag)window.gtag('consent','update',{analytics_storage:'denied'});
+      applyConsent(value);
     });
   }
   configPromise.then(config=>{
-    initAnalytics(config||{});
+    initAnalytics();
     document.querySelectorAll('form#adminLogin,form#customerAuthForm').forEach(initForm);
     const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
       if(node.nodeType!==1)return;
