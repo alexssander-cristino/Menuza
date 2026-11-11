@@ -3437,3 +3437,19 @@ button[data-action="view-generated-3d"],
 .toast.toast-auth-required::before{content:'!';position:absolute;left:17px;top:50%;transform:translateY(-50%);width:27px;height:27px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;font-size:19px;font-weight:900;line-height:1;color:#fff;}
 .toast.toast-auth-required.show{transform:translate(-50%,0)}
 @media(max-width:480px){.toast.toast-auth-required{bottom:16px;width:calc(100vw - 24px);padding:15px 15px 15px 52px;font-size:14px;}}
+
+
+/* Operação: conciliação de pagamentos e trilha de auditoria */
+.order-payment-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.order-payment-control>span{font-weight:600}
+.order-payment-control select{min-width:125px;max-width:160px;padding:7px 9px;border:1px solid var(--line,#dedede);border-radius:9px;background:var(--surface,#fff);color:inherit;font:inherit}
+.checkout-reminder-consent{margin:4px 0 12px}
+.audit-event-list{display:grid;gap:0}
+.audit-event{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:15px 0;border-bottom:1px solid var(--line,#e8e8e8)}
+.audit-event:last-child{border-bottom:0}
+.audit-event>div{min-width:0}
+.audit-event strong,.audit-event small,.audit-event p{display:block}
+.audit-event small,.audit-event time{color:var(--muted,#777);font-size:12px}
+.audit-event p{margin:6px 0 0;font-size:13px;overflow-wrap:anywhere}
+.audit-event time{white-space:nowrap}
+@media(max-width:640px){.order-payment-control{align-items:stretch}.order-payment-control select,.order-payment-control button{width:100%;max-width:none}.audit-event{display:grid;gap:6px}.audit-event time{white-space:normal}}
