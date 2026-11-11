@@ -178,8 +178,13 @@ async function shareMenu(productId=null){
   }catch(error){if(error?.name==='AbortError')return;toast('Não foi possível compartilhar. Copie o endereço do navegador.')}
 }
 function toast(message) {
-  const node = root.getElementById('toast'); node.textContent = message; node.classList.add('show');
-  clearTimeout(app.toastTimer); app.toastTimer = setTimeout(() => node.classList.remove('show'), 2900);
+  const node = root.getElementById('toast');
+  const needsCustomerLogin = String(message).trim() === 'Entre na sua conta para continuar.';
+  node.textContent = needsCustomerLogin ? 'Faça login na sua conta Menuza para continuar.' : message;
+  node.classList.toggle('toast-auth-required', needsCustomerLogin);
+  node.classList.add('show');
+  clearTimeout(app.toastTimer);
+  app.toastTimer = setTimeout(() => { node.classList.remove('show', 'toast-auth-required'); }, needsCustomerLogin ? 6000 : 2900);
 }
 // Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
 async function api(path, options = {}) {
