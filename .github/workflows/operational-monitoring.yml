@@ -24,10 +24,11 @@ jobs:
           fi
           curl --fail --silent --show-error --max-time 20 "${MENUZA_HEALTH_URL}?worker=1"
       - name: Notify operational failure
-        if: failure() && secrets.ALERT_WEBHOOK_URL != ''
+        if: failure()
         env:
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: |
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then echo "ALERT_WEBHOOK_URL não configurado; alerta disponível no Actions."; exit 0; fi
           curl --fail --silent --show-error -X POST "$ALERT_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
             --data '{"text":"Menuza: alerta operacional. API, PostgreSQL ou worker TripoSR indisponível/sem heartbeat. Consulte o GitHub Actions."}'
