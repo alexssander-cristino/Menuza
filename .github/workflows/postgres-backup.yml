@@ -36,7 +36,7 @@ jobs:
           fi
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Create encrypted-at-rest runner backup file
+      - name: Create PostgreSQL backup file
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
