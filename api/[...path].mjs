@@ -157,7 +157,7 @@ async function requireAdmin(req) {
 let customerSchemaPromise;
 // Conta do cliente: garante as colunas e estruturas necessárias para cadastro e autenticação.
 async function ensureCustomerSchema() {
-  if (!customerSchemaPromise) customerSchemaPromise = query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE").catch(error => { customerSchemaPromise = null; throw error; });
+  if (!customerSchemaPromise) customerSchemaPromise = Promise.all([query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE"),query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ")]).catch(error => { customerSchemaPromise = null; throw error; });
   await customerSchemaPromise;
 }
 function parseBirthDate(value) {
@@ -175,9 +175,9 @@ async function customer(req) {
   const value = await session(req, CUSTOMER_COOKIE);
   if (!value || value.role !== 'customer' || !value.customerId) return null;
   await ensureCustomerSchema();
-  const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate" FROM customers WHERE id=$1', [value.customerId]);
+  const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate",marketing_consent_at AS "marketingConsentAt" FROM customers WHERE id=$1', [value.customerId]);
   const row=result.rows[0];
-  return row ? { ...value, customer: {...row,isAdult:row.birthDate?parseBirthDate(String(row.birthDate).slice(0,10)).isAdult:null} } : null;
+  return row ? { ...value, customer: {...row,marketingConsent:Boolean(row.marketingConsentAt),isAdult:row.birthDate?parseBirthDate(String(row.birthDate).slice(0,10)).isAdult:null} } : null;
 }
 async function requireCustomer(req) {
   const value = await customer(req);
