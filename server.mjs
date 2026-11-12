@@ -404,7 +404,8 @@ function getCoupon(code) {
   return statement('SELECT * FROM coupons WHERE restaurant_id=? AND code=?').get(RESTAURANT_ID, couponCode(code));
 }
 function couponEligibility(coupon, subtotalCents, now = new Date(), customerId = null) {
-  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });\n  if (coupon.customer_id && String(coupon.customer_id)!==String(customerId||'')) throw Object.assign(new Error('Este cupom foi emitido para outra conta.'), { status: 422 });
+  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });
+  if (coupon.customer_id && String(coupon.customer_id)!==String(customerId||'')) throw Object.assign(new Error('Este cupom foi emitido para outra conta.'), { status: 422 });
   const time = now.getTime();
   if (coupon.starts_at && time < Date.parse(coupon.starts_at)) throw Object.assign(new Error('Esse cupom ainda não está válido.'), { status: 422 });
   if (coupon.expires_at && time > Date.parse(coupon.expires_at)) throw Object.assign(new Error('Esse cupom expirou.'), { status: 422 });
