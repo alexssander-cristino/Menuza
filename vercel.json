@@ -41,7 +41,7 @@
   "crons": [
     {
       "path": "/api/cron/inactive-customers",
-      "schedule": "0 15 * * 1"
+      "schedule": "0 15 * * *"
     }
   ]
 }
