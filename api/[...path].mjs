@@ -23,6 +23,7 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const clean = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const normalizeEmail = value => clean(value, 254).toLowerCase();
 const normalizeCoupon = value => clean(value, 32).toUpperCase().replace(/\s+/g, '');
+const publicBaseUrl = () => StringpublicBaseUrl().replace(/\/+$/,'');
 const json = (res, status, body, headers = {}) => {
   for (const [key, value] of Object.entries({
     'Content-Type': 'application/json; charset=utf-8',
@@ -999,7 +1000,7 @@ export default async function handler(req, res) {
       let sent=false;
       const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
       if(apiKey&&from){
-        const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
+        const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=publicBaseUrl()+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
         const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000),body:JSON.stringify({from,to:[target.email],subject:'Um presente para você voltar ao Menuza',text:'Olá, '+target.name+'! Preparamos um cupom exclusivo para você: '+code+'.\n\nGanhe '+percent+'% de desconto no próximo pedido. Válido até '+expires.toLocaleDateString('pt-BR')+'.\n\nUse o código no checkout. Este cupom é pessoal e pode ser usado uma vez.\n\nPara deixar de receber ofertas, acesse: '+unsubscribe})});
         if(mail.ok){sent=true;await query('INSERT INTO customer_recovery_campaigns(id,restaurant_id,customer_id,coupon_id,email,status,sent_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',['rc_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customerId,couponId,target.email,'sent']);}
         else {await query('UPDATE coupons SET active=0 WHERE id=$1',[couponId]);throw fail('O cupom foi preparado, mas o e-mail não pôde ser enviado. Confira a configuração do Resend.',502);}
@@ -1033,7 +1034,7 @@ export default async function handler(req, res) {
         const now=new Date(),expires=new Date(now.getTime()+14*86400000),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),couponId='cpn_'+randomBytes(12).toString('hex');
         try{
           await query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'percent',10,0,$4,$5,1,1,$4,$6)",[couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),target.id]);
-          const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId:target.id})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
+          const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId:target.id})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=publicBaseUrl()+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
           const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(4000),body:JSON.stringify({from,to:[target.email],subject:'Sentimos sua falta! Tem 10% de desconto esperando por você',text:'Olá, '+target.name+'! Faz um tempinho desde seu último pedido. Preparamos um cupom pessoal de 10% para você: '+code+'.\n\nVálido até '+expires.toLocaleDateString('pt-BR')+'. Use no checkout do Menuza. O cupom vale para uma utilização e está vinculado à sua conta.\n\nNão quer mais receber ofertas? Descadastre-se aqui: '+unsubscribe})});
           if(!mail.ok)throw new Error('Resend retornou '+mail.status);
           await query('INSERT INTO customer_recovery_campaigns(id,restaurant_id,customer_id,coupon_id,email,status,sent_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',['rc_'+randomBytes(12).toString('hex'),RESTAURANT_ID,target.id,couponId,target.email,'sent']);
@@ -1056,7 +1057,7 @@ export default async function handler(req, res) {
       let sent=0,failed=0;
       for(const reminder of due){
         try{
-          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2000),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
+          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2000),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+publicBaseUrl()+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
           if(!response.ok)throw new Error('Resend retornou '+response.status);
           await query('UPDATE abandoned_cart_reminders SET sent_at=NOW(),processing_at=NULL WHERE id=$1',[reminder.id]);sent++;
         }catch{await query('UPDATE abandoned_cart_reminders SET processing_at=NULL WHERE id=$1',[reminder.id]);failed++;}
