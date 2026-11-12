@@ -8,18 +8,20 @@ test('P1: worker heartbeat e recuperação automática de trabalhos 3D interromp
   const api = await read('api/[...path].mjs');
   const health = await read('api/health.mjs');
   assert.match(api, /CREATE TABLE IF NOT EXISTS worker_heartbeats/);
-  assert.match(api, /INSERT INTO worker_heartbeats\(worker_name,last_seen_at,metadata\)/);
-  assert.match(api, /updated_at<NOW\(\)-INTERVAL '20 minutes'/);
-  assert.match(api, /attempt_count=attempt_count\+1/);
-  assert.match(health, /ageSeconds\) <= 180/);
-  assert.match(health, /searchParams\.get\('worker'\) === '1'/);
+  assert.match(api, /INSERT INTO worker_heartbeats\\(worker_name,last_seen_at,metadata\\)/);
+  assert.match(api, /path==='\/api\/3d-worker\/heartbeat'/);
+  assert.match(api, /updated_at<NOW\\(\\)-INTERVAL '20 minutes'/);
+  assert.match(api, /attempt_count=attempt_count\\+1/);
+  assert.match(health, /ageSeconds\\) <= 180/);
+  assert.match(health, /searchParams\\.get\\('worker'\\) === '1'/);
 });
 
 test('P1: relatório apresenta custo direto conhecido e margem estimada sem assumir custo zero como custo real', async () => {
   const api = await read('api/[...path].mjs');
   const ui = await read('public/app.js');
   assert.match(api, /ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0/);
-  assert.match(api, /known_cost_cents/);\n  assert.match(api, /known_revenue_cents/);
+  assert.match(api, /known_cost_cents/);
+  assert.match(api, /known_revenue_cents/);
   assert.match(api, /products_with_cost/);
   assert.match(api, /coveragePercent/);
   assert.match(ui, /product-cost-price-input/);
@@ -31,9 +33,9 @@ test('P1: relatório apresenta custo direto conhecido e margem estimada sem assu
 test('P1: falhas do agente de impressão ficam em fila local recuperável por ID', async () => {
   const ui = await read('public/app.js');
   assert.match(ui, /menuza-print-retry-ids/);
-  assert.match(ui, /function retryFailedPrints\(/);
+  assert.match(ui, /function retryFailedPrints\\(/);
   assert.match(ui, /data-action="retry-failed-prints"/);
-  assert.match(ui, /sendOrderToLocalPrinter\(order,true\)/);
+  assert.match(ui, /sendOrderToLocalPrinter\\(order,true\\)/);
 });
 
 test('P1: workflows automatizam backup com restauração isolada e monitoramento', async () => {
