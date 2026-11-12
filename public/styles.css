@@ -3542,3 +3542,11 @@ button[data-action="view-generated-3d"],
 .customer-retention-row small{color:var(--muted,#756b68);overflow-wrap:anywhere}
 .customer-retention-row button{flex-shrink:0}
 @media(max-width:640px){.customer-marketing-preferences,.customer-retention-row{align-items:stretch;flex-direction:column}.customer-marketing-preferences button,.customer-retention-row button{width:100%}}
+
+
+.customer-personal-coupons{display:grid;gap:8px;margin-top:16px}
+.customer-personal-coupons>b{font-size:.9rem}
+.customer-personal-coupon{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px dashed var(--border-color,#eadfd8);border-radius:12px;background:rgba(255,255,255,.65)}
+.customer-personal-coupon>span{display:grid;gap:3px;min-width:0}
+.customer-personal-coupon strong{letter-spacing:.06em}
+.customer-personal-coupon small{color:var(--muted,#756b68)}
