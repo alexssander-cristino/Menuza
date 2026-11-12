@@ -49,6 +49,7 @@ for (const [table, column, definition] of [
   ['products','image_url',"TEXT NOT NULL DEFAULT ''"],
   ['products','product_images_json',"TEXT NOT NULL DEFAULT '[]'"],
   ['products','age_restricted','INTEGER NOT NULL DEFAULT 0'],
+  ['products','cost_cents','INTEGER NOT NULL DEFAULT 0'],
   ['products','size_prices_json',"TEXT NOT NULL DEFAULT '{}'"],
   ['products','ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
   ['products','default_ingredient_ids_json',"TEXT NOT NULL DEFAULT '[]'"],
@@ -128,7 +129,7 @@ const statement = sql => db.prepare(sql);
 // Leitura do cardápio: converte registros do banco para o formato usado pelo frontend.
 function catalogFor(restaurantId = RESTAURANT_ID, admin = false) {
   const activeFilter = admin ? '' : ' AND p.active=1';
-  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.size_prices_json AS sizePricesJson,p.ingredient_ids_json AS ingredientIdsJson,p.default_ingredient_ids_json AS defaultIngredientIdsJson,p.ingredients_configured AS ingredientsConfigured,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
+  const products = statement('SELECT p.id,p.category_id AS categoryId,p.name,p.description,p.type,p.base_price_cents AS baseCents,p.cost_cents AS costCents,p.active,p.available,p.featured,p.prep_minutes AS prepMinutes,p.model_url AS modelUrl,p.width_cm AS widthCm,p.depth_cm AS depthCm,p.height_cm AS heightCm,p.image_url AS imageUrl,p.product_images_json AS productImagesJson,p.age_restricted AS ageRestricted,p.size_prices_json AS sizePricesJson,p.ingredient_ids_json AS ingredientIdsJson,p.default_ingredient_ids_json AS defaultIngredientIdsJson,p.ingredients_configured AS ingredientsConfigured,p.updated_at AS updatedAt FROM products p WHERE p.restaurant_id=?' + activeFilter + ' ORDER BY p.featured DESC,p.category_id,p.name').all(restaurantId).map(product=>{
     let images=[];try{images=JSON.parse(product.productImagesJson||'[]')}catch{}
     if(!Array.isArray(images)||!images.length)images=product.imageUrl?[product.imageUrl]:[];
     images=images.filter(url=>isImageDataUrl(url)||isStoredImageUrl(url)).slice(0,8);
@@ -644,7 +645,10 @@ async function patchProduct(productId, patch) {
   const savedImages=images===null?(currentImages.length?await storeImageList(currentImages,'products/'+productId):(imageUrl?[storedImageUrl]:[])):storedImages;
   const finalImageUrl=images===null?(savedImages[0]||''):storedImageUrl;
   const ageRestricted = patch.ageRestricted === undefined ? Number(product.age_restricted || 0) : (patch.ageRestricted ? 1 : 0);
+  const costCents = patch.costCents === undefined ? Number(product.cost_cents || 0) : Number(patch.costCents);
+  if (!Number.isInteger(costCents) || costCents < 0 || costCents > 1000000) throw Object.assign(new Error('Informe um custo direto unitário válido.'), { status: 422 });
   statement('UPDATE products SET name=?,description=?,base_price_cents=?,active=?,available=?,image_url=?,product_images_json=?,age_restricted=?,size_prices_json=COALESCE(?,size_prices_json),ingredient_ids_json=COALESCE(?,ingredient_ids_json),default_ingredient_ids_json=COALESCE(?,default_ingredient_ids_json),ingredients_configured=CASE WHEN ? THEN 1 ELSE ingredients_configured END,updated_at=? WHERE id=? AND restaurant_id=?').run(name, description, price, active, available, finalImageUrl, JSON.stringify(savedImages), ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices),ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientIds!==null||defaultIngredientIds!==null?1:0,new Date().toISOString(), productId, RESTAURANT_ID);
+  statement('UPDATE products SET cost_cents=? WHERE id=? AND restaurant_id=?').run(costCents, productId, RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === productId);
 }
@@ -694,6 +698,8 @@ async function createProduct(payload) {
   const type = payload.type;
   const categoryId = cleanText(payload.categoryId, 50);
   const baseCents = Number(payload.baseCents);
+  const costCents = Number(payload.costCents ?? 0);
+  if (!Number.isInteger(costCents) || costCents < 0 || costCents > 1000000) throw Object.assign(new Error('Informe um custo direto unitário válido.'), { status: 422 });
   const sizePrices = validateSizePrices(type,payload.sizePrices,baseCents);
   const ingredientIds = validateProductIngredientIdsLocal(payload.ingredientIds===undefined?[]:payload.ingredientIds,type);
   const defaultIngredientIds = validateProductIngredientIdsLocal(payload.defaultIngredientIds===undefined?[]:payload.defaultIngredientIds,type);
@@ -710,6 +716,7 @@ async function createProduct(payload) {
 statement('INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,featured,prep_minutes,width_cm,depth_cm,height_cm,image_url,product_images_json,age_restricted,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,0,25,?,?,?,?,?,?,?,?)')
     .run(id, RESTAURANT_ID, categoryId, name, description, type, baseCents, type === 'pizza' ? 30 : 12, type === 'pizza' ? 30 : 12, type === 'pizza' ? 2 : 10, storedImageUrl, JSON.stringify(storedImages), payload.ageRestricted ? 1 : 0, now, now);
   statement('UPDATE products SET size_prices_json=?,ingredient_ids_json=?,default_ingredient_ids_json=?,ingredients_configured=? WHERE id=? AND restaurant_id=?').run(JSON.stringify(sizePrices),JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),payload.ingredientIds!==undefined||payload.defaultIngredientIds!==undefined?1:0,id,RESTAURANT_ID);
+  statement('UPDATE products SET cost_cents=? WHERE id=? AND restaurant_id=?').run(costCents,id,RESTAURANT_ID);
   emit(RESTAURANT_ID, { type: 'catalog-updated' });
   return catalogFor(RESTAURANT_ID, true).products.find(p => p.id === id);
 }
@@ -917,7 +924,9 @@ const server = createServer(async (request, response) => {
         const daily = statement("SELECT substr(created_at,1,10) AS date,COUNT(*) AS orders,COALESCE(SUM(CASE WHEN status<>'cancelled' THEN total_cents ELSE 0 END),0) AS revenueCents FROM orders WHERE restaurant_id=? AND created_at>=? GROUP BY substr(created_at,1,10) ORDER BY date").all(RESTAURANT_ID, since);
         const fulfillment = statement("SELECT fulfillment AS type,COUNT(*) AS orders FROM orders WHERE restaurant_id=? AND created_at>=? AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC").all(RESTAURANT_ID, since);
         const popular = statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8").all(RESTAURANT_ID, since);
-        return send(response, 200, { days, summary, daily, fulfillment, popular });
+        const contribution = statement("SELECT COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN oi.unit_price_cents*oi.quantity ELSE 0 END),0) AS knownRevenueCents,COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN p.cost_cents*oi.quantity ELSE 0 END),0) AS knownCostCents,COUNT(DISTINCT CASE WHEN p.cost_cents>0 THEN oi.product_id END) AS productsWithCost,COUNT(DISTINCT oi.product_id) AS productsSold FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled'").get(RESTAURANT_ID, since);
+        const knownRevenueCents=Number(contribution.knownRevenueCents||0),knownCostCents=Number(contribution.knownCostCents||0),productsWithCost=Number(contribution.productsWithCost||0),productsSold=Number(contribution.productsSold||0);
+        return send(response, 200, { days, summary, daily, fulfillment, popular, contribution:{knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost,productsSold,coveragePercent:productsSold?Math.round(productsWithCost/productsSold*100):0,estimated:true} });
       }
       if (request.method === 'GET' && path === '/api/admin/combos') return send(response, 200, { combos: catalogFor(RESTAURANT_ID, true).combos, products: catalogFor(RESTAURANT_ID, true).products });
       if (request.method === 'POST' && path === '/api/admin/combos') return send(response, 201, { combo: saveCombo(await bodyOf(request)) });
