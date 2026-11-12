@@ -1458,6 +1458,12 @@ export default async function handler(req, res) {
       await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
       await query("ALTER TABLE product_3d_jobs ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0");
       await query("CREATE TABLE IF NOT EXISTS worker_heartbeats (worker_name TEXT PRIMARY KEY, last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), metadata JSONB NOT NULL DEFAULT '{}'::jsonb)");
+      if(method==='POST'&&path==='/api/3d-worker/heartbeat'){
+        const b=await bodyOf(req,12000),jobId=clean(b.jobId,100);
+        await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata",[JSON.stringify({runtime:'triposr',jobId:jobId||null})]);
+        if(jobId)await query("UPDATE product_3d_jobs SET updated_at=NOW() WHERE id=$1 AND restaurant_id=$2 AND status='processing'",[jobId,RESTAURANT_ID]);
+        return json(res,200,{ok:true});
+      }
       if(method==='GET'&&path==='/api/3d-worker/next'){
         await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata", [JSON.stringify({runtime:'triposr'})]);
         await query("UPDATE product_3d_jobs SET status=CASE WHEN attempt_count>=3 THEN 'failed' ELSE 'queued' END,error_message=CASE WHEN attempt_count>=3 THEN 'Worker interrompido repetidamente; limite de tentativas atingido.' ELSE error_message END,updated_at=NOW() WHERE status='processing' AND updated_at<NOW()-INTERVAL '20 minutes'");
