@@ -3461,3 +3461,19 @@ button[data-action="view-generated-3d"],
 .menuza-turnstile iframe{max-width:100%}
 
 .menuza-turnstile-status{display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 14px;border:1px solid var(--border,#ddd);border-radius:10px;background:var(--surface,#fff);color:var(--text,#333);font-size:13px}.menuza-turnstile-status::before{content:'';width:15px;height:15px;flex:0 0 15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:menuza-turnstile-spin .8s linear infinite}.menuza-turnstile-status.is-error{color:#b42318;border-color:#f2b8b5}.menuza-turnstile-status.is-error::before{content:'!';display:grid;place-items:center;border:0;font-weight:700;animation:none}@keyframes menuza-turnstile-spin{to{transform:rotate(360deg)}}
+
+
+/* Seleção visual de sabores nas promoções */
+.promotion-pizza-flavor-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:9px;margin-top:10px;padding:2px}
+.promotion-pizza-flavor{position:relative;display:flex;align-items:center;gap:10px;min-height:58px;padding:11px 13px;border:1px solid var(--line,#e7e1dc);border-radius:12px;background:var(--card,#fff);cursor:pointer;transition:border-color .18s ease,background .18s ease,box-shadow .18s ease,transform .18s ease;user-select:none}
+.promotion-pizza-flavor:hover{border-color:#e58b42;transform:translateY(-1px);box-shadow:0 4px 14px #a85c1714}
+.promotion-pizza-flavor input[type=checkbox]{width:17px;height:17px;min-width:17px;margin:0;accent-color:#d94b32;cursor:pointer}
+.promotion-pizza-flavor>span{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;color:var(--ink,#29232a);font-size:12px;font-weight:650;line-height:1.25}
+.promotion-pizza-flavor>span small{font-size:10px;font-weight:400;color:var(--muted,#89818a)}
+.promotion-pizza-flavor>i{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#d94b32;color:#fff;font-size:12px;font-style:normal;font-weight:800;opacity:0;transform:scale(.75);transition:opacity .18s ease,transform .18s ease}
+.promotion-pizza-flavor:has(input:checked){border-color:#d94b32;background:color-mix(in srgb,#d94b32 8%,var(--card,#fff));box-shadow:inset 0 0 0 1px #d94b32}
+.promotion-pizza-flavor:has(input:checked)>i{opacity:1;transform:scale(1)}
+.promotion-pizza-flavor:has(input:checked)>span small{display:none}
+.promotion-pizza-flavor:focus-within{outline:2px solid #e58b42;outline-offset:2px}
+.promotion-pizza-flavors>span{font-weight:700}
+@media(max-width:520px){.promotion-pizza-flavor-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.promotion-pizza-flavor{min-height:55px;padding:9px;gap:7px}.promotion-pizza-flavor>span{font-size:11px}}
