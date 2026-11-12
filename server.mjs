@@ -60,6 +60,7 @@ for (const [table, column, definition] of [
 }
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', birth_date TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 try { db.exec("ALTER TABLE customers ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+try { db.exec('ALTER TABLE customers ADD COLUMN marketing_consent_at TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
@@ -91,6 +92,12 @@ db.exec(`CREATE TABLE IF NOT EXISTS coupons (
   active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
   UNIQUE(restaurant_id, code)
 );`);
+try { db.exec('ALTER TABLE coupons ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+db.exec('CREATE INDEX IF NOT EXISTS idx_coupons_customer ON coupons(restaurant_id,customer_id) WHERE customer_id IS NOT NULL');
+db.exec(`CREATE TABLE IF NOT EXISTS loyalty_points_ledger(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,points INTEGER NOT NULL,reason TEXT NOT NULL,order_id TEXT UNIQUE,coupon_id TEXT UNIQUE,created_at TEXT NOT NULL);`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_loyalty_customer_created ON loyalty_points_ledger(restaurant_id,customer_id,created_at DESC)');
+db.exec(`CREATE TABLE IF NOT EXISTS customer_recovery_campaigns(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,coupon_id TEXT NOT NULL,email TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',sent_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
+
 for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],['discount_cents','INTEGER NOT NULL DEFAULT 0']]) {
   try { db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
