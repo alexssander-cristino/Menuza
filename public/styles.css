@@ -3490,3 +3490,27 @@ button[data-action="view-generated-3d"],
 .promotion-admin-group-items{display:grid;gap:0}
 .promotion-admin-group-items>.promotion-admin-row{border:0;border-radius:0;border-bottom:1px solid var(--line,#e7e1dc);padding:14px 16px;background:transparent}
 .promotion-admin-group-items>.promotion-admin-row:last-child{border-bottom:0}
+
+
+/* Promoções: imagem e dias unificados por grupo, com painel compacto */
+.promotion-admin-group{margin-bottom:10px;border-radius:11px}
+.promotion-admin-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;flex-wrap:wrap}
+.promotion-admin-group-title{display:flex;align-items:center;gap:9px;min-width:140px}
+.promotion-admin-group-title strong{font-size:13px}
+.promotion-admin-group-title small{font-size:10px}
+.promotion-admin-group-settings{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:1;flex-wrap:wrap}
+.promotion-group-image{display:flex;align-items:center;gap:7px}
+.promotion-group-image>img{width:42px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line,#e7e1dc)}
+.promotion-group-image>span{font-size:10px;color:var(--muted,#89818a);white-space:nowrap}
+.promotion-group-image .button{padding:5px 9px;min-height:28px;font-size:10px}
+.promotion-weekday-editor--group{display:flex;align-items:center;gap:4px;margin:0}
+.promotion-weekday-editor--group label{display:flex;align-items:center;justify-content:center;min-width:29px;height:27px;padding:0 5px;border:1px solid var(--line,#e7e1dc);border-radius:6px;font-size:9px}
+.promotion-weekday-editor--group label span{font-size:9px}
+.promotion-weekday-editor--group input{width:12px;height:12px;margin:0 3px 0 0}
+.promotion-weekday-editor--group button{min-height:27px;padding:4px 8px;font-size:10px;white-space:nowrap}
+.promotion-admin-group-items>.promotion-admin-row{display:flex;align-items:center;gap:10px;padding:9px 12px;flex-wrap:wrap}
+.promotion-admin-info{flex:1;min-width:150px}
+.promotion-admin-info>strong{font-size:12px}
+.promotion-admin-info>small{font-size:10px}
+.promotion-admin-group-items .promotion-active-input{margin-right:4px}
+@media(max-width:650px){.promotion-admin-group-head{align-items:flex-start}.promotion-admin-group-settings{justify-content:flex-start;width:100%;gap:8px}.promotion-weekday-editor--group{flex-wrap:wrap}.promotion-admin-group-items>.promotion-admin-row{gap:8px}.promotion-admin-info{flex-basis:100%}}
