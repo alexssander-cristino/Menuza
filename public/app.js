@@ -417,8 +417,12 @@ function renderPromotionsTab(){
       promotion.promotionActive=Boolean(promotion.promotionActive||(scheduled&&Number.isFinite(calculated)&&calculated>=0&&calculated<base));
       promotion.calculatedPriceCents=Number(promotion.calculatedPriceCents)>0?Number(promotion.calculatedPriceCents):calculated;
       if(!promotion.promotionActive)continue;
-      const key=String(promotion.id||promotion.promotionName||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      if(key&&!offersByPromotion.has(key))offersByPromotion.set(key,{product,promotion});
+      const key=String(promotion.promotionName||promotion.id||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      if(key){
+        if(!offersByPromotion.has(key))offersByPromotion.set(key,{promotion,items:[]});
+        const group=offersByPromotion.get(key);
+        if(!group.items.some(item=>item.product.id===product.id))group.items.push({product,itemPromotion:promotion});
+      }
     }
   }
   const offers=[...offersByPromotion.values()];
@@ -426,14 +430,16 @@ function renderPromotionsTab(){
   section.hidden=false;
   if(count)count.textContent=offers.length+' '+(offers.length===1?'oferta disponível':'ofertas disponíveis');
   if(!offers.length){grid.innerHTML='<div class="promotions-empty"><strong>Nenhuma oferta disponível agora.</strong><span>As promoções cadastradas aparecerão aqui quando estiverem ativas.</span></div>';return}
-  grid.innerHTML=offers.map(({product,promotion})=>{
+  grid.innerHTML=offers.map(({promotion,items})=>{
     const title=promotion.promotionName||'Oferta especial';
     const publicPromotions=Array.isArray(app.catalog?.promotions)?app.catalog.promotions:[];
     const publicPromotion=publicPromotions.find(item=>String(item.id||'')===String(promotion.id||''));
     const imageUrl=String(promotion.cardImage||promotion.card_image||publicPromotion?.cardImage||publicPromotion?.card_image||'').trim();
     const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(title)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
-    const description='Escolha o produto, sabor, tamanho e adicionais do seu jeito. A oferta será aplicada às opções participantes.';
-    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+esc(description)+'</p><button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(promotion.id||'')+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>'+(isClosed?'Fechado no momento':'Personalizar oferta <span>'+uiIcon('arrow',14)+'</span>')+'</button></div></article>';
+    const names=items.map(item=>item.product.name);
+    const description=names.length>1?'Sabores participantes: '+names.map(esc).join(' · '):'Sabor participante: '+esc(names[0]||'');
+    const actions=items.map(({product,itemPromotion})=>'<button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(itemPromotion.id||'')+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>'+esc(product.name)+' <span>'+uiIcon('arrow',14)+'</span></button>').join('');
+    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+description+'</p><div class="promotion-offer-flavors">'+actions+'</div></div></article>';
   }).join('');
 }
 function stopPromotionCarousel(){
