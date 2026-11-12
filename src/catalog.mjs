@@ -185,7 +185,14 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   if (supplied.length > 50) throw new Error('A receita obrigatória excede o limite de componentes.');
    if (['burger','plate'].includes(type)) {
      const defaultIds = new Set([...requiredIds, ...catalog.filter(item => item.type === type && (item.active === undefined || Number(item.active) === 1) && Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)]);
-     const addonCount = supplied.reduce((total, entry) => defaultIds.has(entry?.id) ? total : total + Math.max(1, Number(entry.quantity) || 1), 0);
+     const baseQuantityFor = id => Math.max(1, Math.min(20, Number(product.ingredientQuantities?.[id]) || 1));
+     const addonCount = supplied.reduce((total, entry) => {
+       const id = entry?.id;
+       const quantity = Math.max(1, Number(entry?.quantity) || 1);
+       if (!defaultIds.has(id)) return total + quantity;
+       if (!Array.isArray(product.ingredientIds) || !product.ingredientIds.includes(id)) return total;
+       return total + Math.max(0, quantity - baseQuantityFor(id));
+     }, 0);
      if (addonCount > 10) throw new Error('Este produto permite até 10 adicionais, além dos ingredientes da receita padrão.');
    }
   const seen = new Set();
