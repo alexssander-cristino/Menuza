@@ -19,6 +19,9 @@ test('P1: worker heartbeat e recuperação automática de trabalhos 3D interromp
 test('P1: relatório apresenta custo direto conhecido e margem estimada sem assumir custo zero como custo real', async () => {
   const api = await read('api/[...path].mjs');
   const ui = await read('public/app.js');
+  const local = await read('server.mjs');
+  assert.match(local, /'products','cost_cents','INTEGER NOT NULL DEFAULT 0'/);
+  assert.match(local, /knownRevenueCents/);
   assert.match(api, /ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0/);
   assert.match(api, /known_cost_cents/);
   assert.match(api, /known_revenue_cents/);
