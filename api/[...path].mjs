@@ -1166,7 +1166,8 @@ export default async function handler(req, res) {
       const current=await requireCustomer(req);await ensureOperationsSchema();
       const balance=await query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
       const history=await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 20',[RESTAURANT_ID,current.customerId]);
-      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history:history.rows});
+      const personalCoupons=await query("SELECT code,discount_type AS \"discountType\",discount_value AS \"discountValue\",expires_at AS \"expiresAt\" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 AND active=1 AND (expires_at IS NULL OR expires_at>NOW()) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20",[RESTAURANT_ID,current.customerId]);
+      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history:history.rows,coupons:personalCoupons.rows});
     }
     if(method==='POST'&&path==='/api/customer/loyalty/redeem'){
       const current=await requireCustomer(req);await ensureOperationsSchema();
