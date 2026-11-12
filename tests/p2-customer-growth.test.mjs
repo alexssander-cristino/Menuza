@@ -39,7 +39,8 @@ test('P2: recuperação respeita consentimento e oferece descadastro', async () 
   assert.ok(local.includes('marketing_consent_at'));
   assert.ok(ui.includes('name="marketingConsent"'));
   assert.ok(ui.includes('toggle-marketing-consent'));
-  assert.equal(vercel.schedules['inactive-customer-recovery'].schedule,'0 12 * * 1');
+  assert.equal(vercel.crons.find(job=>job.path==='/api/cron/inactive-customers').schedule,'0 15 * * 1');
+  assert.ok(vercel.crons.some(job=>job.path==='/api/cron/abandoned-carts'));
 });
 
 test('P2: painel lista clientes inativos e permite cupom individual com consentimento', async () => {
