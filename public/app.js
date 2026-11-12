@@ -2863,6 +2863,7 @@ function connectAdminEvents(){
     else if(app.admin.tab==='catalog')renderCatalogAdmin();
     else if(app.admin.tab==='ingredients')renderIngredientsAdmin();
     else if(app.admin.tab==='coupons')renderCouponsAdmin();
+    else if(app.admin.tab==='customers')renderCustomerRetentionAdmin();
     else if(app.admin.tab==='privacy')renderPrivacyRequestsAdmin();
     else if(app.admin.tab==='fiscal')renderFiscalAdmin();
     else renderSettingsAdmin();
