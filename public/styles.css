@@ -3477,3 +3477,6 @@ button[data-action="view-generated-3d"],
 .promotion-pizza-flavor:focus-within{outline:2px solid #e58b42;outline-offset:2px}
 .promotion-pizza-flavors>span{font-weight:700}
 @media(max-width:520px){.promotion-pizza-flavor-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.promotion-pizza-flavor{min-height:55px;padding:9px;gap:7px}.promotion-pizza-flavor>span{font-size:11px}}
+
+/* Sabores reunidos em um único card de promoção */
+.promotion-offer-flavors{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.promotion-offer-flavors .promotion-offer-cta{display:inline-flex;align-items:center;justify-content:center;gap:7px;max-width:100%}.promotion-offer-flavors .promotion-offer-cta span{display:inline-flex;align-items:center}
