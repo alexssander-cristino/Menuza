@@ -14,6 +14,8 @@ test('P2: pontos são creditados uma vez quando pedido vinculado é concluído',
   assert.ok(local.includes('INSERT OR IGNORE INTO loyalty_points_ledger'));
   assert.ok(api.includes('rewardPoints:100'));
   assert.ok(local.includes('rewardPoints:100'));
+  assert.ok(api.includes('coupons:personalCoupons.rows'));
+  assert.ok(local.includes('coupons}'));
 });
 
 test('P2: resgate cria cupom pessoal e a API bloqueia uso em outra conta', async () => {
@@ -50,6 +52,8 @@ test('P2: painel lista clientes inativos e permite cupom individual com consenti
   assert.ok(local.includes("path.startsWith('/api/admin/customers/') && path.endsWith('/coupon')"));
   assert.ok(ui.includes('renderCustomerRetentionAdmin'));
   assert.ok(ui.includes('issue-customer-coupon'));
+  assert.ok(api.includes('DELETE FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2'));
+  assert.ok(local.includes('DELETE FROM loyalty_points_ledger WHERE customer_id=? AND restaurant_id=?'));
 });
 
 test('P2: indicadores mostram rentabilidade por produto nos ambientes PostgreSQL e SQLite', async () => {
