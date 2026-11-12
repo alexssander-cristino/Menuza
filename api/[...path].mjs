@@ -974,6 +974,38 @@ export default async function handler(req, res) {
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if(path.startsWith('/api/admin/')&&!['/api/admin/login','/api/admin/logout','/api/admin/me'].includes(path)) await requireAdmin(req);
     if(path.startsWith('/api/admin/'))await ensureOperationsSchema();
+    if(method==='GET'&&path==='/api/customer/marketing-unsubscribe'){
+      const token=String(requestUrl.searchParams.get('token')||''),parts=token.split('.');
+      if(parts.length!==2)throw fail('Link de descadastro inválido.',400);
+      const expected=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(parts[0]).digest(),given=Buffer.from(parts[1],'base64url');
+      if(given.length!==expected.length||!timingSafeEqual(given,expected))throw fail('Link de descadastro inválido.',400);
+      let payload;try{payload=JSON.parse(Buffer.from(parts[0],'base64url').toString('utf8'))}catch{throw fail('Link de descadastro inválido.',400)}
+      if(payload.purpose!=='marketing-unsubscribe'||!payload.customerId)throw fail('Link de descadastro inválido.',400);
+      await query('UPDATE customers SET marketing_consent_at=NULL WHERE id=$1',[payload.customerId]);
+      return json(res,200,{ok:true,message:'Pronto. Você não receberá mais e-mails promocionais do Menuza.'});
+    }
+    if(method==='GET'&&path==='/api/admin/customers/retention'){
+      const rows=await query(`SELECT c.id,c.name,c.email,c.phone,(c.marketing_consent_at IS NOT NULL) AS "marketingConsent",MAX(o.created_at) AS "lastOrderAt",COUNT(o.id)::int AS "orders",COALESCE(SUM(o.total_cents) FILTER (WHERE o.status<>'cancelled'),0)::bigint AS "revenueCents",MAX(rc.sent_at) AS "lastRecoveryAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 LEFT JOIN customer_recovery_campaigns rc ON rc.customer_id=c.id AND rc.restaurant_id=$1 WHERE c.created_at<NOW()-INTERVAL '30 days' GROUP BY c.id HAVING MAX(o.created_at) IS NULL OR MAX(o.created_at)<NOW()-INTERVAL '30 days' ORDER BY MAX(o.created_at) NULLS FIRST LIMIT 200`,[RESTAURANT_ID]);
+      return json(res,200,{customers:rows.rows.map(row=>({...row,orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0),marketingConsent:Boolean(row.marketingConsent)}))});
+    }
+    if(method==='POST'&&path.startsWith('/api/admin/customers/')&&path.endsWith('/coupon')){
+      const customerId=decodeURIComponent(path.split('/')[4]||''),b=await bodyOf(req);
+      const target=(await query('SELECT id,name,email,marketing_consent_at AS "marketingConsentAt" FROM customers WHERE id=$1',[customerId])).rows[0];
+      if(!target)throw fail('Cliente não encontrado.',404);
+      if(!target.marketingConsentAt)throw fail('O cliente não autorizou o recebimento de ofertas por e-mail.',403);
+      const percent=Math.max(5,Math.min(30,Math.trunc(Number(b.discountPercent)||10))),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),now=new Date(),expires=new Date(now.getTime()+14*86400000),couponId='cpn_'+randomBytes(12).toString('hex');
+      const inserted=await query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'percent',$4,0,$5,$6,1,1,$5,$7) RETURNING *",[couponId,RESTAURANT_ID,code,percent,now.toISOString(),expires.toISOString(),customerId]);
+      let sent=false;
+      const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
+      if(apiKey&&from){
+        const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
+        const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000),body:JSON.stringify({from,to:[target.email],subject:'Um presente para você voltar ao Menuza',text:'Olá, '+target.name+'! Preparamos um cupom exclusivo para você: '+code+'.\n\nGanhe '+percent+'% de desconto no próximo pedido. Válido até '+expires.toLocaleDateString('pt-BR')+'.\n\nUse o código no checkout. Este cupom é pessoal e pode ser usado uma vez.\n\nPara deixar de receber ofertas, acesse: '+unsubscribe})});
+        if(mail.ok){sent=true;await query('INSERT INTO customer_recovery_campaigns(id,restaurant_id,customer_id,coupon_id,email,status,sent_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',['rc_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customerId,couponId,target.email,'sent']);}
+        else {await query('UPDATE coupons SET active=0 WHERE id=$1',[couponId]);throw fail('O cupom foi preparado, mas o e-mail não pôde ser enviado. Confira a configuração do Resend.',502);}
+      }
+      await recordAdminAudit('customer.personal_coupon_created','customer',customerId,{couponCode:code,discountPercent:percent,sent});
+      return json(res,201,{coupon:couponPublic(inserted.rows[0]),sent,message:sent?'Cupom enviado ao e-mail autorizado do cliente.':'Cupom criado. Configure o Resend para enviá-lo por e-mail.'});
+    }
     if(method==='POST'&&path==='/api/customer/abandoned-cart'){
       await ensureOperationsSchema();
       const c=await customer(req);if(!c)throw fail('Entre na sua conta para ativar o lembrete.',401);
