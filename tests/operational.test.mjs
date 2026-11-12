@@ -19,7 +19,7 @@ test('P1: relatório apresenta custo direto conhecido e margem estimada sem assu
   const api = await read('api/[...path].mjs');
   const ui = await read('public/app.js');
   assert.match(api, /ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0/);
-  assert.match(api, /known_cost_cents/);
+  assert.match(api, /known_cost_cents/);\n  assert.match(api, /known_revenue_cents/);
   assert.match(api, /products_with_cost/);
   assert.match(api, /coveragePercent/);
   assert.match(ui, /product-cost-price-input/);
