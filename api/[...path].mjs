@@ -1455,6 +1455,7 @@ export default async function handler(req, res) {
       if(method==='GET'&&path==='/api/3d-worker/next'){
         await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata", [JSON.stringify({runtime:'triposr'})]);
         await query("UPDATE product_3d_jobs SET status=CASE WHEN attempt_count>=3 THEN 'failed' ELSE 'queued' END,error_message=CASE WHEN attempt_count>=3 THEN 'Worker interrompido repetidamente; limite de tentativas atingido.' ELSE error_message END,updated_at=NOW() WHERE status='processing' AND updated_at<NOW()-INTERVAL '20 minutes'");
+        await query("UPDATE products SET model_3d_status='failed' WHERE restaurant_id=$1 AND id IN (SELECT product_id FROM product_3d_jobs WHERE restaurant_id=$1 AND status='failed' AND error_message='Worker interrompido repetidamente; limite de tentativas atingido.')",[RESTAURANT_ID]);
         const job=await withTransaction(async client=>{
           const found=await client.query("SELECT id,product_id AS \"productId\",image_data AS \"imageData\" FROM product_3d_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
           if(!found.rows[0]) return null;
