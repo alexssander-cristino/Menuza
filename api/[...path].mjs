@@ -803,7 +803,8 @@ async function updateOrderStatus(id, next) {
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
     if(next==='completed'&&order.customer_id){
-      const points=Math.floor(Math.max(0,Number(order.total_cents||0))/100);
+      const pointsBase=await client.query('SELECT COALESCE(SUM(unit_price_cents*quantity),0)::bigint AS subtotal FROM order_items WHERE order_id=$1',[id]);
+      const points=Math.floor(Math.max(0,Number(pointsBase.rows[0]?.subtotal||0)-Number(order.discount_cents||0))/100);
       if(points>0)await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES($1,$2,$3,$4,'order_completed',$5,$6) ON CONFLICT(order_id) DO NOTHING",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,id,now]);
     }
     await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.status_changed','order',id,JSON.stringify({from:order.status,to:next})]);
