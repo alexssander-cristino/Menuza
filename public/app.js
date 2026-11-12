@@ -438,8 +438,9 @@ function renderPromotionsTab(){
     const image=imageUrl?'<img class="promotion-offer-image" src="'+esc(imageUrl)+'" alt="'+esc(title)+'" loading="lazy">':'<div class="promotion-offer-image promotion-offer-placeholder"><span>'+uiIcon('sparkles',30)+'</span><b>OFERTA ESPECIAL</b></div>';
     const names=items.map(item=>item.product.name);
     const description=names.length>1?'Sabores participantes: '+names.map(esc).join(' · '):'Sabor participante: '+esc(names[0]||'');
-    const actions=items.map(({product,itemPromotion})=>'<button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(product.id)+'" data-promotion="'+esc(itemPromotion.id||'')+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>'+esc(product.name)+' <span>'+uiIcon('arrow',14)+'</span></button>').join('');
-    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+description+'</p><div class="promotion-offer-flavors">'+actions+'</div></div></article>';
+    const firstItem=items[0];
+    const action='<button class="button button-dark button-small promotion-offer-cta" type="button" data-action="open-promotion-product" data-product="'+esc(firstItem.product.id)+'" data-promotion="'+esc(firstItem.itemPromotion.id||'')+'" '+(isClosed?'disabled aria-disabled="true"':'')+'>Acessar oferta <span>'+uiIcon('arrow',14)+'</span></button>';
+    return '<article class="product-card promotion-offer-card"><div class="promotion-offer-media">'+image+'<span class="promotion-offer-ribbon">OFERTA ESPECIAL</span></div><div class="product-card-body"><span class="promotion-offer-name">'+esc(title)+'</span><h3>'+esc(title)+'</h3><p>'+description+'</p>'+action+'</div></article>';
   }).join('');
 }
 function stopPromotionCarousel(){
@@ -690,7 +691,13 @@ function renderBuilder() {
   const sizeHtml = isPizza?availableBuilderSizes.map(size => {const regular=regularProductSizePrice(product,size.key,size),current=effectiveProductSizePrice(product,size.key,size),discounted=current<regular;return '<button type="button" class="option-pill builder-size-option ' + (builder.sizeKey === size.key ? 'active' : '') + '" data-size="' + size.key + '" aria-pressed="' + (builder.sizeKey === size.key) + '"><span>'+esc(size.label)+'</span><small>'+(size.diameterCm?esc(size.diameterCm+' cm'):'')+'</small><span class="builder-size-prices">'+(discounted?'<del>'+money(regular)+'</del><strong>'+money(current)+'</strong>':'<strong>'+money(current)+'</strong>')+'</span></button>'}).join(''):'';
   const sizeSection = isPizza?'<div class="step-row"><b>01</b> Escolha o tamanho</div><div class="option-pills">'+sizeHtml+'</div>':'';
   const flavorLimit=Number(selectedSize?.maxFlavors)||1;
-  const flavorProducts=app.catalog.products.filter(p=>p.type==='pizza'&&Number(p.active)!==0&&Number(p.available)!==0);
+  const promotionCampaignName=String(builder.promotion?.promotionName||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const flavorProducts=app.catalog.products.filter(p=>{
+    if(p.type!=='pizza'||Number(p.active)===0||Number(p.available)===0)return false;
+    if(!builder.promotion)return true;
+    const productPromotions=Array.isArray(p.promotions)?p.promotions:[];
+    return productPromotions.some(promo=>promo.promotionActive&&String(promo.sizeKey||'')===String(builder.promotion.sizeKey||'')&&String(promo.promotionName||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===promotionCampaignName);
+  });
   const flavorCategories=app.catalog.categories.filter(category=>flavorProducts.some(p=>p.categoryId===category.id));
   const flavorGroups=flavorCategories.map(category=>({name:category.name,products:flavorProducts.filter(p=>p.categoryId===category.id)}));
   const uncategorizedFlavors=flavorProducts.filter(p=>!app.catalog.categories.some(category=>category.id===p.categoryId));
