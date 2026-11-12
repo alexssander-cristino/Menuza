@@ -55,7 +55,7 @@ Mantenha o notebook ligado e na tomada durante a geração. Desligado, os pedido
 3. A API do Menuza adiciona o trabalho à fila no Neon Postgres.
 4. O worker local busca o trabalho e executa o TripoSR na GPU NVIDIA.
 5. O worker converte a malha para GLB e envia para `menuza-modelos-3d/products/<produto>/<job>.glb` no Neon Object Storage.
-6. O worker informa a URL pública ao Menuza; a API salva a URL e o status no produto.
+6. Durante a inferência, o worker envia heartbeat a cada 30 segundos para manter a concessão do trabalho ativa.\n7. O worker informa a URL pública ao Menuza; a API salva a URL e o status no produto.\n\nSe o processo for encerrado inesperadamente, o trabalho em processamento volta à fila após 20 minutos sem heartbeat. O Menuza limita a três tentativas automáticas; depois disso, marca a geração como falha para permitir uma nova solicitação no painel. Configure `WORKER_HEARTBEAT_SECONDS` apenas se precisar alterar o intervalo (mínimo de 10 segundos).
 
 ## Ajustes para RTX 3050 6 GB
 
