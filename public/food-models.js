@@ -1965,7 +1965,7 @@ function hotDogSausageMesh(L, R, seed, detail) {
     const char = sstep(.68, .88, nz(p, 122, seed + 23)) * mark;
     const oil = sstep(.58, .82, fbm(p[0] * 34, p[2] * 36, seed + 45, 2));
     const cooked = mix(meat, lin('#3b1d14'), mark * .85);
-    return MAT(mul(mix(cooked, lin('#593526'), char * .12), 1 + (nz(p, 54, seed + 12) - .5) * .035), .32, .12, .24, .98);
+    return MAT(mul(mix(cooked, lin('#593526'), char * .12), 1 + (nz(p, 54, seed + 12) - .5) * .035), .52, .12, .42, .98);
   }, { wrapV: false, ref: p => [p[0], 0, 0] });
   return m.finish();
 }
