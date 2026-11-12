@@ -1077,9 +1077,9 @@ export default async function handler(req, res) {
       if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<8||password.length>128) throw fail('Confira nome, e-mail, data de nascimento e senha (mínimo de 8 caracteres).',422);
       await ensureCustomerSchema();
       const salt=randomBytes(16).toString('hex'), id='cus_'+randomBytes(18).toString('hex');
-      try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString()]); }
+      try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at,marketing_consent_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString(),body.marketingConsent===true?new Date().toISOString():null]); }
       catch(e) { if(e.code==='23505') throw fail('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.',409); throw e; }
-      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:id,exp:expiresAt});
+      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult,marketingConsent:body.marketingConsent===true},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:id,exp:expiresAt});
       await storeSession(token,'customer',id,expiresAt);
       return json(res,201,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
