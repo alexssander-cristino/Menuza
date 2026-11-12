@@ -184,15 +184,8 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   if (isBuildYourOwnPizza(product)) { const defaults = new Set(product.defaultIngredientIds || []); const missingDefaults = [...defaults].some(id => !supplied.some(entry => entry?.id === id)); const addonCount = supplied.filter(entry => !defaults.has(entry?.id)).length; if (missingDefaults || addonCount > 3) throw new Error('A pizza Monte a sua mantém os ingredientes padrão e permite escolher até 3 adicionais.'); }
   if (supplied.length > 50) throw new Error('A receita obrigatória excede o limite de componentes.');
    if (['burger','plate'].includes(type)) {
-     const addonCount = supplied.reduce((total, entry) => {
-       const item = catalog.find(candidate => candidate.id === entry?.id && candidate.type === type);
-       if (!item) return total;
-       const isDefault = requiredIds.has(item.id) || Boolean(item.included ?? Number(item.includedByDefault) === 1);
-       const addonAllowed = Array.isArray(product.ingredientIds) && product.ingredientIds.includes(item.id);
-       const quantity = Math.max(1, Number(entry.quantity) || 1);
-       const baseQuantity = isDefault && addonAllowed ? Math.max(1, Math.min(20, Number(product.ingredientQuantities?.[item.id]) || 1)) : 1;
-       return total + (isDefault ? (addonAllowed ? Math.max(0, quantity - baseQuantity) : 0) : quantity);
-     }, 0);
+     const defaultIds = new Set(requiredIds);
+     const addonCount = supplied.reduce((total, entry) => defaultIds.has(entry?.id) ? total : total + Math.max(1, Number(entry.quantity) || 1), 0);
      if (addonCount > 10) throw new Error('Este produto permite até 10 adicionais, além dos ingredientes da receita padrão.');
    }
   const seen = new Set();
