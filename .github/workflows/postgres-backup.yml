@@ -61,10 +61,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Notify backup/restore failure
-        if: failure() && secrets.ALERT_WEBHOOK_URL != ''
+        if: failure()
         env:
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: |
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then echo "ALERT_WEBHOOK_URL não configurado; alerta disponível no Actions."; exit 0; fi
           curl --fail --silent --show-error -X POST "$ALERT_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
             --data '{"text":"Menuza: falha no backup PostgreSQL ou no teste automático de restauração. Verifique a execução do GitHub Actions."}'
