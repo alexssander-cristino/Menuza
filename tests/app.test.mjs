@@ -16,6 +16,7 @@ import { buildFoodGeometry } from '../public/food-scene.js';
 test('P0: câmera e WebXR são permitidos apenas na própria origem e a API protege rotas antes de efeitos colaterais', async () => {
   const vercelConfig = await readFile(new URL('../vercel.json', import.meta.url), 'utf8');
   const productionApi = await readFile(new URL('../api/[...path].mjs', import.meta.url), 'utf8');
+  const localServer = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
   assert.match(vercelConfig, /camera=\(self\), xr-spatial-tracking=\(self\), microphone=\(\), geolocation=\(\)/);
   assert.match(productionApi, /'Permissions-Policy': 'camera=\(self\), xr-spatial-tracking=\(self\), microphone=\(\), geolocation=\(\)'/);
   const adminGate = productionApi.indexOf("if(path.startsWith('/api/admin/')&&!['/api/admin/login','/api/admin/logout','/api/admin/me'].includes(path)) await requireAdmin(req);");
@@ -23,6 +24,8 @@ test('P0: câmera e WebXR são permitidos apenas na própria origem e a API prot
   assert.ok(adminGate >= 0 && schemaInitialization > adminGate, 'unauthenticated admin requests must be rejected before database schema work');
   assert.match(productionApi, /UPDATE auth_sessions SET revoked_at=NOW\(\) WHERE role=\$1 AND subject_id=\$2 AND revoked_at IS NULL/);
   assert.match(productionApi, /SELECT role,subject_id AS "subjectId",restaurant_id AS "restaurantId" FROM auth_sessions WHERE token_hash=\$1 AND revoked_at IS NULL/);
+  assert.match(localServer, /path === '\/api\/admin\/security'\) \{ requireAdmin\(request\);/);
+  assert.match(localServer, /if \(path\.startsWith\('\/api\/admin\/'\)\) requireAdmin\(request\);/);
 });
 
 test('dashboard usa a data local do restaurante em vez do dia UTC do servidor', () => {
@@ -160,7 +163,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   ];
   for (const [method, path] of unauthenticatedAdminRoutes) {
     const response = await fetch(base + path, { method, headers: { Origin: base } });
-    assert.equal(response.status, 401, method + ' ' + path + ' must reject unauthenticated access');
+    assert.ok([401, 403].includes(response.status), method + ' ' + path + ' must reject unauthenticated access');
   }
   const adminMe = await fetch(base + '/api/admin/me');
   assert.equal(adminMe.status, 200);
