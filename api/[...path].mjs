@@ -1188,7 +1188,8 @@ export default async function handler(req, res) {
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
       const orders=await Promise.all(rows.rows.map(row=>orderById(row.id)));
       const loyalty=(await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC',[RESTAURANT_ID,c.customerId])).rows;
-      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone,birthDate:c.customer.birthDate,marketingConsent:c.customer.marketingConsent},loyalty,orders});
+      const personalCoupons=(await query('SELECT code,discount_type AS "discountType",discount_value AS "discountValue",expires_at AS "expiresAt",active,used_count AS "usedCount" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC',[RESTAURANT_ID,c.customerId])).rows;
+      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone,birthDate:c.customer.birthDate,marketingConsent:c.customer.marketingConsent},loyalty,personalCoupons,orders});
     }
     if (method==='GET'&&path==='/api/customer/orders') {
       const c=await requireCustomer(req), rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC LIMIT 100',[c.customerId,RESTAURANT_ID]);
