@@ -1103,6 +1103,31 @@ export default async function handler(req, res) {
       if(!saved.rowCount&&String(current.customer.birthDate||'').slice(0,10)!==birth.birthDate) throw fail('A data de nascimento já foi registrada. Para corrigir um dado, use o canal de privacidade.',409);
       return json(res,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
     }
+    if(method==='PATCH'&&path==='/api/customer/marketing-consent'){
+      const current=await requireCustomer(req),b=await bodyOf(req),enabled=b.enabled===true;
+      await query('UPDATE customers SET marketing_consent_at=$1 WHERE id=$2',[enabled?new Date().toISOString():null,current.customerId]);
+      return json(res,200,{marketingConsent:enabled});
+    }
+    if(method==='GET'&&path==='/api/customer/loyalty'){
+      const current=await requireCustomer(req);await ensureOperationsSchema();
+      const balance=await query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
+      const history=await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 20',[RESTAURANT_ID,current.customerId]);
+      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history:history.rows});
+    }
+    if(method==='POST'&&path==='/api/customer/loyalty/redeem'){
+      const current=await requireCustomer(req);await ensureOperationsSchema();
+      const result=await withTransaction(async client=>{
+        const locked=await client.query('SELECT id FROM customers WHERE id=$1 FOR UPDATE',[current.customerId]);
+        if(!locked.rowCount)throw fail('Conta de cliente não encontrada.',404);
+        const balance=await client.query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
+        if(Number(balance.rows[0]?.points||0)<100)throw fail('Você precisa de 100 pontos para trocar por R$ 10,00.',422);
+        const couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase(),now=new Date(),expires=new Date(now.getTime()+30*86400000);
+        const inserted=await client.query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'fixed',1000,0,$4,$5,1,1,$4,$6) RETURNING *",[couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),current.customerId]);
+        await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES($1,$2,$3,-100,'reward_redeemed',$4,$5)",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,current.customerId,couponId,now.toISOString()]);
+        return inserted.rows[0];
+      });
+      return json(res,201,{coupon:couponPublic(result),message:'100 pontos trocados por R$ 10,00 de desconto. O cupom é exclusivo da sua conta.'});
+    }
     if (method==='GET'&&path==='/api/customer/data-export') {
       const c=await requireCustomer(req);
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
