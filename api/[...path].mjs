@@ -986,7 +986,7 @@ export default async function handler(req, res) {
       return json(res,200,{ok:true,message:'Pronto. Você não receberá mais e-mails promocionais do Menuza.'});
     }
     if(method==='GET'&&path==='/api/admin/customers/retention'){
-      const rows=await query(`SELECT c.id,c.name,c.email,c.phone,(c.marketing_consent_at IS NOT NULL) AS "marketingConsent",MAX(o.created_at) AS "lastOrderAt",COUNT(o.id)::int AS "orders",COALESCE(SUM(o.total_cents) FILTER (WHERE o.status<>'cancelled'),0)::bigint AS "revenueCents",MAX(rc.sent_at) AS "lastRecoveryAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 LEFT JOIN (SELECT customer_id,MAX(sent_at) AS sent_at FROM customer_recovery_campaigns WHERE restaurant_id=$1 GROUP BY customer_id) rc ON rc.customer_id=c.id WHERE c.created_at<NOW()-INTERVAL '30 days' GROUP BY c.id HAVING MAX(o.created_at) IS NULL OR MAX(o.created_at)<NOW()-INTERVAL '30 days' ORDER BY MAX(o.created_at) NULLS FIRST LIMIT 200`,[RESTAURANT_ID]);
+      const rows=await query(`SELECT c.id,c.name,c.email,c.phone,(c.marketing_consent_at IS NOT NULL) AS "marketingConsent",MAX(o.created_at) AS "lastOrderAt",COUNT(o.id)::int AS "orders",COALESCE(SUM(o.total_cents) FILTER (WHERE o.status<>'cancelled'),0)::bigint AS "revenueCents",MAX(rc.sent_at) AS "lastRecoveryAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 AND o.status<>'cancelled' LEFT JOIN (SELECT customer_id,MAX(sent_at) AS sent_at FROM customer_recovery_campaigns WHERE restaurant_id=$1 GROUP BY customer_id) rc ON rc.customer_id=c.id WHERE c.created_at<NOW()-INTERVAL '30 days' GROUP BY c.id HAVING MAX(o.created_at) IS NULL OR MAX(o.created_at)<NOW()-INTERVAL '30 days' ORDER BY MAX(o.created_at) NULLS FIRST LIMIT 200`,[RESTAURANT_ID]);
       return json(res,200,{customers:rows.rows.map(row=>({...row,orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0),marketingConsent:Boolean(row.marketingConsent)}))});
     }
     if(method==='POST'&&path.startsWith('/api/admin/customers/')&&path.endsWith('/coupon')){
@@ -1183,7 +1183,7 @@ export default async function handler(req, res) {
       return json(res,201,{coupon:couponPublic(result),message:'100 pontos trocados por R$ 10,00 de desconto. O cupom é exclusivo da sua conta.'});
     }
     if (method==='GET'&&path==='/api/customer/data-export') {
-      const c=await requireCustomer(req);
+      const c=await requireCustomer(req);await ensureOperationsSchema();
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
       const orders=await Promise.all(rows.rows.map(row=>orderById(row.id)));
       const loyalty=(await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC',[RESTAURANT_ID,c.customerId])).rows;
