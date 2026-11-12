@@ -742,7 +742,8 @@ function updateStatus(orderId, nextStatus) {
     statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
     if(nextStatus==='completed'&&order.customer_id){
-      const points=Math.floor(Math.max(0,Number(order.total_cents||0))/100);
+      const pointsBase=statement('SELECT COALESCE(SUM(unit_price_cents*quantity),0) AS subtotal FROM order_items WHERE order_id=?').get(orderId);
+      const points=Math.floor(Math.max(0,Number(pointsBase.subtotal||0)-Number(order.discount_cents||0))/100);
       if(points>0)statement("INSERT OR IGNORE INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES(?,?,?,?,'order_completed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,orderId,now);
     }
     // Ao concluir ou cancelar um pedido consumido na mesa, ela precisa entrar
@@ -882,7 +883,7 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'POST' && path === '/api/customer/loyalty/redeem') {
         const customer=requireCustomer(request).customer,now=new Date(),expires=new Date(now.getTime()+30*86400000),couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase();
-        db.exec('BEGIN');
+        db.exec('BEGIN IMMEDIATE');
         try {
           const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
           if(Number(balance.points||0)<100)throw Object.assign(new Error('Você precisa de 100 pontos para trocar por R$ 10,00.'),{status:422});
