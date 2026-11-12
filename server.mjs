@@ -869,6 +869,29 @@ const server = createServer(async (request, response) => {
         const customer = requireCustomer(request).customer;
         return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate},orders:listCustomerOrders(customer.id)});
       }
+      if (request.method === 'PATCH' && path === '/api/customer/marketing-consent') {
+        const current=requireCustomer(request),body=await bodyOf(request),enabled=body.enabled===true;
+        statement('UPDATE customers SET marketing_consent_at=? WHERE id=?').run(enabled?new Date().toISOString():null,current.customer.id);
+        return send(response,200,{marketingConsent:enabled});
+      }
+      if (request.method === 'GET' && path === '/api/customer/loyalty') {
+        const customer=requireCustomer(request).customer;
+        const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
+        const history=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 20').all(RESTAURANT_ID,customer.id);
+        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history});
+      }
+      if (request.method === 'POST' && path === '/api/customer/loyalty/redeem') {
+        const customer=requireCustomer(request).customer,now=new Date(),expires=new Date(now.getTime()+30*86400000),couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase();
+        db.exec('BEGIN');
+        try {
+          const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
+          if(Number(balance.points||0)<100)throw Object.assign(new Error('Você precisa de 100 pontos para trocar por R$ 10,00.'),{status:422});
+          statement("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES(?,?,?,'fixed',1000,0,?,?,1,1,?,?)").run(couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),now.toISOString(),customer.id);
+          statement("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES(?,?,?,-100,'reward_redeemed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customer.id,couponId,now.toISOString());
+          db.exec('COMMIT');
+        } catch(error){db.exec('ROLLBACK');throw error}
+        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),message:'100 pontos trocados por R$ 10,00 de desconto. Cupom exclusivo da sua conta.'});
+      }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
         const session = requireCustomer(request), body = await bodyOf(request);
@@ -917,6 +940,18 @@ const server = createServer(async (request, response) => {
       }
 
       if (path.startsWith('/api/admin/')) requireAdmin(request);
+      if (request.method === 'GET' && path === '/api/admin/customers/retention') {
+        const customers=statement("SELECT c.id,c.name,c.email,c.phone,c.marketing_consent_at AS marketingConsentAt,COALESCE(MAX(o.created_at),c.created_at) AS lastOrderAt,COUNT(o.id) AS orders,COALESCE(SUM(CASE WHEN o.status<>'cancelled' THEN o.total_cents ELSE 0 END),0) AS revenueCents FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=? WHERE c.created_at<datetime('now','-30 days') GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<datetime('now','-30 days') ORDER BY lastOrderAt ASC LIMIT 200").all(RESTAURANT_ID);
+        return send(response,200,{customers:customers.map(row=>({...row,marketingConsent:Boolean(row.marketingConsentAt),orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0)}))});
+      }
+      if (request.method === 'POST' && path.startsWith('/api/admin/customers/') && path.endsWith('/coupon')) {
+        const customerId=decodeURIComponent(path.split('/')[4]||''),customer=statement('SELECT id,name,email,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(customerId);
+        if(!customer)return send(response,404,{error:'Cliente não encontrado.'});
+        if(!customer.marketingConsentAt)return send(response,403,{error:'O cliente não autorizou o recebimento de ofertas por e-mail.'});
+        const body=await bodyOf(request),percent=Math.max(5,Math.min(30,Math.trunc(Number(body.discountPercent)||10))),now=new Date(),expires=new Date(now.getTime()+14*86400000),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),couponId='cpn_'+randomBytes(12).toString('hex');
+        statement("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES(?,?,?,'percent',?,0,?,?,1,1,?,?)").run(couponId,RESTAURANT_ID,code,percent,now.toISOString(),expires.toISOString(),now.toISOString(),customerId);
+        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),sent:false,message:'Cupom pessoal criado. No ambiente local, compartilhe o código manualmente.'});
+      }
       if (request.method === 'GET' && path === '/api/admin/coupons') return send(response, 200, { coupons: statement('SELECT * FROM coupons WHERE restaurant_id=? ORDER BY created_at DESC').all(RESTAURANT_ID).map(couponPublic) });
       if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
