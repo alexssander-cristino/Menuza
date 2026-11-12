@@ -3480,3 +3480,13 @@ button[data-action="view-generated-3d"],
 
 /* Sabores reunidos em um único card de promoção */
 .promotion-offer-flavors{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.promotion-offer-flavors .promotion-offer-cta{display:inline-flex;align-items:center;justify-content:center;gap:7px;max-width:100%}.promotion-offer-flavors .promotion-offer-cta span{display:inline-flex;align-items:center}
+
+
+/* Agrupamento de produtos da mesma promoção no painel do restaurante */
+.promotion-admin-group{border:1px solid var(--line,#e7e1dc);border-radius:14px;background:var(--card,#fff);overflow:hidden;margin:0 0 14px}
+.promotion-admin-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;background:color-mix(in srgb,var(--mz-primary,#761d25) 7%,var(--card,#fff));border-bottom:1px solid var(--line,#e7e1dc)}
+.promotion-admin-group-head strong{font-size:14px;font-weight:750;color:var(--ink,#29232a)}
+.promotion-admin-group-head small{font-size:11px;color:var(--muted,#89818a);white-space:nowrap}
+.promotion-admin-group-items{display:grid;gap:0}
+.promotion-admin-group-items>.promotion-admin-row{border:0;border-radius:0;border-bottom:1px solid var(--line,#e7e1dc);padding:14px 16px;background:transparent}
+.promotion-admin-group-items>.promotion-admin-row:last-child{border-bottom:0}
