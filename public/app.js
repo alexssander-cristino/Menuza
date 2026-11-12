@@ -542,8 +542,8 @@ function selectedEntries(builder=app.builder) {
   const ingredientProduct=buildYourOwnFlavorProduct(product,builder.flavorProductIds||[product?.id])||product;
   return builder.ingredients.map(entry=>{
     const ingredient=app.catalog.ingredients.find(item=>item.id===entry.id);if(!ingredient)return null;
-    const quantity=['burger','plate'].includes(product?.type)?Math.max(1,Math.min(20,Number(entry.quantity)||1)):1;
-    if(ingredientProduct?.ingredientsConfigured){const included=(ingredientProduct.defaultIngredientIds||[]).includes(ingredient.id);return {...ingredient,included,cents:included?0:ingredient.cents,quantity}}
+    const isBurgerOrHotdog=['burger','plate'].includes(product?.type),quantity=isBurgerOrHotdog?Math.max(1,Math.min(20,Number(entry.quantity)||1)):1;
+    if(ingredientProduct?.ingredientsConfigured){const isDefault=(ingredientProduct.defaultIngredientIds||[]).includes(ingredient.id),addonAllowed=(ingredientProduct.ingredientIds||[]).includes(ingredient.id),base=isDefault&&addonAllowed?Math.max(1,Number(ingredientProduct.ingredientQuantities?.[ingredient.id])||1):1,extraQuantity=isBurgerOrHotdog&&isDefault&&addonAllowed?Math.max(0,quantity-base):isDefault?0:quantity;return {...ingredient,included:isDefault&&extraQuantity===0,cents:extraQuantity>0?ingredient.cents:0,quantity:extraQuantity}}
     return {...ingredient,quantity};
   }).filter(Boolean);
 }
@@ -816,7 +816,7 @@ async function addBuilderToCart() {
   if(builder.promotion&&product.type==='pizza'&&!selectedFlavors.length)return toast('Escolha pelo menos um sabor para continuar com esta oferta.');
   const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
   if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
-  {const defaults=new Set(product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,app.catalog).map(item=>item.id));const isBurgerOrHotdog=['burger','plate'].includes(product.type);const addonTotal=builder.ingredients.filter(item=>!defaults.has(item.id)).reduce((sum,item)=>sum+(isBurgerOrHotdog?Math.max(1,Math.min(10,Number(item.quantity)||1)):1),0);const addonLimit=isBurgerOrHotdog?10:12;if(addonTotal>addonLimit)return toast('Este produto permite selecionar até '+addonLimit+' adicionais, além dos ingredientes da receita padrão.');}
+  {const defaults=new Set(product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,app.catalog).map(item=>item.id)),allowed=new Set(product.ingredientIds||[]);const isBurgerOrHotdog=['burger','plate'].includes(product.type);const addonTotal=isBurgerOrHotdog?builder.ingredients.reduce((sum,item)=>{const base=defaults.has(item.id)&&allowed.has(item.id)?Math.max(1,Number(product.ingredientQuantities?.[item.id])||1):0;return sum+Math.max(0,Math.max(1,Math.min(20,Number(item.quantity)||1))-base)},0):builder.ingredients.filter(item=>!defaults.has(item.id)).length;const addonLimit=isBurgerOrHotdog?10:12;if(addonTotal>addonLimit)return toast('Este produto permite selecionar até '+addonLimit+' adicionais, além dos ingredientes da receita padrão.');}
   if(!(await ensureAgeForProduct(product)))return;
   const selectedFlavorProducts=product.type==='pizza'?selectedFlavors.map(id=>app.catalog.products.find(item=>item.id===id)).filter(Boolean):[];
   const cartProductName=builder.promotion&&product.type==='pizza'&&selectedFlavorProducts.length?selectedFlavorProducts.map(item=>item.name).join(' / '):product.name;
