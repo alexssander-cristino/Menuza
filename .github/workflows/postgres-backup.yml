@@ -1,0 +1,70 @@
+name: Menuza PostgreSQL backup and restore drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  backup-and-restore:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: menuza_restore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d menuza_restore_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Validate required secret
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          if [ -z "$DATABASE_URL_DIRECT" ]; then
+            echo "::error::Configure the DATABASE_URL_DIRECT GitHub Actions secret with the Neon direct connection string."
+            exit 1
+          fi
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Create encrypted-at-rest runner backup file
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          pg_dump "$DATABASE_URL_DIRECT" --format=custom --no-owner --no-acl --file="backups/menuza-$(date -u +%Y%m%d-%H%M%S).dump"
+          pg_restore --list backups/*.dump >/dev/null
+      - name: Restore backup into isolated PostgreSQL and validate schema
+        env:
+          RESTORE_URL: postgresql://postgres:postgres@localhost:5432/menuza_restore_test
+        run: |
+          set -euo pipefail
+          pg_restore --dbname="$RESTORE_URL" --no-owner --no-acl --exit-on-error backups/*.dump
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('restaurants','orders','order_items','products');" | grep -E '[1-9][0-9]*'
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM public.restaurants;"
+      - name: Upload verified backup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: menuza-postgres-backup-${{ github.run_id }}
+          path: backups/*.dump
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Notify backup/restore failure
+        if: failure() && secrets.ALERT_WEBHOOK_URL != ''
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          curl --fail --silent --show-error -X POST "$ALERT_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            --data '{"text":"Menuza: falha no backup PostgreSQL ou no teste automático de restauração. Verifique a execução do GitHub Actions."}'
