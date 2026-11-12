@@ -184,7 +184,7 @@ export function calculateItemPrice({ product, sizeKey, crustKey, ingredients, qu
   if (isBuildYourOwnPizza(product)) { const defaults = new Set(product.defaultIngredientIds || []); const missingDefaults = [...defaults].some(id => !supplied.some(entry => entry?.id === id)); const addonCount = supplied.filter(entry => !defaults.has(entry?.id)).length; if (missingDefaults || addonCount > 3) throw new Error('A pizza Monte a sua mantém os ingredientes padrão e permite escolher até 3 adicionais.'); }
   if (supplied.length > 50) throw new Error('A receita obrigatória excede o limite de componentes.');
    if (['burger','plate'].includes(type)) {
-     const defaultIds = new Set(requiredIds);
+     const defaultIds = new Set([...requiredIds, ...catalog.filter(item => item.type === type && (item.active === undefined || Number(item.active) === 1) && Boolean(item.included ?? Number(item.includedByDefault) === 1)).map(item => item.id)]);
      const addonCount = supplied.reduce((total, entry) => defaultIds.has(entry?.id) ? total : total + Math.max(1, Number(entry.quantity) || 1), 0);
      if (addonCount > 10) throw new Error('Este produto permite até 10 adicionais, além dos ingredientes da receita padrão.');
    }
