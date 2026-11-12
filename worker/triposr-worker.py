@@ -4,7 +4,7 @@ Consulta a API do Menuza por trabalhos pendentes, baixa a imagem de referência,
 executa a inferência no modelo e envia o resultado para o armazenamento configurado.
 Este processo roda separadamente do servidor web e pode exigir GPU compatível.
 """
-import base64, os, subprocess, sys, tempfile, time
+import base64, os, subprocess, sys, tempfile, time, threading
 from pathlib import Path
 from urllib.parse import quote
 
@@ -73,6 +73,18 @@ def generate(image: Path, output: Path) -> Path:
 
 def process(job):
     jid = job["id"]
+    stop_heartbeat = threading.Event()
+
+    def heartbeat_loop():
+        interval = max(10, int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30")))
+        while not stop_heartbeat.wait(interval):
+            try:
+                requests.post(api_route("3d-worker/heartbeat"), headers=HEADERS, json={"jobId": jid}, timeout=10).raise_for_status()
+            except Exception as heartbeat_error:
+                print("[AVISO] Heartbeat do worker falhou:", heartbeat_error, flush=True)
+
+    heartbeat_thread = threading.Thread(target=heartbeat_loop, name="menuza-worker-heartbeat", daemon=True)
+    heartbeat_thread.start()
     try:
         image_data = str(job.get("imageData") or "")
         if not image_data.startswith("data:image/") or "," not in image_data:
@@ -123,6 +135,9 @@ def process(job):
             ).raise_for_status()
         except Exception as callback:
             print("[ERRO] Callback falhou:", callback)
+    finally:
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=2)
 
 
 def main():

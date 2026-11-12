@@ -61,6 +61,7 @@ let adminTwoFactorSchemaPromise;
 let operationsSchemaPromise;
 async function ensureOperationsSchema(){
   if(!operationsSchemaPromise)operationsSchemaPromise=(async()=>{
+    await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending'");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ");
@@ -496,6 +497,7 @@ async function catalogFor(admin = false) {
   await ensurePizzaConfigSchema();
   await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
+  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
   await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
@@ -515,7 +517,7 @@ async function catalogFor(admin = false) {
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
     query('SELECT id,name,slug,sort_order AS "sortOrder" FROM categories WHERE restaurant_id=$1 ORDER BY sort_order', [RESTAURANT_ID]),
-    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredient_quantities_json AS "ingredientQuantitiesJson",ingredients_configured AS "ingredientsConfigured",size_prices_json AS "sizePricesJson",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
+    query('SELECT id,category_id AS "categoryId",name,description,type,base_price_cents AS "baseCents",cost_cents AS "costCents",active,available,featured,prep_minutes AS "prepMinutes",model_url AS "modelUrl",width_cm AS "widthCm",depth_cm AS "depthCm",height_cm AS "heightCm",ingredient_ids_json AS "ingredientIdsJson",default_ingredient_ids_json AS "defaultIngredientIdsJson",ingredient_quantities_json AS "ingredientQuantitiesJson",ingredients_configured AS "ingredientsConfigured",size_prices_json AS "sizePricesJson",image_url AS "imageUrl",product_images_json AS "productImagesJson",model_3d_url AS "model3dUrl",model_3d_status AS "model3dStatus",age_restricted AS "ageRestricted",updated_at AS "updatedAt" FROM products WHERE restaurant_id=$1'+active+' ORDER BY featured DESC,category_id,name', [RESTAURANT_ID]),
     query('SELECT id,name,type,group_name AS "groupName",addon_cents AS cents,included_by_default AS included,active,sort_order AS "sortOrder" FROM ingredients WHERE restaurant_id=$1'+active+' ORDER BY sort_order', [RESTAURANT_ID]),
     query('SELECT id,name,description,price_cents AS "priceCents",items_json AS "itemsJson",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM combos WHERE restaurant_id=$1'+active+' ORDER BY created_at DESC', [RESTAURANT_ID])
   ]);
@@ -1411,15 +1413,19 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/admin/analytics') {
       const days=[7,30,90].includes(Number(req.query?.days))?Number(req.query.days):7, since=new Date(Date.now()-days*86400000).toISOString();
-      const [summary,daily,fulfillment,popular,topCustomers,customerStats]=await Promise.all([
+      const [summary,daily,fulfillment,popular,topCustomers,customerStats,contributionRows]=await Promise.all([
         query("SELECT COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\",COALESCE(ROUND(AVG(total_cents) FILTER (WHERE status<>'cancelled')),0)::int AS \"averageTicketCents\",COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled FROM orders WHERE restaurant_id=$1 AND created_at >= $2",[RESTAURANT_ID,since]),
         query("SELECT created_at::date::text AS date,COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 GROUP BY created_at::date ORDER BY date",[RESTAURANT_ID,since]),
         query("SELECT fulfillment AS type,COUNT(*)::int AS orders FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC",[RESTAURANT_ID,since]),
         query("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity)::int AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::int AS \"revenueCents\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8",[RESTAURANT_ID,since]),
         query("SELECT o.customer_id AS id,MAX(o.customer_name) AS name,COUNT(*)::int AS orders,COALESCE(SUM(o.total_cents),0)::int AS \"revenueCents\" FROM orders o WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' AND o.customer_id IS NOT NULL GROUP BY o.customer_id HAVING COUNT(*)>1 ORDER BY orders DESC,\"revenueCents\" DESC LIMIT 8",[RESTAURANT_ID,since]),
-        query("SELECT COUNT(*)::int AS \"identifiedCustomers\",COUNT(*) FILTER (WHERE order_count>1)::int AS \"returningCustomers\" FROM (SELECT customer_id,COUNT(*)::int AS order_count FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' AND customer_id IS NOT NULL GROUP BY customer_id) customers",[RESTAURANT_ID,since])
+        query("SELECT COUNT(*)::int AS \"identifiedCustomers\",COUNT(*) FILTER (WHERE order_count>1)::int AS \"returningCustomers\" FROM (SELECT customer_id,COUNT(*)::int AS order_count FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' AND customer_id IS NOT NULL GROUP BY customer_id) customers",[RESTAURANT_ID,since]),
+        query("SELECT COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::bigint AS revenue_cents,COALESCE(SUM(oi.unit_price_cents*oi.quantity) FILTER (WHERE p.cost_cents>0),0)::bigint AS known_revenue_cents,COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN p.cost_cents*oi.quantity ELSE 0 END),0)::bigint AS known_cost_cents,COUNT(DISTINCT oi.product_id) FILTER (WHERE COALESCE(p.cost_cents,0)>0)::int AS products_with_cost,COUNT(DISTINCT oi.product_id)::int AS products_sold FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled'",[RESTAURANT_ID,since])
       ]);
-      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows,customerStats:customerStats.rows[0]||{identifiedCustomers:0,returningCustomers:0}});
+      const contribution=contributionRows.rows[0];
+      const revenueCents=Number(contribution.revenue_cents||0),knownRevenueCents=Number(contribution.known_revenue_cents||0),knownCostCents=Number(contribution.known_cost_cents||0);
+      const marginCoverage=Number(contribution.products_sold||0)?Math.round(Number(contribution.products_with_cost||0)/Number(contribution.products_sold||1)*100):0;
+      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows,customerStats:customerStats.rows[0]||{identifiedCustomers:0,returningCustomers:0},contribution:{revenueCents,knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost:Number(contribution.products_with_cost||0),productsSold:Number(contribution.products_sold||0),coveragePercent:marginCoverage,estimated:true}});
     }
     if (method==='GET'&&path==='/api/admin/coupons') return json(res,200,{coupons:(await query('SELECT * FROM coupons WHERE restaurant_id=$1 ORDER BY created_at DESC',[RESTAURANT_ID])).rows.map(couponPublic)});
     if (method==='POST'&&path==='/api/admin/coupons') return json(res,201,{coupon:await saveCoupon(await bodyOf(req))});
@@ -1449,12 +1455,23 @@ export default async function handler(req, res) {
       const workerToken=String(process.env.TRIPOSR_WORKER_TOKEN||'');
       const auth=String(req.headers.authorization||'');
       if(!workerToken||auth!=='Bearer '+workerToken) throw fail('Worker não autorizado.',401);
-      await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      if(method==='POST'&&path==='/api/3d-worker/heartbeat'){
+        const b=await bodyOf(req,12000),jobId=clean(b.jobId,100);
+        await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata",[JSON.stringify({runtime:'triposr',jobId:jobId||null})]);
+        if(jobId)await query("UPDATE product_3d_jobs SET updated_at=NOW() WHERE id=$1 AND restaurant_id=$2 AND status='processing'",[jobId,RESTAURANT_ID]);
+        return json(res,200,{ok:true});
+      }
       if(method==='GET'&&path==='/api/3d-worker/next'){
+      await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await query("ALTER TABLE product_3d_jobs ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0");
+      await query("CREATE TABLE IF NOT EXISTS worker_heartbeats (worker_name TEXT PRIMARY KEY, last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), metadata JSONB NOT NULL DEFAULT '{}'::jsonb)");
+        await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata", [JSON.stringify({runtime:'triposr'})]);
+        await query("UPDATE product_3d_jobs SET status=CASE WHEN attempt_count>=3 THEN 'failed' ELSE 'queued' END,error_message=CASE WHEN attempt_count>=3 THEN 'Worker interrompido repetidamente; limite de tentativas atingido.' ELSE error_message END,updated_at=NOW() WHERE restaurant_id=$1 AND status='processing' AND updated_at<NOW()-INTERVAL '20 minutes'",[RESTAURANT_ID]);
+        await query("UPDATE products SET model_3d_status='failed' WHERE restaurant_id=$1 AND id IN (SELECT product_id FROM product_3d_jobs WHERE restaurant_id=$1 AND status='failed' AND error_message='Worker interrompido repetidamente; limite de tentativas atingido.')",[RESTAURANT_ID]);
         const job=await withTransaction(async client=>{
           const found=await client.query("SELECT id,product_id AS \"productId\",image_data AS \"imageData\" FROM product_3d_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
           if(!found.rows[0]) return null;
-          await client.query("UPDATE product_3d_jobs SET status='processing',updated_at=NOW() WHERE id=$1",[found.rows[0].id]);
+          await client.query("UPDATE product_3d_jobs SET status='processing',attempt_count=attempt_count+1,updated_at=NOW() WHERE id=$1",[found.rows[0].id]);
           await client.query("UPDATE products SET model_3d_status='processing' WHERE id=$1 AND restaurant_id=$2",[found.rows[0].productId,RESTAURANT_ID]);
           return found.rows[0];
         });
@@ -1511,6 +1528,7 @@ export default async function handler(req, res) {
       if(type==='drink'&&!imageUrl) throw fail('Cadastre uma foto para a bebida.',422);
       if(type==='drink') await ensureBeverageSchema();
       const cat=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[categoryId,RESTAURANT_ID])).rows[0]; if(!cat) throw fail('Escolha uma categoria válida.',422);
+      const costCents=Number(b.costCents??0);if(!Number.isInteger(costCents)||costCents<0||costCents>1000000)throw fail('Informe um custo direto unitário válido.',422);
       const now=new Date().toISOString(), productId=slugify(name)+'-'+randomBytes(3).toString('hex');
       const storedImages=images!==null?await storeImageList(images,'products/'+productId):await storeImageList(imageUrl?[imageUrl]:[],'products/'+productId);
       const storedImageUrl=storedImages[0]||'';
@@ -1520,7 +1538,7 @@ export default async function handler(req, res) {
       const defaultIngredientIds=await validateProductIngredientIds(b.defaultIngredientIds===undefined?[]:b.defaultIngredientIds,type);
       const ingredientQuantities=await validateIngredientQuantities(b.ingredientQuantities,type,[...ingredientIds,...defaultIngredientIds]);
       if(isBuildYourOwnPizza({name,type})){const availableIds=new Set([...defaultIngredientIds,...ingredientIds]);if(defaultIngredientIds.length>3||availableIds.size<3)throw fail('Na pizza Monte a sua, cadastre até 3 ingredientes padrão e disponibilize ingredientes suficientes para completar exatamente 3 no total.',422);}
-      await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now]);
+      await query(`INSERT INTO products (id,restaurant_id,category_id,name,description,type,base_price_cents,active,available,featured,prep_minutes,width_cm,depth_cm,height_cm,created_at,updated_at,cost_cents) VALUES ($1,$2,$3,$4,$5,$6,$7,1,1,0,$8,$9,$10,$11,$12,$12,$13)`,[productId,RESTAURANT_ID,categoryId,name,description,type,price,type==='drink'?0:25,type==='pizza'?30:12,type==='pizza'?30:12,type==='pizza'?2:10,now,costCents]);
       await query('UPDATE products SET ingredient_ids_json=$1,default_ingredient_ids_json=$2,ingredient_quantities_json=$3,ingredients_configured=$4,image_url=$5,product_images_json=$6,age_restricted=$7,size_prices_json=$8 WHERE id=$9 AND restaurant_id=$10',[JSON.stringify(ingredientIds),JSON.stringify(defaultIngredientIds),JSON.stringify(ingredientQuantities),b.ingredientIds!==undefined||b.defaultIngredientIds!==undefined?1:0,storedImageUrl,JSON.stringify(storedImages),ageRestricted,JSON.stringify(sizePrices),productId,RESTAURANT_ID]);
       return json(res,201,{product:(await catalogFor(true)).products.find(p=>p.id===productId)});
     }
@@ -1552,10 +1570,12 @@ export default async function handler(req, res) {
       const ingredientQuantities=b.ingredientQuantities===undefined?null:await validateIngredientQuantities(b.ingredientQuantities,old.type,[...currentIngredientIds,...currentDefaultIds]);
       if(isBuildYourOwnPizza({name,type:old.type})){let currentDefaults=[],currentAllowed=[];try{currentDefaults=JSON.parse(old.default_ingredient_ids_json||'[]')}catch{}try{currentAllowed=JSON.parse(old.ingredient_ids_json||'[]')}catch{}const defaults=defaultIngredientIds??currentDefaults,allowed=ingredientIds??currentAllowed,availableIds=new Set([...defaults,...allowed]);if(defaults.length>3||availableIds.size<3)throw fail('Na pizza Monte a sua, cadastre até 3 ingredientes padrão e disponibilize ingredientes suficientes para completar exatamente 3 no total.',422);}
       const ageRestricted=b.ageRestricted===undefined?Number(old.age_restricted||0):(b.ageRestricted?1:0);
+      const costCents=b.costCents===undefined?Number(old.cost_cents||0):Number(b.costCents);
+      if(!Number.isInteger(costCents)||costCents<0||costCents>1000000)throw fail('Informe um custo direto unitário válido.',422);
       const sizePrices=b.sizePrices===undefined?null:await validateSizePrices(old.type,b.sizePrices,price);
       if(name.length<2||!Number.isInteger(price)||price<(old.type==='drink'?1:500)||price>1000000) throw fail('Confira o nome e o preço do produto.',422);
       if(b.categoryId!==undefined){const category=(await query('SELECT id FROM categories WHERE id=$1 AND restaurant_id=$2',[clean(b.categoryId,50),RESTAURANT_ID])).rows[0];if(!category)throw fail('Escolha uma categoria válida.',422);await query('UPDATE products SET category_id=$1 WHERE id=$2 AND restaurant_id=$3',[category.id,id,RESTAURANT_ID]);}
-      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredient_quantities_json=COALESCE($8,ingredient_quantities_json),ingredients_configured=CASE WHEN $9 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($10,image_url),product_images_json=COALESCE($14,product_images_json),age_restricted=$15,size_prices_json=COALESCE($16,size_prices_json),updated_at=$11 WHERE id=$12 AND restaurant_id=$13',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientQuantities===null?null:JSON.stringify(ingredientQuantities),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices)]);
+      await query('UPDATE products SET name=$1,description=$2,base_price_cents=$3,active=$4,available=$5,ingredient_ids_json=COALESCE($6,ingredient_ids_json),default_ingredient_ids_json=COALESCE($7,default_ingredient_ids_json),ingredient_quantities_json=COALESCE($8,ingredient_quantities_json),ingredients_configured=CASE WHEN $9 THEN 1 ELSE ingredients_configured END,image_url=COALESCE($10,image_url),product_images_json=COALESCE($14,product_images_json),age_restricted=$15,size_prices_json=COALESCE($16,size_prices_json),cost_cents=$17,updated_at=$11 WHERE id=$12 AND restaurant_id=$13',[name,description,price,active,available,ingredientIds===null?null:JSON.stringify(ingredientIds),defaultIngredientIds===null?null:JSON.stringify(defaultIngredientIds),ingredientQuantities===null?null:JSON.stringify(ingredientQuantities),ingredientIds!==null||defaultIngredientIds!==null,storedImageUrl,new Date().toISOString(),id,RESTAURANT_ID,storedImages===null?null:JSON.stringify(storedImages),ageRestricted,sizePrices===null?null:JSON.stringify(sizePrices),costCents]);
       return json(res,200,{product:(await catalogFor(true)).products.find(p=>p.id===id)});
     }
     if (method==='POST'&&path==='/api/admin/ingredients') {
