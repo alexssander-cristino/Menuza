@@ -646,9 +646,10 @@ async function orderById(id) {
 async function coupons(code) {
   return (await query('SELECT * FROM coupons WHERE restaurant_id=$1 AND code=$2', [RESTAURANT_ID, normalizeCoupon(code)])).rows[0] || null;
 }
-function couponDiscount(c, subtotal) {
+function couponDiscount(c, subtotal, customerId=null) {
   const now = Date.now();
   if (!c || Number(c.active) !== 1) throw fail('Cupom inválido ou inativo.', 422);
+  if (c.customer_id && String(c.customer_id)!==String(customerId||'')) throw fail('Este cupom foi emitido para outra conta.',422);
   if (c.starts_at && now < Date.parse(c.starts_at)) throw fail('Esse cupom ainda não está válido.', 422);
   if (c.expires_at && now > Date.parse(c.expires_at)) throw fail('Esse cupom expirou.', 422);
   if (c.max_uses !== null && Number(c.used_count) >= Number(c.max_uses)) throw fail('Esse cupom atingiu o limite de utilizações.', 422);
@@ -740,7 +741,7 @@ async function createOrder(body, customer) {
   const customerId=customer?.id||null;
   const code=normalizeCoupon(body.couponCode);
   let discount=0, coupon=null;
-  if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal); }
+  if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal,customerId); }
   const delivery=await calculateDelivery(body);
   const total=Math.max(0,subtotal-discount)+delivery.feeCents;
   const id='BM-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+randomBytes(3).toString('hex').toUpperCase();
@@ -839,7 +840,7 @@ async function saveCoupon(body,id=null) {
   await recordAdminAudit(id?'coupon.updated':'coupon.created','coupon',result.rows[0].id,{code});
   return couponPublic(result.rows[0]);
 }
-function couponPublic(row) { return {id:row.id,code:row.code,discountType:row.discount_type,discountValue:Number(row.discount_value),minimumSubtotalCents:Number(row.minimum_subtotal_cents),startsAt:row.starts_at,expiresAt:row.expires_at,maxUses:row.max_uses===null?null:Number(row.max_uses),usedCount:Number(row.used_count),active:Number(row.active)===1,createdAt:row.created_at}; }
+function couponPublic(row) { return {id:row.id,code:row.code,discountType:row.discount_type,discountValue:Number(row.discount_value),minimumSubtotalCents:Number(row.minimum_subtotal_cents),startsAt:row.starts_at,expiresAt:row.expires_at,maxUses:row.max_uses===null?null:Number(row.max_uses),usedCount:Number(row.used_count),active:Number(row.active)===1,customerId:row.customer_id||null,personalized:Boolean(row.customer_id),createdAt:row.created_at}; }
 async function saveCombo(body,id=null) {
   const name=clean(body.name,80), description=clean(body.description,240), price=Number(body.priceCents), entries=Array.isArray(body.items)?body.items:[];
   if (name.length<2||!Number.isInteger(price)||price<100||price>1000000) throw fail('Informe nome e preço válido para o combo.',422);
@@ -1438,8 +1439,8 @@ export default async function handler(req, res) {
     if (method==='POST'&&path==='/api/admin/coupons') return json(res,201,{coupon:await saveCoupon(await bodyOf(req))});
     if (method==='PATCH'&&path.startsWith('/api/admin/coupons/')) return json(res,200,{coupon:await saveCoupon(await bodyOf(req),id)});
     if (method==='POST'&&path==='/api/coupons/validate') {
-      await requireCustomer(req); const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
-      const {subtotal}=await priceItems(b.items), code=normalizeCoupon(b.code), discount=couponDiscount(await coupons(code),subtotal);
+      const current=await requireCustomer(req); const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
+      const {subtotal}=await priceItems(b.items), code=normalizeCoupon(b.code), discount=couponDiscount(await coupons(code),subtotal,current.customer.id);
       return json(res,200,{code,subtotalCents:subtotal,discountCents:discount,totalCents:subtotal-discount});
     }
     if (method==='GET'&&path==='/api/admin/combos') { const c=await catalogFor(true); return json(res,200,{combos:c.combos,products:c.products}); }
