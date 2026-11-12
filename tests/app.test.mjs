@@ -159,7 +159,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     ['PUT', '/api/admin/pizza-config'], ['PATCH', '/api/admin/orders/pedido-inexistente/payment']
   ];
   for (const [method, path] of unauthenticatedAdminRoutes) {
-    const response = await fetch(base + path, { method });
+    const response = await fetch(base + path, { method, headers: { Origin: base } });
     assert.equal(response.status, 401, method + ' ' + path + ' must reject unauthenticated access');
   }
   const adminMe = await fetch(base + '/api/admin/me');
