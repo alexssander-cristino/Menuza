@@ -30,7 +30,7 @@ const json = (res, status, body, headers = {}) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Permissions-Policy': 'camera=(self), xr-spatial-tracking=(self), microphone=(), geolocation=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Origin-Agent-Cluster': '?1',
     ...(IS_PROD ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {}),
@@ -958,6 +958,7 @@ export default async function handler(req, res) {
       if(orderRetry) return json(res,429,{error:'Muitos pedidos foram enviados deste endereço. Aguarde antes de tentar novamente.'},{'Retry-After':String(orderRetry)});
     }
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
+    if(path.startsWith('/api/admin/')&&!['/api/admin/login','/api/admin/logout','/api/admin/me'].includes(path)) await requireAdmin(req);
     if(path.startsWith('/api/admin/'))await ensureOperationsSchema();
     if(method==='POST'&&path==='/api/customer/abandoned-cart'){
       await ensureOperationsSchema();
