@@ -189,8 +189,8 @@ function requireAdmin(request) {
 function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
-  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(session.customerId);
-  return customer ? { ...session, customer: {...customer,isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
+  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(session.customerId);
+  return customer ? { ...session, customer: {...customer,marketingConsent:Boolean(customer.marketingConsentAt),isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
 }
 function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
 function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
@@ -214,8 +214,8 @@ function createCustomer(payload) {
   if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
   if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
   const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
-  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
-  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(id),isAdult:birth.isAdult};
+  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at,marketing_consent_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString(),payload.marketingConsent===true?new Date().toISOString():null);
+  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(id),marketingConsent:payload.marketingConsent===true,isAdult:birth.isAdult};
 }
 function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
 function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
@@ -398,13 +398,13 @@ function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/
 function couponPublic(row) {
   return { id: row.id, code: row.code, discountType: row.discount_type, discountValue: row.discount_value,
     minimumSubtotalCents: row.minimum_subtotal_cents, startsAt: row.starts_at, expiresAt: row.expires_at,
-    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, createdAt: row.created_at };
+    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, customerId: row.customer_id||null, personalized:Boolean(row.customer_id), createdAt: row.created_at };
 }
 function getCoupon(code) {
   return statement('SELECT * FROM coupons WHERE restaurant_id=? AND code=?').get(RESTAURANT_ID, couponCode(code));
 }
-function couponEligibility(coupon, subtotalCents, now = new Date()) {
-  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });
+function couponEligibility(coupon, subtotalCents, now = new Date(), customerId = null) {
+  if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });\n  if (coupon.customer_id && String(coupon.customer_id)!==String(customerId||'')) throw Object.assign(new Error('Este cupom foi emitido para outra conta.'), { status: 422 });
   const time = now.getTime();
   if (coupon.starts_at && time < Date.parse(coupon.starts_at)) throw Object.assign(new Error('Esse cupom ainda não está válido.'), { status: 422 });
   if (coupon.expires_at && time > Date.parse(coupon.expires_at)) throw Object.assign(new Error('Esse cupom expirou.'), { status: 422 });
@@ -446,12 +446,12 @@ function priceOrderItems(itemsInput) {
   });
   return { subtotalCents, pricedItems, requiresAdult: pricedItems.some(item => item.product.ageRestricted === true || Number(item.product.ageRestricted) === 1) };
 }
-function validateCouponForOrder(code, itemsInput) {
+function validateCouponForOrder(code, itemsInput, customerId = null) {
   const { subtotalCents } = priceOrderItems(itemsInput);
   const normalized = couponCode(code);
   if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
   const coupon = getCoupon(normalized);
-  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
+  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents, new Date(), customerId) };
 }
 function saveCombo(payload, id = null) {
   const name = cleanText(payload.name, 80);
@@ -574,7 +574,7 @@ function createOrder(payload, customer = null) {
       .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
     if (normalizedCouponCode) {
       const coupon = getCoupon(normalizedCouponCode);
-      couponEligibility(coupon, subtotalCents);
+      couponEligibility(coupon, subtotalCents, new Date(), customerId);
       // A validade de uso também é aplicada no UPDATE: o limite continua
       // protegido no banco, mesmo se o fluxo for alterado futuramente.
       const usage = statement("UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=? AND active=1 AND (max_uses IS NULL OR used_count < max_uses)").run(coupon.id,RESTAURANT_ID);
