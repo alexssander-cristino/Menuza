@@ -1,6 +1,6 @@
 // Integrações do Menuza: Google Tag Manager com Consent Mode e Cloudflare Turnstile.
 (function(){
-  const configPromise=fetch('/api/public/integrations',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'}).then(async response=>{if(!response.ok)throw new Error('A API pública de integrações respondeu HTTP '+response.status+'.');const config=await response.json();if(!config||typeof config!=='object')throw new Error('A configuração pública do Menuza é inválida.');return config;}).catch(error=>{console.error('[Menuza integrations] Não foi possível carregar a configuração pública:',error);return {integrationError:error?.message||'Falha ao carregar as integrações.'};});
+  const configPromise=fetch('/api/dispatch?path=public%2Fintegrations',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'}).then(async response=>{if(!response.ok)throw new Error('A API pública de integrações respondeu HTTP '+response.status+'.');const config=await response.json();if(!config||typeof config!=='object')throw new Error('A configuração pública do Menuza é inválida.');return config;}).catch(error=>{console.error('[Menuza integrations] Não foi possível carregar a configuração pública:',error);return {integrationError:error?.message||'Falha ao carregar as integrações.'};});
   let turnstilePromise=null;
   const turnstileStatus=(holder,message,isError=false)=>{
     if(!holder)return;
