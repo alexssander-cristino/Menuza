@@ -2006,7 +2006,7 @@ async function renderCatalogAdmin(productType='pizza'){
       if(['burger','plate'].includes(data.get('type'))&&(!Number.isFinite(enteredPrice)||enteredPrice<5||enteredPrice>10000)){const priceInput=form.querySelector('[name="basePrice"]');priceInput.setAttribute('aria-invalid','true');priceInput.focus();errorNode.textContent='Informe um preço entre R$ 5,00 e R$ 10.000,00.';return;}
       const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
       const ingredientQuantities=['burger','plate'].includes(data.get('type'))?Object.fromEntries(selectedRecipe.map(id=>[id,Math.max(1,Math.min(20,Number(form.querySelector('[data-ingredient-quantity="'+CSS.escape(id)+'"]')?.value)||1))])):{};
-      const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value).filter(id=>!selectedRecipe.includes(id));
+      const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value);
       const ingredientIds=selectedAddons;
       button.disabled=true;button.textContent='Salvando produto…';errorNode.textContent='';
       try{
@@ -2898,7 +2898,7 @@ async function saveProduct(id){
   const productType=app.catalog?.products.find(item=>item.id===id)?.type;
   const ingredientQuantities=['burger','plate'].includes(productType)?Object.fromEntries(defaultIngredientIds.map(ingredientId=>[ingredientId,Math.max(1,Math.min(20,Number(row.querySelector('[data-ingredient-quantity="'+CSS.escape(ingredientId)+'"]')?.value)||1))])):{},priceInput=row.querySelector('.product-base-price-input'),baseCents=priceInput?Math.round(Number(String(priceInput.value||'').replace(',','.'))*100):undefined;
    if(priceInput&&(!Number.isInteger(baseCents)||baseCents<500||baseCents>1000000)){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 5,00 e R$ 10.000,00.');return;}
-  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value).filter(id=>!defaultIngredientIds.includes(id));
+  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
   const ingredientIds=selectedAddons;
   button.disabled=true;button.textContent='Salvando…';
   try{
