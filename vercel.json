@@ -28,7 +28,7 @@
           "key": "Referrer-Policy"
         },
         {
-          "value": "camera=(), microphone=(), geolocation=()",
+          "value": "camera=(self), xr-spatial-tracking=(self), microphone=(), geolocation=()",
           "key": "Permissions-Policy"
         },
         {
