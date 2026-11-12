@@ -34,4 +34,4 @@ O painel já possui a seção **Vendas** e o Centro Fiscal com vendas, descontos
 
 ## Impressão
 
-A impressão automática depende do Agente de Impressão Menuza instalado e ativo no computador do restaurante. Se o agente estiver desligado, a comanda ainda pode ser impressa manualmente no painel. Não há como garantir impressão remota enquanto o computador/agente estiver offline.
+A impressão automática depende do Agente de Impressão Menuza instalado e ativo no computador do restaurante. Se o agente estiver desligado, os IDs das comandas que falharam ficam guardados no navegador e o painel oferece a ação **Reimprimir pendentes** quando o agente voltar. A impressão manual individual continua disponível. Não há como imprimir remotamente enquanto o computador/agente estiver offline.
