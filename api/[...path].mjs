@@ -23,7 +23,7 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const clean = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const normalizeEmail = value => clean(value, 254).toLowerCase();
 const normalizeCoupon = value => clean(value, 32).toUpperCase().replace(/\s+/g, '');
-const publicBaseUrl = () => StringpublicBaseUrl().replace(/\/+$/,'');
+const publicBaseUrl = () => String(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app').replace(/\/+$/,'');
 const json = (res, status, body, headers = {}) => {
   for (const [key, value] of Object.entries({
     'Content-Type': 'application/json; charset=utf-8',
