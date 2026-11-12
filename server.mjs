@@ -880,7 +880,8 @@ const server = createServer(async (request, response) => {
         const customer=requireCustomer(request).customer;
         const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
         const history=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 20').all(RESTAURANT_ID,customer.id);
-        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history});
+        const coupons=statement("SELECT code,discount_type AS discountType,discount_value AS discountValue,expires_at AS expiresAt FROM coupons WHERE restaurant_id=? AND customer_id=? AND active=1 AND (expires_at IS NULL OR expires_at>datetime('now')) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20").all(RESTAURANT_ID,customer.id);
+        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history,coupons});
       }
       if (request.method === 'POST' && path === '/api/customer/loyalty/redeem') {
         const customer=requireCustomer(request).customer,now=new Date(),expires=new Date(now.getTime()+30*86400000),couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase();
