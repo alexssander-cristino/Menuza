@@ -32,6 +32,7 @@ test('P2: recuperação respeita consentimento e oferece descadastro', async () 
   const local = await read('server.mjs');
   const ui = await read('public/app.js');
   const vercel = JSON.parse(await read('vercel.json'));
+  const remindersWorkflow = await read('.github/workflows/abandoned-cart-reminders.yml');
   assert.ok(api.includes('marketing_consent_at IS NOT NULL'));
   assert.ok(api.includes("path==='/api/cron/inactive-customers'"));
   assert.ok(api.includes("path==='/api/customer/marketing-unsubscribe'"));
@@ -40,7 +41,8 @@ test('P2: recuperação respeita consentimento e oferece descadastro', async () 
   assert.ok(ui.includes('name="marketingConsent"'));
   assert.ok(ui.includes('toggle-marketing-consent'));
   assert.equal(vercel.crons.find(job=>job.path==='/api/cron/inactive-customers').schedule,'0 15 * * 1');
-  assert.ok(vercel.crons.some(job=>job.path==='/api/cron/abandoned-carts'));
+  assert.ok(remindersWorkflow.includes("cron: '*/15 * * * *'"));
+  assert.ok(remindersWorkflow.includes('secrets.CRON_SECRET'));
 });
 
 test('P2: painel lista clientes inativos e permite cupom individual com consentimento', async () => {
