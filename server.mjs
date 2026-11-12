@@ -901,6 +901,9 @@ const server = createServer(async (request, response) => {
         db.exec('BEGIN');
         try {
           statement('UPDATE orders SET customer_id=NULL WHERE customer_id=?').run(customer.id);
+          statement('DELETE FROM loyalty_points_ledger WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
+          statement('DELETE FROM customer_recovery_campaigns WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
+          statement('UPDATE coupons SET customer_id=NULL,active=0 WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
           statement('DELETE FROM customers WHERE id=?').run(customer.id);
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
