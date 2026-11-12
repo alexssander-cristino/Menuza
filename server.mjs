@@ -869,7 +869,8 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/customer/data-export') {
         const customer = requireCustomer(request).customer;
         const loyalty=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC').all(RESTAURANT_ID,customer.id);
-        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate,marketingConsent:customer.marketingConsent},loyalty,orders:listCustomerOrders(customer.id)});
+        const personalCoupons=statement('SELECT code,discount_type AS discountType,discount_value AS discountValue,expires_at AS expiresAt,active,used_count AS usedCount FROM coupons WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC').all(RESTAURANT_ID,customer.id);
+        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate,marketingConsent:customer.marketingConsent},loyalty,personalCoupons,orders:listCustomerOrders(customer.id)});
       }
       if (request.method === 'PATCH' && path === '/api/customer/marketing-consent') {
         const current=requireCustomer(request),body=await bodyOf(request),enabled=body.enabled===true;
