@@ -1584,7 +1584,8 @@ async function sendOrderToLocalPrinter(order,retry=false){
     const failed=readFailedPrintIds().filter(id=>id!==String(order.id));writeFailedPrintIds(failed);
     toast('Comanda '+String(order.id)+' enviada para impressão.');
   }catch(error){
-    const failed=readFailedPrintIds();if(!failed.includes(String(order.id))){failed.push(String(order.id));writeFailedPrintIds(failed)}\n    if(!app.admin.printAgentWarningShown){
+    const failed=readFailedPrintIds();if(!failed.includes(String(order.id))){failed.push(String(order.id));writeFailedPrintIds(failed)}
+    if(!app.admin.printAgentWarningShown){
       app.admin.printAgentWarningShown=true;
       toast('Pedido recebido. Para imprimir automaticamente, instale e inicie o Agente de Impressão Menuza neste computador.');
     }
@@ -2013,7 +2014,8 @@ async function renderCatalogAdmin(productType='pizza'){
       const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),errorNode=root.getElementById('newProductError');
       if(button.disabled)return;
       const data=new FormData(form),costCents=Math.round(Number(String(data.get('costPrice')||'0').replace(',','.'))*100),sharedPizza=catalog.products.find(product=>product.type==='pizza'),sizePrices=data.get('type')==='pizza'&&sharedPizza?{...(sharedPizza.sizePrices||{})}:{},enteredPrice=Number(String(data.get('basePrice')||'').replace(',','.')),price=data.get('type')==='pizza'&&Object.keys(sizePrices).length?Math.min(...Object.values(sizePrices)):['burger','plate'].includes(data.get('type'))?Math.round(enteredPrice*100):500;
-      if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){errorNode.textContent='Informe um custo direto unitário entre R$ 0,00 e R$ 10.000,00.';return;}\n      if(['burger','plate'].includes(data.get('type'))&&(!Number.isFinite(enteredPrice)||enteredPrice<5||enteredPrice>10000)){const priceInput=form.querySelector('[name="basePrice"]');priceInput.setAttribute('aria-invalid','true');priceInput.focus();errorNode.textContent='Informe um preço entre R$ 5,00 e R$ 10.000,00.';return;}
+      if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){errorNode.textContent='Informe um custo direto unitário entre R$ 0,00 e R$ 10.000,00.';return;}
+      if(['burger','plate'].includes(data.get('type'))&&(!Number.isFinite(enteredPrice)||enteredPrice<5||enteredPrice>10000)){const priceInput=form.querySelector('[name="basePrice"]');priceInput.setAttribute('aria-invalid','true');priceInput.focus();errorNode.textContent='Informe um preço entre R$ 5,00 e R$ 10.000,00.';return;}
       const selectedRecipe=[...form.querySelectorAll('[name="defaultIngredientIds"]:checked')].map(input=>input.value);
       const ingredientQuantities=['burger','plate'].includes(data.get('type'))?Object.fromEntries(selectedRecipe.map(id=>[id,Math.max(1,Math.min(20,Number(form.querySelector('[data-ingredient-quantity="'+CSS.escape(id)+'"]')?.value)||1))])):{};
       const selectedAddons=[...form.querySelectorAll('[name="ingredientIds"]:checked')].map(input=>input.value);
@@ -2065,7 +2067,8 @@ async function saveBeverage(id){
   const categoryId=row.querySelector('.beverage-category-input')?.value||'';
   const description=String(row.querySelector('.beverage-description-input')?.value||'').trim();
   const costCents=Math.round(Number(String(row.querySelector('.beverage-cost-input')?.value||'0').replace(',','.'))*100);
-  if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){toast('Informe um custo unitário válido.');return}\n  const active=Boolean(row.querySelector('.beverage-active-input')?.checked);
+  if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){toast('Informe um custo unitário válido.');return}
+  const active=Boolean(row.querySelector('.beverage-active-input')?.checked);
   const available=Boolean(row.querySelector('.beverage-available-input')?.checked),ageRestricted=Boolean(row.querySelector('.beverage-age-restricted-input')?.checked);
   if(name.length<2||!Number.isInteger(price)||price<1||price>1000000){toast('Informe nome e preço válido para a bebida.');return}
   button.disabled=true;button.textContent='Salvando…';
@@ -2910,7 +2913,8 @@ async function saveProduct(id){
   const ingredientQuantities=['burger','plate'].includes(productType)?Object.fromEntries(defaultIngredientIds.map(ingredientId=>[ingredientId,Math.max(1,Math.min(20,Number(row.querySelector('[data-ingredient-quantity="'+CSS.escape(ingredientId)+'"]')?.value)||1))])):{},priceInput=row.querySelector('.product-base-price-input'),baseCents=priceInput?Math.round(Number(String(priceInput.value||'').replace(',','.'))*100):undefined;
    if(priceInput&&(!Number.isInteger(baseCents)||baseCents<500||baseCents>1000000)){priceInput.setAttribute('aria-invalid','true');priceInput.focus();toast('Informe um preço entre R$ 5,00 e R$ 10.000,00.');return;}
   const costInput=row.querySelector('.product-cost-price-input'),costCents=Math.round(Number(String(costInput?.value||'0').replace(',','.'))*100);
-  if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){costInput?.focus();toast('Informe um custo unitário entre R$ 0,00 e R$ 10.000,00.');return;}\n  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
+  if(!Number.isInteger(costCents)||costCents<0||costCents>1000000){costInput?.focus();toast('Informe um custo unitário entre R$ 0,00 e R$ 10.000,00.');return;}
+  const selectedAddons=[...row.querySelectorAll('.product-addons-input input:checked')].map(input=>input.value);
   const ingredientIds=selectedAddons;
   button.disabled=true;button.textContent='Salvando…';
   try{
