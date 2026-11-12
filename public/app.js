@@ -647,7 +647,7 @@ function renderBuilder() {
   const buildYourOwnDefaults = new Set(isBuildYourOwn ? (buildYourOwnProduct.defaultIngredientIds || []) : []);
   const buildYourOwnAddonCount = isBuildYourOwn ? builder.ingredients.filter(item => !buildYourOwnDefaults.has(item.id)).length : 0;
   const isBurgerOrHotdog = ['burger', 'plate'].includes(product.type);
-  const addonDefaults = new Set(product.ingredientsConfigured ? (product.defaultIngredientIds || []) : defaultIngredients(product, app.catalog).map(item => item.id));
+  const addonDefaults = new Set([...defaultIngredients(product, app.catalog).map(item => item.id), ...app.catalog.ingredients.filter(item => item.type === product.type && item.active !== 0 && item.included).map(item => item.id)]);
   const addonAllowedIds = new Set(product.ingredientIds || []);
   const addonCount = isBurgerOrHotdog ? builder.ingredients.reduce((sum,item)=>sum+(addonDefaults.has(item.id)?0:Math.max(1,Math.min(20,Number(item.quantity)||1))),0) : builder.ingredients.filter(item => !addonDefaults.has(item.id)).length;
   const ingredientLimit = isBuildYourOwn ? 3 : isBurgerOrHotdog ? 10 : 12;
@@ -816,7 +816,7 @@ async function addBuilderToCart() {
   if(builder.promotion&&product.type==='pizza'&&!selectedFlavors.length)return toast('Escolha pelo menos um sabor para continuar com esta oferta.');
   const byoFlavor=buildYourOwnFlavorProduct(product,selectedFlavors);
   if(byoFlavor){const defaults=new Set(byoFlavor.defaultIngredientIds||[]);if([...defaults].some(id=>!builder.ingredients.some(item=>item.id===id))||builder.ingredients.filter(item=>!defaults.has(item.id)).length>3)return toast('Mantenha molho e mussarela e escolha até 3 adicionais na Monte a sua.');}
-  {const defaults=new Set(product.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,app.catalog).map(item=>item.id));const isBurgerOrHotdog=['burger','plate'].includes(product.type);const addonTotal=builder.ingredients.reduce((sum,item)=>sum+(defaults.has(item.id)?0:Math.max(1,Math.min(20,Number(item.quantity)||1))),0);const addonLimit=isBurgerOrHotdog?10:12;if(addonTotal>addonLimit)return toast('Este produto permite selecionar até '+addonLimit+' adicionais, além dos ingredientes da receita padrão.');}
+  {const defaults=new Set([...defaultIngredients(product,app.catalog).map(item=>item.id),...app.catalog.ingredients.filter(item=>item.type===product.type&&item.active!==0&&item.included).map(item=>item.id)]);const isBurgerOrHotdog=['burger','plate'].includes(product.type);const addonTotal=builder.ingredients.reduce((sum,item)=>sum+(defaults.has(item.id)?0:Math.max(1,Math.min(20,Number(item.quantity)||1))),0);const addonLimit=isBurgerOrHotdog?10:12;if(addonTotal>addonLimit)return toast('Este produto permite selecionar até '+addonLimit+' adicionais, além dos ingredientes da receita padrão.');}
   if(!(await ensureAgeForProduct(product)))return;
   const selectedFlavorProducts=product.type==='pizza'?selectedFlavors.map(id=>app.catalog.products.find(item=>item.id===id)).filter(Boolean):[];
   const cartProductName=builder.promotion&&product.type==='pizza'&&selectedFlavorProducts.length?selectedFlavorProducts.map(item=>item.name).join(' / '):product.name;
@@ -3060,7 +3060,7 @@ async function handleClick(event){
   if(target.dataset.ingredient&&app.builder){
     const id=target.dataset.ingredient,index=app.builder.ingredients.findIndex(i=>i.id===id),product=app.catalog.products.find(item=>item.id===app.builder.productId),ingredient=app.catalog.ingredients.find(item=>item.id===id);
     const byoFlavor=buildYourOwnFlavorProduct(product,app.builder.flavorProductIds||[product.id]),buildYourOwn=Boolean(byoFlavor),defaults=buildYourOwn?(byoFlavor.defaultIngredientIds||[]):(product?.ingredientsConfigured?(product.defaultIngredientIds||[]):defaultIngredients(product,app.catalog).map(item=>item.id));
-    const required=buildYourOwn?defaults.includes(id):(product?.ingredientsConfigured?defaults.includes(id):Boolean(ingredient?.included));
+    if(!buildYourOwn)for(const item of app.catalog.ingredients)if(item.type===product?.type&&item.active!==0&&item.included&&!defaults.includes(item.id))defaults.push(item.id);const required=buildYourOwn?defaults.includes(id):defaults.includes(id);
     if(index>=0&&required)return toast('Este ingrediente faz parte da receita padrão e não pode ser removido.');
     if(index>=0)app.builder.ingredients.splice(index,1);else if(buildYourOwn?app.builder.ingredients.filter(item=>!defaults.includes(item.id)).length<3:['burger','plate'].includes(product?.type)?app.builder.ingredients.filter(item=>!defaults.includes(item.id)).reduce((sum,item)=>sum+Math.max(1,Number(item.quantity)||1),0)<10:app.builder.ingredients.filter(item=>!defaults.includes(item.id)).length<12){app.builder.ingredients.push({id,quantity:1});app.builder.lastAdded=id}else return toast(buildYourOwn?'A Monte a sua permite até 3 adicionais, além da receita padrão.':['burger','plate'].includes(product?.type)?'Este produto permite até 10 adicionais.':'O limite é de 12 componentes.');
     renderBuilder();return
