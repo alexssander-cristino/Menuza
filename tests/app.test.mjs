@@ -40,8 +40,34 @@ test('hambúrguer valida tamanho, porções e composição', () => {
     product: burger, sizeKey: 'duplo', ingredients: [{ id: 'pao-brioche' }, { id: 'carne' }, { id: 'queijo-cheddar' }, { id: 'bacon-burger', quantity: 2 }]
   });
   assert.equal(priced.unitPriceCents, 5290);
-  assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 21 }] }), /1 a 20/);
+  assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'bacon-burger', quantity: 21 }] }), /até 10 adicionais/);
   assert.throws(() => calculateItemPrice({ product: burger, sizeKey: 'duplo', ingredients: [{ id: 'calabresa' }] }), /não está disponível/);
+});
+
+test('hambúrguer limita 10 adicionais sem contar a receita padrão e contabiliza extras dos ingredientes padrão', () => {
+  const burger = { type: 'burger', baseCents: 3290 };
+  assert.doesNotThrow(() => calculateItemPrice({
+    product: burger, sizeKey: 'classico',
+    ingredients: [{ id: 'pao-brioche' }, { id: 'bacon-burger', quantity: 10 }]
+  }), 'dez unidades adicionais são permitidas; ingredientes padrão não entram na contagem');
+  assert.throws(() => calculateItemPrice({
+    product: burger, sizeKey: 'classico',
+    ingredients: [{ id: 'pao-brioche' }, { id: 'bacon-burger', quantity: 11 }]
+  }), /até 10 adicionais/);
+
+  const configurableBurger = {
+    type: 'burger', baseCents: 3290,
+    ingredientIds: ['pao-brioche'],
+    ingredientQuantities: { 'pao-brioche': 1 }
+  };
+  assert.doesNotThrow(() => calculateItemPrice({
+    product: configurableBurger, sizeKey: 'classico',
+    ingredients: [{ id: 'pao-brioche', quantity: 11 }]
+  }), 'uma unidade da receita padrão mais dez unidades extras respeita o limite');
+  assert.throws(() => calculateItemPrice({
+    product: configurableBurger, sizeKey: 'classico',
+    ingredients: [{ id: 'pao-brioche', quantity: 12 }]
+  }), /até 10 adicionais/);
 });
 
 test('timeline do pedido mostra o horário real de cada mudança de status', () => {
@@ -111,6 +137,22 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(ready, true, 'server became ready: ' + lastError + ' exit=' + child.exitCode + ' url=' + base);
+  const unauthenticatedAdminRoutes = [
+    ['GET', '/api/admin/dashboard'], ['GET', '/api/admin/orders'],
+    ['GET', '/api/admin/catalog'], ['GET', '/api/admin/security'],
+    ['GET', '/api/admin/analytics'], ['GET', '/api/admin/fiscal/profile'],
+    ['GET', '/api/admin/audit'], ['GET', '/api/admin/events'],
+    ['GET', '/api/admin/privacy-requests'], ['POST', '/api/admin/products'],
+    ['PATCH', '/api/admin/settings'], ['DELETE', '/api/admin/products/produto-inexistente'],
+    ['PUT', '/api/admin/pizza-config'], ['PATCH', '/api/admin/orders/pedido-inexistente/payment']
+  ];
+  for (const [method, path] of unauthenticatedAdminRoutes) {
+    const response = await fetch(base + path, { method });
+    assert.equal(response.status, 401, method + ' ' + path + ' must reject unauthenticated access');
+  }
+  const adminMe = await fetch(base + '/api/admin/me');
+  assert.equal(adminMe.status, 200);
+  assert.equal((await adminMe.json()).authenticated, false, 'admin session probe reveals no private data to anonymous visitors');
   const legalPages = [
     ['/politica-de-privacidade.html', 'Política de privacidade'],
     ['/termos-de-uso.html', 'Termos de uso'],
@@ -368,8 +410,11 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
   assert.equal(wrongPasswordDelete.status, 401, 'account deletion requires password confirmation');
   const accountDelete = await fetch(base + '/api/customer/account', { method: 'DELETE', headers: { 'content-type': 'application/json', ...sameOrigin, cookie: customerCookie }, body: JSON.stringify({ password: 'senha-teste-123' }) });
   assert.equal(accountDelete.status, 200);
-  const deletedAccountCheck = await fetch(base + '/api/customer/me', { headers: { cookie: customerCookie } });
+  assert.match(accountDelete.headers.get('set-cookie') || '', /Max-Age=0/i, 'account deletion clears the browser session cookie');
+  const deletedAccountCheck = await fetch(base + '/api/customer/orders', { headers: { cookie: customerCookie } });
   assert.equal(deletedAccountCheck.status, 401, 'deleted account session is no longer accepted');
+  const deletedAccountMe = await fetch(base + '/api/customer/me', { headers: { cookie: customerCookie } });
+  assert.equal((await deletedAccountMe.json()).authenticated, false, 'the session probe confirms the deleted account is anonymous');
   const orderStillExists = await fetch(base + '/api/admin/orders', { headers: { cookie } });
   assert.equal(orderStillExists.status, 200, 'order history remains available to the restaurant after account deletion');
 });
