@@ -119,7 +119,7 @@ function normalizeCartForCatalog(value, catalog) {
     if (product.type === 'plate') item.sizeKey = 'unico';
     else if (product.type === 'burger') item.sizeKey = 'classico';
     else if (!(sizes[product.type] || []).some(option => option.key === item.sizeKey)) return false;
-    if (!Array.isArray(item.ingredients) || item.ingredients.length > 12) return false;
+    if (!Array.isArray(item.ingredients) || item.ingredients.length > 50) return false;
     const byoFlavor = buildYourOwnFlavorProduct(product, item.flavorProductIds?.length ? item.flavorProductIds : [product.id]);
     if (byoFlavor) { const defaults = new Set(byoFlavor.defaultIngredientIds || []); if ([...defaults].some(id => !item.ingredients.some(entry => entry?.id === id)) || item.ingredients.filter(entry => !defaults.has(entry?.id)).length > 3) return false; }
     if (product.type === 'pizza' && !catalog.crusts.some(option => option.key === item.crustKey)) return false;
