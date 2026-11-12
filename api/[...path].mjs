@@ -71,6 +71,13 @@ async function ensureOperationsSchema(){
     await query('CREATE INDEX IF NOT EXISTS admin_audit_log_entity_idx ON admin_audit_log(restaurant_id,entity_type,entity_id,created_at DESC)');
     await query(`CREATE TABLE IF NOT EXISTS abandoned_cart_reminders(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,email TEXT NOT NULL,cart_summary TEXT NOT NULL,subtotal_cents INTEGER NOT NULL DEFAULT 0,consent_at TIMESTAMPTZ NOT NULL,scheduled_at TIMESTAMPTZ NOT NULL,sent_at TIMESTAMPTZ,converted_at TIMESTAMPTZ,processing_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await query('CREATE INDEX IF NOT EXISTS abandoned_cart_due_idx ON abandoned_cart_reminders(restaurant_id,scheduled_at) WHERE sent_at IS NULL AND converted_at IS NULL');
+    await query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ');
+    await query('ALTER TABLE coupons ADD COLUMN IF NOT EXISTS customer_id TEXT');
+    await query('CREATE INDEX IF NOT EXISTS coupons_customer_idx ON coupons(restaurant_id,customer_id) WHERE customer_id IS NOT NULL');
+    await query(`CREATE TABLE IF NOT EXISTS loyalty_points_ledger(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,points INTEGER NOT NULL,reason TEXT NOT NULL,order_id TEXT UNIQUE,coupon_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS loyalty_customer_created_idx ON loyalty_points_ledger(restaurant_id,customer_id,created_at DESC)');
+    await query(`CREATE TABLE IF NOT EXISTS customer_recovery_campaigns(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,coupon_id TEXT NOT NULL,email TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS customer_recovery_sent_idx ON customer_recovery_campaigns(restaurant_id,customer_id,sent_at DESC)');
   })().catch(error=>{operationsSchemaPromise=null;throw error});
   await operationsSchemaPromise;
 }
