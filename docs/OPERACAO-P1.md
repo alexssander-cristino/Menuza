@@ -22,7 +22,7 @@ O workflow `.github/workflows/operational-monitoring.yml` consulta a cada cinco 
 
 Configure a variável de repositório `MENUZA_HEALTH_URL` com a URL base completa, por exemplo `https://menuza-five.vercel.app/api/health`. Configure `ALERT_WEBHOOK_URL` como secret para receber alertas. Sem webhook, a falha aparece no histórico do GitHub Actions.
 
-O worker envia heartbeat ao buscar a fila. O status é considerado atrasado após 180 segundos. Se o worker não estiver configurado, ele é tratado como recurso opcional e não derruba a saúde da API.
+O worker envia heartbeat ao buscar a fila e a cada 30 segundos durante a inferência. O status é considerado atrasado após 180 segundos. Se o worker não estiver configurado, ele é tratado como recurso opcional e não derruba a saúde da API.
 
 ## Fila 3D
 
@@ -30,7 +30,7 @@ Trabalhos presos em `processing` por mais de 20 minutos voltam para `queued` at�
 
 ## Relatórios e margem
 
-O painel já possui a seção **Vendas** e o Centro Fiscal com vendas, descontos, ticket médio, modalidades e conciliação manual. A margem de contribuição real exige custo de ingredientes/embalagens por produto e atualização desses custos; não se deve tratar despesas gerais do mês como custo variável por item. O gateway de pagamento não faz parte deste escopo.
+O painel já possui a seção **Vendas** e o Centro Fiscal com vendas, descontos, ticket médio, modalidades e conciliação manual. Cadastre o custo direto médio unitário (ingredientes e embalagem) no formulário de cada produto/bebida. A margem apresentada considera somente itens com custo cadastrado e usa o custo unitário atual como estimativa para o período; não se deve tratar despesas gerais do mês como custo variável por item. O gateway de pagamento não faz parte deste escopo.
 
 ## Impressão
 
