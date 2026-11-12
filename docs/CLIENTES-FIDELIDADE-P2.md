@@ -35,7 +35,7 @@ Configure nas variáveis/segredos da Vercel:
 - `RESEND_FROM_EMAIL`: remetente verificado no Resend.
 - `MENUZA_PUBLIC_URL`: URL pública do cardápio, por exemplo `https://menuza-five.vercel.app` (opcional; existe fallback).
 
-O agendamento semanal está declarado em `vercel.json`. O ambiente local SQLite não executa o cron de e-mail; nele, a tela de clientes permite gerar o cupom pessoal e copiar o código manualmente.
+A campanha de clientes inativos roda pelo Vercel Cron semanal declarado em `vercel.json`. Os lembretes de carrinho abandonado continuam a cada 15 minutos por GitHub Actions em `.github/workflows/abandoned-cart-reminders.yml`, evitando exigir cron subdiário do plano Vercel Hobby. Configure também o secret `CRON_SECRET` no GitHub Actions com o mesmo valor definido na Vercel e, opcionalmente, a variável `MENUZA_PUBLIC_URL` no GitHub. O ambiente local SQLite não executa cron de e-mail; nele, a tela de clientes permite gerar o cupom pessoal e compartilhar o código manualmente.
 
 ## Indicadores
 
