@@ -741,6 +741,10 @@ function updateStatus(orderId, nextStatus) {
   try {
     statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
+    if(nextStatus==='completed'&&order.customer_id){
+      const points=Math.floor(Math.max(0,Number(order.total_cents||0))/100);
+      if(points>0)statement("INSERT OR IGNORE INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES(?,?,?,?,'order_completed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,orderId,now);
+    }
     // Ao concluir ou cancelar um pedido consumido na mesa, ela precisa entrar
     // em limpeza — nunca voltar direto para livre sem a preparação da equipe.
     if (order.fulfillment === 'table' && ['completed','cancelled'].includes(nextStatus) && order.table_label) {
