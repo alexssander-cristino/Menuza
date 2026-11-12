@@ -920,7 +920,7 @@ const server = createServer(async (request, response) => {
         requireCustomer(request);
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const result = validateCouponForOrder(body.code, body.items);
+        const customer = requireCustomer(request).customer;\n        const result = validateCouponForOrder(body.code, body.items, customer.id);
         return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
       }
       if (request.method === 'GET' && path === '/api/admin/analytics') {
