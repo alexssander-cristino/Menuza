@@ -32,7 +32,7 @@ const C = {
   corn: lin('#f2b72a'), chicken: lin('#d4a96a'), chickenBrown: lin('#94632d'),
   cream: lin('#f8f1df'), herb: lin('#506027'), herbLight: lin('#7d923b'), basil: lin('#2f7b3f'), basilLight: lin('#75ad58'),
   ceramic: lin('#f1ede3'), ceramicLine: lin('#a9b6bb'),
-  potato: lin('#e8b04a'), potatoSkin: lin('#a35c20'), potatoDark: lin('#6e3a14'),    wood: lin('#4a2f1d'),
+  potato: lin('#e8b04a'), potatoSkin: lin('#a35c20'), potatoDark: lin('#6e3a14'), rosemary: lin('#506b32'), wood: lin('#4a2f1d'),
   // pizza brasileira
   pizzaWoodA: lin('#c79a63'), pizzaWoodB: lin('#e3bf8a'),
   ham: lin('#e0948f'), hamDeep: lin('#b8625f'),
@@ -569,7 +569,7 @@ function cheeseMeshPizza(ctx, detail) {
     c = mix(c, lin('#874a29'), browned * .7);
     c = mix(c, lin('#54301d'), freckles * .42);
     c = mix(c, C.mozzBrown, cutGroove(x, z) * .18);
-  return MAT(mul(c, 1 + grain), .30 + toast * .05, .16, .08, 1);  }, Math.round(200 * detail), Math.round(52 * detail));
+  return MAT(mul(c, 1 + grain), .42 + toast * .04, .16, .34, 1);  }, Math.round(200 * detail), Math.round(52 * detail));
 }
 
 function chocolateMeshPizza(ctx, detail, style = 'chocolate') {
