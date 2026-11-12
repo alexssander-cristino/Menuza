@@ -3522,3 +3522,23 @@ button[data-action="view-generated-3d"],
 .promotion-group-actions .button{min-height:27px;padding:5px 9px;font-size:10px}
 .promotion-group-delete{color:#bd3030!important;border-color:#bd303055!important}
 @media(max-width:650px){.promotion-group-actions{width:100%;justify-content:flex-start}}
+
+
+/* P2 — fidelidade e relacionamento com clientes */
+.customer-loyalty-card,.customer-marketing-preferences{border:1px solid var(--border-color,#eadfd8);border-radius:18px;background:var(--surface,#fff);padding:22px;margin:18px 0}
+.customer-loyalty-card{background:linear-gradient(135deg,rgba(210,20,4,.07),rgba(248,143,34,.08))}
+.customer-loyalty-balance{display:flex;align-items:baseline;gap:10px;margin:8px 0}
+.customer-loyalty-balance strong{font-size:clamp(2.2rem,6vw,3.2rem);line-height:1;font-weight:800}
+.customer-loyalty-balance span,.customer-loyalty-history{color:var(--muted,#756b68);font-size:.88rem}
+.customer-loyalty-card p,.customer-marketing-preferences p{color:var(--muted,#756b68);margin:8px 0 14px}
+.customer-loyalty-card button:disabled{opacity:.48;cursor:not-allowed}
+.customer-loyalty-history{display:block;margin-top:12px}
+.customer-marketing-preferences{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.customer-marketing-preferences h3{margin:0;font-size:1rem}
+.customer-retention-list{display:grid;gap:10px}
+.customer-retention-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid var(--border-color,#eadfd8);border-radius:14px}
+.customer-retention-row>div{display:grid;gap:4px;min-width:0}
+.customer-retention-row b{font-weight:750}
+.customer-retention-row small{color:var(--muted,#756b68);overflow-wrap:anywhere}
+.customer-retention-row button{flex-shrink:0}
+@media(max-width:640px){.customer-marketing-preferences,.customer-retention-row{align-items:stretch;flex-direction:column}.customer-marketing-preferences button,.customer-retention-row button{width:100%}}
