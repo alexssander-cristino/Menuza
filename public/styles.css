@@ -3514,3 +3514,11 @@ button[data-action="view-generated-3d"],
 .promotion-admin-info>small{font-size:10px}
 .promotion-admin-group-items .promotion-active-input{margin-right:4px}
 @media(max-width:650px){.promotion-admin-group-head{align-items:flex-start}.promotion-admin-group-settings{justify-content:flex-start;width:100%;gap:8px}.promotion-weekday-editor--group{flex-wrap:wrap}.promotion-admin-group-items>.promotion-admin-row{gap:8px}.promotion-admin-info{flex-basis:100%}}
+
+
+.promotion-group-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.promotion-group-active{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;white-space:nowrap}
+.promotion-group-active input{width:15px;height:15px;margin:0;accent-color:var(--mz-primary,#d21404)}
+.promotion-group-actions .button{min-height:27px;padding:5px 9px;font-size:10px}
+.promotion-group-delete{color:#bd3030!important;border-color:#bd303055!important}
+@media(max-width:650px){.promotion-group-actions{width:100%;justify-content:flex-start}}
