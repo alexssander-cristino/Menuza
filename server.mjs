@@ -854,7 +854,7 @@ const server = createServer(async (request, response) => {
         const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
         if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
         const birthDate=customer.birth_date||null;
-        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate,isAdult:birthDate?parseCustomerBirthDate(birthDate).isAdult:null};
+        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate,marketingConsent:Boolean(customer.marketing_consent_at),isAdult:birthDate?parseCustomerBirthDate(birthDate).isAdult:null};
         return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
