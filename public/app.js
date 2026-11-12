@@ -2157,7 +2157,7 @@ async function issueCustomerCoupon(id,button){
   try{
     const result=await api('/api/admin/customers/'+encodeURIComponent(id)+'/coupon',{method:'POST',body:JSON.stringify({discountPercent:10})});
     try{await navigator.clipboard.writeText(result.coupon.code)}catch{}
-    toast(result.sent?'Cupom '+result.coupon.code+' enviado ao cliente.':'Cupom '+result.coupon.code+' criado e copiado.');
+    toast(result.sent?'Cupom '+result.coupon.code+' enviado ao cliente.':'Cupom pessoal criado: '+result.coupon.code);
     renderCustomerRetentionAdmin();
   }catch(error){toast(error.message||'Não foi possível gerar o cupom.');if(button){button.disabled=false;button.textContent=label}}
 }
