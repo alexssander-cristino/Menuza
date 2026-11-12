@@ -189,10 +189,17 @@ function toast(message) {
 }
 // Comunicação com o backend: centraliza URLs, método HTTP, corpo e tratamento de erros.
 async function api(path, options = {}) {
-  // Cada endpoint é atendido diretamente pelo catch-all api/[...path].mjs.
-  // Evita depender de /api/dispatch e de rewrites que podem não existir
-  // em deployments Vercel ou no Vercel Dev.
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin', cache: options.cache || 'no-store' });
+  let requestPath = path;
+  if (typeof path === 'string' && path.startsWith('/api/')) {
+    const requestUrl = new URL(path, location.origin);
+    const route = requestUrl.pathname.slice('/api/'.length);
+    if (!['health', 'catalog', 'dispatch'].includes(route)) {
+      requestUrl.pathname = '/api/dispatch';
+      requestUrl.searchParams.set('path', route);
+      requestPath = requestUrl.pathname + requestUrl.search;
+    }
+  }
+  const response = await fetch(requestPath, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }, credentials: 'same-origin' });
   let data = {}; try { data = await response.json(); } catch {}
   if (response.status === 429) {
     const retryAfter = Math.max(1, Number(response.headers.get('Retry-After')) || 900);
