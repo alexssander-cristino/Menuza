@@ -38,12 +38,10 @@
       ]
     }
   ],
-  "schedules": {
-    "abandoned-cart-reminders": {
-      "schedule": "*/15 * * * *",
-      "timezone": "America/Sao_Paulo",
-      "path": "/api/cron/abandoned-carts",
-      "requestMethod": "GET"
+  "crons": [
+    {
+      "path": "/api/cron/inactive-customers",
+      "schedule": "0 15 * * *"
     }
-  }
+  ]
 }

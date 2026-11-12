@@ -23,6 +23,7 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const clean = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const normalizeEmail = value => clean(value, 254).toLowerCase();
 const normalizeCoupon = value => clean(value, 32).toUpperCase().replace(/\s+/g, '');
+const publicBaseUrl = () => String(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app').replace(/\/+$/,'');
 const json = (res, status, body, headers = {}) => {
   for (const [key, value] of Object.entries({
     'Content-Type': 'application/json; charset=utf-8',
@@ -71,6 +72,13 @@ async function ensureOperationsSchema(){
     await query('CREATE INDEX IF NOT EXISTS admin_audit_log_entity_idx ON admin_audit_log(restaurant_id,entity_type,entity_id,created_at DESC)');
     await query(`CREATE TABLE IF NOT EXISTS abandoned_cart_reminders(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,email TEXT NOT NULL,cart_summary TEXT NOT NULL,subtotal_cents INTEGER NOT NULL DEFAULT 0,consent_at TIMESTAMPTZ NOT NULL,scheduled_at TIMESTAMPTZ NOT NULL,sent_at TIMESTAMPTZ,converted_at TIMESTAMPTZ,processing_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await query('CREATE INDEX IF NOT EXISTS abandoned_cart_due_idx ON abandoned_cart_reminders(restaurant_id,scheduled_at) WHERE sent_at IS NULL AND converted_at IS NULL');
+    await query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ');
+    await query('ALTER TABLE coupons ADD COLUMN IF NOT EXISTS customer_id TEXT');
+    await query('CREATE INDEX IF NOT EXISTS coupons_customer_idx ON coupons(restaurant_id,customer_id) WHERE customer_id IS NOT NULL');
+    await query(`CREATE TABLE IF NOT EXISTS loyalty_points_ledger(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,points INTEGER NOT NULL,reason TEXT NOT NULL,order_id TEXT UNIQUE,coupon_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS loyalty_customer_created_idx ON loyalty_points_ledger(restaurant_id,customer_id,created_at DESC)');
+    await query(`CREATE TABLE IF NOT EXISTS customer_recovery_campaigns(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,coupon_id TEXT NOT NULL,email TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await query('CREATE INDEX IF NOT EXISTS customer_recovery_sent_idx ON customer_recovery_campaigns(restaurant_id,customer_id,sent_at DESC)');
   })().catch(error=>{operationsSchemaPromise=null;throw error});
   await operationsSchemaPromise;
 }
@@ -150,7 +158,7 @@ async function requireAdmin(req) {
 let customerSchemaPromise;
 // Conta do cliente: garante as colunas e estruturas necessárias para cadastro e autenticação.
 async function ensureCustomerSchema() {
-  if (!customerSchemaPromise) customerSchemaPromise = query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE").catch(error => { customerSchemaPromise = null; throw error; });
+  if (!customerSchemaPromise) customerSchemaPromise = Promise.all([query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date DATE"),query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ")]).catch(error => { customerSchemaPromise = null; throw error; });
   await customerSchemaPromise;
 }
 function parseBirthDate(value) {
@@ -168,9 +176,9 @@ async function customer(req) {
   const value = await session(req, CUSTOMER_COOKIE);
   if (!value || value.role !== 'customer' || !value.customerId) return null;
   await ensureCustomerSchema();
-  const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate" FROM customers WHERE id=$1', [value.customerId]);
+  const result = await query('SELECT id,name,email,phone,birth_date AS "birthDate",marketing_consent_at AS "marketingConsentAt" FROM customers WHERE id=$1', [value.customerId]);
   const row=result.rows[0];
-  return row ? { ...value, customer: {...row,isAdult:row.birthDate?parseBirthDate(String(row.birthDate).slice(0,10)).isAdult:null} } : null;
+  return row ? { ...value, customer: {...row,marketingConsent:Boolean(row.marketingConsentAt),isAdult:row.birthDate?parseBirthDate(String(row.birthDate).slice(0,10)).isAdult:null} } : null;
 }
 async function requireCustomer(req) {
   const value = await customer(req);
@@ -639,9 +647,10 @@ async function orderById(id) {
 async function coupons(code) {
   return (await query('SELECT * FROM coupons WHERE restaurant_id=$1 AND code=$2', [RESTAURANT_ID, normalizeCoupon(code)])).rows[0] || null;
 }
-function couponDiscount(c, subtotal) {
+function couponDiscount(c, subtotal, customerId=null) {
   const now = Date.now();
   if (!c || Number(c.active) !== 1) throw fail('Cupom inválido ou inativo.', 422);
+  if (c.customer_id && String(c.customer_id)!==String(customerId||'')) throw fail('Este cupom foi emitido para outra conta.',422);
   if (c.starts_at && now < Date.parse(c.starts_at)) throw fail('Esse cupom ainda não está válido.', 422);
   if (c.expires_at && now > Date.parse(c.expires_at)) throw fail('Esse cupom expirou.', 422);
   if (c.max_uses !== null && Number(c.used_count) >= Number(c.max_uses)) throw fail('Esse cupom atingiu o limite de utilizações.', 422);
@@ -733,7 +742,7 @@ async function createOrder(body, customer) {
   const customerId=customer?.id||null;
   const code=normalizeCoupon(body.couponCode);
   let discount=0, coupon=null;
-  if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal); }
+  if (code) { coupon=await coupons(code); discount=couponDiscount(coupon,subtotal,customerId); }
   const delivery=await calculateDelivery(body);
   const total=Math.max(0,subtotal-discount)+delivery.feeCents;
   const id='BM-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+randomBytes(3).toString('hex').toUpperCase();
@@ -794,6 +803,11 @@ async function updateOrderStatus(id, next) {
     const now=new Date().toISOString();
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
+    if(next==='completed'&&order.customer_id){
+      const pointsBase=await client.query('SELECT COALESCE(SUM(unit_price_cents*quantity),0)::bigint AS subtotal FROM order_items WHERE order_id=$1',[id]);
+      const points=Math.floor(Math.max(0,Number(pointsBase.rows[0]?.subtotal||0)-Number(order.discount_cents||0))/100);
+      if(points>0)await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES($1,$2,$3,$4,'order_completed',$5,$6) ON CONFLICT(order_id) DO NOTHING",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,id,now]);
+    }
     await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.status_changed','order',id,JSON.stringify({from:order.status,to:next})]);
     if (order.fulfillment==='table'&&['completed','cancelled'].includes(next)&&order.table_label) await client.query(`UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3`,[now,RESTAURANT_ID,Number(order.table_label)]);
   });
@@ -832,7 +846,7 @@ async function saveCoupon(body,id=null) {
   await recordAdminAudit(id?'coupon.updated':'coupon.created','coupon',result.rows[0].id,{code});
   return couponPublic(result.rows[0]);
 }
-function couponPublic(row) { return {id:row.id,code:row.code,discountType:row.discount_type,discountValue:Number(row.discount_value),minimumSubtotalCents:Number(row.minimum_subtotal_cents),startsAt:row.starts_at,expiresAt:row.expires_at,maxUses:row.max_uses===null?null:Number(row.max_uses),usedCount:Number(row.used_count),active:Number(row.active)===1,createdAt:row.created_at}; }
+function couponPublic(row) { return {id:row.id,code:row.code,discountType:row.discount_type,discountValue:Number(row.discount_value),minimumSubtotalCents:Number(row.minimum_subtotal_cents),startsAt:row.starts_at,expiresAt:row.expires_at,maxUses:row.max_uses===null?null:Number(row.max_uses),usedCount:Number(row.used_count),active:Number(row.active)===1,customerId:row.customer_id||null,personalized:Boolean(row.customer_id),createdAt:row.created_at}; }
 async function saveCombo(body,id=null) {
   const name=clean(body.name,80), description=clean(body.description,240), price=Number(body.priceCents), entries=Array.isArray(body.items)?body.items:[];
   if (name.length<2||!Number.isInteger(price)||price<100||price>1000000) throw fail('Informe nome e preço válido para o combo.',422);
@@ -962,6 +976,38 @@ export default async function handler(req, res) {
     const parts=path.split('/').filter(Boolean), id=decodeURIComponent(parts.at(-1)||'');
     if(path.startsWith('/api/admin/')&&!['/api/admin/login','/api/admin/logout','/api/admin/me'].includes(path)) await requireAdmin(req);
     if(path.startsWith('/api/admin/'))await ensureOperationsSchema();
+    if(method==='GET'&&path==='/api/customer/marketing-unsubscribe'){
+      const token=String(requestUrl.searchParams.get('token')||''),parts=token.split('.');
+      if(parts.length!==2)throw fail('Link de descadastro inválido.',400);
+      const expected=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(parts[0]).digest(),given=Buffer.from(parts[1],'base64url');
+      if(given.length!==expected.length||!timingSafeEqual(given,expected))throw fail('Link de descadastro inválido.',400);
+      let payload;try{payload=JSON.parse(Buffer.from(parts[0],'base64url').toString('utf8'))}catch{throw fail('Link de descadastro inválido.',400)}
+      if(payload.purpose!=='marketing-unsubscribe'||!payload.customerId)throw fail('Link de descadastro inválido.',400);
+      await query('UPDATE customers SET marketing_consent_at=NULL WHERE id=$1',[payload.customerId]);
+      return json(res,200,{ok:true,message:'Pronto. Você não receberá mais e-mails promocionais do Menuza.'});
+    }
+    if(method==='GET'&&path==='/api/admin/customers/retention'){
+      const rows=await query(`SELECT c.id,c.name,c.email,c.phone,(c.marketing_consent_at IS NOT NULL) AS "marketingConsent",MAX(o.created_at) AS "lastOrderAt",COUNT(o.id)::int AS "orders",COALESCE(SUM(o.total_cents) FILTER (WHERE o.status<>'cancelled'),0)::bigint AS "revenueCents",MAX(rc.sent_at) AS "lastRecoveryAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 AND o.status<>'cancelled' LEFT JOIN (SELECT customer_id,MAX(sent_at) AS sent_at FROM customer_recovery_campaigns WHERE restaurant_id=$1 GROUP BY customer_id) rc ON rc.customer_id=c.id WHERE c.created_at<NOW()-INTERVAL '30 days' GROUP BY c.id HAVING MAX(o.created_at) IS NULL OR MAX(o.created_at)<NOW()-INTERVAL '30 days' ORDER BY MAX(o.created_at) NULLS FIRST LIMIT 200`,[RESTAURANT_ID]);
+      return json(res,200,{customers:rows.rows.map(row=>({...row,orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0),marketingConsent:Boolean(row.marketingConsent)}))});
+    }
+    if(method==='POST'&&path.startsWith('/api/admin/customers/')&&path.endsWith('/coupon')){
+      const customerId=decodeURIComponent(path.split('/')[4]||''),b=await bodyOf(req);
+      const target=(await query('SELECT id,name,email,marketing_consent_at AS "marketingConsentAt" FROM customers WHERE id=$1',[customerId])).rows[0];
+      if(!target)throw fail('Cliente não encontrado.',404);
+      if(!target.marketingConsentAt)throw fail('O cliente não autorizou o recebimento de ofertas por e-mail.',403);
+      const percent=Math.max(5,Math.min(30,Math.trunc(Number(b.discountPercent)||10))),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),now=new Date(),expires=new Date(now.getTime()+14*86400000),couponId='cpn_'+randomBytes(12).toString('hex');
+      const inserted=await query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'percent',$4,0,$5,$6,1,1,$5,$7) RETURNING *",[couponId,RESTAURANT_ID,code,percent,now.toISOString(),expires.toISOString(),customerId]);
+      let sent=false;
+      const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
+      if(apiKey&&from){
+        const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=publicBaseUrl()+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
+        const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000),body:JSON.stringify({from,to:[target.email],subject:'Um presente para você voltar ao Menuza',text:'Olá, '+target.name+'! Preparamos um cupom exclusivo para você: '+code+'.\n\nGanhe '+percent+'% de desconto no próximo pedido. Válido até '+expires.toLocaleDateString('pt-BR')+'.\n\nUse o código no checkout. Este cupom é pessoal e pode ser usado uma vez.\n\nPara deixar de receber ofertas, acesse: '+unsubscribe})});
+        if(mail.ok){sent=true;await query('INSERT INTO customer_recovery_campaigns(id,restaurant_id,customer_id,coupon_id,email,status,sent_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',['rc_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customerId,couponId,target.email,'sent']);}
+        else {await query('UPDATE coupons SET active=0 WHERE id=$1',[couponId]);throw fail('O cupom foi preparado, mas o e-mail não pôde ser enviado. Confira a configuração do Resend.',502);}
+      }
+      await recordAdminAudit('customer.personal_coupon_created','customer',customerId,{couponCode:code,discountPercent:percent,sent});
+      return json(res,201,{coupon:couponPublic(inserted.rows[0]),sent,message:sent?'Cupom enviado ao e-mail autorizado do cliente.':'Cupom criado. Configure o Resend para enviá-lo por e-mail.'});
+    }
     if(method==='POST'&&path==='/api/customer/abandoned-cart'){
       await ensureOperationsSchema();
       const c=await customer(req);if(!c)throw fail('Entre na sua conta para ativar o lembrete.',401);
@@ -975,6 +1021,27 @@ export default async function handler(req, res) {
       await query('DELETE FROM abandoned_cart_reminders WHERE restaurant_id=$1 AND customer_id=$2 AND sent_at IS NULL AND converted_at IS NULL',[RESTAURANT_ID,c.customer.id]);
       await query('INSERT INTO abandoned_cart_reminders(id,restaurant_id,customer_id,email,cart_summary,subtotal_cents,consent_at,scheduled_at) VALUES($1,$2,$3,$4,$5,$6,NOW(),NOW()+INTERVAL \'45 minutes\')',[randomBytes(12).toString('hex'),RESTAURANT_ID,c.customer.id,c.customer.email,summary,subtotal]);
       return json(res,200,{ok:true,scheduled:true});
+    }
+    if(method==='GET'&&path==='/api/cron/inactive-customers'){
+      await ensureOperationsSchema();
+      const cronSecret=String(process.env.CRON_SECRET||'');
+      if(!cronSecret||req.headers.authorization!=='Bearer '+cronSecret)throw fail('Não autorizado.',401);
+      const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
+      if(!apiKey||!from)return json(res,503,{error:'Configure RESEND_API_KEY e RESEND_FROM_EMAIL para ativar a recuperação de clientes.'});
+      const candidates=await query(`SELECT c.id,c.name,c.email,COALESCE(MAX(o.created_at),c.created_at) AS "lastActivityAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 AND o.status<>'cancelled' WHERE c.marketing_consent_at IS NOT NULL GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<NOW()-INTERVAL '30 days' AND NOT EXISTS(SELECT 1 FROM customer_recovery_campaigns rc WHERE rc.restaurant_id=$1 AND rc.customer_id=c.id AND rc.sent_at>NOW()-INTERVAL '45 days') AND NOT EXISTS(SELECT 1 FROM coupons cp WHERE cp.restaurant_id=$1 AND cp.customer_id=c.id AND cp.active=1 AND (cp.expires_at IS NULL OR cp.expires_at>NOW()) AND (cp.max_uses IS NULL OR cp.used_count<cp.max_uses)) ORDER BY COALESCE(MAX(o.created_at),c.created_at) ASC LIMIT 3`,[RESTAURANT_ID]);
+      let sent=0,failed=0;
+      for(const target of candidates.rows){
+        const now=new Date(),expires=new Date(now.getTime()+14*86400000),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),couponId='cpn_'+randomBytes(12).toString('hex');
+        try{
+          await query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'percent',10,0,$4,$5,1,1,$4,$6)",[couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),target.id]);
+          const payload=Buffer.from(JSON.stringify({purpose:'marketing-unsubscribe',customerId:target.id})).toString('base64url'),signature=createHmac('sha256',SECRET).update('menuza-marketing-unsubscribe:').update(payload).digest('base64url'),unsubscribe=publicBaseUrl()+'/api/customer/marketing-unsubscribe?token='+encodeURIComponent(payload+'.'+signature);
+          const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(3000),body:JSON.stringify({from,to:[target.email],subject:'Sentimos sua falta! Tem 10% de desconto esperando por você',text:'Olá, '+target.name+'! Faz um tempinho desde seu último pedido. Preparamos um cupom pessoal de 10% para você: '+code+'.\n\nVálido até '+expires.toLocaleDateString('pt-BR')+'. Use no checkout do Menuza. O cupom vale para uma utilização e está vinculado à sua conta.\n\nNão quer mais receber ofertas? Descadastre-se aqui: '+unsubscribe})});
+          if(!mail.ok)throw new Error('Resend retornou '+mail.status);
+          await query('INSERT INTO customer_recovery_campaigns(id,restaurant_id,customer_id,coupon_id,email,status,sent_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',['rc_'+randomBytes(12).toString('hex'),RESTAURANT_ID,target.id,couponId,target.email,'sent']);
+          sent++;
+        }catch(error){await query('UPDATE coupons SET active=0 WHERE id=$1',[couponId]).catch(()=>{});failed++;}
+      }
+      return json(res,200,{eligible:candidates.rowCount,sent,failed});
     }
     if(method==='GET'&&path==='/api/cron/abandoned-carts'){
       await ensureOperationsSchema();
@@ -990,7 +1057,7 @@ export default async function handler(req, res) {
       let sent=0,failed=0;
       for(const reminder of due){
         try{
-          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2000),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+(process.env.MENUZA_PUBLIC_URL||'https://menuza-five.vercel.app')+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
+          const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},signal:AbortSignal.timeout(2000),body:JSON.stringify({from,to:[reminder.email],subject:'Seu pedido ainda está esperando por você',text:'Olá! Você deixou alguns itens no carrinho do Menuza:\n\n'+reminder.cartSummary+'\n\nSubtotal estimado: R$ '+(Number(reminder.subtotalCents)/100).toFixed(2).replace('.',',')+'\n\nSe ainda quiser continuar, volte ao cardápio: '+publicBaseUrl()+'/#menu\n\nEste é um único lembrete solicitado por você. Se já concluiu seu pedido, pode ignorar esta mensagem.'})});
           if(!response.ok)throw new Error('Resend retornou '+response.status);
           await query('UPDATE abandoned_cart_reminders SET sent_at=NOW(),processing_at=NULL WHERE id=$1',[reminder.id]);sent++;
         }catch{await query('UPDATE abandoned_cart_reminders SET processing_at=NULL WHERE id=$1',[reminder.id]);failed++;}
@@ -1065,9 +1132,9 @@ export default async function handler(req, res) {
       if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<8||password.length>128) throw fail('Confira nome, e-mail, data de nascimento e senha (mínimo de 8 caracteres).',422);
       await ensureCustomerSchema();
       const salt=randomBytes(16).toString('hex'), id='cus_'+randomBytes(18).toString('hex');
-      try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString()]); }
+      try { await query('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at,marketing_consent_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,name,email,phone,birth.birthDate,passwordHash(password,salt),salt,new Date().toISOString(),body.marketingConsent===true?new Date().toISOString():null]); }
       catch(e) { if(e.code==='23505') throw fail('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.',409); throw e; }
-      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:id,exp:expiresAt});
+      const safe={id,name,email,phone,birthDate:birth.birthDate,isAdult:birth.isAdult,marketingConsent:body.marketingConsent===true},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:id,exp:expiresAt});
       await storeSession(token,'customer',id,expiresAt);
       return json(res,201,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
@@ -1079,7 +1146,7 @@ export default async function handler(req, res) {
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'E-mail ou senha inválidos.'});
       const birthDate=row.birth_date?String(row.birth_date).slice(0,10):null;
       const birth=birthDate?parseBirthDate(birthDate):null;
-      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,isAdult:birth?.isAdult??null},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:row.id,exp:expiresAt});
+      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,marketingConsent:Boolean(row.marketing_consent_at),isAdult:birth?.isAdult??null},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:row.id,exp:expiresAt});
       await storeSession(token,'customer',row.id,expiresAt);
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
@@ -1091,11 +1158,39 @@ export default async function handler(req, res) {
       if(!saved.rowCount&&String(current.customer.birthDate||'').slice(0,10)!==birth.birthDate) throw fail('A data de nascimento já foi registrada. Para corrigir um dado, use o canal de privacidade.',409);
       return json(res,200,{customer:{...current.customer,birthDate:birth.birthDate,isAdult:birth.isAdult}});
     }
+    if(method==='PATCH'&&path==='/api/customer/marketing-consent'){
+      const current=await requireCustomer(req),b=await bodyOf(req),enabled=b.enabled===true;
+      await query('UPDATE customers SET marketing_consent_at=$1 WHERE id=$2',[enabled?new Date().toISOString():null,current.customerId]);
+      return json(res,200,{marketingConsent:enabled});
+    }
+    if(method==='GET'&&path==='/api/customer/loyalty'){
+      const current=await requireCustomer(req);await ensureOperationsSchema();
+      const balance=await query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
+      const history=await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 20',[RESTAURANT_ID,current.customerId]);
+      const personalCoupons=await query("SELECT code,discount_type AS \"discountType\",discount_value AS \"discountValue\",expires_at AS \"expiresAt\" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 AND active=1 AND (expires_at IS NULL OR expires_at>NOW()) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20",[RESTAURANT_ID,current.customerId]);
+      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history:history.rows,coupons:personalCoupons.rows});
+    }
+    if(method==='POST'&&path==='/api/customer/loyalty/redeem'){
+      const current=await requireCustomer(req);await ensureOperationsSchema();
+      const result=await withTransaction(async client=>{
+        const locked=await client.query('SELECT id FROM customers WHERE id=$1 FOR UPDATE',[current.customerId]);
+        if(!locked.rowCount)throw fail('Conta de cliente não encontrada.',404);
+        const balance=await client.query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
+        if(Number(balance.rows[0]?.points||0)<100)throw fail('Você precisa de 100 pontos para trocar por R$ 10,00.',422);
+        const couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase(),now=new Date(),expires=new Date(now.getTime()+30*86400000);
+        const inserted=await client.query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'fixed',1000,0,$4,$5,1,1,$4,$6) RETURNING *",[couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),current.customerId]);
+        await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES($1,$2,$3,-100,'reward_redeemed',$4,$5)",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,current.customerId,couponId,now.toISOString()]);
+        return inserted.rows[0];
+      });
+      return json(res,201,{coupon:couponPublic(result),message:'100 pontos trocados por R$ 10,00 de desconto. O cupom é exclusivo da sua conta.'});
+    }
     if (method==='GET'&&path==='/api/customer/data-export') {
-      const c=await requireCustomer(req);
+      const c=await requireCustomer(req);await ensureOperationsSchema();
       const rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC',[c.customerId,RESTAURANT_ID]);
       const orders=await Promise.all(rows.rows.map(row=>orderById(row.id)));
-      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone,birthDate:c.customer.birthDate},orders});
+      const loyalty=(await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC',[RESTAURANT_ID,c.customerId])).rows;
+      const personalCoupons=(await query('SELECT code,discount_type AS "discountType",discount_value AS "discountValue",expires_at AS "expiresAt",active,used_count AS "usedCount" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC',[RESTAURANT_ID,c.customerId])).rows;
+      return json(res,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:c.customer.id,name:c.customer.name,email:c.customer.email,phone:c.customer.phone,birthDate:c.customer.birthDate,marketingConsent:c.customer.marketingConsent},loyalty,personalCoupons,orders});
     }
     if (method==='GET'&&path==='/api/customer/orders') {
       const c=await requireCustomer(req), rows=await query('SELECT id FROM orders WHERE customer_id=$1 AND restaurant_id=$2 ORDER BY created_at DESC LIMIT 100',[c.customerId,RESTAURANT_ID]);
@@ -1107,13 +1202,16 @@ export default async function handler(req, res) {
       if(retry) return json(res,429,{error:'Muitas tentativas de exclusão. Aguarde antes de tentar novamente.'},{'Retry-After':String(Math.ceil(retry/1000))});
       const row=(await query('SELECT * FROM customers WHERE id=$1',[c.customerId])).rows[0];
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'Senha incorreta. A conta não foi excluída.'});
-      await ensureAuthSessionsSchema();
+      await ensureAuthSessionsSchema();await ensureOperationsSchema();
       await withTransaction(async client=>{
         await client.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE role=$1 AND subject_id=$2 AND revoked_at IS NULL',['customer',c.customerId]);
         // Mantém somente o registro transacional que possa ter de ser conservado.
         // Remove os dados de contato/endereço e textos livres que identificam o titular.
         await client.query("UPDATE order_items SET notes='' WHERE order_id IN (SELECT id FROM orders WHERE restaurant_id=$1 AND customer_id=$2)",[RESTAURANT_ID,c.customerId]);
         await client.query("UPDATE orders SET customer_id=NULL, customer_name='Cliente removido', phone='', delivery_address=NULL, note='', tracking_token='deleted-'||id WHERE restaurant_id=$1 AND customer_id=$2",[RESTAURANT_ID,c.customerId]);
+        await client.query('DELETE FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,c.customerId]);
+        await client.query('DELETE FROM customer_recovery_campaigns WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,c.customerId]);
+        await client.query('UPDATE coupons SET customer_id=NULL,active=0 WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,c.customerId]);
         await client.query('DELETE FROM customers WHERE id=$1',[c.customerId]);
       });
       return json(res,200,{ok:true,message:'Conta e dados pessoais excluídos. Apenas registros transacionais necessários podem permanecer, sem vínculo com sua conta e sem os dados pessoais removidos.'},{'Set-Cookie':cookie(CUSTOMER_COOKIE,'',0)});
@@ -1413,26 +1511,27 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/admin/analytics') {
       const days=[7,30,90].includes(Number(req.query?.days))?Number(req.query.days):7, since=new Date(Date.now()-days*86400000).toISOString();
-      const [summary,daily,fulfillment,popular,topCustomers,customerStats,contributionRows]=await Promise.all([
+      const [summary,daily,fulfillment,popular,topCustomers,customerStats,contributionRows,profitabilityRows]=await Promise.all([
         query("SELECT COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\",COALESCE(ROUND(AVG(total_cents) FILTER (WHERE status<>'cancelled')),0)::int AS \"averageTicketCents\",COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled FROM orders WHERE restaurant_id=$1 AND created_at >= $2",[RESTAURANT_ID,since]),
         query("SELECT created_at::date::text AS date,COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 GROUP BY created_at::date ORDER BY date",[RESTAURANT_ID,since]),
         query("SELECT fulfillment AS type,COUNT(*)::int AS orders FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC",[RESTAURANT_ID,since]),
         query("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity)::int AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::int AS \"revenueCents\" FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8",[RESTAURANT_ID,since]),
         query("SELECT o.customer_id AS id,MAX(o.customer_name) AS name,COUNT(*)::int AS orders,COALESCE(SUM(o.total_cents),0)::int AS \"revenueCents\" FROM orders o WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' AND o.customer_id IS NOT NULL GROUP BY o.customer_id HAVING COUNT(*)>1 ORDER BY orders DESC,\"revenueCents\" DESC LIMIT 8",[RESTAURANT_ID,since]),
         query("SELECT COUNT(*)::int AS \"identifiedCustomers\",COUNT(*) FILTER (WHERE order_count>1)::int AS \"returningCustomers\" FROM (SELECT customer_id,COUNT(*)::int AS order_count FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' AND customer_id IS NOT NULL GROUP BY customer_id) customers",[RESTAURANT_ID,since]),
-        query("SELECT COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::bigint AS revenue_cents,COALESCE(SUM(oi.unit_price_cents*oi.quantity) FILTER (WHERE p.cost_cents>0),0)::bigint AS known_revenue_cents,COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN p.cost_cents*oi.quantity ELSE 0 END),0)::bigint AS known_cost_cents,COUNT(DISTINCT oi.product_id) FILTER (WHERE COALESCE(p.cost_cents,0)>0)::int AS products_with_cost,COUNT(DISTINCT oi.product_id)::int AS products_sold FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled'",[RESTAURANT_ID,since])
+        query("SELECT COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::bigint AS revenue_cents,COALESCE(SUM(oi.unit_price_cents*oi.quantity) FILTER (WHERE p.cost_cents>0),0)::bigint AS known_revenue_cents,COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN p.cost_cents*oi.quantity ELSE 0 END),0)::bigint AS known_cost_cents,COUNT(DISTINCT oi.product_id) FILTER (WHERE COALESCE(p.cost_cents,0)>0)::int AS products_with_cost,COUNT(DISTINCT oi.product_id)::int AS products_sold FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled'",[RESTAURANT_ID,since]),
+        query("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity)::int AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)::bigint AS revenue_cents,COALESCE(SUM(p.cost_cents*oi.quantity),0)::bigint AS cost_cents,COALESCE(SUM((oi.unit_price_cents-p.cost_cents)*oi.quantity),0)::bigint AS contribution_cents FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=$1 AND o.created_at >= $2 AND o.status<>'cancelled' AND p.cost_cents>0 GROUP BY oi.product_name_snapshot ORDER BY contribution_cents DESC LIMIT 8",[RESTAURANT_ID,since])
       ]);
       const contribution=contributionRows.rows[0];
       const revenueCents=Number(contribution.revenue_cents||0),knownRevenueCents=Number(contribution.known_revenue_cents||0),knownCostCents=Number(contribution.known_cost_cents||0);
       const marginCoverage=Number(contribution.products_sold||0)?Math.round(Number(contribution.products_with_cost||0)/Number(contribution.products_sold||1)*100):0;
-      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows,customerStats:customerStats.rows[0]||{identifiedCustomers:0,returningCustomers:0},contribution:{revenueCents,knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost:Number(contribution.products_with_cost||0),productsSold:Number(contribution.products_sold||0),coveragePercent:marginCoverage,estimated:true}});
+      return json(res,200,{days,summary:summary.rows[0],daily:daily.rows,fulfillment:fulfillment.rows,popular:popular.rows,topCustomers:topCustomers.rows,profitability:profitabilityRows.rows.map(row=>({...row,revenueCents:Number(row.revenue_cents||0),costCents:Number(row.cost_cents||0),contributionCents:Number(row.contribution_cents||0)})),customerStats:customerStats.rows[0]||{identifiedCustomers:0,returningCustomers:0},contribution:{revenueCents,knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost:Number(contribution.products_with_cost||0),productsSold:Number(contribution.products_sold||0),coveragePercent:marginCoverage,estimated:true}});
     }
     if (method==='GET'&&path==='/api/admin/coupons') return json(res,200,{coupons:(await query('SELECT * FROM coupons WHERE restaurant_id=$1 ORDER BY created_at DESC',[RESTAURANT_ID])).rows.map(couponPublic)});
     if (method==='POST'&&path==='/api/admin/coupons') return json(res,201,{coupon:await saveCoupon(await bodyOf(req))});
     if (method==='PATCH'&&path.startsWith('/api/admin/coupons/')) return json(res,200,{coupon:await saveCoupon(await bodyOf(req),id)});
     if (method==='POST'&&path==='/api/coupons/validate') {
-      await requireCustomer(req); const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
-      const {subtotal}=await priceItems(b.items), code=normalizeCoupon(b.code), discount=couponDiscount(await coupons(code),subtotal);
+      const current=await requireCustomer(req); const b=await bodyOf(req); if(hasHoneypot(b)) throw fail('Solicitação inválida.',422);
+      const {subtotal}=await priceItems(b.items), code=normalizeCoupon(b.code), discount=couponDiscount(await coupons(code),subtotal,current.customer.id);
       return json(res,200,{code,subtotalCents:subtotal,discountCents:discount,totalCents:subtotal-discount});
     }
     if (method==='GET'&&path==='/api/admin/combos') { const c=await catalogFor(true); return json(res,200,{combos:c.combos,products:c.products}); }

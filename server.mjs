@@ -60,6 +60,7 @@ for (const [table, column, definition] of [
 }
 db.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL DEFAULT '', birth_date TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at TEXT NOT NULL);`);
 try { db.exec("ALTER TABLE customers ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+try { db.exec('ALTER TABLE customers ADD COLUMN marketing_consent_at TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
 db.exec(`CREATE TABLE IF NOT EXISTS security_rate_buckets (bucket_key TEXT PRIMARY KEY, timestamps_json TEXT NOT NULL, updated_at INTEGER NOT NULL);`);
 db.exec(`CREATE TABLE IF NOT EXISTS privacy_requests (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '',
@@ -91,6 +92,12 @@ db.exec(`CREATE TABLE IF NOT EXISTS coupons (
   active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
   UNIQUE(restaurant_id, code)
 );`);
+try { db.exec('ALTER TABLE coupons ADD COLUMN customer_id TEXT'); } catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
+db.exec('CREATE INDEX IF NOT EXISTS idx_coupons_customer ON coupons(restaurant_id,customer_id) WHERE customer_id IS NOT NULL');
+db.exec(`CREATE TABLE IF NOT EXISTS loyalty_points_ledger(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,points INTEGER NOT NULL,reason TEXT NOT NULL,order_id TEXT UNIQUE,coupon_id TEXT UNIQUE,created_at TEXT NOT NULL);`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_loyalty_customer_created ON loyalty_points_ledger(restaurant_id,customer_id,created_at DESC)');
+db.exec(`CREATE TABLE IF NOT EXISTS customer_recovery_campaigns(id TEXT PRIMARY KEY,restaurant_id TEXT NOT NULL,customer_id TEXT NOT NULL,coupon_id TEXT NOT NULL,email TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',sent_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
+
 for (const [column, definition] of [['coupon_code',"TEXT NOT NULL DEFAULT ''"],['discount_cents','INTEGER NOT NULL DEFAULT 0']]) {
   try { db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+definition); }
   catch (error) { if (!String(error.message).includes('duplicate column name')) throw error; }
@@ -182,8 +189,8 @@ function requireAdmin(request) {
 function optionalCustomer(request) {
   const session = readSession(request, 'menuza_customer_session');
   if (!session || session.role !== 'customer' || !session.customerId) return null;
-  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(session.customerId);
-  return customer ? { ...session, customer: {...customer,isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
+  const customer = statement('SELECT id,name,email,phone,birth_date AS birthDate,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(session.customerId);
+  return customer ? { ...session, customer: {...customer,marketingConsent:Boolean(customer.marketingConsentAt),isAdult:customer.birthDate?parseCustomerBirthDate(customer.birthDate).isAdult:null} } : null;
 }
 function requireCustomer(request) { const session = optionalCustomer(request); if (!session) throw Object.assign(new Error('Entre na sua conta para continuar.'), { status: 401 }); return session; }
 function normalizeEmail(value) { return cleanText(value, 254).toLowerCase(); }
@@ -207,8 +214,8 @@ function createCustomer(payload) {
   if (password.length < 8 || password.length > 128) throw Object.assign(new Error('A senha precisa ter entre 8 e 128 caracteres.'), { status: 422 });
   if (statement('SELECT id FROM customers WHERE email=?').get(email)) throw Object.assign(new Error('Já existe uma conta com esse e-mail. Entre ou use outro e-mail.'), { status: 409 });
   const id = 'cus_' + randomBytes(18).toString('hex'), salt = randomBytes(16).toString('hex');
-  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString());
-  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate FROM customers WHERE id=?').get(id),isAdult:birth.isAdult};
+  statement('INSERT INTO customers (id,name,email,phone,birth_date,password_hash,password_salt,created_at,marketing_consent_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id,name,email,phone,birth.birthDate,hashCustomerPassword(password,salt).toString('hex'),salt,new Date().toISOString(),payload.marketingConsent===true?new Date().toISOString():null);
+  return {...statement('SELECT id,name,email,phone,birth_date AS birthDate,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(id),marketingConsent:payload.marketingConsent===true,isAdult:birth.isAdult};
 }
 function customerSessionCookie(token, maxAge = 604800) { return 'menuza_customer_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (IS_PROD ? '; Secure' : ''); }
 function issueCustomerSession(customer) { return sign({ role: 'customer', customerId: customer.id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }); }
@@ -391,13 +398,14 @@ function couponCode(value) { return cleanText(value, 32).toUpperCase().replace(/
 function couponPublic(row) {
   return { id: row.id, code: row.code, discountType: row.discount_type, discountValue: row.discount_value,
     minimumSubtotalCents: row.minimum_subtotal_cents, startsAt: row.starts_at, expiresAt: row.expires_at,
-    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, createdAt: row.created_at };
+    maxUses: row.max_uses, usedCount: row.used_count, active: row.active === 1, customerId: row.customer_id||null, personalized:Boolean(row.customer_id), createdAt: row.created_at };
 }
 function getCoupon(code) {
   return statement('SELECT * FROM coupons WHERE restaurant_id=? AND code=?').get(RESTAURANT_ID, couponCode(code));
 }
-function couponEligibility(coupon, subtotalCents, now = new Date()) {
+function couponEligibility(coupon, subtotalCents, now = new Date(), customerId = null) {
   if (!coupon || coupon.restaurant_id !== RESTAURANT_ID || coupon.active !== 1) throw Object.assign(new Error('Cupom inválido ou inativo.'), { status: 422 });
+  if (coupon.customer_id && String(coupon.customer_id)!==String(customerId||'')) throw Object.assign(new Error('Este cupom foi emitido para outra conta.'), { status: 422 });
   const time = now.getTime();
   if (coupon.starts_at && time < Date.parse(coupon.starts_at)) throw Object.assign(new Error('Esse cupom ainda não está válido.'), { status: 422 });
   if (coupon.expires_at && time > Date.parse(coupon.expires_at)) throw Object.assign(new Error('Esse cupom expirou.'), { status: 422 });
@@ -439,12 +447,12 @@ function priceOrderItems(itemsInput) {
   });
   return { subtotalCents, pricedItems, requiresAdult: pricedItems.some(item => item.product.ageRestricted === true || Number(item.product.ageRestricted) === 1) };
 }
-function validateCouponForOrder(code, itemsInput) {
+function validateCouponForOrder(code, itemsInput, customerId = null) {
   const { subtotalCents } = priceOrderItems(itemsInput);
   const normalized = couponCode(code);
   if (!normalized) throw Object.assign(new Error('Informe um código de cupom.'), { status: 422 });
   const coupon = getCoupon(normalized);
-  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents) };
+  return { code: normalized, subtotalCents, discountCents: couponEligibility(coupon, subtotalCents, new Date(), customerId) };
 }
 function saveCombo(payload, id = null) {
   const name = cleanText(payload.name, 80);
@@ -567,7 +575,7 @@ function createOrder(payload, customer = null) {
       .run(orderId, RESTAURANT_ID, customerName, phone, fulfillment, tableLabel, deliveryAddress, cleanText(payload.note,500), 'received', totalCents, trackingToken, idempotencyKey, now, now, customerId, normalizedCouponCode, discountCents);
     if (normalizedCouponCode) {
       const coupon = getCoupon(normalizedCouponCode);
-      couponEligibility(coupon, subtotalCents);
+      couponEligibility(coupon, subtotalCents, new Date(), customerId);
       // A validade de uso também é aplicada no UPDATE: o limite continua
       // protegido no banco, mesmo se o fluxo for alterado futuramente.
       const usage = statement("UPDATE coupons SET used_count=used_count+1 WHERE id=? AND restaurant_id=? AND active=1 AND (max_uses IS NULL OR used_count < max_uses)").run(coupon.id,RESTAURANT_ID);
@@ -733,6 +741,11 @@ function updateStatus(orderId, nextStatus) {
   try {
     statement('UPDATE orders SET status=?,updated_at=? WHERE id=? AND restaurant_id=?').run(nextStatus, now, orderId, RESTAURANT_ID);
     statement('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES (?,?,?,?)').run(orderId, nextStatus, now, 'restaurante');
+    if(nextStatus==='completed'&&order.customer_id){
+      const pointsBase=statement('SELECT COALESCE(SUM(unit_price_cents*quantity),0) AS subtotal FROM order_items WHERE order_id=?').get(orderId);
+      const points=Math.floor(Math.max(0,Number(pointsBase.subtotal||0)-Number(order.discount_cents||0))/100);
+      if(points>0)statement("INSERT OR IGNORE INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES(?,?,?,?,'order_completed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,orderId,now);
+    }
     // Ao concluir ou cancelar um pedido consumido na mesa, ela precisa entrar
     // em limpeza — nunca voltar direto para livre sem a preparação da equipe.
     if (order.fulfillment === 'table' && ['completed','cancelled'].includes(nextStatus) && order.table_label) {
@@ -842,7 +855,7 @@ const server = createServer(async (request, response) => {
         const customer = statement('SELECT * FROM customers WHERE email=?').get(email);
         if (!customer || typeof body.password !== 'string' || body.password.length > 128 || !verifyCustomerPassword(body.password,customer)) return send(response,401,{error:'E-mail ou senha inválidos.'});
         const birthDate=customer.birth_date||null;
-        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate,isAdult:birthDate?parseCustomerBirthDate(birthDate).isAdult:null};
+        const safe = {id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate,marketingConsent:Boolean(customer.marketing_consent_at),isAdult:birthDate?parseCustomerBirthDate(birthDate).isAdult:null};
         return send(response,200,{customer:safe},{'Set-Cookie':customerSessionCookie(issueCustomerSession(safe))});
       }
       if (request.method === 'POST' && path === '/api/customer/logout') { requireCustomer(request); return send(response,200,{ok:true},{'Set-Cookie':customerSessionCookie('',0)}); }
@@ -855,7 +868,33 @@ const server = createServer(async (request, response) => {
       }
       if (request.method === 'GET' && path === '/api/customer/data-export') {
         const customer = requireCustomer(request).customer;
-        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate},orders:listCustomerOrders(customer.id)});
+        const loyalty=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC').all(RESTAURANT_ID,customer.id);
+        const personalCoupons=statement('SELECT code,discount_type AS discountType,discount_value AS discountValue,expires_at AS expiresAt,active,used_count AS usedCount FROM coupons WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC').all(RESTAURANT_ID,customer.id);
+        return send(response,200,{exportedAt:new Date().toISOString(),format:'menuza-customer-data-v1',customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone,birthDate:customer.birthDate,marketingConsent:customer.marketingConsent},loyalty,personalCoupons,orders:listCustomerOrders(customer.id)});
+      }
+      if (request.method === 'PATCH' && path === '/api/customer/marketing-consent') {
+        const current=requireCustomer(request),body=await bodyOf(request),enabled=body.enabled===true;
+        statement('UPDATE customers SET marketing_consent_at=? WHERE id=?').run(enabled?new Date().toISOString():null,current.customer.id);
+        return send(response,200,{marketingConsent:enabled});
+      }
+      if (request.method === 'GET' && path === '/api/customer/loyalty') {
+        const customer=requireCustomer(request).customer;
+        const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
+        const history=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 20').all(RESTAURANT_ID,customer.id);
+        const coupons=statement("SELECT code,discount_type AS discountType,discount_value AS discountValue,expires_at AS expiresAt FROM coupons WHERE restaurant_id=? AND customer_id=? AND active=1 AND (expires_at IS NULL OR expires_at>datetime('now')) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20").all(RESTAURANT_ID,customer.id);
+        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history,coupons});
+      }
+      if (request.method === 'POST' && path === '/api/customer/loyalty/redeem') {
+        const customer=requireCustomer(request).customer,now=new Date(),expires=new Date(now.getTime()+30*86400000),couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase();
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
+          if(Number(balance.points||0)<100)throw Object.assign(new Error('Você precisa de 100 pontos para trocar por R$ 10,00.'),{status:422});
+          statement("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES(?,?,?,'fixed',1000,0,?,?,1,1,?,?)").run(couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),now.toISOString(),customer.id);
+          statement("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES(?,?,?,-100,'reward_redeemed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customer.id,couponId,now.toISOString());
+          db.exec('COMMIT');
+        } catch(error){db.exec('ROLLBACK');throw error}
+        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),message:'100 pontos trocados por R$ 10,00 de desconto. Cupom exclusivo da sua conta.'});
       }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
@@ -865,6 +904,9 @@ const server = createServer(async (request, response) => {
         db.exec('BEGIN');
         try {
           statement('UPDATE orders SET customer_id=NULL WHERE customer_id=?').run(customer.id);
+          statement('DELETE FROM loyalty_points_ledger WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
+          statement('DELETE FROM customer_recovery_campaigns WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
+          statement('UPDATE coupons SET customer_id=NULL,active=0 WHERE customer_id=? AND restaurant_id=?').run(customer.id,RESTAURANT_ID);
           statement('DELETE FROM customers WHERE id=?').run(customer.id);
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
@@ -905,6 +947,18 @@ const server = createServer(async (request, response) => {
       }
 
       if (path.startsWith('/api/admin/')) requireAdmin(request);
+      if (request.method === 'GET' && path === '/api/admin/customers/retention') {
+        const customers=statement("SELECT c.id,c.name,c.email,c.phone,c.marketing_consent_at AS marketingConsentAt,COALESCE(MAX(o.created_at),c.created_at) AS lastOrderAt,COUNT(o.id) AS orders,COALESCE(SUM(CASE WHEN o.status<>'cancelled' THEN o.total_cents ELSE 0 END),0) AS revenueCents FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=? AND o.status<>'cancelled' WHERE c.created_at<datetime('now','-30 days') GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<datetime('now','-30 days') ORDER BY lastOrderAt ASC LIMIT 200").all(RESTAURANT_ID);
+        return send(response,200,{customers:customers.map(row=>({...row,marketingConsent:Boolean(row.marketingConsentAt),orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0)}))});
+      }
+      if (request.method === 'POST' && path.startsWith('/api/admin/customers/') && path.endsWith('/coupon')) {
+        const customerId=decodeURIComponent(path.split('/')[4]||''),customer=statement('SELECT id,name,email,marketing_consent_at AS marketingConsentAt FROM customers WHERE id=?').get(customerId);
+        if(!customer)return send(response,404,{error:'Cliente não encontrado.'});
+        if(!customer.marketingConsentAt)return send(response,403,{error:'O cliente não autorizou o recebimento de ofertas por e-mail.'});
+        const body=await bodyOf(request),percent=Math.max(5,Math.min(30,Math.trunc(Number(body.discountPercent)||10))),now=new Date(),expires=new Date(now.getTime()+14*86400000),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),couponId='cpn_'+randomBytes(12).toString('hex');
+        statement("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES(?,?,?,'percent',?,0,?,?,1,1,?,?)").run(couponId,RESTAURANT_ID,code,percent,now.toISOString(),expires.toISOString(),now.toISOString(),customerId);
+        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),sent:false,message:'Cupom pessoal criado. No ambiente local, compartilhe o código manualmente.'});
+      }
       if (request.method === 'GET' && path === '/api/admin/coupons') return send(response, 200, { coupons: statement('SELECT * FROM coupons WHERE restaurant_id=? ORDER BY created_at DESC').all(RESTAURANT_ID).map(couponPublic) });
       if (request.method === 'POST' && path === '/api/admin/coupons') return send(response, 201, { coupon: saveCoupon(await bodyOf(request)) });
       if (request.method === 'PATCH' && path.startsWith('/api/admin/coupons/')) return send(response, 200, { coupon: saveCoupon(await bodyOf(request), path.slice('/api/admin/coupons/'.length)) });
@@ -912,7 +966,8 @@ const server = createServer(async (request, response) => {
         requireCustomer(request);
         const body = await bodyOf(request);
         if (hasHoneypot(body)) return rateLimitResponse(response, 900);
-        const result = validateCouponForOrder(body.code, body.items);
+        const customer = requireCustomer(request).customer;
+        const result = validateCouponForOrder(body.code, body.items, customer.id);
         return send(response, 200, { code: result.code, subtotalCents: result.subtotalCents, discountCents: result.discountCents, totalCents: result.subtotalCents-result.discountCents });
       }
       if (request.method === 'GET' && path === '/api/admin/analytics') {
@@ -926,7 +981,8 @@ const server = createServer(async (request, response) => {
         const popular = statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY oi.product_name_snapshot ORDER BY quantity DESC LIMIT 8").all(RESTAURANT_ID, since);
         const contribution = statement("SELECT COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN oi.unit_price_cents*oi.quantity ELSE 0 END),0) AS knownRevenueCents,COALESCE(SUM(CASE WHEN p.cost_cents>0 THEN p.cost_cents*oi.quantity ELSE 0 END),0) AS knownCostCents,COUNT(DISTINCT CASE WHEN p.cost_cents>0 THEN oi.product_id END) AS productsWithCost,COUNT(DISTINCT oi.product_id) AS productsSold FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled'").get(RESTAURANT_ID, since);
         const knownRevenueCents=Number(contribution.knownRevenueCents||0),knownCostCents=Number(contribution.knownCostCents||0),productsWithCost=Number(contribution.productsWithCost||0),productsSold=Number(contribution.productsSold||0);
-        return send(response, 200, { days, summary, daily, fulfillment, popular, contribution:{knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost,productsSold,coveragePercent:productsSold?Math.round(productsWithCost/productsSold*100):0,estimated:true} });
+        const profitability=statement("SELECT oi.product_name_snapshot AS name,SUM(oi.quantity) AS quantity,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0) AS revenueCents,COALESCE(SUM(p.cost_cents*oi.quantity),0) AS costCents,COALESCE(SUM((oi.unit_price_cents-p.cost_cents)*oi.quantity),0) AS contributionCents FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id AND p.restaurant_id=o.restaurant_id WHERE o.restaurant_id=? AND o.created_at>=? AND o.status<>'cancelled' AND p.cost_cents>0 GROUP BY oi.product_name_snapshot ORDER BY contributionCents DESC LIMIT 8").all(RESTAURANT_ID,since);
+        return send(response, 200, { days, summary, daily, fulfillment, popular, profitability, contribution:{knownRevenueCents,knownCostCents,contributionCents:knownRevenueCents-knownCostCents,marginPercent:knownRevenueCents?Math.round((knownRevenueCents-knownCostCents)/knownRevenueCents*10000)/100:0,productsWithCost,productsSold,coveragePercent:productsSold?Math.round(productsWithCost/productsSold*100):0,estimated:true} });
       }
       if (request.method === 'GET' && path === '/api/admin/combos') return send(response, 200, { combos: catalogFor(RESTAURANT_ID, true).combos, products: catalogFor(RESTAURANT_ID, true).products });
       if (request.method === 'POST' && path === '/api/admin/combos') return send(response, 201, { combo: saveCombo(await bodyOf(request)) });

@@ -1,0 +1,33 @@
+name: Menuza abandoned cart reminders
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: menuza-abandoned-cart-reminders
+  cancel-in-progress: false
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger the protected reminder endpoint
+        env:
+          MENUZA_PUBLIC_URL: ${{ vars.MENUZA_PUBLIC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          base="${MENUZA_PUBLIC_URL:-https://menuza-five.vercel.app}"
+          case "$base" in
+            https://*) ;;
+            *) echo "MENUZA_PUBLIC_URL must be an HTTPS URL"; exit 1 ;;
+          esac
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer ${CRON_SECRET:?Configure the CRON_SECRET GitHub secret}" \
+            "${base%/}/api/cron/abandoned-carts"
