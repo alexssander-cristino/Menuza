@@ -1450,11 +1450,15 @@ export default async function handler(req, res) {
       const auth=String(req.headers.authorization||'');
       if(!workerToken||auth!=='Bearer '+workerToken) throw fail('Worker não autorizado.',401);
       await query("CREATE TABLE IF NOT EXISTS product_3d_jobs (id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL, image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await query("ALTER TABLE product_3d_jobs ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0");
+      await query("CREATE TABLE IF NOT EXISTS worker_heartbeats (worker_name TEXT PRIMARY KEY, last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), metadata JSONB NOT NULL DEFAULT '{}'::jsonb)");
       if(method==='GET'&&path==='/api/3d-worker/next'){
+        await query("INSERT INTO worker_heartbeats(worker_name,last_seen_at,metadata) VALUES('triposr',NOW(),$1::jsonb) ON CONFLICT(worker_name) DO UPDATE SET last_seen_at=NOW(),metadata=EXCLUDED.metadata", [JSON.stringify({runtime:'triposr'})]);
+        await query("UPDATE product_3d_jobs SET status=CASE WHEN attempt_count>=3 THEN 'failed' ELSE 'queued' END,error_message=CASE WHEN attempt_count>=3 THEN 'Worker interrompido repetidamente; limite de tentativas atingido.' ELSE error_message END,updated_at=NOW() WHERE status='processing' AND updated_at<NOW()-INTERVAL '20 minutes'");
         const job=await withTransaction(async client=>{
           const found=await client.query("SELECT id,product_id AS \"productId\",image_data AS \"imageData\" FROM product_3d_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
           if(!found.rows[0]) return null;
-          await client.query("UPDATE product_3d_jobs SET status='processing',updated_at=NOW() WHERE id=$1",[found.rows[0].id]);
+          await client.query("UPDATE product_3d_jobs SET status='processing',attempt_count=attempt_count+1,updated_at=NOW() WHERE id=$1",[found.rows[0].id]);
           await client.query("UPDATE products SET model_3d_status='processing' WHERE id=$1 AND restaurant_id=$2",[found.rows[0].productId,RESTAURANT_ID]);
           return found.rows[0];
         });
