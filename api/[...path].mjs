@@ -1144,7 +1144,7 @@ export default async function handler(req, res) {
       if(!row||!verifyPassword(body.password,row)) return json(res,401,{error:'E-mail ou senha inválidos.'});
       const birthDate=row.birth_date?String(row.birth_date).slice(0,10):null;
       const birth=birthDate?parseBirthDate(birthDate):null;
-      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,isAdult:birth?.isAdult??null},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:row.id,exp:expiresAt});
+      const safe={id:row.id,name:row.name,email:row.email,phone:row.phone,birthDate,marketingConsent:Boolean(row.marketing_consent_at),isAdult:birth?.isAdult??null},expiresAt=Date.now()+604800000,token=sign({role:'customer',customerId:row.id,exp:expiresAt});
       await storeSession(token,'customer',row.id,expiresAt);
       return json(res,200,{customer:safe},{'Set-Cookie':cookie(CUSTOMER_COOKIE,token,604800)});
     }
