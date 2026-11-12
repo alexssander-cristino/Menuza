@@ -778,7 +778,7 @@ const server = createServer(async (request, response) => {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'sqlite', demo: !IS_PROD });
       if (request.method === 'GET' && path === '/api/public/integrations') return send(response, 200, { sentryDsn: process.env.SENTRY_DSN || '', turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '', gaMeasurementId: process.env.GA_MEASUREMENT_ID || '' });
       if (request.method === 'GET' && path === '/api/opening-hours') return send(response, 200, { openingHours: null, status: null });
-      if (request.method === 'GET' && path === '/api/admin/security') return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) });
+      if (request.method === 'GET' && path === '/api/admin/security') { requireAdmin(request); return send(response, 200, { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET) }); }
       const endpointLimit = endpointRateLimit(request, path);
       if (!endpointLimit.allowed) return rateLimitResponse(response, endpointLimit.retryAfter);
       if (request.method === 'GET' && path === '/api/restaurant/branding') { return send(response, 200, { restaurant: statement('SELECT name,logo_url AS logoUrl FROM restaurants WHERE id=?').get(RESTAURANT_ID) }); }
