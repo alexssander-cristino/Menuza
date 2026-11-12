@@ -15,7 +15,7 @@ test('P2: pontos são creditados uma vez quando pedido vinculado é concluído',
   assert.ok(api.includes('rewardPoints:100'));
   assert.ok(local.includes('rewardPoints:100'));
   assert.ok(api.includes('coupons:personalCoupons.rows'));
-  assert.ok(local.includes('coupons}'));
+  assert.ok(local.includes('history,coupons}'));
 });
 
 test('P2: resgate cria cupom pessoal e a API bloqueia uso em outra conta', async () => {
