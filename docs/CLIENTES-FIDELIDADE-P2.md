@@ -19,7 +19,7 @@
 ## Recuperação de clientes inativos
 
 - Inatividade significa não ter pedido não cancelado nos últimos 30 dias; contas sem pedido também entram após 30 dias de criação.
-- A rotina automática executa às segundas-feiras, às 15h UTC (12h em Brasília).
+- A rotina automática executa diariamente às 15h UTC (12h em Brasília) e processa até três clientes por execução.
 - Só entram clientes com consentimento de marketing ativo.
 - A rotina evita novo contato por 45 dias e não envia se houver cupom pessoal ativo.
 - Cada campanha cria cupom pessoal de 10%, uma utilização, com validade de 14 dias.
