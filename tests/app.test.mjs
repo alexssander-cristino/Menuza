@@ -13,6 +13,18 @@ import { calculateItemPrice, makeSeed, INGREDIENTS } from '../src/catalog.mjs';
 import { restaurantLocalDatePrefix } from '../src/time.mjs';
 import { buildFoodGeometry } from '../public/food-scene.js';
 
+test('P0: câmera e WebXR são permitidos apenas na própria origem e a API protege rotas antes de efeitos colaterais', async () => {
+  const vercelConfig = await readFile(new URL('../vercel.json', import.meta.url), 'utf8');
+  const productionApi = await readFile(new URL('../api/[...path].mjs', import.meta.url), 'utf8');
+  assert.match(vercelConfig, /camera=\(self\), xr-spatial-tracking=\(self\), microphone=\(\), geolocation=\(\)/);
+  assert.match(productionApi, /'Permissions-Policy': 'camera=\(self\), xr-spatial-tracking=\(self\), microphone=\(\), geolocation=\(\)'/);
+  const adminGate = productionApi.indexOf("if(path.startsWith('/api/admin/')&&!['/api/admin/login','/api/admin/logout','/api/admin/me'].includes(path)) await requireAdmin(req);");
+  const schemaInitialization = productionApi.indexOf("if(path.startsWith('/api/admin/'))await ensureOperationsSchema();");
+  assert.ok(adminGate >= 0 && schemaInitialization > adminGate, 'unauthenticated admin requests must be rejected before database schema work');
+  assert.match(productionApi, /UPDATE auth_sessions SET revoked_at=NOW\(\) WHERE role=\$1 AND subject_id=\$2 AND revoked_at IS NULL/);
+  assert.match(productionApi, /SELECT role,subject_id AS "subjectId",restaurant_id AS "restaurantId" FROM auth_sessions WHERE token_hash=\$1 AND revoked_at IS NULL/);
+});
+
 test('dashboard usa a data local do restaurante em vez do dia UTC do servidor', () => {
   assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T02:00:00.000Z')), '2026-10-27');
   assert.equal(restaurantLocalDatePrefix(new Date('2026-10-28T04:00:00.000Z')), '2026-10-28');
