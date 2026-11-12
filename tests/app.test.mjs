@@ -157,7 +157,7 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     ['GET', '/api/admin/catalog'], ['GET', '/api/admin/security'],
     ['GET', '/api/admin/analytics'], ['GET', '/api/admin/fiscal/profile'],
     ['GET', '/api/admin/audit'], ['GET', '/api/admin/events'],
-    ['GET', '/api/admin/privacy-requests'], ['POST', '/api/admin/products'],
+    ['GET', '/api/admin/privacy-requests'], ['GET', '/api/admin/me'], ['POST', '/api/admin/products'],
     ['PATCH', '/api/admin/settings'], ['DELETE', '/api/admin/products/produto-inexistente'],
     ['PUT', '/api/admin/pizza-config'], ['PATCH', '/api/admin/orders/pedido-inexistente/payment']
   ];
@@ -165,9 +165,6 @@ test('API persiste composição, valida no servidor, protege painel e recupera a
     const response = await fetch(base + path, { method, headers: { Origin: base } });
     assert.ok([401, 403].includes(response.status), method + ' ' + path + ' must reject unauthenticated access');
   }
-  const adminMe = await fetch(base + '/api/admin/me');
-  assert.equal(adminMe.status, 200);
-  assert.equal((await adminMe.json()).authenticated, false, 'admin session probe reveals no private data to anonymous visitors');
   const legalPages = [
     ['/politica-de-privacidade.html', 'Política de privacidade'],
     ['/termos-de-uso.html', 'Termos de uso'],
