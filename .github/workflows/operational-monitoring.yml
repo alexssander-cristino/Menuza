@@ -1,0 +1,33 @@
+name: Menuza operational monitoring
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API, Neon database and TripoSR worker
+        id: health
+        env:
+          MENUZA_HEALTH_URL: ${{ vars.MENUZA_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MENUZA_HEALTH_URL" ]; then
+            echo "::error::Configure MENUZA_HEALTH_URL as a repository variable (for example https://menuza-five.vercel.app/api/health)."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 20 "${MENUZA_HEALTH_URL}?worker=1"
+      - name: Notify operational failure
+        if: failure() && secrets.ALERT_WEBHOOK_URL != ''
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          curl --fail --silent --show-error -X POST "$ALERT_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            --data '{"text":"Menuza: alerta operacional. API, PostgreSQL ou worker TripoSR indisponível/sem heartbeat. Consulte o GitHub Actions."}'
