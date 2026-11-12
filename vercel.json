@@ -44,6 +44,12 @@
       "timezone": "America/Sao_Paulo",
       "path": "/api/cron/abandoned-carts",
       "requestMethod": "GET"
+    },
+    "inactive-customer-recovery": {
+      "schedule": "0 12 * * 1",
+      "timezone": "America/Sao_Paulo",
+      "path": "/api/cron/inactive-customers",
+      "requestMethod": "GET"
     }
   }
 }
