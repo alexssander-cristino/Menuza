@@ -40,7 +40,7 @@ test('P2: recuperação respeita consentimento e oferece descadastro', async () 
   assert.ok(local.includes('marketing_consent_at'));
   assert.ok(ui.includes('name="marketingConsent"'));
   assert.ok(ui.includes('toggle-marketing-consent'));
-  assert.equal(vercel.crons.find(job=>job.path==='/api/cron/inactive-customers').schedule,'0 15 * * 1');
+  assert.equal(vercel.crons.find(job=>job.path==='/api/cron/inactive-customers').schedule,'0 15 * * *');
   assert.ok(remindersWorkflow.includes("cron: '*/15 * * * *'"));
   assert.ok(remindersWorkflow.includes('secrets.CRON_SECRET'));
 });
