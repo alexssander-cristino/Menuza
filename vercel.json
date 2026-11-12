@@ -40,10 +40,6 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/abandoned-carts",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/inactive-customers",
       "schedule": "0 15 * * 1"
     }
