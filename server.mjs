@@ -946,7 +946,7 @@ const server = createServer(async (request, response) => {
 
       if (path.startsWith('/api/admin/')) requireAdmin(request);
       if (request.method === 'GET' && path === '/api/admin/customers/retention') {
-        const customers=statement("SELECT c.id,c.name,c.email,c.phone,c.marketing_consent_at AS marketingConsentAt,COALESCE(MAX(o.created_at),c.created_at) AS lastOrderAt,COUNT(o.id) AS orders,COALESCE(SUM(CASE WHEN o.status<>'cancelled' THEN o.total_cents ELSE 0 END),0) AS revenueCents FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=? WHERE c.created_at<datetime('now','-30 days') GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<datetime('now','-30 days') ORDER BY lastOrderAt ASC LIMIT 200").all(RESTAURANT_ID);
+        const customers=statement("SELECT c.id,c.name,c.email,c.phone,c.marketing_consent_at AS marketingConsentAt,COALESCE(MAX(o.created_at),c.created_at) AS lastOrderAt,COUNT(o.id) AS orders,COALESCE(SUM(CASE WHEN o.status<>'cancelled' THEN o.total_cents ELSE 0 END),0) AS revenueCents FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=? AND o.status<>'cancelled' WHERE c.created_at<datetime('now','-30 days') GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<datetime('now','-30 days') ORDER BY lastOrderAt ASC LIMIT 200").all(RESTAURANT_ID);
         return send(response,200,{customers:customers.map(row=>({...row,marketingConsent:Boolean(row.marketingConsentAt),orders:Number(row.orders||0),revenueCents:Number(row.revenueCents||0)}))});
       }
       if (request.method === 'POST' && path.startsWith('/api/admin/customers/') && path.endsWith('/coupon')) {
