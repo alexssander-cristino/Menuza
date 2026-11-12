@@ -61,6 +61,7 @@ let adminTwoFactorSchemaPromise;
 let operationsSchemaPromise;
 async function ensureOperationsSchema(){
   if(!operationsSchemaPromise)operationsSchemaPromise=(async()=>{
+    await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT ''");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending'");
     await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ");
@@ -1412,7 +1413,7 @@ export default async function handler(req, res) {
     }
     if (method==='GET'&&path==='/api/admin/analytics') {
       const days=[7,30,90].includes(Number(req.query?.days))?Number(req.query.days):7, since=new Date(Date.now()-days*86400000).toISOString();
-      const [summary,daily,fulfillment,popular,topCustomers,customerStats]=await Promise.all([
+      const [summary,daily,fulfillment,popular,topCustomers,customerStats,contributionRows]=await Promise.all([
         query("SELECT COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\",COALESCE(ROUND(AVG(total_cents) FILTER (WHERE status<>'cancelled')),0)::int AS \"averageTicketCents\",COUNT(*) FILTER (WHERE status='cancelled')::int AS cancelled FROM orders WHERE restaurant_id=$1 AND created_at >= $2",[RESTAURANT_ID,since]),
         query("SELECT created_at::date::text AS date,COUNT(*)::int AS orders,COALESCE(SUM(total_cents) FILTER (WHERE status<>'cancelled'),0)::int AS \"revenueCents\" FROM orders WHERE restaurant_id=$1 AND created_at >= $2 GROUP BY created_at::date ORDER BY date",[RESTAURANT_ID,since]),
         query("SELECT fulfillment AS type,COUNT(*)::int AS orders FROM orders WHERE restaurant_id=$1 AND created_at >= $2 AND status<>'cancelled' GROUP BY fulfillment ORDER BY orders DESC",[RESTAURANT_ID,since]),
