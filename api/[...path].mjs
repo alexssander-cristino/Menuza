@@ -802,6 +802,10 @@ async function updateOrderStatus(id, next) {
     const now=new Date().toISOString();
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
+    if(next==='completed'&&order.customer_id){
+      const points=Math.floor(Math.max(0,Number(order.total_cents||0))/100);
+      if(points>0)await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES($1,$2,$3,$4,'order_completed',$5,$6) ON CONFLICT(order_id) DO NOTHING",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,id,now]);
+    }
     await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.status_changed','order',id,JSON.stringify({from:order.status,to:next})]);
     if (order.fulfillment==='table'&&['completed','cancelled'].includes(next)&&order.table_label) await client.query(`UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3`,[now,RESTAURANT_ID,Number(order.table_label)]);
   });
