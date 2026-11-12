@@ -79,7 +79,7 @@ def process(job):
         interval = max(10, int(os.environ.get("WORKER_HEARTBEAT_SECONDS", "30")))
         while not stop_heartbeat.wait(interval):
             try:
-                HTTP.post(api_route("3d-worker/heartbeat"), json={"jobId": jid}, timeout=10).raise_for_status()
+                requests.post(api_route("3d-worker/heartbeat"), headers=HEADERS, json={"jobId": jid}, timeout=10).raise_for_status()
             except Exception as heartbeat_error:
                 print("[AVISO] Heartbeat do worker falhou:", heartbeat_error, flush=True)
 
