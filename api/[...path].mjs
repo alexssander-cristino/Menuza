@@ -17,6 +17,7 @@ const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\
 const ADMIN_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const CUSTOMER_COOKIE = 'menuza_customer_session';
 const ADMIN_SESSION_MS = 30 * 60 * 1000;
+const ADMIN_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BODY = 64 * 1024;
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -1140,9 +1141,15 @@ export default async function handler(req, res) {
       const expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest();
       if (!timingSafeEqual(candidate,expected)) return json(res,401,{error:'Não foi possível entrar. Confira os dados e tente novamente.'});
       if (!(await verifyAdminSecondFactor(body))) return json(res,401,{error:'A verificação em duas etapas falhou. Informe o código atual ou um código de recuperação válido.'});
-      const expiresAt=Date.now()+ADMIN_SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:expiresAt});
+      const expiresAt=Date.now()+ADMIN_SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:Date.now()+ADMIN_TOKEN_MS});
       await storeSession(token,'admin',RESTAURANT_ID,expiresAt);
-      return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(ADMIN_SESSION_MS/1000))});
+      return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(ADMIN_TOKEN_MS/1000))});
+    }
+    if(method==='POST'&&path==='/api/admin/session/activity'){
+      const current=await requireAdmin(req),token=rawCookieToken(req,ADMIN_COOKIE);
+      const touched=await query("UPDATE auth_sessions SET expires_at=NOW()+INTERVAL '30 minutes' WHERE token_hash=$1 AND role='admin' AND subject_id=$2 AND restaurant_id=$3 AND revoked_at IS NULL AND expires_at>NOW()",[tokenHash(token),current.restaurantId,RESTAURANT_ID]);
+      if(touched.rowCount!==1)throw fail('Sua sessão expirou. Entre novamente.',401);
+      return json(res,200,{ok:true});
     }
     if (method==='POST'&&path==='/api/admin/logout') { await revokeSession(req,ADMIN_COOKIE); return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,'',0)}); }
     if (method==='POST'&&path==='/api/customer/register') {
