@@ -55,6 +55,11 @@ test('P2: painel lista clientes inativos e permite cupom individual com consenti
   assert.ok(local.includes("path.startsWith('/api/admin/customers/') && path.endsWith('/coupon')"));
   assert.ok(ui.includes('renderCustomerRetentionAdmin'));
   assert.ok(ui.includes('issue-customer-coupon'));
+  assert.ok(ui.includes('Clientes e autorização'));
+  assert.ok(ui.includes('Autorizou receber ofertas por e-mail'));
+  assert.ok(api.includes('AS inactive FROM customers c'));
+  assert.ok(local.includes('AS inactive FROM customers c'));
+  assert.ok(ui.includes('customer.inactive?'));
   assert.ok(api.includes('DELETE FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2'));
   assert.ok(local.includes('DELETE FROM loyalty_points_ledger WHERE customer_id=? AND restaurant_id=?'));
 });
