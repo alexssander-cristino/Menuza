@@ -1,69 +1,51 @@
-// Backup do banco SQLite.
-// Cria uma cópia consistente do arquivo de dados, valida o snapshot gerado
-// e aplica a política de retenção configurada para não acumular backups indefinidamente.
-import { DatabaseSync } from 'node:sqlite';
+// Backup independente do PostgreSQL de produção (Neon).
+// Usa pg_dump em formato custom, valida o arquivo com pg_restore e aplica retenção local.
+// O teste real de restauração em PostgreSQL isolado é executado pelo workflow postgres-backup.yml.
+import { spawnSync } from 'node:child_process';
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const sourcePath = resolve(process.env.DATA_FILE || resolve(ROOT, 'data', 'mesa.sqlite'));
+const databaseUrl = String(process.env.DATABASE_URL_DIRECT || '').trim();
 const backupDir = resolve(process.env.BACKUP_DIR || resolve(ROOT, 'backups'));
-const keepRaw = process.env.BACKUP_KEEP || '14';
-const keep = Number(keepRaw);
+const keep = Number(process.env.BACKUP_KEEP || '14');
 
-if (!Number.isInteger(keep) || keep < 1 || keep > 365) {
-  throw new Error('BACKUP_KEEP precisa ser um inteiro entre 1 e 365.');
-}
-if (!existsSync(sourcePath)) {
-  throw new Error('Banco não encontrado em ' + sourcePath + '. Inicie o Menuza ou informe DATA_FILE.');
-}
-if (sourcePath.startsWith(resolve(backupDir) + '/')) {
-  throw new Error('O banco de origem não pode ficar dentro de BACKUP_DIR, pois a retenção poderia removê-lo.');
-}
+if (!databaseUrl) throw new Error('Configure DATABASE_URL_DIRECT com a conexão direta do PostgreSQL Neon.');
+if (!Number.isInteger(keep) || keep < 1 || keep > 365) throw new Error('BACKUP_KEEP precisa ser um inteiro entre 1 e 365.');
 
 await mkdir(backupDir, { recursive: true });
-const source = new DatabaseSync(sourcePath);
-let backupPath = '';
+const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace(/\.(\d{3})Z$/, '-$1');
+const backupPath = resolve(backupDir, 'menuza-postgres-' + stamp + '.dump');
+
+function run(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (result.error) throw new Error('Não foi possível executar ' + command + '. Instale o PostgreSQL Client.');
+  if (result.status !== 0) throw new Error(command + ' falhou: ' + String(result.stderr || result.stdout || 'erro desconhecido').trim().slice(0, 1200));
+  return result.stdout || '';
+}
+
 try {
-  const integrity = source.prepare('PRAGMA integrity_check').all();
-  if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
-    throw new Error('O banco de origem falhou no integrity_check; backup cancelado.');
-  }
+  run('pg_dump', [databaseUrl, '--format=custom', '--no-owner', '--no-acl', '--file=' + backupPath]);
+  run('pg_restore', ['--list', backupPath]);
+  const details = await stat(backupPath);
+  if (!details.size) throw new Error('O arquivo de backup PostgreSQL ficou vazio.');
 
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace(/\.(\d{3})Z$/, '-$1');
-  backupPath = resolve(backupDir, 'menuza-' + stamp + '.sqlite');
-  // VACUUM INTO cria um snapshot consistente, incluindo alterações ainda no WAL.
-  const escapedPath = backupPath.replace(/'/g, "''");
-  source.exec("VACUUM INTO '" + escapedPath + "'");
-} finally {
-  source.close();
-}
+  const pattern = /^menuza-postgres-\d{8}-\d{6}-\d{3}\.dump$/;
+  const entries = (await readdir(backupDir, { withFileTypes: true }))
+    .filter(entry => entry.isFile() && pattern.test(entry.name))
+    .sort((a, b) => b.name.localeCompare(a.name));
+  for (const entry of entries.slice(keep)) await unlink(resolve(backupDir, entry.name));
 
-const snapshot = new DatabaseSync(backupPath);
-try {
-  const integrity = snapshot.prepare('PRAGMA integrity_check').all();
-  if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
-    throw new Error('O arquivo de backup foi criado, mas falhou na verificação de integridade.');
-  }
-} finally {
-  snapshot.close();
+  process.stdout.write(JSON.stringify({
+    ok: true,
+    backup: backupPath,
+    bytes: details.size,
+    format: 'postgres-custom',
+    validated: 'pg_restore --list',
+    retained: Math.min(entries.length, keep)
+  }) + '\n');
+} catch (error) {
+  await unlink(backupPath).catch(() => {});
+  throw error;
 }
-
-const backupPattern = /^menuza-\d{8}-\d{6}-\d{3}\.sqlite$/;
-const entries = (await readdir(backupDir, { withFileTypes: true }))
-  .filter(entry => entry.isFile() && backupPattern.test(entry.name))
-  .sort((a, b) => b.name.localeCompare(a.name));
-for (const entry of entries.slice(keep)) {
-  await unlink(resolve(backupDir, entry.name));
-}
-const details = await stat(backupPath);
-process.stdout.write(JSON.stringify({
-  ok: true,
-  backup: backupPath,
-  bytes: details.size,
-  integrity: 'ok',
-  retained: Math.min(entries.length, keep),
-  source: basename(sourcePath)
-}) + '\n');
