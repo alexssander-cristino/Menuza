@@ -1173,17 +1173,23 @@ export default async function handler(req, res) {
     if(method==='GET'&&path==='/api/customer/loyalty'){
       const current=await requireCustomer(req);await ensureOperationsSchema();
       // Recupera pedidos que já estavam prontos/concluídos e pagos antes da ativação automática da fidelidade.
-      await query(`INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at)
-        SELECT 'lp_'||md5(o.id||':loyalty-backfill'),o.restaurant_id,o.customer_id,
-          FLOOR(GREATEST(0,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)-COALESCE(o.discount_cents,0))/100)::int,
-          'order_completed',o.id,COALESCE(o.updated_at,NOW())
-        FROM orders o
-        JOIN order_items oi ON oi.order_id=o.id
-        WHERE o.restaurant_id=$1 AND o.customer_id=$2 AND o.payment_status='paid'
-          AND o.status IN ('ready','delivering','completed')
-        GROUP BY o.id,o.restaurant_id,o.customer_id,o.discount_cents,o.updated_at
-        HAVING FLOOR(GREATEST(0,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)-COALESCE(o.discount_cents,0))/100)>0
-        ON CONFLICT(order_id) DO NOTHING`,[RESTAURANT_ID,current.customerId]);
+      // A recuperação é complementar: falhas nela não podem impedir a leitura
+      // do saldo que já existe no extrato do cliente.
+      try {
+        await query(`INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at)
+          SELECT 'lp_'||md5(o.id||':loyalty-backfill'),o.restaurant_id,o.customer_id,
+            FLOOR(GREATEST(0,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)-COALESCE(o.discount_cents,0))/100)::int,
+            'order_completed',o.id,COALESCE(o.updated_at,NOW())
+          FROM orders o
+          JOIN order_items oi ON oi.order_id=o.id
+          WHERE o.restaurant_id=$1 AND o.customer_id=$2 AND o.payment_status='paid'
+            AND o.status IN ('ready','delivering','completed')
+          GROUP BY o.id,o.restaurant_id,o.customer_id,o.discount_cents,o.updated_at
+          HAVING FLOOR(GREATEST(0,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)-COALESCE(o.discount_cents,0))/100)>0
+          ON CONFLICT(order_id) DO NOTHING`,[RESTAURANT_ID,current.customerId]);
+      } catch (backfillError) {
+        console.error('[loyalty] Falha na recuperação de pedidos antigos:',backfillError);
+      }
       const balance=await query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
       const history=await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 20',[RESTAURANT_ID,current.customerId]);
       const personalCoupons=await query("SELECT code,discount_type AS \"discountType\",discount_value AS \"discountValue\",expires_at AS \"expiresAt\" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 AND active=1 AND (expires_at IS NULL OR expires_at>NOW()) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20",[RESTAURANT_ID,current.customerId]);
