@@ -17,12 +17,22 @@ A execução depende de `DATABASE_URL_DIRECT` configurada. Até o primeiro workf
 
 O workflow `.github/workflows/operational-monitoring.yml` consulta a cada cinco minutos:
 
-- `/api/health?worker=1`: conectividade da API e do Neon.
-- Heartbeat do worker TripoSR quando `TRIPOSR_WORKER_TOKEN` está configurado.
+- `/api/health`: conectividade da API e do PostgreSQL Neon.
+- Estado do worker TripoSR: aparece como aviso no Actions quando o worker está configurado, mas não envia heartbeat recente. A indisponibilidade do worker local não mascara a saúde da API e do banco.
 
-Configure a variável de repositório `MENUZA_HEALTH_URL` com a URL base completa, por exemplo `https://menuza-five.vercel.app/api/health`. Configure `ALERT_WEBHOOK_URL` como secret para receber alertas. Sem webhook, a falha aparece no histórico do GitHub Actions.
+A URL padrão é `https://menuza-five.vercel.app/api/health`. A variável de repositório `MENUZA_HEALTH_URL` é opcional e serve apenas para sobrescrever esse endereço. Configure `ALERT_WEBHOOK_URL` como secret para receber notificações externas de falhas da API ou do banco. Sem webhook, a falha aparece no histórico do GitHub Actions.
 
-O worker envia heartbeat ao buscar a fila e a cada 30 segundos durante a inferência. O status é considerado atrasado após 180 segundos. Se o worker não estiver configurado, ele é tratado como recurso opcional e não derruba a saúde da API.
+O worker envia heartbeat ao buscar a fila e a cada 30 segundos durante a inferência. O status é considerado atrasado após 180 segundos. A tabela de heartbeat é criada no primeiro polling autenticado do worker.
+
+## Lembretes por e-mail
+
+O workflow `.github/workflows/abandoned-cart-reminders.yml` chama o endpoint a cada 15 minutos. Para habilitá-lo, configure:
+
+- Secret do GitHub Actions `CRON_SECRET`, com o mesmo valor já configurado em `CRON_SECRET` no Vercel.
+- Variável de ambiente Vercel `RESEND_FROM_EMAIL`, usando um remetente/domínio verificado no Resend.
+- `RESEND_API_KEY` já deve estar configurada no Vercel.
+
+Sem esses valores, os lembretes não serão enviados. O endpoint exige autenticação e não deve ser exposto sem o segredo.
 
 ## Fila 3D
 
