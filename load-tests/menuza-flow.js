@@ -76,7 +76,7 @@ export default function () {
   });
 
   getJson('/api/opening-hours', 'horários');
-  getJson('/api/delivery/options', 'entrega');
+  getJson('/api/dispatch?path=delivery/options', 'entrega');
 
   if (ENABLE_ORDER_WRITES && orderFixture) {
     const payload = {
