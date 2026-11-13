@@ -469,7 +469,7 @@ test('login do cliente aparece antes de terminar a verificação da sessão', as
   const client = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   const accountView = client.slice(client.indexOf('async function showCustomerAccount()'), client.indexOf('function renderCustomerAuth('));
   assert.ok(accountView.includes("renderCustomerAuth();try{const result=await api('/api/customer/me')"), 'customer login must render before the session request resolves');
-  assert.ok(accountView.includes("if(app.customer)await renderCustomerDashboard()"), 'a valid session must still open the customer dashboard');
+  assert.ok(accountView.includes("if(app.customer){await renderCustomerDashboard()"), 'a valid session must still open the customer dashboard');
 });
 
 
