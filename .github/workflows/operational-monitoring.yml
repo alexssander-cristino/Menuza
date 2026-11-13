@@ -11,18 +11,20 @@ permissions:
 jobs:
   health-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
-      - name: Check API, Neon database and TripoSR worker
-        id: health
+      - name: Check API and Neon database
         env:
-          MENUZA_HEALTH_URL: ${{ vars.MENUZA_HEALTH_URL }}
+          MENUZA_HEALTH_URL: ${{ vars.MENUZA_HEALTH_URL || 'https://menuza-five.vercel.app/api/health' }}
         run: |
           set -euo pipefail
-          if [ -z "$MENUZA_HEALTH_URL" ]; then
-            echo "::error::Configure MENUZA_HEALTH_URL as a repository variable (for example https://menuza-five.vercel.app/api/health)."
-            exit 1
+          response="$(curl --fail --silent --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 20 "$MENUZA_HEALTH_URL")"
+          printf '%s' "$response" | jq -e '.ok == true and .database == "connected"' >/dev/null
+          worker_configured="$(printf '%s' "$response" | jq -r '.worker.configured // false')"
+          worker_healthy="$(printf '%s' "$response" | jq -r '.worker.healthy // false')"
+          if [ "$worker_configured" = "true" ] && [ "$worker_healthy" != "true" ]; then
+            echo "::warning::API and Neon are healthy, but the optional TripoSR worker has no recent heartbeat."
           fi
-          curl --fail --silent --show-error --max-time 20 "${MENUZA_HEALTH_URL}?worker=1"
       - name: Notify operational failure
         if: failure()
         env:
@@ -31,4 +33,4 @@ jobs:
           if [ -z "$ALERT_WEBHOOK_URL" ]; then echo "ALERT_WEBHOOK_URL não configurado; alerta disponível no Actions."; exit 0; fi
           curl --fail --silent --show-error -X POST "$ALERT_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
-            --data '{"text":"Menuza: alerta operacional. API, PostgreSQL ou worker TripoSR indisponível/sem heartbeat. Consulte o GitHub Actions."}'
+            --data '{"text":"Menuza: API ou PostgreSQL indisponível. Consulte o GitHub Actions."}'
