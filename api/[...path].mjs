@@ -1168,7 +1168,7 @@ export default async function handler(req, res) {
       const balance=await query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
       const history=await query('SELECT points,reason,created_at AS "createdAt" FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 20',[RESTAURANT_ID,current.customerId]);
       const personalCoupons=await query("SELECT code,discount_type AS \"discountType\",discount_value AS \"discountValue\",expires_at AS \"expiresAt\" FROM coupons WHERE restaurant_id=$1 AND customer_id=$2 AND active=1 AND (expires_at IS NULL OR expires_at>NOW()) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20",[RESTAURANT_ID,current.customerId]);
-      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history:history.rows,coupons:personalCoupons.rows});
+      return json(res,200,{points:Number(balance.rows[0]?.points||0),pointsPerReal:1,rewardPoints:1000,rewardDiscountCents:1000,history:history.rows,coupons:personalCoupons.rows});
     }
     if(method==='POST'&&path==='/api/customer/loyalty/redeem'){
       const current=await requireCustomer(req);await ensureOperationsSchema();
@@ -1176,13 +1176,13 @@ export default async function handler(req, res) {
         const locked=await client.query('SELECT id FROM customers WHERE id=$1 FOR UPDATE',[current.customerId]);
         if(!locked.rowCount)throw fail('Conta de cliente não encontrada.',404);
         const balance=await client.query('SELECT COALESCE(SUM(points),0)::int AS points FROM loyalty_points_ledger WHERE restaurant_id=$1 AND customer_id=$2',[RESTAURANT_ID,current.customerId]);
-        if(Number(balance.rows[0]?.points||0)<100)throw fail('Você precisa de 100 pontos para trocar por R$ 10,00.',422);
+        if(Number(balance.rows[0]?.points||0)<1000)throw fail('Você precisa de 1.000 pontos para trocar por R$ 10,00.',422);
         const couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase(),now=new Date(),expires=new Date(now.getTime()+30*86400000);
         const inserted=await client.query("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES($1,$2,$3,'fixed',1000,0,$4,$5,1,1,$4,$6) RETURNING *",[couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),current.customerId]);
-        await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES($1,$2,$3,-100,'reward_redeemed',$4,$5)",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,current.customerId,couponId,now.toISOString()]);
+        await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES($1,$2,$3,-1000,'reward_redeemed',$4,$5)",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,current.customerId,couponId,now.toISOString()]);
         return inserted.rows[0];
       });
-      return json(res,201,{coupon:couponPublic(result),message:'100 pontos trocados por R$ 10,00 de desconto. O cupom é exclusivo da sua conta.'});
+      return json(res,201,{coupon:couponPublic(result),message:'1.000 pontos trocados por R$ 10,00 de desconto. O cupom é exclusivo da sua conta.'});
     }
     if (method==='GET'&&path==='/api/customer/data-export') {
       const c=await requireCustomer(req);await ensureOperationsSchema();
