@@ -8,7 +8,7 @@ test('P2: pontos são creditados uma vez quando pedido vinculado é concluído',
   const api = await read('api/[...path].mjs');
   const local = await read('server.mjs');
   assert.ok(api.includes('CREATE TABLE IF NOT EXISTS loyalty_points_ledger'));
-  assert.ok(api.includes("if(next==='completed'&&order.customer_id)"));
+  assert.ok(api.includes("async function awardOrderLoyaltyPoints(client, order"));
   assert.ok(api.includes('ON CONFLICT(order_id) DO NOTHING'));
   assert.ok(local.includes("if(nextStatus==='completed'&&order.customer_id)"));
   assert.ok(local.includes('INSERT OR IGNORE INTO loyalty_points_ledger'));
