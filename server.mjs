@@ -882,19 +882,19 @@ const server = createServer(async (request, response) => {
         const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
         const history=statement('SELECT points,reason,created_at AS createdAt FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 20').all(RESTAURANT_ID,customer.id);
         const coupons=statement("SELECT code,discount_type AS discountType,discount_value AS discountValue,expires_at AS expiresAt FROM coupons WHERE restaurant_id=? AND customer_id=? AND active=1 AND (expires_at IS NULL OR expires_at>datetime('now')) AND (max_uses IS NULL OR used_count<max_uses) ORDER BY created_at DESC LIMIT 20").all(RESTAURANT_ID,customer.id);
-        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:100,rewardDiscountCents:1000,history,coupons});
+        return send(response,200,{points:Number(balance.points||0),pointsPerReal:1,rewardPoints:1000,rewardDiscountCents:1000,history,coupons});
       }
       if (request.method === 'POST' && path === '/api/customer/loyalty/redeem') {
         const customer=requireCustomer(request).customer,now=new Date(),expires=new Date(now.getTime()+30*86400000),couponId='cpn_'+randomBytes(12).toString('hex'),code='PONTOS-'+randomBytes(4).toString('hex').toUpperCase();
         db.exec('BEGIN IMMEDIATE');
         try {
           const balance=statement('SELECT COALESCE(SUM(points),0) AS points FROM loyalty_points_ledger WHERE restaurant_id=? AND customer_id=?').get(RESTAURANT_ID,customer.id);
-          if(Number(balance.points||0)<100)throw Object.assign(new Error('Você precisa de 100 pontos para trocar por R$ 10,00.'),{status:422});
+          if(Number(balance.points||0)<1000)throw Object.assign(new Error('Você precisa de 1.000 pontos para trocar por R$ 10,00.'),{status:422});
           statement("INSERT INTO coupons(id,restaurant_id,code,discount_type,discount_value,minimum_subtotal_cents,starts_at,expires_at,max_uses,active,created_at,customer_id) VALUES(?,?,?,'fixed',1000,0,?,?,1,1,?,?)").run(couponId,RESTAURANT_ID,code,now.toISOString(),expires.toISOString(),now.toISOString(),customer.id);
-          statement("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES(?,?,?,-100,'reward_redeemed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customer.id,couponId,now.toISOString());
+          statement("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,coupon_id,created_at) VALUES(?,?,?,-1000,'reward_redeemed',?,?)").run('lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,customer.id,couponId,now.toISOString());
           db.exec('COMMIT');
         } catch(error){db.exec('ROLLBACK');throw error}
-        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),message:'100 pontos trocados por R$ 10,00 de desconto. Cupom exclusivo da sua conta.'});
+        return send(response,201,{coupon:couponPublic(statement('SELECT * FROM coupons WHERE id=?').get(couponId)),message:'1.000 pontos trocados por R$ 10,00 de desconto. Cupom exclusivo da sua conta.'});
       }
       if (request.method === 'GET' && path === '/api/customer/orders') return send(response,200,{orders:listCustomerOrders(requireCustomer(request).customer.id)});
       if (request.method === 'DELETE' && path === '/api/customer/account') {
