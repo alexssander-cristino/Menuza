@@ -61,14 +61,14 @@ Faça isso somente em uma homologação com banco e produtos de teste. O payload
 
 ```powershell
 $env:BASE_URL="https://SUA-HOMOLOGACAO"
-$env:VUS="25"
+$env:VUS="8"
 $env:ENABLE_ORDER_WRITES="true"
 $env:ALLOW_TEST_ORDER_WRITES="true"
 $env:ORDER_PAYLOAD_JSON='{"customerName":"Cliente de teste","phone":"47999990000","fulfillment":"pickup","paymentMethod":"cash","items":[{"productId":"ID_DO_PRODUTO_DE_TESTE","quantity":1,"sizeKey":"unico","crustKey":"","ingredients":[] }]}'
 k6 run .\load-tests\menuza-flow.js
 ```
 
-O teste com escrita é limitado a 50 VUs para respeitar o limite atual de 60 criações de pedidos por IP em 10 minutos. A chave de idempotência é gerada novamente em cada pedido. O script bloqueia explicitamente a URL de produção conhecida; ainda assim, use apenas homologação isolada.
+O teste com escrita é limitado a 8 VUs para respeitar o limite atual de 60 criações de pedidos por IP em 10 minutos. A chave de idempotência é gerada novamente em cada pedido. O script bloqueia explicitamente a URL de produção conhecida; ainda assim, use apenas homologação isolada.
 
 ### Como interpretar
 
