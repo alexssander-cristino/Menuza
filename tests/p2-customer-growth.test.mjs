@@ -68,3 +68,29 @@ test('P2: indicadores mostram rentabilidade por produto nos ambientes PostgreSQL
   assert.ok(ui.includes('Produtos mais rentáveis'));
   assert.ok(ui.includes('data.profitability'));
 });
+
+
+test('P2: recuperação converte datas TEXT antes de combinar com timestamps', async () => {
+  const api = await read('api/[...path].mjs');
+  assert.ok(api.includes("COALESCE(NULLIF(o.updated_at,'')::timestamptz,NOW())"));
+  assert.ok(api.includes("MAX(NULLIF(o.created_at,'')::timestamptz)"));
+  assert.ok(api.includes("NULLIF(c.created_at,'')::timestamptz"));
+});
+
+test('sessão administrativa expira em 30 minutos no backend e no frontend', async () => {
+  const api = await read('api/[...path].mjs');
+  const ui = await read('public/app.js');
+  assert.ok(api.includes('const ADMIN_SESSION_MS = 30 * 60 * 1000;'));
+  assert.ok(api.includes('Math.floor(ADMIN_SESSION_MS/1000)'));
+  assert.ok(ui.includes('const ADMIN_INACTIVITY_LIMIT = 30 * 60 * 1000;'));
+  assert.ok(ui.includes('Sessão encerrada após 30 minutos sem atividade.'));
+});
+
+test('rotinas automáticas de carrinho e backup PostgreSQL permanecem agendadas', async () => {
+  const cart = await read('.github/workflows/abandoned-cart-reminders.yml');
+  const backup = await read('.github/workflows/postgres-backup.yml');
+  assert.ok(cart.includes("cron: '*/15 * * * *'"));
+  assert.ok(cart.includes('/api/cron/abandoned-carts'));
+  assert.ok(backup.includes("cron: '17 5 * * *'"));
+  assert.ok(backup.includes('pg_restore --dbname'));
+});
