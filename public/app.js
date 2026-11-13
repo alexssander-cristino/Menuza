@@ -55,7 +55,7 @@ const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null, checkoutSubmitting: false,
   rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, inactivityTimer: null, lastActivityAt: 0, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
-  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null, drinkPreview: null
+  trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
 function playCartRunAnimation(){
@@ -318,7 +318,7 @@ function cardMarkup(product) {
   const promotion=product.promotionalPriceCents!==null&&product.promotionalPriceCents!==undefined;
   const scheduledPromotion=!promotion&&product.promotion?.active===true;
   const footerLabel = isDrink ? 'Bebida' : '<span>'+uiIcon('clock',14)+'</span> '+Number(product.prepMinutes||25)+' min';
-  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+(isDrink?'<button class="drink-model-preview" type="button" data-action="drink-3d-preview" data-product="'+esc(product.id)+'" aria-label="Visualizar '+esc(product.name)+' em 3D">Ver em 3D</button>':'')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">'+esc(product.promotion?.promotionName||'OFERTA')+'</span>':'')+(product.ageRestricted?'<span class="age-restricted-badge" style="position:absolute;top:12px;left:12px;background:#7f1d1d;color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800">18+</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0||isClosed?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':isClosed?'Fechado':actionLabel)+'</button></div></div></article>';
+  return '<article class="product-card '+(product.available===0?'product-sold-out':'')+(isDrink?' beverage-card':'')+'" data-product-card="'+esc(product.id)+'"><div class="product-image" style="position:relative;overflow:hidden">'+productImageCarouselMarkup(product,'card','cover')+'<span class="product-label">'+(product.featured?'Mais pedido':esc(category))+'</span>'+(product.available===0?'<span class="sold-out-label">Esgotado</span>':'')+(promotion?'<span class="promotion-badge">'+esc(product.promotion?.promotionName||'OFERTA')+'</span>':'')+(product.ageRestricted?'<span class="age-restricted-badge" style="position:absolute;top:12px;left:12px;background:#7f1d1d;color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800">18+</span>':'')+'<button class="favorite-toggle '+(favorite?'is-favorite':'')+'" type="button" data-action="toggle-favorite" data-product="'+esc(product.id)+'" aria-pressed="'+favorite+'" aria-label="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'" title="'+(favorite?'Remover dos favoritos':'Adicionar aos favoritos')+'">'+uiIcon('heart',17,'favorite-heart-icon')+'</button><button class="share-product-button" type="button" data-action="share-product" data-product="'+esc(product.id)+'" aria-label="Compartilhar '+esc(product.name)+'" title="Compartilhar produto"><svg class="share-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.7 6.6-4.4M8.7 13.3l6.6 4.4"/></svg></button>'+'</div><div class="product-card-body"><div class="product-card-top"><h3>'+esc(product.name)+'</h3>'+productPriceMarkup(product)+'</div><p>'+esc(product.description|| (isDrink?'Bebida disponível para adicionar ao pedido.':''))+'</p>'+(recipeDescription?'<small class="product-ingredients-description">'+esc(recipeDescription)+'</small>':'')+'<div class="card-bottom"><span class="prep-time">'+footerLabel+'</span><button class="add-button" data-action="build" data-product="'+esc(product.id)+'" '+(product.available===0||isClosed?'disabled aria-disabled="true"':'')+'>'+(product.available===0?'Indisponível':isClosed?'Fechado':actionLabel)+'</button></div></div></article>';
 }
 function visibleProducts() {
   let list = app.catalog.products.filter(product => {
@@ -782,32 +782,6 @@ async function addBeverageToCart(productId) {
   rememberRecentProduct(productId);
   app.cart.push({cartId:randomId(),productId:product.id,name:product.name,type:'drink',quantity:1,sizeKey:'unico',crustKey:'',ingredients:[],notes:''});
   invalidateCheckoutKey();setCart();playCartRunAnimation();toast(product.name+' adicionado à carrinho.');openCart();
-}
-function closeDrink3DPreview() {
-  app.drinkPreview?.scene?.dispose?.();
-  app.drinkPreview = null;
-  root.getElementById('drink3dPreview')?.remove();
-}
-function openDrink3DPreview(productId) {
-  const product = app.catalog?.products.find(item => item.id === productId && item.type === 'drink');
-  if (!product) return;
-  closeDrink3DPreview();
-  const overlay = root.createElement('div');
-  overlay.id = 'drink3dPreview';
-  overlay.className = 'modal-backdrop drink-3d-backdrop';
-  overlay.dataset.action = 'drink-3d-backdrop';
-  overlay.innerHTML = '<section class="admin-recipe-3d-modal drink-3d-modal" role="dialog" aria-modal="true" aria-label="Visualização 3D de '+esc(product.name)+'"><header><div><strong>'+esc(product.name)+'</strong><small>Prévia 3D interativa da bebida · arraste para girar</small></div><button type="button" data-action="close-drink-3d-preview" aria-label="Fechar visualização 3D">×</button></header><div class="admin-recipe-3d-stage drink-3d-stage"><canvas id="drink3dCanvas" aria-label="Modelo tridimensional de '+esc(product.name)+'"></canvas><div id="drink3dHud" aria-live="polite"></div></div><p>O pedido continua sendo adicionado pelo botão “Adicionar” no cardápio.</p></section>';
-  root.body.append(overlay);
-  try {
-    const size = app.catalog?.sizes?.drink?.[0] || { key: 'unico', label: 'Unidade' };
-    const scene = new FoodScene(root.getElementById('drink3dCanvas'), product, [], size, root.getElementById('drink3dHud'), { detail: .58 });
-    app.drinkPreview = { productId, scene };
-    scene.setActive(true);
-  } catch (error) {
-    overlay.remove();
-    app.drinkPreview = null;
-    toast(error.message || 'Não foi possível abrir a bebida em 3D neste navegador.');
-  }
 }
 async function addBuilderToCart() {
   const builder=app.builder;if(!builder)return;
@@ -3207,9 +3181,6 @@ async function handleClick(event){
    if(action==='save-combo-status'){saveComboStatus(target.dataset.id);return}
   if(action==='share-menu'){shareMenu();return}
   if(action==='share-product'){shareMenu(target.dataset.product);return}
-  if(action==='drink-3d-preview'){openDrink3DPreview(target.dataset.product);return}
-  if(action==='close-drink-3d-preview'){closeDrink3DPreview();return}
-  if(action==='drink-3d-backdrop'&&event.target===target){closeDrink3DPreview();return}
   if(action==='export-orders'){exportVisibleOrders();return}
   if(action==='print-order'){printOrderTicket(target.dataset.orderId);return}
   if(action==='retry-failed-prints'){retryFailedPrints();return}
@@ -3553,7 +3524,7 @@ async function start(){
     const select=event.target.closest('[data-order-status]');
     if(select&&select.value){select.disabled=true;try{await api('/api/admin/orders/'+encodeURIComponent(select.dataset.orderStatus),{method:'PATCH',body:JSON.stringify({status:select.value})});toast('Status do pedido atualizado.');refreshAdmin()}catch(e){toast(e.message);select.disabled=false;select.value=''}}
   });
-  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(root.getElementById('mobileSiteMenu')?.classList.contains('is-open')){closeMobileSiteMenu();return}if(app.builder){app.builder=null;renderBuilder()}else if(app.drinkPreview){closeDrink3DPreview()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
+  root.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();root.getElementById('searchInput')?.focus()}if(event.key==='Escape'){if(root.getElementById('mobileSiteMenu')?.classList.contains('is-open')){closeMobileSiteMenu();return}if(app.builder){app.builder=null;renderBuilder()}else if(app.cartOpen){app.cartOpen=false;root.getElementById('cartRoot').innerHTML=''}}});
   syncFilters();updateCartCount();bindSpellCardInteractions();bindGetLayersHeroMotion();bindScrollStorytelling();
   const query=new URLSearchParams(location.search),qrToken=query.get('t'),qrNumber=query.get('mesa');
   if(qrToken&&qrNumber){try{const verified=await api('/api/tables/qr/'+encodeURIComponent(qrToken));if(String(verified.table.number)===qrNumber)app.tableQr={token:qrToken,number:verified.table.number,seats:verified.table.seats,status:verified.table.status};else toast('O QR Code não corresponde à mesa informada.')}catch{toast('Não foi possível validar o QR Code desta mesa. Confira se o link está correto.')}}
