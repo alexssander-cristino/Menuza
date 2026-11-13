@@ -1518,7 +1518,7 @@ export default async function handler(req, res) {
       const b=await bodyOf(req),paid=Boolean(b.paid),methodValue=clean(b.paymentMethod,20).toLowerCase();
       if(!['pix','cash','card'].includes(methodValue))throw fail('Forma de pagamento inválida.',422);
       const updated=await withTransaction(async client=>{
-        const found=await client.query('SELECT id,status,payment_method,payment_status FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[orderId,RESTAURANT_ID]);
+        const found=await client.query('SELECT id,status,payment_method,payment_status,customer_id,discount_cents FROM orders WHERE id=$1 AND restaurant_id=$2 FOR UPDATE',[orderId,RESTAURANT_ID]);
         const order=found.rows[0];if(!order)throw fail('Pedido não encontrado.',404);
         if(order.status==='cancelled'&&paid)throw fail('Não é possível marcar um pedido cancelado como pago.',409);
         const nextStatus=paid?'paid':'pending',now=paid?new Date().toISOString():null;
