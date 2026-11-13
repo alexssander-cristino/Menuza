@@ -13,8 +13,8 @@ if (!Number.isInteger(TARGET_VUS) || TARGET_VUS < 1 || TARGET_VUS > 100) {
 if (!Number.isFinite(THINK_TIME_SECONDS) || THINK_TIME_SECONDS < 10) {
   throw new Error('THINK_TIME_SECONDS deve ser de pelo menos 10 segundos.');
 }
-if (ENABLE_ORDER_WRITES && (!ALLOW_TEST_ORDER_WRITES || TARGET_VUS > 50)) {
-  throw new Error('Pedidos de teste exigem ALLOW_TEST_ORDER_WRITES=true e no máximo 50 VUs.');
+if (ENABLE_ORDER_WRITES && (!ALLOW_TEST_ORDER_WRITES || TARGET_VUS > 8)) {
+  throw new Error('Pedidos de teste exigem ALLOW_TEST_ORDER_WRITES=true e no máximo 8 VUs.');
 }
 if (ENABLE_ORDER_WRITES && /menuza-five\.vercel\.app|menuza-rf8ix80r5/i.test(BASE_URL)) {
   throw new Error('O teste com criação de pedidos está bloqueado para a produção.');
