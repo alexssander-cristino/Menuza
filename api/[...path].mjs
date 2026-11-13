@@ -532,12 +532,12 @@ async function ensureCatalogSchema() {
 }
 // Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
 async function catalogFor(admin = false) {
-  await Promise.all([
-    ensureOpeningHoursSchema(),
-    ensurePizzaConfigSchema(),
-    ensurePromoDeliverySchema(),
-    ensureCatalogSchema()
-  ]);
+  // Executa migrações de inicialização uma vez por instância, fora do caminho
+  // repetido de consultas. A ordem evita concorrência de ALTER TABLE na mesma tabela.
+  await ensureOpeningHoursSchema();
+  await ensurePizzaConfigSchema();
+  await ensurePromoDeliverySchema();
+  await ensureCatalogSchema();
   const active = admin ? '' : ' AND active=1';
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
