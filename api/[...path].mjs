@@ -790,6 +790,17 @@ async function createOrder(body, customer) {
   return order;
 }
 // Atendimento: aplica somente transições de status permitidas e registra a atualização.
+async function awardOrderLoyaltyPoints(client, order, now = new Date().toISOString()) {
+  if (!order?.customer_id || order.payment_status !== 'paid' || !['ready','delivering','completed'].includes(order.status)) return false;
+  const pointsBase=await client.query('SELECT COALESCE(SUM(unit_price_cents*quantity),0)::bigint AS subtotal FROM order_items WHERE order_id=$1',[order.id]);
+  const points=Math.floor(Math.max(0,Number(pointsBase.rows[0]?.subtotal||0)-Number(order.discount_cents||0))/100);
+  if(points<=0)return false;
+  const inserted=await client.query(
+    "INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES($1,$2,$3,$4,'order_completed',$5,$6) ON CONFLICT(order_id) DO NOTHING RETURNING id",
+    ['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,order.id,now]
+  );
+  return Boolean(inserted.rows[0]);
+}
 async function updateOrderStatus(id, next) {
   await ensureOperationsSchema();
   if (!STATUS_FLOW.includes(next)) throw fail('Estado de pedido inválido.',422);
@@ -803,11 +814,7 @@ async function updateOrderStatus(id, next) {
     const now=new Date().toISOString();
     await client.query('UPDATE orders SET status=$1,updated_at=$2 WHERE id=$3',[next,now,id]);
     await client.query('INSERT INTO order_status_history (order_id,status,changed_at,changed_by) VALUES ($1,$2,$3,$4)',[id,next,now,'restaurante']);
-    if(next==='completed'&&order.customer_id){
-      const pointsBase=await client.query('SELECT COALESCE(SUM(unit_price_cents*quantity),0)::bigint AS subtotal FROM order_items WHERE order_id=$1',[id]);
-      const points=Math.floor(Math.max(0,Number(pointsBase.rows[0]?.subtotal||0)-Number(order.discount_cents||0))/100);
-      if(points>0)await client.query("INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at) VALUES($1,$2,$3,$4,'order_completed',$5,$6) ON CONFLICT(order_id) DO NOTHING",['lp_'+randomBytes(12).toString('hex'),RESTAURANT_ID,order.customer_id,points,id,now]);
-    }
+    await awardOrderLoyaltyPoints(client,{...order,id,status:next},now);
     await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.status_changed','order',id,JSON.stringify({from:order.status,to:next})]);
     if (order.fulfillment==='table'&&['completed','cancelled'].includes(next)&&order.table_label) await client.query(`UPDATE restaurant_tables SET status='cleaning',updated_at=$1 WHERE restaurant_id=$2 AND table_number=$3`,[now,RESTAURANT_ID,Number(order.table_label)]);
   });
@@ -1504,6 +1511,7 @@ export default async function handler(req, res) {
         if(order.status==='cancelled'&&paid)throw fail('Não é possível marcar um pedido cancelado como pago.',409);
         const nextStatus=paid?'paid':'pending',now=paid?new Date().toISOString():null;
         await client.query('UPDATE orders SET payment_method=$1,payment_status=$2,paid_at=$3,paid_by=$4 WHERE id=$5 AND restaurant_id=$6',[methodValue,nextStatus,now,paid?'admin':'',orderId,RESTAURANT_ID]);
+        await awardOrderLoyaltyPoints(client,{...order,id:orderId,payment_status:nextStatus},now||new Date().toISOString());
         await client.query('INSERT INTO admin_audit_log(restaurant_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[RESTAURANT_ID,'order.payment_updated','order',orderId,JSON.stringify({from:order.payment_status,to:nextStatus,paymentMethod:methodValue})]);
         return {id:orderId,paymentMethod:methodValue,paymentStatus:nextStatus,paidAt:now};
       });
