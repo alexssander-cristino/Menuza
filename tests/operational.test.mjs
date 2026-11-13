@@ -41,12 +41,15 @@ test('P1: falhas do agente de impressão ficam em fila local recuperável por ID
   assert.ok(ui.includes('sendOrderToLocalPrinter(order,true)'));
 });
 
-test('P1: workflows automatizam backup com restauração isolada e monitoramento', async () => {
+test('P1: workflows automatizam backup isolado e monitoramento sem depender do worker local', async () => {
   const backup = await read('.github/workflows/postgres-backup.yml');
   const monitor = await read('.github/workflows/operational-monitoring.yml');
   assert.ok(backup.includes('pg_dump'));
   assert.ok(backup.includes('pg_restore --dbname'));
   assert.ok(backup.includes('retention-days: 30'));
   assert.ok(monitor.includes('MENUZA_HEALTH_URL'));
-  assert.ok(monitor.includes('worker=1'));
+  assert.ok(monitor.includes("vars.MENUZA_HEALTH_URL || 'https://menuza-five.vercel.app/api/health'"));
+  assert.ok(monitor.includes('jq -e'));
+  assert.ok(monitor.includes('::warning::'));
+  assert.ok(!monitor.includes('worker=1'));
 });
