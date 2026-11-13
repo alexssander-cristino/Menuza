@@ -264,18 +264,21 @@ async function ensureBeverageSchema() {
 let promoDeliverySchemaPromise;
 async function ensurePromoDeliverySchema() {
   if (!promoDeliverySchemaPromise) {
-    promoDeliverySchemaPromise = (async () => {
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_image TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_title TEXT NOT NULL DEFAULT 'Ofertas especiais'");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_text TEXT NOT NULL DEFAULT 'Confira nossas promoções e aproveite'");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_active INTEGER NOT NULL DEFAULT 0");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION");
-      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION");
-      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee_cents INTEGER NOT NULL DEFAULT 0");
-      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_zone_name TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DOUBLE PRECISION");
-      await query(`CREATE TABLE IF NOT EXISTS product_promotions (
+    promoDeliverySchemaPromise = withTransaction(async client => {
+      // Evita que instâncias serverless concorrentes executem a mesma migração
+      // simultaneamente durante um cold start.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['menuza:promo-delivery-schema']);
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_image TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_title TEXT NOT NULL DEFAULT 'Ofertas especiais'");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_text TEXT NOT NULL DEFAULT 'Confira nossas promoções e aproveite'");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS promo_banner_active INTEGER NOT NULL DEFAULT 0");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION");
+      await client.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee_cents INTEGER NOT NULL DEFAULT 0");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_zone_name TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DOUBLE PRECISION");
+      await client.query(`CREATE TABLE IF NOT EXISTS product_promotions (
         id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
         discount_type TEXT NOT NULL CHECK(discount_type IN ('fixed','percent')),
         promotional_price_cents INTEGER, discount_percent INTEGER,
@@ -284,34 +287,34 @@ async function ensurePromoDeliverySchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(restaurant_id,product_id)
       )`);
-      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS card_image TEXT NOT NULL DEFAULT ''");
-      await query("ALTER TABLE product_promotions DROP CONSTRAINT IF EXISTS product_promotions_restaurant_id_product_id_key");
-      await query("CREATE UNIQUE INDEX IF NOT EXISTS product_promotions_product_size_unique ON product_promotions(restaurant_id,product_id,size_key)");
-      await query(`CREATE TABLE IF NOT EXISTS delivery_zones (
+      await client.query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS size_key TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS promotion_name TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS included_crust_key TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE product_promotions ADD COLUMN IF NOT EXISTS card_image TEXT NOT NULL DEFAULT ''");
+      await client.query("ALTER TABLE product_promotions DROP CONSTRAINT IF EXISTS product_promotions_restaurant_id_product_id_key");
+      await client.query("CREATE UNIQUE INDEX IF NOT EXISTS product_promotions_product_size_unique ON product_promotions(restaurant_id,product_id,size_key)");
+      await client.query(`CREATE TABLE IF NOT EXISTS delivery_zones (
         id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, name TEXT NOT NULL,
         fee_mode TEXT NOT NULL CHECK(fee_mode IN ('fixed','per_km')),
         fee_cents INTEGER NOT NULL DEFAULT 0, per_km_cents INTEGER NOT NULL DEFAULT 100, distance_km DOUBLE PRECISION NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(restaurant_id,name)
       )`);
-      await query('ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0');
-      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active)
+      await client.query('ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0');
+      await client.query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active)
         VALUES ('zone-centro', $1, 'Centro', 'fixed', 800, 100, 1)
         ON CONFLICT (restaurant_id,name) DO NOTHING`, [RESTAURANT_ID]);
-      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-boavista',$1,'Boa Vista','fixed',800,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
-      await query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,0) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
-      await query("UPDATE delivery_zones SET distance_km=1 WHERE restaurant_id=$1 AND id='zone-demais' AND distance_km=0",[RESTAURANT_ID]);
-      await query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url,address)
+      await client.query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-boavista',$1,'Boa Vista','fixed',800,100,1) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await client.query(`INSERT INTO delivery_zones (id,restaurant_id,name,fee_mode,fee_cents,per_km_cents,active) VALUES ('zone-demais',$1,'Demais localidades','per_km',0,100,0) ON CONFLICT (restaurant_id,name) DO NOTHING`,[RESTAURANT_ID]);
+      await client.query("UPDATE delivery_zones SET distance_km=1 WHERE restaurant_id=$1 AND id='zone-demais' AND distance_km=0",[RESTAURANT_ID]);
+      await client.query(`INSERT INTO restaurants (id,name,slug,currency,prep_minutes,created_at,logo_url,address)
         VALUES ($1,'Galileu Pizzas e Lanches','galileu-pizzas-e-lanches','BRL',30,$2,'',
         'Rua Luiz Vendramin, 267 - Boa Vista, Pouso Redondo - SC, 89172-000')
         ON CONFLICT (id) DO UPDATE SET name='Galileu Pizzas e Lanches',
         address=CASE WHEN restaurants.address='' THEN EXCLUDED.address ELSE restaurants.address END`,
         [RESTAURANT_ID,new Date().toISOString()]);
-    })().catch(error => { promoDeliverySchemaPromise = null; throw error; });
+    }).catch(error => { promoDeliverySchemaPromise = null; throw error; });
   }
   await promoDeliverySchemaPromise;
 }
