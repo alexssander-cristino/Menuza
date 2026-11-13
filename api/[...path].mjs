@@ -16,7 +16,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_TOTP_SECRET = String(process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase();
 const ADMIN_COOKIE = IS_PROD ? '__Host-menuza_session' : 'mesa_session';
 const CUSTOMER_COOKIE = 'menuza_customer_session';
-const SESSION_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_MS = 30 * 60 * 1000;
 const MAX_BODY = 64 * 1024;
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -1035,7 +1035,22 @@ export default async function handler(req, res) {
       if(!cronSecret||req.headers.authorization!=='Bearer '+cronSecret)throw fail('Não autorizado.',401);
       const apiKey=String(process.env.RESEND_API_KEY||''),from=String(process.env.RESEND_FROM_EMAIL||'');
       if(!apiKey||!from)return json(res,503,{error:'Configure RESEND_API_KEY e RESEND_FROM_EMAIL para ativar a recuperação de clientes.'});
-      const candidates=await query(`SELECT c.id,c.name,c.email,COALESCE(MAX(o.created_at),c.created_at) AS "lastActivityAt" FROM customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 AND o.status<>'cancelled' WHERE c.marketing_consent_at IS NOT NULL GROUP BY c.id HAVING COALESCE(MAX(o.created_at),c.created_at)<NOW()-INTERVAL '30 days' AND NOT EXISTS(SELECT 1 FROM customer_recovery_campaigns rc WHERE rc.restaurant_id=$1 AND rc.customer_id=c.id AND rc.sent_at>NOW()-INTERVAL '45 days') AND NOT EXISTS(SELECT 1 FROM coupons cp WHERE cp.restaurant_id=$1 AND cp.customer_id=c.id AND cp.active=1 AND (cp.expires_at IS NULL OR NULLIF(cp.expires_at,'')::timestamptz>NOW()) AND (cp.max_uses IS NULL OR cp.used_count<cp.max_uses)) ORDER BY COALESCE(MAX(o.created_at),c.created_at) ASC LIMIT 3`,[RESTAURANT_ID]);
+      const candidates=await query(`SELECT c.id,c.name,c.email,
+        GREATEST(
+          COALESCE(MAX(NULLIF(o.created_at,'')::timestamptz),'-infinity'::timestamptz),
+          COALESCE(NULLIF(c.created_at,'')::timestamptz,'-infinity'::timestamptz)
+        ) AS "lastActivityAt"
+        FROM customers c
+        LEFT JOIN orders o ON o.customer_id=c.id AND o.restaurant_id=$1 AND o.status<>'cancelled'
+        WHERE c.marketing_consent_at IS NOT NULL
+        GROUP BY c.id,c.name,c.email,c.created_at
+        HAVING GREATEST(
+          COALESCE(MAX(NULLIF(o.created_at,'')::timestamptz),'-infinity'::timestamptz),
+          COALESCE(NULLIF(c.created_at,'')::timestamptz,'-infinity'::timestamptz)
+        )<NOW()-INTERVAL '30 days'
+        AND NOT EXISTS(SELECT 1 FROM customer_recovery_campaigns rc WHERE rc.restaurant_id=$1 AND rc.customer_id=c.id AND rc.sent_at>NOW()-INTERVAL '45 days')
+        AND NOT EXISTS(SELECT 1 FROM coupons cp WHERE cp.restaurant_id=$1 AND cp.customer_id=c.id AND cp.active=1 AND (cp.expires_at IS NULL OR NULLIF(cp.expires_at,'')::timestamptz>NOW()) AND (cp.max_uses IS NULL OR cp.used_count<cp.max_uses))
+        ORDER BY "lastActivityAt" ASC LIMIT 3`,[RESTAURANT_ID]);
       let sent=0,failed=0;
       for(const target of candidates.rows){
         const now=new Date(),expires=new Date(now.getTime()+14*86400000),code='VOLTE-'+randomBytes(4).toString('hex').toUpperCase(),couponId='cpn_'+randomBytes(12).toString('hex');
@@ -1125,9 +1140,9 @@ export default async function handler(req, res) {
       const expected=createHmac('sha256',SECRET).update(ADMIN_PASSWORD).digest();
       if (!timingSafeEqual(candidate,expected)) return json(res,401,{error:'Não foi possível entrar. Confira os dados e tente novamente.'});
       if (!(await verifyAdminSecondFactor(body))) return json(res,401,{error:'A verificação em duas etapas falhou. Informe o código atual ou um código de recuperação válido.'});
-      const expiresAt=Date.now()+SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:expiresAt});
+      const expiresAt=Date.now()+ADMIN_SESSION_MS,token=sign({role:'admin',restaurantId:RESTAURANT_ID,iat:Date.now(),exp:expiresAt});
       await storeSession(token,'admin',RESTAURANT_ID,expiresAt);
-      return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(SESSION_MS/1000))});
+      return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,token,Math.floor(ADMIN_SESSION_MS/1000))});
     }
     if (method==='POST'&&path==='/api/admin/logout') { await revokeSession(req,ADMIN_COOKIE); return json(res,200,{ok:true},{'Set-Cookie':cookie(ADMIN_COOKIE,'',0)}); }
     if (method==='POST'&&path==='/api/customer/register') {
@@ -1179,7 +1194,7 @@ export default async function handler(req, res) {
         await query(`INSERT INTO loyalty_points_ledger(id,restaurant_id,customer_id,points,reason,order_id,created_at)
           SELECT 'lp_'||md5(o.id||':loyalty-backfill'),o.restaurant_id,o.customer_id,
             FLOOR(GREATEST(0,COALESCE(SUM(oi.unit_price_cents*oi.quantity),0)-COALESCE(o.discount_cents,0))/100)::int,
-            'order_completed',o.id,COALESCE(o.updated_at,NOW())
+            'order_completed',o.id,COALESCE(NULLIF(o.updated_at,'')::timestamptz,NOW())
           FROM orders o
           JOIN order_items oi ON oi.order_id=o.id
           WHERE o.restaurant_id=$1 AND o.customer_id=$2 AND o.payment_status='paid'
