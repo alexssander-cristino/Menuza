@@ -54,7 +54,7 @@ try {
 const app = {
   catalog: null, category: 'all', search: '', vegetarianOnly: false, favoritesOnly: false, favorites: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-favorites')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,200):[]; } catch { return []; } })(), recentProducts: (() => { try { const value=JSON.parse(localStorage.getItem('menuza-recent-products')||'[]'); return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,8):[]; } catch { return []; } })(), sort: 'featured',
   builder: null, cart: [], cartOpen: false, checkoutOpen: false, checkoutKey: '', checkoutCoupon: null, checkoutSubmitting: false,
-  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, inactivityTimer: null, lastActivityAt: 0, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
+  rotate: 0, zoom: 1, viewMode: 'art', arSupported: null, arLite: { active: false, stream: null, video: null, x: 0, y: 0, scale: 1, target: null }, admin: { authenticated: false, tab: 'orders', eventSource: null, refreshTimer: null, inactivityTimer: null, lastActivityAt: 0, lastServerActivityAt: 0, orderQuery: '', orderStatus: 'all', orderFulfillment: 'all', soundEnabled: (()=>{try{return localStorage.getItem('menuza-order-sound')==='on'}catch{return false}})(), lastOrderIds: null },
   trackingTimer: null, toastTimer: null, customerOrders: [], customerOrdersLoading: false, customer: null, customerMode: 'login', tableQr: null
 };
 const root = document;
@@ -1182,6 +1182,7 @@ function stopAdminInactivityMonitor(){
   clearTimeout(app.admin.inactivityTimer);
   app.admin.inactivityTimer = null;
   app.admin.lastActivityAt = 0;
+  app.admin.lastServerActivityAt = 0;
   try{localStorage.removeItem(ADMIN_ACTIVITY_STORAGE_KEY)}catch{}
 }
 function scheduleAdminInactivityCheck(){
@@ -1204,9 +1205,14 @@ function recordAdminActivity(){
   app.admin.lastActivityAt = now;
   try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(now))}catch{}
   scheduleAdminInactivityCheck();
+  if(now - (app.admin.lastServerActivityAt || 0) >= 60000){
+    app.admin.lastServerActivityAt = now;
+    api('/api/admin/session/activity',{method:'POST'}).catch(()=>logoutAdmin(true));
+  }
 }
 function startAdminInactivityMonitor(){
   app.admin.lastActivityAt = Date.now();
+  app.admin.lastServerActivityAt = 0;
   try{localStorage.setItem(ADMIN_ACTIVITY_STORAGE_KEY, String(app.admin.lastActivityAt))}catch{}
   scheduleAdminInactivityCheck();
 }
