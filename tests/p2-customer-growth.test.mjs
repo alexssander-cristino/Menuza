@@ -81,7 +81,9 @@ test('sessão administrativa expira em 30 minutos no backend e no frontend', asy
   const api = await read('api/[...path].mjs');
   const ui = await read('public/app.js');
   assert.ok(api.includes('const ADMIN_SESSION_MS = 30 * 60 * 1000;'));
-  assert.ok(api.includes('Math.floor(ADMIN_SESSION_MS/1000)'));
+  assert.ok(api.includes('Math.floor(ADMIN_TOKEN_MS/1000)'));
+  assert.ok(api.includes("path==='/api/admin/session/activity'"));
+  assert.ok(api.includes("expires_at=NOW()+INTERVAL '30 minutes'"));
   assert.ok(ui.includes('const ADMIN_INACTIVITY_LIMIT = 30 * 60 * 1000;'));
   assert.ok(ui.includes('Sessão encerrada após 30 minutos sem atividade.'));
 });
