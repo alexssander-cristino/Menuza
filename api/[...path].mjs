@@ -498,30 +498,46 @@ function assertRestaurantOpen(schedule) {
   if(!status.isOpen) throw fail('O restaurante está fechado neste momento. Confira os horários de funcionamento no cardápio.',403);
 }
 // Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
+let catalogSchemaPromise;
+async function ensureCatalogSchema() {
+  if (!catalogSchemaPromise) {
+    catalogSchemaPromise = (async () => {
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
+      await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE", ["https://share.google/dg8sziHxshXgV93g8", RESTAURANT_ID]);
+      await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')", [RESTAURANT_ID]).catch(() => {});
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
+      await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS size_prices_json TEXT NOT NULL DEFAULT '{}'");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS product_images_json TEXT NOT NULL DEFAULT '[]'");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
+      await query(`CREATE TABLE IF NOT EXISTS product_3d_jobs (
+        id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
+        image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued',
+        error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+    })().catch(error => {
+      catalogSchemaPromise = null;
+      throw error;
+    });
+  }
+  await catalogSchemaPromise;
+}
+// Catálogo administrativo/público: transforma os registros do Postgres no contrato consumido pela interface.
 async function catalogFor(admin = false) {
-  await ensureOpeningHoursSchema();
-  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url TEXT NOT NULL DEFAULT ''");
-  await query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS google_review_url_initialized BOOLEAN NOT NULL DEFAULT FALSE");
-  await query("UPDATE restaurants SET google_review_url=$1,google_review_url_initialized=TRUE WHERE id=$2 AND google_review_url_initialized=FALSE",["https://share.google/dg8sziHxshXgV93g8",RESTAURANT_ID]);
-  await ensurePizzaConfigSchema();
-  await query("UPDATE categories SET name='Hot Dogs',slug='hot-dogs' WHERE restaurant_id=$1 AND lower(unaccent(name)) IN ('porções','porcoes')",[RESTAURANT_ID]).catch(()=>{});
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS age_restricted INTEGER NOT NULL DEFAULT 0");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_cents INTEGER NOT NULL DEFAULT 0");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS default_ingredient_ids_json TEXT NOT NULL DEFAULT '[]'");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredient_quantities_json TEXT NOT NULL DEFAULT '{}'");
-  await query('ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients_configured INTEGER NOT NULL DEFAULT 0');
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS size_prices_json TEXT NOT NULL DEFAULT '{}'");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS product_images_json TEXT NOT NULL DEFAULT '[]'");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT NOT NULL DEFAULT ''");
-  await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_status TEXT NOT NULL DEFAULT 'not_requested'");
-  await query(`CREATE TABLE IF NOT EXISTS product_3d_jobs (
-    id TEXT PRIMARY KEY, restaurant_id TEXT NOT NULL, product_id TEXT NOT NULL,
-    image_data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued',
-    error_message TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
+  await Promise.all([
+    ensureOpeningHoursSchema(),
+    ensurePizzaConfigSchema(),
+    ensurePromoDeliverySchema(),
+    ensureCatalogSchema()
+  ]);
   const active = admin ? '' : ' AND active=1';
   const [restaurant, categories, products, ingredients, comboRows] = await Promise.all([
     query('SELECT id,name,slug,currency,prep_minutes AS "prepMinutes",logo_url AS "logoUrl",google_review_url AS "googleReviewUrl" FROM restaurants WHERE id=$1', [RESTAURANT_ID]),
@@ -557,7 +573,6 @@ async function catalogFor(admin = false) {
       ageRestricted: Number(product.ageRestricted) === 1
     };
   }));
-  await ensurePromoDeliverySchema();
   const restaurantRow = await migrateRestaurantImageFields(restaurant.rows[0] || null);
   const openingHours=await getOpeningHours();
   if(restaurantRow){restaurantRow.openingHours=openingHours.schedule;restaurantRow.openingStatus=openingHours.status;}
@@ -1094,7 +1109,7 @@ export default async function handler(req, res) {
       const result=await getOpeningHours();
       return json(res,200,{openingHours:result.schedule,status:result.status});
     }
-    if (method==='GET'&&path==='/api/catalog') { return json(res,200,await catalogFor(false)); }
+    if (method==='GET'&&path==='/api/catalog') { return json(res,200,await catalogFor(false),{'Cache-Control':'public, s-maxage=15, stale-while-revalidate=30'}); }
     if (method==='GET'&&path==='/api/admin/opening-hours') {
       await requireAdmin(req);
       const result=await getOpeningHours();
